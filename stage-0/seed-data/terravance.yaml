@@ -1,0 +1,182 @@
+# Account 1 of 3 — MULTI-PROGRAM. All names, people, and figures are fictional.
+# Modeled (structure only) on a large global agriculture-equipment manufacturer running a
+# coaching deployment: a global rollout, a Europe program blocked on works-council review,
+# and a ~1,000 → ~3,000 seat expansion. NO real client data.
+
+account:
+  id: acc-terravance
+  name: Terravance Agricultural Systems
+  short_context: Global agriculture-equipment manufacturer; coaching deployment for people managers.
+  incumbent_note: >
+    Legacy L&D vendor "MentorWorks" holds current coaching/L&D budget; contract runs to next FY.
+    Structured incumbent modeling deferred to v1.
+  delivery_status: on_track
+  delivery_status_rationale: Global rollout adoption tracking to plan; managers engaged.
+  delivery_status_assessed_on: 2026-07-15
+  delivery_status_change_condition: A stalled Europe launch or a cohort adoption drop would move this to at_risk.
+  commercial_status: at_risk
+  commercial_status_rationale: Expansion economics unproven; budget owner wants measured outcomes before funding 3k seats.
+  commercial_status_assessed_on: 2026-07-15
+  commercial_status_change_condition: Works-council clearance in Europe + a measured value story would move this to on_track.
+
+# --- Client people (affiliation: client) ---
+people:
+  - id: p-tv-champion
+    name: Dana Okafor
+    affiliation: client
+    account_id: acc-terravance
+    title: Chief HR Officer
+    email: dana.okafor@example-terravance.test
+  - id: p-tv-budget
+    name: Henrik Vale
+    affiliation: client
+    account_id: acc-terravance
+    title: VP Learning & Development (budget owner)
+    email: henrik.vale@example-terravance.test
+  - id: p-tv-progowner
+    name: Lucia Moretti
+    affiliation: client
+    account_id: acc-terravance
+    title: Global Program Manager, Talent
+    email: lucia.moretti@example-terravance.test
+  - id: p-tv-it
+    name: Raj Anand
+    affiliation: client
+    account_id: acc-terravance
+    title: Director, IT Security
+    email: raj.anand@example-terravance.test
+  - id: p-tv-legal
+    name: Sofie Larsen
+    affiliation: client
+    account_id: acc-terravance
+    title: Data Protection Officer (EU)
+    email: sofie.larsen@example-terravance.test
+  - id: p-tv-workscouncil
+    name: Markus Feld
+    affiliation: client
+    account_id: acc-terravance
+    title: Works Council Chair, Germany (Betriebsrat)
+    email: markus.feld@example-terravance.test
+
+# --- Programs (3) ---
+programs:
+  - id: prog-tv-global
+    account_id: acc-terravance
+    name: Global Coaching Rollout
+    phase: programmatic
+    region: Global
+    audience: People managers
+    use_case: Manager effectiveness coaching
+    problem_statement: Inconsistent manager quality across regions after two reorgs.
+    in_scope_population: ~1,000 people managers, initial paid cohort
+    out_of_scope_population: Individual contributors; executives above VP
+    launch_definition: 70% of invited managers activated within first 6 weeks
+    success_criteria: Sustained weekly return above the Data-team-defined threshold; manager NPS positive
+    expansion_hypothesis: Proven manager outcomes justify expanding beyond the initial cohort
+    explicit_exclusions: No individual usage reporting to the client, ever
+    sponsor_person_id: p-tv-champion
+
+  - id: prog-tv-europe
+    account_id: acc-terravance
+    name: Europe Deployment
+    phase: launch
+    region: Europe (DE, FR, NL)
+    audience: People managers, EU entities
+    use_case: Manager effectiveness coaching
+    problem_statement: Extend rollout to EU entities under local data & co-determination rules.
+    in_scope_population: ~250 EU-based managers
+    out_of_scope_population: Non-EU staff (covered by Global program)
+    launch_definition: Works-council consultation complete and DPO sign-off obtained, then activate
+    success_criteria: Launch without labor-relations escalation; parity adoption with global cohort
+    expansion_hypothesis: Clean EU launch de-risks the broader expansion case
+    explicit_exclusions: No launch before works-council consultation concludes
+    sponsor_person_id: p-tv-progowner
+
+  # NOTE (gap G1): the ~1,000 → ~3,000 seat expansion is modeled here as a Program in the
+  # 'expansion' phase, NOT as an Expansion-opportunity object (that object is v1). The
+  # target/economics live in expansion_hypothesis for now.
+  - id: prog-tv-expansion
+    account_id: acc-terravance
+    name: Seat Expansion (1k → 3k)
+    phase: expansion
+    region: Global
+    audience: People managers + senior individual-leadership tracks
+    use_case: Scale coaching to a materially larger population
+    problem_statement: Convert proven manager adoption into a larger paid population.
+    in_scope_population: Target ~3,000 seats (from ~1,000 today)
+    out_of_scope_population: TBD by budget owner
+    launch_definition: Formal budget allocation + signed expansion terms
+    success_criteria: Expansion funded and executed with a defensible value case
+    expansion_hypothesis: Grow ~1,000 → ~3,000 seats once a measured value story exists and Europe launches cleanly
+    explicit_exclusions: No expansion commitment before measured outcomes are shared
+    sponsor_person_id: p-tv-budget
+
+# --- Stakeholder roles (Person × Program) ---
+stakeholder_roles:
+  - {id: sr-1, program_id: prog-tv-global, person_id: p-tv-champion, role: champion, stance: supporter, stance_assessed_on: 2026-06-28, stance_evidence_note: "Opened the June steering forum advocating rollout; pushed regional GMs to nominate managers.", cares_about: "Consistent manager quality; board-level talent narrative", value_for_them: "Defensible manager-development story across regions"}
+  - {id: sr-2, program_id: prog-tv-global, person_id: p-tv-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-10, stance_evidence_note: "Runs weekly working session; unblocks nominations quickly.", cares_about: "On-time rollout; low manager friction", value_for_them: "A rollout that runs itself"}
+  - {id: sr-3, program_id: prog-tv-expansion, person_id: p-tv-budget, role: budget_owner, stance: skeptic, stance_assessed_on: 2026-07-12, stance_evidence_note: "In the July call said he will not fund 3k seats without measured outcomes.", cares_about: "ROI per seat; avoiding shelfware", value_for_them: "Evidence the spend converts to performance"}
+  - {id: sr-4, program_id: prog-tv-europe, person_id: p-tv-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-10, stance_evidence_note: "Coordinating the works-council packet.", cares_about: "Clean EU launch", value_for_them: "No labor-relations escalation"}
+  - {id: sr-5, program_id: prog-tv-europe, person_id: p-tv-legal, role: legal_dpo, stance: unconverted, stance_assessed_on: 2026-07-12, stance_evidence_note: "Reviewing data-processing terms; no position yet.", cares_about: "GDPR posture; confidentiality of coaching", value_for_them: "Documented aggregate-only reporting"}
+  - {id: sr-6, program_id: prog-tv-europe, person_id: p-tv-workscouncil, role: works_council_contact, stance: unconverted, stance_assessed_on: 2026-07-12, stance_evidence_note: "Consultation not yet scheduled.", cares_about: "Employee data protection; co-determination rights", value_for_them: "Assurance the tool cannot surface individual usage"}
+  - {id: sr-7, program_id: prog-tv-europe, person_id: p-tv-it, role: it, stance: unconverted, stance_assessed_on: 2026-07-01, stance_evidence_note: "Teams integration security review pending.", cares_about: "SSO, data residency", value_for_them: "Integration that passes security review"}
+
+# --- Interactions ---
+interactions:
+  - id: int-tv-steer-jun
+    program_id: prog-tv-global
+    occurred_on: 2026-06-28
+    type: meeting
+    summary: June steering forum. Champion advocated rollout; regional nominations agreed.
+    raw_notes: Dana pushed GMs hard. Henrik quiet on expansion budget.
+    meaningful_touch: true
+    participants: [p-tv-champion, p-tv-progowner, p-val-operator]
+    source_reference_id: src-tv-steerdeck
+  - id: int-tv-jul-call
+    program_id: prog-tv-expansion
+    occurred_on: 2026-07-12
+    type: call
+    summary: Expansion economics call. Budget owner wants measured outcomes before funding 3k.
+    raw_notes: Henrik firm — no 3k funding without numbers. Also flagged Europe works-council risk to timeline.
+    meaningful_touch: true
+    participants: [p-tv-budget, p-tv-progowner, p-val-operator]
+    source_reference_id: null
+
+# --- Source references ---
+source_references:
+  - {id: src-tv-steerdeck, type: file, label: "June steering forum deck (link)", url: "https://example.test/terravance/steering-2026-06", locator: "slide 4"}
+
+# --- Execution objects ---
+commitments:
+  - id: cm-tv-cohort-summary
+    program_id: prog-tv-global
+    description: Send Terravance an anonymized aggregate cohort adoption summary for June.
+    responsible_party_id: p-val-operator   # Valence performs this one
+    internal_owner_id: p-val-operator
+    due_date: 2026-07-16
+    status: open           # -> OVERDUE as of 2026-07-22, seeds the attention queue
+    source_interaction_id: int-tv-steer-jun
+
+risks:
+  - id: rk-tv-europe-works-council
+    program_id: prog-tv-europe
+    description: Europe launch cannot proceed until works-council consultation concludes; timeline at risk.
+    severity: high
+    is_blocker: true
+    mitigation: Program owner preparing consultation packet; DPO reviewing terms.
+    status: open
+    internal_owner_id: p-val-operator
+    source_interaction_id: int-tv-jul-call
+
+milestones:
+  - id: ms-tv-europe-launch
+    program_id: prog-tv-europe
+    name: Europe go-live
+    target_date: 2026-09-15
+    success_criteria: Works-council consultation complete, DPO sign-off, first EU cohort activated
+    at_risk: true
+    status: upcoming
+
+tasks: []
+decisions: []
+capture_inbox_items: []

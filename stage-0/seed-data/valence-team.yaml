@@ -1,0 +1,23 @@
+# Valence internal people (affiliation: valence). All fictional.
+# Referenced as internal_owner on commitments/tasks/risks across all accounts.
+people:
+  - id: p-val-operator
+    name: Sam Rivera
+    affiliation: valence
+    account_id: null
+    title: Engagement Manager (the single operator)
+    email: sam.rivera@example-valence.test
+
+  - id: p-val-cs
+    name: Priya Nair
+    affiliation: valence
+    account_id: null
+    title: Customer Success Lead
+    email: priya.nair@example-valence.test
+
+  - id: p-val-data
+    name: Tomas Beck
+    affiliation: valence
+    account_id: null
+    title: Data team analyst
+    email: tomas.beck@example-valence.test

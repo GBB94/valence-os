@@ -1,0 +1,64 @@
+# Account 3 of 3 — single program, early phase. All fictional. No real client data.
+
+account:
+  id: acc-bluepeak
+  name: Bluepeak Health Systems
+  short_context: Healthcare network; early-stage manager coaching foundation work.
+  incumbent_note: Incumbent leadership-training vendor "Ascend Learning Co." under review.
+  delivery_status: unknown
+  delivery_status_rationale: Foundation phase; not enough signal to assess delivery yet.
+  delivery_status_assessed_on: 2026-07-08
+  delivery_status_change_condition: First cohort launch will produce a first delivery read.
+  commercial_status: unknown
+  commercial_status_rationale: Scope and budget still being defined with sponsor.
+  commercial_status_assessed_on: 2026-07-08
+  commercial_status_change_condition: A signed statement of work would set an initial commercial read.
+
+people:
+  - {id: p-bp-champion, name: Aisha Kone, affiliation: client, account_id: acc-bluepeak, title: Chief People Officer, email: aisha.kone@example-bluepeak.test}
+  - {id: p-bp-progowner, name: Derek Salas, affiliation: client, account_id: acc-bluepeak, title: Director, Leadership Development, email: derek.salas@example-bluepeak.test}
+
+programs:
+  - id: prog-bp-foundation
+    account_id: acc-bluepeak
+    name: Manager Enablement Foundation
+    phase: foundation
+    region: US
+    audience: Clinical and non-clinical people managers
+    use_case: Foundational manager coaching
+    problem_statement: High manager turnover; inconsistent onboarding for new managers.
+    in_scope_population: TBD (scoping)
+    out_of_scope_population: Clinicians in direct-care-only roles
+    launch_definition: TBD with sponsor
+    success_criteria: TBD with sponsor
+    expansion_hypothesis: Foundation success justifies a first paid cohort
+    explicit_exclusions: No individual usage reporting
+    sponsor_person_id: p-bp-champion
+
+stakeholder_roles:
+  - {id: sr-bp-1, program_id: prog-bp-foundation, person_id: p-bp-champion, role: champion, stance: supporter, stance_assessed_on: 2026-06-15, stance_evidence_note: "Initiated the conversation; wants a manager-onboarding fix.", cares_about: "Reducing manager turnover", value_for_them: "A repeatable manager-onboarding model"}
+  - {id: sr-bp-2, program_id: prog-bp-foundation, person_id: p-bp-progowner, role: program_owner, stance: unconverted, stance_assessed_on: 2026-06-15, stance_evidence_note: "Newly assigned; still forming a view.", cares_about: "Practical rollout plan", value_for_them: "Clear scope and timeline"}
+
+interactions:
+  - id: int-bp-intro
+    program_id: prog-bp-foundation
+    occurred_on: 2026-06-15
+    type: call
+    summary: Intro/scoping call. Champion described manager-turnover problem.
+    raw_notes: Aisha keen. Derek new to it. Need to scope population next.
+    meaningful_touch: true
+    participants: [p-bp-champion, p-bp-progowner, p-val-operator]
+    source_reference_id: null
+
+# Champion last touched 2026-06-15 -> >21 days before 'today' (2026-07-22): seeds a
+# stale-stakeholder attention item for a champion.
+
+commitments: []
+tasks:
+  - {id: tk-bp-scope, program_id: prog-bp-foundation, description: Draft a scoping options memo for Bluepeak., internal_owner_id: p-val-operator, due_date: 2026-07-25, status: open}
+risks: []
+issues: []
+milestones: []
+decisions: []
+capture_inbox_items: []
+source_references: []

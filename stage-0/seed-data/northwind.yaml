@@ -1,0 +1,79 @@
+# Account 2 of 3 — single program. All fictional. No real client data.
+
+account:
+  id: acc-northwind
+  name: Northwind Financial Group
+  short_context: Financial-services firm; coaching pilot for front-line advisor managers.
+  incumbent_note: No incumbent coaching vendor; net-new category spend.
+  delivery_status: at_risk
+  delivery_status_rationale: Activation slower than plan; two regions behind on manager nominations.
+  delivery_status_assessed_on: 2026-07-18
+  delivery_status_change_condition: Reaching 70% activation would move this to on_track.
+  commercial_status: on_track
+  commercial_status_rationale: Pilot funded through Q4; sponsor supportive.
+  commercial_status_assessed_on: 2026-07-18
+  commercial_status_change_condition: A failed pilot readout would move this to at_risk.
+
+people:
+  - {id: p-nw-champion, name: Grace Lin, affiliation: client, account_id: acc-northwind, title: SVP Advisory, email: grace.lin@example-northwind.test}
+  - {id: p-nw-progowner, name: Owen Pratt, affiliation: client, account_id: acc-northwind, title: L&D Program Lead, email: owen.pratt@example-northwind.test}
+  - {id: p-nw-it, name: Fatima Reyes, affiliation: client, account_id: acc-northwind, title: IT Integration Manager, email: fatima.reyes@example-northwind.test}
+
+programs:
+  - id: prog-nw-pilot
+    account_id: acc-northwind
+    name: Advisor Manager Coaching Pilot
+    phase: launch
+    region: North America
+    audience: Advisor-team managers
+    use_case: Manager coaching pilot
+    problem_statement: Uneven coaching quality for advisor managers; retention concern.
+    in_scope_population: ~120 advisor managers (pilot)
+    out_of_scope_population: Advisors (ICs); back office
+    launch_definition: 70% of pilot managers activated within 6 weeks
+    success_criteria: Positive pilot readout; sponsor agrees to scale discussion
+    expansion_hypothesis: A strong pilot opens a firm-wide manager rollout
+    explicit_exclusions: No individual usage reporting
+    sponsor_person_id: p-nw-champion
+
+stakeholder_roles:
+  - {id: sr-nw-1, program_id: prog-nw-pilot, person_id: p-nw-champion, role: champion, stance: supporter, stance_assessed_on: 2026-07-05, stance_evidence_note: "Sponsored the pilot budget; joined kickoff.", cares_about: "Advisor retention", value_for_them: "Better manager coaching lowers churn"}
+  - {id: sr-nw-2, program_id: prog-nw-pilot, person_id: p-nw-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-05, stance_evidence_note: "Driving nominations.", cares_about: "Hitting activation target", value_for_them: "A clean pilot readout"}
+  - {id: sr-nw-3, program_id: prog-nw-pilot, person_id: p-nw-it, role: it, stance: unconverted, stance_assessed_on: 2026-06-20, stance_evidence_note: "SSO setup in progress.", cares_about: "Security review", value_for_them: "Smooth Teams integration"}
+
+interactions:
+  - id: int-nw-kickoff
+    program_id: prog-nw-pilot
+    occurred_on: 2026-06-30
+    type: meeting
+    summary: Pilot kickoff; nominations timeline agreed.
+    raw_notes: Owen to send nomination list by mid-July.
+    meaningful_touch: true
+    participants: [p-nw-champion, p-nw-progowner, p-val-operator]
+    source_reference_id: null
+
+commitments:
+  - id: cm-nw-nominations
+    program_id: prog-nw-pilot
+    description: Northwind to deliver the pilot manager nomination list.
+    responsible_party_id: p-nw-progowner   # client owns it
+    internal_owner_id: p-val-operator      # Valence follow-up owner (never null)
+    due_date: 2026-07-15
+    status: open                            # overdue -> queue
+    source_interaction_id: int-nw-kickoff
+
+tasks:
+  - id: tk-nw-sso
+    program_id: prog-nw-pilot
+    description: Follow up with IT on SSO integration status.
+    internal_owner_id: p-val-operator
+    due_date: 2026-07-21
+    status: open
+
+risks: []
+issues: []
+milestones:
+  - {id: ms-nw-activation, program_id: prog-nw-pilot, name: 70% pilot activation, target_date: 2026-08-10, success_criteria: "70% of nominated managers activated", at_risk: false, status: upcoming}
+decisions: []
+capture_inbox_items: []
+source_references: []
