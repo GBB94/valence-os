@@ -12,7 +12,8 @@ erDiagram
     PROGRAM ||--o{ STAKEHOLDER_ROLE : "has"
     PERSON  ||--o{ STAKEHOLDER_ROLE : "is"
 
-    PROGRAM ||--o{ INTERACTION : "logs"
+    ACCOUNT ||--o{ INTERACTION : "logs (account-level or via program)"
+    PROGRAM ||--o{ INTERACTION : "logs (program_id nullable)"
     INTERACTION }o--o{ PERSON : "participants"
     INTERACTION ||--o{ CAPTURE_INBOX_ITEM : "yields"
 

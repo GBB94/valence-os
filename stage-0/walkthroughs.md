@@ -81,7 +81,7 @@ Walking it against v0:
 | ID | Type | Description | Disposition |
 |---|---|---|---|
 | **G1** | Scope tension | The brief's seed asks for "an expansion opportunity from ~1,000 → ~3,000 seats," but the **Expansion-opportunity object is v1**, not v0. | Modeled the expansion as a **Program in `expansion` phase** with `expansion_hypothesis` holding the target. No new object introduced. **Confirm this is the intended v0 representation.** |
-| **G2** | Model gap | `Interaction.program_id` is required, but some interactions are **account-level** (exec relationship not tied to one program). | v0 decision: attach such interactions to the account's most-relevant program, or (proposed) allow `program_id` null with `account_id` set. **Flagged — confirm before v0.1.** |
+| **G2** | Model gap | `Interaction.program_id` is required, but some interactions are **account-level** (exec relationship not tied to one program). | **Resolved 2026-07-22:** `program_id` nullable, `account_id` required on every interaction. Exec-level touches spanning programs are valid. |
 | **G3** | Model limit | Commitments link to people only via the two owner fields, so "commitments involving person X" misses non-owner participants. | Accepted for v0 (owners are the accountable axis). No change. |
 | **G4** | Phase boundary | Pre-call "last transcript where they spoke" needs transcript-content search (v4). | v0 delivers "last interaction attended" + linked artifact. Expected boundary. |
 | **G5** | Phase boundary | Full QBR prep needs metrics (v2) + value stories (v2) + QBR generator (v2). | v0 ships the internal team update only. Expected boundary. |

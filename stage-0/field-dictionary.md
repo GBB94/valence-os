@@ -107,7 +107,8 @@ Derived: `days_since_touch` = today − max(occurred_on of interactions this per
 
 | Field | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| program_id | FK→Program | yes | — | account derived via program (see G2 re account-level interactions) |
+| account_id | FK→Account | yes | — | **G2 resolved:** every interaction has an account |
+| program_id | FK→Program | no | null | nullable — exec-level touches span programs (G2 ruling 2026-07-22) |
 | occurred_on | date | yes | today | interaction date |
 | occurred_at_time | text | no | null | optional time note; client tz preserved as text in v0 |
 | type | enum(call, meeting, email, workshop, message, other) | yes | meeting | |

@@ -1,0 +1,115 @@
+"""Request models for v0.1 capture. Responses are plain dicts from DB rows.
+
+Only v0.1 fields are accepted. Enums use Literal so bad values 422 at the edge.
+"""
+from __future__ import annotations
+
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
+
+Phase = Literal["foundation", "launch", "programmatic", "expansion", "renewal", "closed"]
+Affiliation = Literal["client", "valence"]
+Role = Literal[
+    "champion", "budget_owner", "program_owner", "it", "legal_dpo",
+    "works_council_contact", "other",
+]
+Stance = Literal["supporter", "skeptic", "unconverted"]
+InteractionType = Literal["call", "meeting", "email", "workshop", "message", "other"]
+SourceType = Literal[
+    "file", "transcript_span", "meeting", "crm_record", "data_report", "manual_entry",
+]
+
+
+class AccountCreate(BaseModel):
+    name: str = Field(min_length=1)
+    short_context: Optional[str] = None
+    incumbent_note: Optional[str] = None
+
+
+class AccountPatch(BaseModel):
+    name: Optional[str] = None
+    short_context: Optional[str] = None
+    incumbent_note: Optional[str] = None
+
+
+class ProgramCreate(BaseModel):
+    account_id: str
+    name: str = Field(min_length=1)
+    phase: Phase = "foundation"
+    region: Optional[str] = None
+    audience: Optional[str] = None
+    use_case: Optional[str] = None
+    problem_statement: Optional[str] = None
+    in_scope_population: Optional[str] = None
+    out_of_scope_population: Optional[str] = None
+    launch_definition: Optional[str] = None
+    success_criteria: Optional[str] = None
+    expansion_hypothesis: Optional[str] = None
+    explicit_exclusions: Optional[str] = None
+    sponsor_person_id: Optional[str] = None
+
+
+class ProgramPatch(BaseModel):
+    name: Optional[str] = None
+    phase: Optional[Phase] = None
+    region: Optional[str] = None
+    audience: Optional[str] = None
+    use_case: Optional[str] = None
+    problem_statement: Optional[str] = None
+    in_scope_population: Optional[str] = None
+    out_of_scope_population: Optional[str] = None
+    launch_definition: Optional[str] = None
+    success_criteria: Optional[str] = None
+    expansion_hypothesis: Optional[str] = None
+    explicit_exclusions: Optional[str] = None
+    sponsor_person_id: Optional[str] = None
+
+
+class PersonCreate(BaseModel):
+    name: str = Field(min_length=1)
+    affiliation: Affiliation = "client"
+    account_id: Optional[str] = None
+    title: Optional[str] = None
+    email: Optional[str] = None
+
+
+class PersonPatch(BaseModel):
+    name: Optional[str] = None
+    title: Optional[str] = None
+    email: Optional[str] = None
+    account_id: Optional[str] = None
+
+
+class StakeholderRoleCreate(BaseModel):
+    program_id: str
+    person_id: str
+    role: Role = "other"
+    stance: Optional[Stance] = None
+    stance_assessed_on: Optional[str] = None
+    stance_evidence_note: Optional[str] = None
+    cares_about: Optional[str] = None
+    value_for_them: Optional[str] = None
+
+
+class InteractionCreate(BaseModel):
+    account_id: str
+    program_id: Optional[str] = None       # nullable (G2)
+    occurred_on: Optional[str] = None      # defaults to today (UTC) if omitted
+    occurred_at_time: Optional[str] = None
+    type: InteractionType = "meeting"
+    summary: Optional[str] = None
+    raw_notes: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    follow_up: Optional[str] = None
+    meaningful_touch: bool = True
+    participant_ids: list[str] = Field(default_factory=list)
+    # Ambiguous notes dropped straight to the capture inbox — no classification at capture time.
+    inbox_notes: list[str] = Field(default_factory=list)
+
+
+class SourceReferenceCreate(BaseModel):
+    type: SourceType = "manual_entry"
+    label: str = Field(min_length=1)
+    url: Optional[str] = None
+    locator: Optional[str] = None
