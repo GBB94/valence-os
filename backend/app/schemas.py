@@ -113,3 +113,108 @@ class SourceReferenceCreate(BaseModel):
     label: str = Field(min_length=1)
     url: Optional[str] = None
     locator: Optional[str] = None
+
+
+# --- v0.2 execution objects ---------------------------------------------------
+
+Severity = Literal["low", "medium", "high"]
+ExecTarget = Literal["task", "commitment", "decision", "risk", "issue"]
+
+
+class TaskCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    internal_owner_id: Optional[str] = None
+    due_date: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class CommitmentCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    responsible_party_id: str            # required — who performs it
+    internal_owner_id: str               # required — Valence follow-up owner
+    due_date: str                        # required — 100% of commitments have a due date
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class DecisionCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    decided_on: Optional[str] = None
+    decided_by_id: Optional[str] = None
+    rationale: Optional[str] = None
+    supersedes_id: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class RiskCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    severity: Severity = "medium"
+    is_blocker: bool = False
+    mitigation: Optional[str] = None
+    internal_owner_id: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class IssueCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    is_blocker: bool = False
+    internal_owner_id: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class MilestoneCreate(BaseModel):
+    program_id: str
+    name: str = Field(min_length=1)
+    target_date: Optional[str] = None
+    success_criteria: Optional[str] = None
+    at_risk: bool = False
+    source_interaction_id: Optional[str] = None
+
+
+# --- transitions (closure rules from Section 4 "definitions of done") ---
+
+class CommitmentClose(BaseModel):
+    acknowledged_by_id: Optional[str] = None   # the receiving party who acknowledged
+    closed_on: Optional[str] = None
+    close_note: Optional[str] = None
+
+
+class TaskClose(BaseModel):
+    status: Literal["done", "cancelled"] = "done"
+    closed_on: Optional[str] = None
+    close_note: Optional[str] = None
+
+
+class RiskClose(BaseModel):
+    close_reason: Literal["no_longer_possible", "no_longer_relevant"]
+    closed_on: Optional[str] = None
+    close_note: Optional[str] = None
+
+
+class IssueResolve(BaseModel):
+    resolution_type: Literal["condition_removed", "workaround_operating"]
+    resolved_on: Optional[str] = None
+    resolution_note: Optional[str] = None
+
+
+class MilestoneComplete(BaseModel):
+    completed_on: Optional[str] = None
+    completion_note: Optional[str] = None
+
+
+class InboxConvert(BaseModel):
+    """Convert an untriaged inbox item into one execution object, no retype.
+    program_id defaults to the source interaction's program; payload carries the
+    target-specific fields (description pre-filled by the UI from raw_text).
+    """
+    target_type: ExecTarget
+    payload: dict

@@ -6,6 +6,7 @@ import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
 import Inbox from "./views/Inbox";
 import QuickEntry from "./views/QuickEntry";
+import ExecutionBoard from "./views/ExecutionBoard";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ function Shell() {
   const [quick, setQuick] = useState(null); // {accountId, programId} | null
   const [inboxCount, setInboxCount] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [execAccount, setExecAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -76,8 +78,8 @@ function Shell() {
             </button>
           ))}
 
-          <div className="nav-label">Later slices</div>
-          <button className="nav-item" style={{ color: "var(--text-3)" }} onClick={() => setView({ name: "later", which: "Execution board", slice: "v0.2" })}>Execution</button>
+          <div className="nav-label">Work</div>
+          <button className={"nav-item" + (view.name === "execution" ? " active" : "")} onClick={() => setView({ name: "execution" })}>Execution</button>
           <button className="nav-item" style={{ color: "var(--text-3)" }} onClick={() => setView({ name: "later", which: "History timeline", slice: "v0.4" })}>History</button>
         </div>
       </nav>
@@ -121,7 +123,16 @@ function Shell() {
               />
             </>
           )}
-          {view.name === "inbox" && <Inbox reloadKey={reloadKey} onCountChange={setInboxCount} />}
+          {view.name === "inbox" && <Inbox reloadKey={reloadKey} onCountChange={setInboxCount} onConverted={onSaved} />}
+          {view.name === "execution" && (
+            <ExecutionBoard
+              accounts={accounts}
+              accountId={execAccount || accounts[0]?.id}
+              setAccountId={setExecAccount}
+              reloadKey={reloadKey}
+              onChanged={onSaved}
+            />
+          )}
           {view.name === "home" && <PortfolioPlaceholder inboxCount={inboxCount} onInbox={() => setView({ name: "inbox" })} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>

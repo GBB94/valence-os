@@ -14,6 +14,45 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
 
   if (!prog) return <div className="subtle">Loading…</div>;
 
+  const ExecutionSummary = ({ ex }) => {
+    if (!ex) return null;
+    const openCount = (arr, key = "status", open = "open") => arr.filter((x) => x[key] === open).length;
+    const line = (label, rows, render) =>
+      rows.length ? (
+        <div style={{ marginBottom: 8 }}>
+          <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
+          {rows.map(render)}
+        </div>
+      ) : null;
+    const any = ex.commitments.length + ex.risks.length + ex.issues.length + ex.milestones.length + ex.tasks.length + ex.decisions.length;
+    return (
+      <div className="card">
+        <div className="card-h"><h3>Execution</h3><div className="spacer" /><span className="rowmeta">close items on the Execution board</span></div>
+        <div style={{ padding: 12 }}>
+          {any === 0 && <span className="rowmeta">Nothing yet. Convert an inbox note or add items from a call.</span>}
+          {line("Commitments", ex.commitments, (c) => (
+            <div key={c.id}>{c.description} <span className="rowmeta">· due {fmtDate(c.due_date)} · {c.status}{c.overdue ? " · overdue" : ""}</span></div>
+          ))}
+          {line("Risks", ex.risks, (r) => (
+            <div key={r.id}>{r.description} <span className="rowmeta">· {r.severity}{r.is_blocker ? " · blocker" : ""} · {r.status}</span></div>
+          ))}
+          {line("Issues", ex.issues, (i) => (
+            <div key={i.id}>{i.description} <span className="rowmeta">· {i.status}</span></div>
+          ))}
+          {line("Milestones", ex.milestones, (m) => (
+            <div key={m.id}>{m.name} <span className="rowmeta">· {fmtDate(m.target_date)} · {m.status}{m.derived_at_risk ? " · at risk" : ""}</span></div>
+          ))}
+          {line("Tasks", ex.tasks, (t) => (
+            <div key={t.id}>{t.description} <span className="rowmeta">· {t.status}</span></div>
+          ))}
+          {line("Decisions", ex.decisions, (d) => (
+            <div key={d.id}>{d.description} <span className="rowmeta">· {d.status}</span></div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const field = (label, value) => value ? (
     <div style={{ marginBottom: 8 }}>
       <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
@@ -50,6 +89,8 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
               )}
             </div>
           </div>
+
+          <ExecutionSummary ex={prog.execution} />
 
           <div className="card">
             <div className="card-h"><h3>Interactions</h3></div>

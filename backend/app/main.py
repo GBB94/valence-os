@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .db import connect, run_migrations
-from .routers import accounts, inbox, interactions, people, programs
+from .routers import accounts, execution, inbox, interactions, people, programs
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(accounts.router)
 app.include_router(programs.router)
 app.include_router(people.router)
 app.include_router(interactions.router)
+app.include_router(execution.router)
 app.include_router(inbox.router)
 
 

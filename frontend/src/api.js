@@ -33,4 +33,20 @@ export const api = {
   interaction: (id) => req("GET", `/api/interactions/${id}`),
   inbox: (status = "untriaged") => req("GET", `/api/inbox?status=${status}`),
   dismissInbox: (id) => req("POST", `/api/inbox/${id}/dismiss`),
+  convertInbox: (id, body) => req("POST", `/api/inbox/${id}/convert`, body),
+
+  // v0.2 execution
+  accountExecution: (id) => req("GET", `/api/accounts/${id}/execution`),
+  programExecution: (id) => req("GET", `/api/programs/${id}/execution`),
+  createCommitment: (b) => req("POST", "/api/commitments", b),
+  createTask: (b) => req("POST", "/api/tasks", b),
+  createRisk: (b) => req("POST", "/api/risks", b),
+  createIssue: (b) => req("POST", "/api/issues", b),
+  createDecision: (b) => req("POST", "/api/decisions", b),
+  createMilestone: (b) => req("POST", "/api/milestones", b),
+  closeCommitment: (id, b) => req("POST", `/api/commitments/${id}/close`, b),
+  closeTask: (id, b) => req("POST", `/api/tasks/${id}/close`, b),
+  closeRisk: (id, b) => req("POST", `/api/risks/${id}/close`, b),
+  resolveIssue: (id, b) => req("POST", `/api/issues/${id}/resolve`, b),
+  completeMilestone: (id, b) => req("POST", `/api/milestones/${id}/complete`, b),
 };

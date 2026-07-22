@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, useToast, fmtDate } from "../ui";
+import ConvertPanel from "./ConvertPanel";
 
-export default function Inbox({ reloadKey, onCountChange }) {
+export default function Inbox({ reloadKey, onCountChange, onConverted }) {
   const toast = useToast();
   const [items, setItems] = useState(null);
+  const [converting, setConverting] = useState(null);
 
   async function load() {
     try {
@@ -37,7 +39,7 @@ export default function Inbox({ reloadKey, onCountChange }) {
         <span className="badge">{items.length} untriaged</span>
       </div>
       <div className="rowmeta" style={{ marginBottom: 14 }}>
-        Untriaged notes stay here until resolved. Converting to a commitment / risk / task arrives in v0.2; for now you can dismiss non-actionable notes.
+        Untriaged notes stay here until resolved. Convert a note into a commitment, risk, task, issue, or decision — the description carries over, no retype.
       </div>
 
       <div className="card">
@@ -63,7 +65,7 @@ export default function Inbox({ reloadKey, onCountChange }) {
                     </td>
                     <td>
                       <div className="actions">
-                        <button className="btn small" disabled title="Arrives in v0.2">Convert</button>
+                        <button className="btn small" onClick={() => setConverting(it)}>Convert</button>
                         <button className="btn small ghost" onClick={() => dismiss(it.id)}>Dismiss</button>
                       </div>
                     </td>
@@ -74,6 +76,14 @@ export default function Inbox({ reloadKey, onCountChange }) {
           </table>
         )}
       </div>
+
+      {converting && (
+        <ConvertPanel
+          item={converting}
+          onClose={() => setConverting(null)}
+          onConverted={() => { load(); onConverted?.(); }}
+        />
+      )}
     </div>
   );
 }

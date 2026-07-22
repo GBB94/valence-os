@@ -2,6 +2,13 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v0.2 (2026-07-22)
+
+- **D-14 — Closure rules enforced at DB and API layers.** Risk close requires `close_reason` and issue resolve requires `resolution_type` via CHECK constraints (`status='open' OR reason/type NOT NULL`) plus the transition endpoints; mitigation is a separate field that never changes status. Commitments close only through `/close` (records `acknowledged_by`, date, closer, note). Double-close returns 409, not a crash.
+- **D-15 — Inbox conversion reuses the exact create path (`execution_ops.create`).** No divergent creation logic; conversion pre-fills `description` from `raw_text`, auto-links `source_interaction_id`, and defaults `program_id` to the source interaction's program. Account-level notes (null program) require choosing a program in the convert form (422 with guidance otherwise).
+- **D-16 — Decision supersede is modeled, not deleted.** Creating a decision with `supersedes_id` flips the old one to `superseded` in the same transaction; both are retained (decisions are a log).
+- **D-17 — Overdue / at-risk are derived at read time on the board, never stored.** Commitment/task `overdue` = open AND due_date < today; milestone `derived_at_risk` = upcoming AND (at_risk flag OR past target). Keeps status honest without stale stored flags.
+
 ## v0.1 (2026-07-22)
 
 - **D-11 — Actor id columns (`audit_events.actor_id`, `capture_inbox_items.resolved_by`, `*.archived_by`) are plain TEXT, not FK→persons.** The acting operator is an app-level identity, not necessarily a domain Person row; FK-coupling every write to seeded people breaks fresh installs and tests. The field dictionary still models these as Person conceptually. Revisit when production identity (SSO) lands.

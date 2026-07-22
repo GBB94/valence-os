@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from .. import repo
+from .. import execution_ops, repo
 from ..deps import get_conn
 from ..schemas import ProgramCreate, ProgramPatch, StakeholderRoleCreate
 
@@ -22,6 +22,7 @@ def get_program(program_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     program["interactions"] = repo.list_rows(
         conn, "interactions", where="program_id = ? ORDER BY occurred_on DESC", params=(program_id,)
     )
+    program["execution"] = execution_ops.program_execution(conn, program_id)
     return program
 
 

@@ -44,8 +44,39 @@ COLUMNS = {
         "id", "interaction_id", "raw_text", "status", "converted_to_type",
         "converted_to_id", "resolved_on", "resolved_by",
     },
+    "tasks": {
+        "id", "program_id", "description", "internal_owner_id", "due_date", "status",
+        "closed_on", "closed_by", "close_note", "source_interaction_id", "source_reference_id",
+    },
+    "commitments": {
+        "id", "program_id", "description", "responsible_party_id", "internal_owner_id",
+        "due_date", "status", "acknowledged_by_id", "closed_on", "closed_by", "close_note",
+        "source_interaction_id", "source_reference_id",
+    },
+    "decisions": {
+        "id", "program_id", "description", "decided_on", "decided_by_id", "rationale",
+        "supersedes_id", "status", "source_interaction_id", "source_reference_id",
+    },
+    "risks": {
+        "id", "program_id", "description", "severity", "is_blocker", "mitigation", "status",
+        "close_reason", "closed_on", "closed_by", "close_note", "internal_owner_id",
+        "source_interaction_id", "source_reference_id",
+    },
+    "issues": {
+        "id", "program_id", "description", "is_blocker", "status", "resolution_type",
+        "resolved_on", "resolved_by", "resolution_note", "internal_owner_id",
+        "source_interaction_id", "source_reference_id",
+    },
+    "milestones": {
+        "id", "program_id", "name", "target_date", "success_criteria", "at_risk", "status",
+        "completed_on", "completed_by", "completion_note", "source_interaction_id",
+    },
 }
-SKIPPED_V02 = ("commitments", "tasks", "decisions", "risks", "issues", "milestones")
+# YAML key -> table for v0.2 execution objects.
+EXEC_SECTIONS = {
+    "tasks": "tasks", "commitments": "commitments", "decisions": "decisions",
+    "risks": "risks", "issues": "issues", "milestones": "milestones",
+}
 
 
 def _iso(v):
@@ -102,10 +133,10 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
             )
     for item in data.get("capture_inbox_items", []):
         _insert(conn, "capture_inbox_items", item)
-    for key in SKIPPED_V02:
-        n = len(data.get(key) or [])
-        if n:
-            skipped[key] = skipped.get(key, 0) + n
+    # v0.2 execution objects (tables now exist).
+    for key, table in EXEC_SECTIONS.items():
+        for rec in data.get(key) or []:
+            _insert(conn, table, rec)
 
 
 def main():
@@ -133,11 +164,10 @@ def main():
     counts = {
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]
         for t in ("accounts", "programs", "persons", "stakeholder_roles",
-                  "interactions", "capture_inbox_items")
+                  "interactions", "capture_inbox_items", "tasks", "commitments",
+                  "decisions", "risks", "issues", "milestones")
     }
     print(f"[seed] loaded: {counts}")
-    if skipped:
-        print(f"[seed] skipped (v0.2 objects, tables not built yet): {skipped}")
     conn.close()
 
 
