@@ -8,6 +8,8 @@ import Inbox from "./views/Inbox";
 import QuickEntry from "./views/QuickEntry";
 import ExecutionBoard from "./views/ExecutionBoard";
 import Queue from "./views/Queue";
+import History from "./views/History";
+import TeamUpdate from "./views/TeamUpdate";
 
 export default function App() {
   return (
@@ -25,6 +27,7 @@ function Shell() {
   const [inboxCount, setInboxCount] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [execAccount, setExecAccount] = useState(null);
+  const [histAccount, setHistAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -81,7 +84,10 @@ function Shell() {
 
           <div className="nav-label">Work</div>
           <button className={"nav-item" + (view.name === "execution" ? " active" : "")} onClick={() => setView({ name: "execution" })}>Execution</button>
-          <button className="nav-item" style={{ color: "var(--text-3)" }} onClick={() => setView({ name: "later", which: "History timeline", slice: "v0.4" })}>History</button>
+          <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
+
+          <div className="nav-label">Output</div>
+          <button className={"nav-item" + (view.name === "team-update" ? " active" : "")} onClick={() => setView({ name: "team-update" })}>Weekly team update</button>
         </div>
       </nav>
 
@@ -141,6 +147,10 @@ function Shell() {
               onChanged={onSaved}
             />
           )}
+          {view.name === "history" && (
+            <History accounts={accounts} accountId={histAccount || accounts[0]?.id} setAccountId={setHistAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>
       </div>

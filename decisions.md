@@ -2,6 +2,13 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v0.4 (2026-07-23)
+
+- **D-23 — History and team update are derived reads; no migration.** Both compute from existing tables (history uses `source_interaction_id` back-references; team update aggregates by account/window). Nothing new to persist, so no schema change.
+- **D-24 — Team update excludes internal-only material BY CONSTRUCTION.** The generator's SQL only ever selects summary-level, promotable fields — it never queries `raw_notes` or stakeholder stance/evidence. So internal capture can't leak into the output regardless of operator behavior (Section 2). Asserted by `test_acceptance_full` (a planted "SECRET" raw note never appears; no stance words appear). This is the same construction the v2 client-facing QBR generator will rely on.
+- **D-25 — Team update window defaults to the trailing 7 days.** "New" items = created within the window; blockers/overdue/at-risk are current snapshots regardless of age (a stale blocker still needs reporting). Output is stamped: generated_at, data_current_through, window.
+- **v0 COMPLETE:** the full Stage-0 acceptance script (capture → commitment+risk → queue → history → team update, no new object type) passes end to end, in tests and live. 29 backend tests green.
+
 ## v0.3 (2026-07-23)
 
 - **Repo relocated to `~/Desktop/Claude Projects/account-os`.** `~/Documents` became TCC-blocked for this process mid-session (no file reads/writes/renames). Desktop is readable; moved here. Toolchain (git history, .venv, seed DB) survived the move intact.

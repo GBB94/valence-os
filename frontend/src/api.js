@@ -44,6 +44,14 @@ export const api = {
   createIssue: (b) => req("POST", "/api/issues", b),
   createDecision: (b) => req("POST", "/api/decisions", b),
   createMilestone: (b) => req("POST", "/api/milestones", b),
+  history: (accountId, { personId, programId } = {}) => {
+    const p = new URLSearchParams();
+    if (personId) p.set("person_id", personId);
+    if (programId) p.set("program_id", programId);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${accountId}/history${qs ? "?" + qs : ""}`);
+  },
+  teamUpdate: (since) => req("GET", `/api/team-update${since ? "?since=" + since : ""}`),
   queue: () => req("GET", "/api/queue"),
   snoozeQueue: (b) => req("POST", "/api/queue/snooze", b),
   resolveQueue: (b) => req("POST", "/api/queue/resolve", b),

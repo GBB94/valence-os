@@ -38,13 +38,17 @@ cd frontend && npm run dev                                      # terminal 2 -> 
 Reset to clean mock data anytime: `python -m app.seed --reset`.
 Run backend tests: `cd backend && .venv/bin/python -m pytest`.
 
-## What v0.1 does (capture slice)
-- Accounts, programs, people, per-program stakeholder roles (dated + evidenced stance).
-- Interaction quick entry (the 30-second path): account required, program optional (account-level touches allowed), participants, summary, internal-only notes, and ambiguous notes dropped straight to the **capture inbox** with no classification.
-- Capture inbox: view untriaged items, dismiss (auditable). Conversion to commitments/risks/tasks lands in v0.2.
-- Versioned migrations from the first table; append-only audit log on every write; soft-delete.
+## What v0 does (execution ledger — all four slices)
+- **v0.1 capture** — accounts, programs, people, per-program stakeholder roles (dated + evidenced stance); 30-second interaction quick entry (account required, program optional); capture inbox for untriaged notes.
+- **v0.2 execution** — tasks, commitments (two owners + due date), decisions, risks, issues, milestones; closure rules enforced (mitigation ≠ closure, commitments close on acknowledgement, decisions supersede); inbox → object conversion with no retype.
+- **v0.3 attention** — the ranked, explainable portfolio queue (six triggers, each explains itself) with snooze/resolve rules; the two independent account statuses (delivery + commercial), no composite.
+- **v0.4 output** — account history / interaction timeline with back-references; one-click weekly team update, freshness-stamped, internal-only material excluded by construction.
 
-Portfolio home, execution board, and history are intentionally placeholders until their slices (v0.2–v0.4) — nothing scaffolded ahead.
+Versioned migrations from the first table; append-only audit log on every write; soft-delete throughout.
+
+**The full Stage-0 acceptance script passes** (capture → commitment + risk → queue → history → team update, no new object type). Run `cd backend && .venv/bin/python -m pytest` — see `tests/test_acceptance_full.py`.
+
+v1–v4 features (expansion opportunities, contracts, phase gates, metrics, visualizations, AI ingestion, plays) are out of scope and not scaffolded.
 
 ## Trust boundaries enforced now
 - No table or column anywhere for a named individual's product usage (there's a test asserting this).
