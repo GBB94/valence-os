@@ -211,6 +211,30 @@ class MilestoneComplete(BaseModel):
     completion_note: Optional[str] = None
 
 
+StatusValue = Literal["on_track", "at_risk", "off_track", "unknown"]
+StatusDimension = Literal["delivery", "commercial"]
+
+
+class AccountStatusUpdate(BaseModel):
+    dimension: StatusDimension
+    value: StatusValue
+    rationale: Optional[str] = None
+    change_condition: Optional[str] = None
+    assessed_on: Optional[str] = None   # defaults to today
+
+
+class QueueSnooze(BaseModel):
+    item_key: str
+    snooze_until: Optional[str] = None
+    resurface_condition: Optional[str] = None
+
+
+class QueueResolve(BaseModel):
+    item_key: str
+    successor_action_type: Literal["task", "commitment"]
+    successor_action_id: str
+
+
 class InboxConvert(BaseModel):
     """Convert an untriaged inbox item into one execution object, no retype.
     program_id defaults to the source interaction's program; payload carries the

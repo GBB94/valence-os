@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, Empty, useToast, fmtDate } from "../ui";
+import { PhaseBadge, Empty, SlideOver, useToast, fmtDate } from "../ui";
+
+const STATUS_LABEL = { on_track: "on track", at_risk: "at risk", off_track: "off track", unknown: "unknown" };
+const STATUS_DOT = { on_track: "ok", at_risk: "warn", off_track: "risk", unknown: "" };
+
+function daysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
 
 export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, reloadKey }) {
   const toast = useToast();
@@ -8,6 +16,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
   const [addingProgram, setAddingProgram] = useState(false);
   const [pname, setPname] = useState("");
   const [pphase, setPphase] = useState("foundation");
+  const [editStatus, setEditStatus] = useState(null); // 'delivery' | 'commercial'
 
   async function load() {
     try {
@@ -41,11 +50,14 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
         <div className="spacer" />
         <button className="btn primary" onClick={() => onQuickEntry(acct.id)}>Log interaction</button>
       </div>
-      <div className="subtle" style={{ marginBottom: 6 }}>{acct.short_context}</div>
-      {acct.incumbent_note && <div className="rowmeta" style={{ marginBottom: 6 }}>Incumbent: {acct.incumbent_note}</div>}
-      <div className="rowmeta">
-        Delivery &amp; commercial status arrive in v0.3 · renewal countdown needs contracts (v1)
+      <div className="subtle" style={{ marginBottom: 10 }}>{acct.short_context}</div>
+
+      <div className="two-col" style={{ gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 720 }}>
+        <StatusCard dim="delivery" label="Delivery / value" acct={acct} onEdit={() => setEditStatus("delivery")} />
+        <StatusCard dim="commercial" label="Commercial" acct={acct} onEdit={() => setEditStatus("commercial")} />
       </div>
+      {acct.incumbent_note && <div className="rowmeta" style={{ marginTop: 8 }}>Incumbent: {acct.incumbent_note}</div>}
+      <div className="rowmeta" style={{ marginTop: 4 }}>Two independent hand-judged statuses — no composite score. Renewal countdown needs contracts (v1).</div>
 
       <div className="two-col" style={{ marginTop: 18 }}>
         <div>
@@ -120,7 +132,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
         </div>
 
         <div className="card">
-          <div className="card-h"><h3>People</h3></div>
+          <div className="card-h"><h3>People</h3></div>{/* people table below */}
           {acct.people.length === 0 ? (
             <Empty title="No people yet">People are added per program with a role.</Empty>
           ) : (
@@ -138,6 +150,72 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
           )}
         </div>
       </div>
+
+      {editStatus && (
+        <StatusEditor
+          dim={editStatus}
+          acct={acct}
+          onClose={() => setEditStatus(null)}
+          onSaved={() => { setEditStatus(null); load(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function StatusCard({ dim, label, acct, onEdit }) {
+  const value = acct[`${dim}_status`];
+  const assessedOn = acct[`${dim}_status_assessed_on`];
+  const rationale = acct[`${dim}_status_rationale`];
+  const age = daysSince(assessedOn);
+  const stale = age != null && age > 30;
+  return (
+    <div className="card" style={{ padding: 12 }}>
+      <div className="actions" style={{ marginBottom: 4 }}>
+        <span className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
+        <div className="spacer" />
+        <button className="btn small ghost" onClick={onEdit}>Edit</button>
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
+        <span className={"dot " + STATUS_DOT[value]} /> {STATUS_LABEL[value]}
+      </div>
+      {rationale && <div className="rowmeta">{rationale}</div>}
+      <div className="rowmeta" style={{ marginTop: 4 }}>
+        {assessedOn ? `assessed ${assessedOn}` : "not assessed"}
+        {stale && <span className="badge" style={{ marginLeft: 6, borderColor: "var(--warn)", color: "var(--warn)" }}>reassess ({age}d)</span>}
+      </div>
+    </div>
+  );
+}
+
+function StatusEditor({ dim, acct, onClose, onSaved }) {
+  const toast = useToast();
+  const [value, setValue] = useState(acct[`${dim}_status`] || "unknown");
+  const [rationale, setRationale] = useState(acct[`${dim}_status_rationale`] || "");
+  const [cond, setCond] = useState(acct[`${dim}_status_change_condition`] || "");
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    try {
+      await api.setStatus(acct.id, { dimension: dim, value, rationale: rationale || null, change_condition: cond || null });
+      toast("Status updated"); onSaved();
+    } catch (e) { toast(e.message, "err"); } finally { setSaving(false); }
+  }
+  return (
+    <SlideOver title={`${dim === "delivery" ? "Delivery / value" : "Commercial"} status`} onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save} disabled={saving}>Save assessment</button></>}>
+      <div className="field"><label>Status</label>
+        <select value={value} onChange={(e) => setValue(e.target.value)}>
+          {["on_track", "at_risk", "off_track", "unknown"].map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+        </select>
+      </div>
+      <div className="field"><label>Rationale</label>
+        <textarea value={rationale} onChange={(e) => setRationale(e.target.value)} placeholder="Why this judgment" />
+      </div>
+      <div className="field"><label>What would change it</label>
+        <textarea value={cond} onChange={(e) => setCond(e.target.value)} placeholder="The condition that would move this status" />
+      </div>
+      <div className="hint">Saving stamps today as the assessment date. The two statuses are independent — good delivery can coexist with weak commercial.</div>
+    </SlideOver>
   );
 }

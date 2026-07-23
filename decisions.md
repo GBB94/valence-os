@@ -2,6 +2,15 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v0.3 (2026-07-23)
+
+- **Repo relocated to `~/Desktop/Claude Projects/account-os`.** `~/Documents` became TCC-blocked for this process mid-session (no file reads/writes/renames). Desktop is readable; moved here. Toolchain (git history, .venv, seed DB) survived the move intact.
+- **D-18 — Status enum `{on_track, at_risk, off_track, unknown}` confirmed (PA-1/G6).** Zach approved the default 2026-07-22. Two independent columns per dimension (value, rationale, assessed_on, change_condition); no composite. Setting a status stamps today as `assessed_on`; UI warns when an assessment is >30 days old (warning only — a manual status is never auto-set to unknown; only metric-derived indicators do that, and there are none in v0).
+- **D-19 — Queue items derived every render; only snooze/resolve persists (attention_state overlay).** Builder computes candidates from the 6 v0.3-available triggers, applies the latest overlay per `item_key`, sorts by (priority, age desc). Renewal/import/play triggers absent by construction until their phases.
+- **D-20 — Resurfacing is deterministic.** A snoozed item returns when `snooze_until <= today` OR the underlying object's `updated_at` is later than the overlay's `created_at` ("facts materially changed"). Resolved items return only on underlying change. Free-text `resurface_condition` is stored/shown but not auto-evaluated (no rules engine in v0).
+- **D-21 — Snooze needs a date or condition; resolve needs a successor action.** Enforced by a table CHECK and in the API. The resolve UI creates a follow-up task in the item's program and links it, so risk is never merely hidden.
+- **D-22 — Stale-stakeholder baseline.** Senior roles (champion/budget_owner/program_owner) with no meaningful touch in >21 days. Last touch derived from interaction participation; if never touched, the role's creation date is the baseline.
+
 ## v0.2 (2026-07-22)
 
 - **D-14 — Closure rules enforced at DB and API layers.** Risk close requires `close_reason` and issue resolve requires `resolution_type` via CHECK constraints (`status='open' OR reason/type NOT NULL`) plus the transition endpoints; mitigation is a separate field that never changes status. Commitments close only through `/close` (records `acknowledged_by`, date, closer, note). Double-close returns 409, not a crash.

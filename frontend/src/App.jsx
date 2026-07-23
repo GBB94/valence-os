@@ -7,6 +7,7 @@ import ProgramDetail from "./views/ProgramDetail";
 import Inbox from "./views/Inbox";
 import QuickEntry from "./views/QuickEntry";
 import ExecutionBoard from "./views/ExecutionBoard";
+import Queue from "./views/Queue";
 
 export default function App() {
   return (
@@ -18,7 +19,7 @@ export default function App() {
 
 function Shell() {
   const [accounts, setAccounts] = useState([]);
-  const [view, setView] = useState({ name: "accounts" });
+  const [view, setView] = useState({ name: "home" });
   const [q, setQ] = useState("");
   const [quick, setQuick] = useState(null); // {accountId, programId} | null
   const [inboxCount, setInboxCount] = useState(null);
@@ -133,7 +134,13 @@ function Shell() {
               onChanged={onSaved}
             />
           )}
-          {view.name === "home" && <PortfolioPlaceholder inboxCount={inboxCount} onInbox={() => setView({ name: "inbox" })} />}
+          {view.name === "home" && (
+            <Queue
+              reloadKey={reloadKey}
+              onOpenAccount={(id) => setView({ name: "account", accountId: id })}
+              onChanged={onSaved}
+            />
+          )}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>
       </div>
@@ -147,22 +154,6 @@ function Shell() {
           onSaved={onSaved}
         />
       )}
-    </div>
-  );
-}
-
-function PortfolioPlaceholder({ inboxCount, onInbox }) {
-  return (
-    <div>
-      <h1>Portfolio home</h1>
-      <div className="subtle" style={{ marginBottom: 16 }}>The ranked, explainable attention queue is built in v0.3.</div>
-      <div className="placeholder">
-        <p>The morning queue — overdue commitments, blockers, at-risk milestones, untriaged notes, stale relationships, open tasks — arrives in <strong>v0.3</strong>, once execution objects (v0.2) exist to rank.</p>
-        <p style={{ marginBottom: 0 }}>
-          What works today from v0.1:{" "}
-          <button className="btn small" onClick={onInbox}>Capture inbox{inboxCount != null ? ` (${inboxCount})` : ""}</button>
-        </p>
-      </div>
     </div>
   );
 }

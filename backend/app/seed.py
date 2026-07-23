@@ -24,7 +24,12 @@ SEED_DIR = Path(__file__).resolve().parent.parent.parent / "stage-0" / "seed-dat
 # v0.1 columns per table (YAML keys outside these are ignored for now).
 COLUMNS = {
     "source_references": {"id", "type", "label", "url", "locator"},
-    "accounts": {"id", "name", "short_context", "incumbent_note"},  # statuses -> v0.3
+    "accounts": {
+        "id", "name", "short_context", "incumbent_note",
+        "delivery_status", "delivery_status_rationale", "delivery_status_assessed_on",
+        "delivery_status_change_condition", "commercial_status", "commercial_status_rationale",
+        "commercial_status_assessed_on", "commercial_status_change_condition",
+    },
     "persons": {"id", "name", "affiliation", "account_id", "title", "email"},
     "programs": {
         "id", "account_id", "name", "phase", "region", "audience", "use_case",
