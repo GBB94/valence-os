@@ -113,9 +113,9 @@ programs:
 
 # --- Stakeholder roles (Person × Program) ---
 stakeholder_roles:
-  - {id: sr-1, program_id: prog-tv-global, person_id: p-tv-champion, role: champion, stance: supporter, stance_assessed_on: 2026-06-28, stance_evidence_note: "Opened the June steering forum advocating rollout; pushed regional GMs to nominate managers.", cares_about: "Consistent manager quality; board-level talent narrative", value_for_them: "Defensible manager-development story across regions"}
-  - {id: sr-2, program_id: prog-tv-global, person_id: p-tv-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-10, stance_evidence_note: "Runs weekly working session; unblocks nominations quickly.", cares_about: "On-time rollout; low manager friction", value_for_them: "A rollout that runs itself"}
-  - {id: sr-3, program_id: prog-tv-expansion, person_id: p-tv-budget, role: budget_owner, stance: skeptic, stance_assessed_on: 2026-07-12, stance_evidence_note: "In the July call said he will not fund 3k seats without measured outcomes.", cares_about: "ROI per seat; avoiding shelfware", value_for_them: "Evidence the spend converts to performance"}
+  - {id: sr-1, program_id: prog-tv-global, person_id: p-tv-champion, role: champion, stance: supporter, stance_assessed_on: 2026-06-28, stance_evidence_note: "Opened the June steering forum advocating rollout; pushed regional GMs to nominate managers.", cares_about: "Consistent manager quality; board-level talent narrative", value_for_them: "Defensible manager-development story across regions", influence: high, relationship_strength: strong, graph_assessed_on: 2026-06-28, graph_evidence_note: "CHRO with board access; direct, frequent contact."}
+  - {id: sr-2, program_id: prog-tv-global, person_id: p-tv-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-10, stance_evidence_note: "Runs weekly working session; unblocks nominations quickly.", cares_about: "On-time rollout; low manager friction", value_for_them: "A rollout that runs itself", influence: medium, relationship_strength: strong, graph_assessed_on: 2026-07-10, graph_evidence_note: "Weekly working sessions; highly responsive."}
+  - {id: sr-3, program_id: prog-tv-expansion, person_id: p-tv-budget, role: budget_owner, stance: skeptic, stance_assessed_on: 2026-07-12, stance_evidence_note: "In the July call said he will not fund 3k seats without measured outcomes.", cares_about: "ROI per seat; avoiding shelfware", value_for_them: "Evidence the spend converts to performance", influence: high, relationship_strength: medium, graph_assessed_on: 2026-07-12, graph_evidence_note: "Controls the expansion budget line; engaged but skeptical."}
   - {id: sr-4, program_id: prog-tv-europe, person_id: p-tv-progowner, role: program_owner, stance: supporter, stance_assessed_on: 2026-07-10, stance_evidence_note: "Coordinating the works-council packet.", cares_about: "Clean EU launch", value_for_them: "No labor-relations escalation"}
   - {id: sr-5, program_id: prog-tv-europe, person_id: p-tv-legal, role: legal_dpo, stance: unconverted, stance_assessed_on: 2026-07-12, stance_evidence_note: "Reviewing data-processing terms; no position yet.", cares_about: "GDPR posture; confidentiality of coaching", value_for_them: "Documented aggregate-only reporting"}
   - {id: sr-6, program_id: prog-tv-europe, person_id: p-tv-workscouncil, role: works_council_contact, stance: unconverted, stance_assessed_on: 2026-07-12, stance_evidence_note: "Consultation not yet scheduled.", cares_about: "Employee data protection; co-determination rights", value_for_them: "Assurance the tool cannot surface individual usage"}
@@ -255,3 +255,12 @@ value_stories:
   # NEGATIVE evidence -> guards against optimism bias; never appears in client output.
   - {id: vs-tv-4, program_id: prog-tv-europe, outcome: "Budget owner reservation: will not fund 3k seats without measured outcomes.", tags: "objection,expansion", evidence_tier: client_quote, visibility_class: internal, identifiable: 0, is_negative: 1}
   - {id: vs-tv-5, program_id: prog-tv-europe, outcome: Works-council concern about employee data delayed the EU launch., tags: "friction,eu", evidence_tier: measured_operational, visibility_class: internal, identifiable: 0, is_negative: 1}
+
+# --- v3 visualization data (all fictional) ---
+relationship_edges:
+  - {id: re-1, from_person_id: p-tv-progowner, to_person_id: p-tv-champion, type: reports_to, note: Program owner reports into the CHRO org.}
+  - {id: re-2, from_person_id: p-tv-champion, to_person_id: p-tv-budget, type: influences, note: CHRO influences the budget owner on expansion.}
+  - {id: re-3, from_person_id: p-tv-champion, to_person_id: p-tv-progowner, type: sponsors, note: CHRO sponsors the program owner's mandate.}
+
+recovered_spend:
+  - {id: rs-1, label: Recovered MentorWorks (incumbent) spend, amount: 300000, source_note: Displacing legacy L&D vendor budget (fictional).}

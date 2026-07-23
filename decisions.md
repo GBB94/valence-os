@@ -2,6 +2,14 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v3 (2026-07-23) — visualization
+
+- **D-37 — Influence + relationship strength (deferred from v0) added to stakeholder roles; setting them requires a date + evidence note** (Section 2 personal-data rule, enforced in the API like stance). Relationship edges (reports-to / sponsors / influences) added as the object named in Section 4 — within frozen scope, not a new invention.
+- **D-38 — Stakeholder graph via Cytoscape.js** (Section 8): node size = influence, color = stance, edge style = type, arrowheads = direction, breadthfirst layout anchored on hierarchy (no force-directed hairball). Power-interest 2×2 toggle uses power=influence, interest=stance.
+- **D-39 — Budget waterfall via Recharts,** ordered current contract → recovered incumbent spend → expansion increments → total. Green additions / red subtractions is the SINGLE documented status-color exception; the waterfall screen carries no status indicators (enforced by keeping them off that view).
+- **D-40 — Recovered incumbent spend** stored as a labeled per-account figure (incumbent displacement) feeding the waterfall; expansion increments come from open expansion `expected_value`.
+- Added `cytoscape` + `recharts` npm deps (bundle grows past 500kB — acceptable for a local single-editor tool; code-splitting deferred).
+
 ## v2 (2026-07-23) — data & evidence
 
 - **D-31 — Freshness is enforced server-side, not in the UI.** `/scoreboard` and the QBR compute stale (current_through older than the definition's `stale_after_days`, default 30) and return `display_value = "unknown"` for stale/missing — never carried-forward good state (Section 1.7 / data rules).

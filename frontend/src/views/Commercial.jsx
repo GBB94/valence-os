@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, SlideOver, useToast, fmtDate } from "../ui";
+import Waterfall from "./Waterfall";
 
 const BUDGET_STATES = ["conceptually_supported", "in_planning", "formally_allocated",
                        "requisition_created", "procurement_approved", "executed"];
@@ -102,6 +103,8 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
         )}
         <div className="rowmeta" style={{ padding: "8px 12px" }}>Canonical contract data is a read-only synced copy; operational interpretation lives in the overlay, never overwriting the canonical date.</div>
       </div>
+
+      <Waterfall accountId={accountId} />
 
       {panel?.kind === "expansion" && <ExpansionForm accountId={accountId} people={people} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "close" && <CloseExpansion xo={panel.xo} onClose={() => setPanel(null)} onSaved={after} />}

@@ -16,6 +16,7 @@ import Metrics from "./views/Metrics";
 import ValueLibrary from "./views/ValueLibrary";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
+import StakeholderGraph from "./views/StakeholderGraph";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ function Shell() {
   const [tlAccount, setTlAccount] = useState(null);
   const [valAccount, setValAccount] = useState(null);
   const [qbrAccount, setQbrAccount] = useState(null);
+  const [graphAccount, setGraphAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -96,6 +98,7 @@ function Shell() {
           <button className={"nav-item" + (view.name === "execution" ? " active" : "")} onClick={() => setView({ name: "execution" })}>Execution</button>
           <button className={"nav-item" + (view.name === "commercial" ? " active" : "")} onClick={() => setView({ name: "commercial" })}>Commercial</button>
           <button className={"nav-item" + (view.name === "timeline" ? " active" : "")} onClick={() => setView({ name: "timeline" })}>Timeline</button>
+          <button className={"nav-item" + (view.name === "graph" ? " active" : "")} onClick={() => setView({ name: "graph" })}>Stakeholder map</button>
           <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
 
           <div className="nav-label">Data &amp; evidence</div>
@@ -173,6 +176,9 @@ function Shell() {
           )}
           {view.name === "timeline" && (
             <Timeline accounts={accounts} accountId={tlAccount || accounts[0]?.id} setAccountId={setTlAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "graph" && (
+            <StakeholderGraph accounts={accounts} accountId={graphAccount || accounts[0]?.id} setAccountId={setGraphAccount} reloadKey={reloadKey} />
           )}
           {view.name === "metrics" && <Metrics reloadKey={reloadKey} />}
           {view.name === "value" && (

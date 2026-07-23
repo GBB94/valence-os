@@ -58,6 +58,13 @@ export const api = {
   operations: () => req("GET", "/api/operations"),
   qbr: (accountId) => req("GET", `/api/accounts/${accountId}/qbr`),
 
+  // v3 visualization
+  stakeholderGraph: (accountId, programId) => req("GET", `/api/accounts/${accountId}/stakeholder-graph${programId ? "?program_id=" + programId : ""}`),
+  setGraphAssessment: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}/graph`, b),
+  createEdge: (b) => req("POST", "/api/relationship-edges", b),
+  waterfall: (accountId) => req("GET", `/api/accounts/${accountId}/waterfall`),
+  observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
+
   // v1 commercial & deployment
   expansions: (accountId) => req("GET", `/api/accounts/${accountId}/expansions`),
   createExpansion: (b) => req("POST", "/api/expansions", b),

@@ -447,3 +447,35 @@ class MetricImport(BaseModel):
     source_label: Optional[str] = None
     current_through: Optional[str] = None
     csv_text: str
+
+
+# --- v3 visualization ----------------------------------------------------------
+
+Influence = Literal["low", "medium", "high"]
+RelStrength = Literal["weak", "medium", "strong"]
+EdgeType = Literal["reports_to", "sponsors", "influences"]
+
+
+class GraphAssessment(BaseModel):
+    """Setting influence / relationship strength requires a date + evidence note
+    (stakeholder assessments are personal data, Section 2)."""
+    influence: Optional[Influence] = None
+    relationship_strength: Optional[RelStrength] = None
+    graph_assessed_on: Optional[str] = None
+    graph_evidence_note: Optional[str] = None
+
+
+class EdgeCreate(BaseModel):
+    account_id: str
+    from_person_id: str
+    to_person_id: str
+    type: EdgeType
+    program_id: Optional[str] = None
+    note: Optional[str] = None
+
+
+class RecoveredSpendCreate(BaseModel):
+    account_id: str
+    label: str = Field(min_length=1)
+    amount: float
+    source_note: Optional[str] = None

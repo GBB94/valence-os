@@ -41,6 +41,7 @@ COLUMNS = {
     "stakeholder_roles": {
         "id", "program_id", "person_id", "role", "stance", "stance_assessed_on",
         "stance_evidence_note", "cares_about", "value_for_them",
+        "influence", "relationship_strength", "graph_assessed_on", "graph_evidence_note",  # v3
     },
     "interactions": {
         "id", "account_id", "program_id", "occurred_on", "occurred_at_time", "type",
@@ -102,6 +103,8 @@ COLUMNS = {
     "metric_observations": {"id", "definition_id", "definition_version", "program_id", "cohort_label", "period_label", "value", "unit", "target", "current_through", "source_reference_id", "import_batch_id"},
     "benchmarks": {"id", "name", "value", "unit", "population", "period", "source", "version", "source_reference_id"},
     "value_stories": {"id", "account_id", "program_id", "outcome", "tags", "evidence_tier", "visibility_class", "identifiable", "is_negative", "source_reference_id"},
+    "relationship_edges": {"id", "account_id", "from_person_id", "to_person_id", "type", "program_id", "note"},
+    "recovered_spend": {"id", "account_id", "label", "amount", "source_note"},
 }
 # YAML key -> table for v0.2 execution objects.
 EXEC_SECTIONS = {
@@ -115,6 +118,7 @@ V1_PROGRAM_SECTIONS = {"deployment_moments": "deployment_moments",
                        "comms_entries": "comms_entries", "compliance_items": "compliance_items",
                        "scope_changes": "scope_changes"}
 V2_ACCOUNT_SECTIONS = {"value_stories": "value_stories"}
+V3_ACCOUNT_SECTIONS = {"relationship_edges": "relationship_edges", "recovered_spend": "recovered_spend"}
 
 
 def _iso(v):
@@ -175,8 +179,8 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
     for key, table in EXEC_SECTIONS.items():
         for rec in data.get(key) or []:
             _insert(conn, table, rec)
-    # v1 + v2 account-scoped objects.
-    for key, table in {**V1_ACCOUNT_SECTIONS, **V2_ACCOUNT_SECTIONS}.items():
+    # v1 + v2 + v3 account-scoped objects.
+    for key, table in {**V1_ACCOUNT_SECTIONS, **V2_ACCOUNT_SECTIONS, **V3_ACCOUNT_SECTIONS}.items():
         for rec in data.get(key) or []:
             rec.setdefault("account_id", acct_id)
             _insert(conn, table, rec)
