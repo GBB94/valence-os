@@ -22,13 +22,18 @@ uv pip install "fastapi>=0.115" "uvicorn[standard]>=0.30" "pydantic>=2.7" "pyyam
 
 # 3a. Production-ish: build the frontend, serve everything from :8000
 cd ../frontend && npm install && npm run build
-cd ../backend && .venv/bin/uvicorn app.main:app --port 8000
+cd ../backend && .venv/bin/python -m uvicorn app.main:app --port 8000
 #   open http://localhost:8000
 
 # 3b. Or dev with hot reload (two terminals)
-.venv/bin/uvicorn app.main:app --port 8000 --reload      # terminal 1
-cd frontend && npm run dev                                # terminal 2 -> http://localhost:5173
+.venv/bin/python -m uvicorn app.main:app --port 8000 --reload   # terminal 1
+cd frontend && npm run dev                                      # terminal 2 -> http://localhost:5173
 ```
+
+> Note: launch uvicorn as `python -m uvicorn` (not `.venv/bin/uvicorn`). The console
+> script bakes in an absolute shebang, so it breaks if the project folder is moved;
+> `python -m` uses the location-independent interpreter symlink. If the venv itself
+> was moved, recreate it: `rm -rf .venv && uv venv --python 3.12 && uv pip install ...`.
 
 Reset to clean mock data anytime: `python -m app.seed --reset`.
 Run backend tests: `cd backend && .venv/bin/python -m pytest`.
