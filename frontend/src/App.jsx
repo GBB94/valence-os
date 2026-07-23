@@ -10,6 +10,8 @@ import ExecutionBoard from "./views/ExecutionBoard";
 import Queue from "./views/Queue";
 import History from "./views/History";
 import TeamUpdate from "./views/TeamUpdate";
+import Commercial from "./views/Commercial";
+import Timeline from "./views/Timeline";
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ function Shell() {
   const [reloadKey, setReloadKey] = useState(0);
   const [execAccount, setExecAccount] = useState(null);
   const [histAccount, setHistAccount] = useState(null);
+  const [commAccount, setCommAccount] = useState(null);
+  const [tlAccount, setTlAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -84,6 +88,8 @@ function Shell() {
 
           <div className="nav-label">Work</div>
           <button className={"nav-item" + (view.name === "execution" ? " active" : "")} onClick={() => setView({ name: "execution" })}>Execution</button>
+          <button className={"nav-item" + (view.name === "commercial" ? " active" : "")} onClick={() => setView({ name: "commercial" })}>Commercial</button>
+          <button className={"nav-item" + (view.name === "timeline" ? " active" : "")} onClick={() => setView({ name: "timeline" })}>Timeline</button>
           <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
 
           <div className="nav-label">Output</div>
@@ -149,6 +155,12 @@ function Shell() {
           )}
           {view.name === "history" && (
             <History accounts={accounts} accountId={histAccount || accounts[0]?.id} setAccountId={setHistAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "commercial" && (
+            <Commercial accounts={accounts} accountId={commAccount || accounts[0]?.id} setAccountId={setCommAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "timeline" && (
+            <Timeline accounts={accounts} accountId={tlAccount || accounts[0]?.id} setAccountId={setTlAccount} reloadKey={reloadKey} />
           )}
           {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}

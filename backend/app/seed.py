@@ -36,6 +36,7 @@ COLUMNS = {
         "problem_statement", "in_scope_population", "out_of_scope_population",
         "launch_definition", "success_criteria", "expansion_hypothesis",
         "explicit_exclusions", "sponsor_person_id",
+        "governance_steering", "governance_rhythm", "next_qbr_date",  # v1
     },
     "stakeholder_roles": {
         "id", "program_id", "person_id", "role", "stance", "stance_assessed_on",
@@ -76,12 +77,39 @@ COLUMNS = {
         "id", "program_id", "name", "target_date", "success_criteria", "at_risk", "status",
         "completed_on", "completed_by", "completion_note", "source_interaction_id",
     },
+    "expansion_opportunities": {
+        "id", "account_id", "name", "use_case", "target_seats", "expected_value",
+        "sponsor_person_id", "budget_owner_person_id", "funding_source", "supporting_evidence",
+        "decision_date", "budget_state", "blockers", "next_action", "status", "outcome",
+        "outcome_reason", "source_interaction_id",
+    },
+    "contract_versions": {
+        "id", "account_id", "version_label", "seats", "price", "start_date", "end_date",
+        "renewal_date", "notice_period_days", "procurement_lead_days", "amendments",
+        "source_system", "source_identifier", "editable_locally", "supersedes_id", "is_current",
+        "overlay_expected_decision_date", "overlay_rationale", "overlay_author", "overlay_assessed_on",
+    },
+    "phase_gates": {"id", "program_id", "name", "gates_phase", "status", "waiver_reason", "waived_by", "passed_on"},
+    "phase_gate_items": {"id", "gate_id", "description", "complete", "completed_on"},
+    "deployment_moments": {
+        "id", "program_id", "name", "type", "client_owner_person_id", "comms_hook",
+        "integration_status", "event_date", "outcome",
+    },
+    "comms_entries": {"id", "program_id", "moment_id", "audience", "message", "sender", "channel", "send_date", "status"},
+    "compliance_items": {"id", "program_id", "region", "lane", "status", "owner_person_id", "notes"},
+    "scope_changes": {"id", "program_id", "description", "agreed_by_person_id", "changed_on", "source_interaction_id"},
 }
 # YAML key -> table for v0.2 execution objects.
 EXEC_SECTIONS = {
     "tasks": "tasks", "commitments": "commitments", "decisions": "decisions",
     "risks": "risks", "issues": "issues", "milestones": "milestones",
 }
+# YAML key -> table for v1 objects (account-scoped and program-scoped).
+V1_ACCOUNT_SECTIONS = {"expansion_opportunities": "expansion_opportunities",
+                       "contract_versions": "contract_versions"}
+V1_PROGRAM_SECTIONS = {"deployment_moments": "deployment_moments",
+                       "comms_entries": "comms_entries", "compliance_items": "compliance_items",
+                       "scope_changes": "scope_changes"}
 
 
 def _iso(v):
@@ -142,6 +170,22 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
     for key, table in EXEC_SECTIONS.items():
         for rec in data.get(key) or []:
             _insert(conn, table, rec)
+    # v1 account-scoped objects.
+    for key, table in V1_ACCOUNT_SECTIONS.items():
+        for rec in data.get(key) or []:
+            rec.setdefault("account_id", acct_id)
+            _insert(conn, table, rec)
+    # v1 program-scoped objects.
+    for key, table in V1_PROGRAM_SECTIONS.items():
+        for rec in data.get(key) or []:
+            _insert(conn, table, rec)
+    # phase gates with nested items.
+    for gate in data.get("phase_gates") or []:
+        gitems = gate.pop("items", [])
+        _insert(conn, "phase_gates", gate)
+        for gi in gitems:
+            gi.setdefault("gate_id", gate["id"])
+            _insert(conn, "phase_gate_items", gi)
 
 
 def main():
@@ -170,7 +214,9 @@ def main():
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]
         for t in ("accounts", "programs", "persons", "stakeholder_roles",
                   "interactions", "capture_inbox_items", "tasks", "commitments",
-                  "decisions", "risks", "issues", "milestones")
+                  "decisions", "risks", "issues", "milestones",
+                  "expansion_opportunities", "contract_versions", "phase_gates",
+                  "deployment_moments", "compliance_items", "scope_changes")
     }
     print(f"[seed] loaded: {counts}")
     conn.close()

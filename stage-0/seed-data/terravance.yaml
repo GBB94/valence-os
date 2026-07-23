@@ -180,3 +180,67 @@ milestones:
 tasks: []
 decisions: []
 capture_inbox_items: []
+
+# --- v1 commercial & deployment (all fictional) ---
+contract_versions:
+  - id: ct-tv-current
+    version_label: FY26 base
+    seats: 1000
+    price: 900000
+    start_date: 2025-12-01
+    end_date: 2026-11-30
+    renewal_date: 2026-11-15      # ~115 days out from 2026-07-23 -> fires renewal_window queue item
+    notice_period_days: 60
+    procurement_lead_days: 70
+    source_system: crm
+    source_identifier: CRM-TV-0001
+    editable_locally: 0
+    is_current: 1
+    overlay_expected_decision_date: 2026-10-01   # ops overlay: procurement needs lead time
+    overlay_rationale: Procurement requires ~10 weeks, so the real decision date precedes the CRM renewal date.
+    overlay_author: p-val-operator
+    overlay_assessed_on: 2026-07-15
+
+expansion_opportunities:
+  # The AGCO-style 1k -> 3k, now a first-class commercial object (was a Program in v0, gap G1).
+  - id: xo-tv-3k
+    name: Scale to ~3,000 seats
+    use_case: Extend coaching beyond the initial manager cohort
+    target_seats: 3000
+    expected_value: 1800000
+    sponsor_person_id: p-tv-champion
+    budget_owner_person_id: p-tv-budget
+    funding_source: FY27 L&D budget line (unconfirmed)
+    supporting_evidence: Global rollout adoption to plan; manager NPS positive.
+    decision_date: 2026-10-15
+    budget_state: conceptually_supported
+    blockers: Budget owner wants measured outcomes; Europe launch must clear works council.
+    next_action: Share measured manager outcomes at the October steering forum.
+    status: open
+    source_interaction_id: int-tv-jul-call
+
+phase_gates:
+  - id: pg-tv-europe-launch
+    program_id: prog-tv-europe
+    name: Europe launch readiness
+    gates_phase: launch
+    status: open
+    items:
+      - {id: pgi-1, description: Works-council consultation concluded, complete: 0}
+      - {id: pgi-2, description: DPO sign-off on data-processing terms, complete: 0}
+      - {id: pgi-3, description: SSO / Teams integration security review passed, complete: 0}
+      - {id: pgi-4, description: Localization QA for DE/FR/NL, complete: 1, completed_on: 2026-07-10}
+
+compliance_items:
+  - {id: ci-tv-1, program_id: prog-tv-europe, region: EU, lane: works_council, status: blocked, owner_person_id: p-tv-progowner, notes: Consultation not yet scheduled (Betriebsrat).}
+  - {id: ci-tv-2, program_id: prog-tv-europe, region: EU, lane: legal_dpo, status: in_progress, owner_person_id: p-tv-legal, notes: Reviewing data-processing terms.}
+  - {id: ci-tv-3, program_id: prog-tv-europe, region: EU, lane: it_security, status: in_progress, owner_person_id: p-tv-it, notes: SSO + Teams integration review pending.}
+  - {id: ci-tv-4, program_id: prog-tv-europe, region: EU, lane: hr_boundary, status: complete, notes: Aggregate-only reporting confirmed; no individual usage surfaced.}
+  - {id: ci-tv-5, program_id: prog-tv-global, region: Global, lane: channel_setup, status: complete, notes: Teams + web live.}
+
+deployment_moments:
+  - {id: dm-tv-1, program_id: prog-tv-global, name: Annual manager review cycle, type: talent_calendar, client_owner_person_id: p-tv-progowner, comms_hook: Coaching nudge ahead of review conversations, integration_status: live, event_date: 2026-09-01}
+  - {id: dm-tv-2, program_id: prog-tv-europe, name: EU works-council briefing, type: business_event, client_owner_person_id: p-tv-progowner, comms_hook: Trust + privacy explainer, integration_status: not_started, event_date: 2026-08-20}
+
+scope_changes:
+  - {id: sc-tv-1, program_id: prog-tv-europe, description: Added Netherlands entity to Europe scope after legal review., agreed_by_person_id: p-tv-progowner, changed_on: 2026-07-05, source_interaction_id: int-tv-jul-call}

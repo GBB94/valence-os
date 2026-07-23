@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { PhaseBadge, StanceLabel, Empty, useToast, fmtDate, ROLE_LABELS } from "../ui";
+import DeliveryPanel from "./DeliveryPanel";
 
 export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
   const toast = useToast();
@@ -68,9 +69,14 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
         <div className="spacer" />
         <button className="btn primary" onClick={() => onQuickEntry(prog.account_id, prog.id)}>Log interaction</button>
       </div>
-      <div className="rowmeta" style={{ marginBottom: 14 }}>
+      <div className="rowmeta" style={{ marginBottom: 4 }}>
         {[prog.region, prog.audience, prog.use_case].filter(Boolean).join(" · ") || "—"}
       </div>
+      {(prog.governance_steering || prog.governance_rhythm || prog.next_qbr_date) && (
+        <div className="rowmeta" style={{ marginBottom: 14 }}>
+          Governance: {[prog.governance_steering, prog.governance_rhythm, prog.next_qbr_date && `next QBR ${prog.next_qbr_date}`].filter(Boolean).join(" · ")}
+        </div>
+      )}
 
       <div className="two-col">
         <div>
@@ -139,6 +145,9 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
           </div>
         </div>
       </div>
+
+      <h2>Delivery control</h2>
+      <DeliveryPanel programId={prog.id} people={prog.stakeholders?.map((s) => ({ id: s.person_id, name: s.person_name })) || []} reloadKey={reloadKey} />
     </div>
   );
 }

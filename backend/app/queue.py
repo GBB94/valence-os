@@ -21,15 +21,18 @@ from .db import new_id, now_utc
 SENIOR_ROLES = ("champion", "budget_owner", "program_owner")
 STALE_DAYS = 21  # matches the morning-check scenario ("untouched for three weeks")
 
-# priority band per trigger (1 = highest)
+# priority band per trigger (1 = highest), matching Module A's documented order
 PRIORITY = {
     "overdue_commitment": 1,
     "active_blocker": 2,
-    "at_risk_milestone": 3,
-    "untriaged_inbox": 4,
-    "stale_stakeholder": 5,
-    "open_task": 6,
+    "renewal_window": 3,      # enabled by v1 contracts
+    "at_risk_milestone": 4,
+    "untriaged_inbox": 5,
+    "stale_stakeholder": 6,
+    "open_task": 7,
 }
+
+RENEWAL_WINDOW_DAYS = 120  # "renewal readiness visible at least 120 days out" (Section 10)
 
 
 def _today() -> str:
@@ -122,7 +125,30 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action="Drive to closure or escalate.",
         ))
 
-    # 3. At-risk upcoming milestones (flagged, or past target and incomplete)
+    # 3. Renewal / notice windows (current contracts whose renewal is within the window)
+    for r in conn.execute(
+        "SELECT c.*, a.id aid, a.name aname FROM contract_versions c "
+        "JOIN accounts a ON a.id = c.account_id WHERE c.archived=0 AND c.is_current=1 AND c.renewal_date IS NOT NULL"
+    ):
+        try:
+            days_until = (date.fromisoformat(r["renewal_date"]) - date.fromisoformat(today)).days
+        except ValueError:
+            continue
+        if days_until > RENEWAL_WINDOW_DAYS or days_until < -30:
+            continue
+        p = {"aid": r["aid"], "aname": r["aname"], "pname": None}
+        notice = r["notice_period_days"]
+        note = f" · notice period {notice}d" if notice else ""
+        overlay = f" · ops expected decision {r['overlay_expected_decision_date']}" if r["overlay_expected_decision_date"] else ""
+        items.append(_item(
+            "renewal_window", "contract_version", r["id"], r["updated_at"], p,
+            title=f"Renewal — {r['version_label']} ({r['seats'] or '?'} seats)",
+            because=f"Renewal in {days_until}d on {r['renewal_date']}{note}{overlay}.",
+            age_days=max(0, RENEWAL_WINDOW_DAYS - days_until), due_date=r["renewal_date"],
+            next_action="Start renewal prep / confirm procurement timeline.",
+        ))
+
+    # 4. At-risk upcoming milestones (flagged, or past target and incomplete)
     for r in conn.execute("SELECT * FROM milestones WHERE archived=0 AND status='upcoming'"):
         past = bool(r["target_date"]) and r["target_date"] < today
         if not (r["at_risk"] or past):
@@ -238,7 +264,7 @@ def _object_table(object_type: str) -> str:
     return {
         "commitment": "commitments", "risk": "risks", "issue": "issues",
         "milestone": "milestones", "task": "tasks", "capture_inbox_item": "capture_inbox_items",
-        "stakeholder_role": "stakeholder_roles",
+        "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
     }[object_type]
 
 

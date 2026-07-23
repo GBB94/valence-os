@@ -15,7 +15,8 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
         return None
     d = dict(row)
     # Surface SQLite integer booleans as real bools for the API.
-    for k in ("archived", "meaningful_touch", "is_blocker", "at_risk"):
+    for k in ("archived", "meaningful_touch", "is_blocker", "at_risk",
+              "is_current", "editable_locally", "complete"):
         if k in d and d[k] is not None:
             d[k] = bool(d[k])
     return d

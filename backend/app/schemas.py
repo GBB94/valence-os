@@ -242,3 +242,148 @@ class InboxConvert(BaseModel):
     """
     target_type: ExecTarget
     payload: dict
+
+
+# --- v1 commercial & deployment ------------------------------------------------
+
+BudgetState = Literal["conceptually_supported", "in_planning", "formally_allocated",
+                      "requisition_created", "procurement_approved", "executed"]
+Outcome = Literal["won", "lost", "deferred", "merged", "no_decision"]
+
+
+class ExpansionCreate(BaseModel):
+    account_id: str
+    name: str = Field(min_length=1)
+    use_case: Optional[str] = None
+    target_seats: Optional[int] = None
+    expected_value: Optional[float] = None
+    sponsor_person_id: Optional[str] = None
+    budget_owner_person_id: Optional[str] = None
+    funding_source: Optional[str] = None
+    supporting_evidence: Optional[str] = None
+    decision_date: Optional[str] = None
+    budget_state: BudgetState = "conceptually_supported"
+    blockers: Optional[str] = None
+    next_action: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+
+
+class ExpansionPatch(BaseModel):
+    name: Optional[str] = None
+    use_case: Optional[str] = None
+    target_seats: Optional[int] = None
+    expected_value: Optional[float] = None
+    sponsor_person_id: Optional[str] = None
+    budget_owner_person_id: Optional[str] = None
+    funding_source: Optional[str] = None
+    supporting_evidence: Optional[str] = None
+    decision_date: Optional[str] = None
+    budget_state: Optional[BudgetState] = None
+    blockers: Optional[str] = None
+    next_action: Optional[str] = None
+
+
+class ExpansionClose(BaseModel):
+    outcome: Outcome
+    outcome_reason: str = Field(min_length=1)
+
+
+class ContractCreate(BaseModel):
+    account_id: str
+    version_label: str = Field(min_length=1)
+    seats: Optional[int] = None
+    price: Optional[float] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    renewal_date: Optional[str] = None
+    notice_period_days: Optional[int] = None
+    procurement_lead_days: Optional[int] = None
+    amendments: Optional[str] = None
+    source_system: Optional[str] = "crm"
+    source_identifier: Optional[str] = None
+    editable_locally: bool = False
+    supersedes_id: Optional[str] = None
+
+
+class ContractOverlay(BaseModel):
+    overlay_expected_decision_date: str
+    overlay_rationale: str = Field(min_length=1)
+
+
+class PhaseGateCreate(BaseModel):
+    program_id: str
+    name: str = Field(min_length=1)
+    gates_phase: Optional[Phase] = None
+    items: list[str] = Field(default_factory=list)   # initial checklist descriptions
+
+
+class GateItemToggle(BaseModel):
+    complete: bool
+
+
+class GateWaive(BaseModel):
+    waiver_reason: str = Field(min_length=1)
+
+
+MomentType = Literal["talent_calendar", "manager_workflow", "business_event",
+                     "proactive_coaching", "comms_campaign"]
+IntegrationStatus = Literal["not_started", "in_progress", "live", "not_applicable"]
+
+
+class MomentCreate(BaseModel):
+    program_id: str
+    name: str = Field(min_length=1)
+    type: MomentType = "business_event"
+    client_owner_person_id: Optional[str] = None
+    comms_hook: Optional[str] = None
+    integration_status: IntegrationStatus = "not_started"
+    event_date: Optional[str] = None
+    outcome: Optional[str] = None
+
+
+Channel = Literal["teams", "web", "slack", "mobile", "email", "other"]
+
+
+class CommsCreate(BaseModel):
+    program_id: str
+    moment_id: Optional[str] = None
+    audience: Optional[str] = None
+    message: Optional[str] = None
+    sender: Optional[str] = None
+    channel: Optional[Channel] = None
+    send_date: Optional[str] = None
+    status: Literal["planned", "sent", "cancelled"] = "planned"
+
+
+ComplianceLane = Literal["it_security", "legal_dpo", "works_council", "channel_setup",
+                         "localization_qa", "trust_comms", "hr_boundary"]
+ComplianceStatus = Literal["not_started", "in_progress", "complete", "blocked", "not_applicable"]
+
+
+class ComplianceCreate(BaseModel):
+    program_id: str
+    lane: ComplianceLane
+    region: Optional[str] = None
+    status: ComplianceStatus = "not_started"
+    owner_person_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CompliancePatch(BaseModel):
+    status: Optional[ComplianceStatus] = None
+    owner_person_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ScopeChangeCreate(BaseModel):
+    program_id: str
+    description: str = Field(min_length=1)
+    agreed_by_person_id: Optional[str] = None
+    changed_on: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+
+
+class GovernancePatch(BaseModel):
+    governance_steering: Optional[str] = None
+    governance_rhythm: Optional[str] = None
+    next_qbr_date: Optional[str] = None

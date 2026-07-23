@@ -44,6 +44,24 @@ export const api = {
   createIssue: (b) => req("POST", "/api/issues", b),
   createDecision: (b) => req("POST", "/api/decisions", b),
   createMilestone: (b) => req("POST", "/api/milestones", b),
+  // v1 commercial & deployment
+  expansions: (accountId) => req("GET", `/api/accounts/${accountId}/expansions`),
+  createExpansion: (b) => req("POST", "/api/expansions", b),
+  patchExpansion: (id, b) => req("PATCH", `/api/expansions/${id}`, b),
+  closeExpansion: (id, b) => req("POST", `/api/expansions/${id}/close`, b),
+  contracts: (accountId) => req("GET", `/api/accounts/${accountId}/contracts`),
+  createContract: (b) => req("POST", "/api/contracts", b),
+  setOverlay: (id, b) => req("POST", `/api/contracts/${id}/overlay`, b),
+  programDelivery: (programId) => req("GET", `/api/programs/${programId}/delivery`),
+  createGate: (b) => req("POST", "/api/phase-gates", b),
+  toggleGateItem: (id, b) => req("POST", `/api/gate-items/${id}/toggle`, b),
+  waiveGate: (id, b) => req("POST", `/api/phase-gates/${id}/waive`, b),
+  createMoment: (b) => req("POST", "/api/deployment-moments", b),
+  createCompliance: (b) => req("POST", "/api/compliance-items", b),
+  patchCompliance: (id, b) => req("PATCH", `/api/compliance-items/${id}`, b),
+  createScopeChange: (b) => req("POST", "/api/scope-changes", b),
+  patchGovernance: (programId, b) => req("PATCH", `/api/programs/${programId}/governance`, b),
+
   history: (accountId, { personId, programId } = {}) => {
     const p = new URLSearchParams();
     if (personId) p.set("person_id", personId);

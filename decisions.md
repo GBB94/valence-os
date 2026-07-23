@@ -2,6 +2,15 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v1 (2026-07-23) — commercial & deployment control
+
+- Zach authorized building out the remaining scoped phases (v1–v4). v4 AI = deterministic mock extractor, swappable (his choice). The five Section-12 open decisions don't block mock-data work.
+- **D-26 — The AGCO-style 1k→3k expansion is now a first-class `expansion_opportunity`** (was a Program in expansion phase in v0, gap G1). The Program can coexist (delivery motion) with the opportunity (commercial deal). Closing requires outcome + reason (DB CHECK + API + schema).
+- **D-27 — Contracts are a synced read-only copy + operational overlay.** Canonical fields carry source_system/identifier/editable_locally; the overlay (expected decision date + rationale + author + date) never overwrites the canonical renewal_date. New versions supersede (is_current flips), never overwrite — versioned history kept.
+- **D-28 — Renewal-window queue trigger enabled by v1 contracts.** Priorities renumbered to the doc's Module A order (renewal = band 3, before at-risk milestones). Fires when a current contract's renewal is ≤120 days out (Section 10: readiness visible 120d out). Surfaces the operational overlay date when present.
+- **D-29 — Phase gates auto-pass when all checklist items complete; waiving requires a reason** (DB CHECK). Gate items toggle independently.
+- **D-30 — Compliance, deployment moments, comms, scope changes are program-scoped, aggregated via `/programs/{id}/delivery`.** Governance cadence (deferred from v0) added as program columns. No standalone change-request module (Section 11) — scope changes stay lightweight.
+
 ## v0.4 (2026-07-23)
 
 - **D-23 — History and team update are derived reads; no migration.** Both compute from existing tables (history uses `source_interaction_id` back-references; team update aggregates by account/window). Nothing new to persist, so no schema change.
