@@ -2,6 +2,15 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## v2 (2026-07-23) — data & evidence
+
+- **D-31 — Freshness is enforced server-side, not in the UI.** `/scoreboard` and the QBR compute stale (current_through older than the definition's `stale_after_days`, default 30) and return `display_value = "unknown"` for stale/missing — never carried-forward good state (Section 1.7 / data rules).
+- **D-32 — Benchmarks require population + period + source** (schema `min_length`), so no hard-coded/context-free numbers can enter. Versioned.
+- **D-33 — Value-story visibility defaults to internal-only; the QBR includes only affirmatively-promoted, non-negative stories BY CONSTRUCTION.** The generator's SQL filters `visibility_class IN ('qbr_exec','externally_referenceable') AND is_negative=0` — it never selects internal or negative rows, so they can't leak (asserted by test + verified live). Negative evidence is captured to fight optimism bias but is never client-facing.
+- **D-34 — QBR content is typed** (confirmed_fact / internal_interpretation / open_hypothesis / recommended_action) and stamped with generated_at, data_current_through, and missing/stale sources.
+- **D-35 — CSV import adapter follows the common contract:** preview (no write, flags duplicates + validation errors) → commit (records an import_batch, supersedes prior observations for the same definition+period+program rather than deleting) → rollback (archives the batch's observations, 409 on double-rollback). Bad rows 422 before any write.
+- **D-36 — Operations screen is derived** (import batches, rolled-back count, audit-event count, per-metric source freshness, backup/RPO note, "no job worker yet") so failures are visible without reading server logs (Module P). Job worker still deferred to v4.
+
 ## v1 (2026-07-23) — commercial & deployment control
 
 - Zach authorized building out the remaining scoped phases (v1–v4). v4 AI = deterministic mock extractor, swappable (his choice). The five Section-12 open decisions don't block mock-data work.

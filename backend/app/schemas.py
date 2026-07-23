@@ -387,3 +387,63 @@ class GovernancePatch(BaseModel):
     governance_steering: Optional[str] = None
     governance_rhythm: Optional[str] = None
     next_qbr_date: Optional[str] = None
+
+
+# --- v2 data & evidence --------------------------------------------------------
+
+EvidenceTier = Literal["anecdote", "client_quote", "measured_operational", "correlated_business"]
+VisibilityClass = Literal["internal", "client_working", "qbr_exec", "externally_referenceable"]
+
+
+class MetricDefinitionCreate(BaseModel):
+    name: str = Field(min_length=1)
+    meaning: Optional[str] = None
+    source_system: Optional[str] = "Valence Data team"
+    owner: Optional[str] = None
+    version: str = "1"
+    population: Optional[str] = None
+    formula_notes: Optional[str] = None
+    stale_after_days: int = 30
+
+
+class MetricObservationCreate(BaseModel):
+    definition_id: str
+    definition_version: str = "1"
+    program_id: Optional[str] = None
+    cohort_label: Optional[str] = None
+    period_label: Optional[str] = None
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    target: Optional[float] = None
+    current_through: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+class BenchmarkCreate(BaseModel):
+    name: str = Field(min_length=1)
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    population: str = Field(min_length=1)   # required — benchmarks are never population-less
+    period: str = Field(min_length=1)       # required
+    source: str = Field(min_length=1)       # required
+    version: str = "1"
+
+
+class ValueStoryCreate(BaseModel):
+    outcome: str = Field(min_length=1)
+    account_id: Optional[str] = None
+    program_id: Optional[str] = None
+    tags: Optional[str] = None
+    evidence_tier: EvidenceTier = "anecdote"
+    visibility_class: VisibilityClass = "internal"   # safe default: internal-only
+    identifiable: bool = False
+    is_negative: bool = False
+    source_reference_id: Optional[str] = None
+
+
+class MetricImport(BaseModel):
+    """CSV import for metric observations. Columns:
+    definition_id,period_label,value[,program_id,cohort_label,target,unit]"""
+    source_label: Optional[str] = None
+    current_through: Optional[str] = None
+    csv_text: str

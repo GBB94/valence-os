@@ -1,0 +1,30 @@
+# Global metric definitions, observations, and benchmarks (v2). All fictional.
+# Definitions are Data-team-owned; the tool ingests, never recomputes. Benchmarks are
+# versioned/sourced with population + period — never hard-coded numbers.
+
+metric_definitions:
+  - id: md-activation
+    name: Activation rate
+    meaning: Share of invited managers who activated the coach within 6 weeks.
+    source_system: Valence Data team
+    owner: Data team
+    version: "2"
+    population: Invited people managers
+    stale_after_days: 30
+  - id: md-weekly-return
+    name: Weekly return
+    meaning: Share of activated users returning in a given week (Data-team definition).
+    source_system: Valence Data team
+    owner: Data team
+    version: "3"
+    population: Activated users
+    stale_after_days: 30
+
+metric_observations:
+  # Fresh observation (current_through recent) -> shows a value.
+  - {id: mo-1, definition_id: md-activation, definition_version: "2", program_id: prog-tv-global, period_label: "2026-07", value: 0.72, unit: ratio, target: 0.70, current_through: 2026-07-10}
+  # Stale observation (old current_through) -> scoreboard renders "unknown", never carried-forward green.
+  - {id: mo-2, definition_id: md-weekly-return, definition_version: "3", program_id: prog-tv-global, period_label: "2026-05", value: 0.41, unit: ratio, target: 0.45, current_through: 2026-05-20}
+
+benchmarks:
+  - {id: bm-1, name: Manager activation (enterprise cohort), value: 0.65, unit: ratio, population: F100 manager cohorts, period: H1 2026, source: Internal Data-team aggregate (fictional), version: "1"}

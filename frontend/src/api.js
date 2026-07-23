@@ -44,6 +44,20 @@ export const api = {
   createIssue: (b) => req("POST", "/api/issues", b),
   createDecision: (b) => req("POST", "/api/decisions", b),
   createMilestone: (b) => req("POST", "/api/milestones", b),
+  // v2 data & evidence
+  scoreboard: () => req("GET", "/api/scoreboard"),
+  metricDefinitions: () => req("GET", "/api/metric-definitions"),
+  createMetricDefinition: (b) => req("POST", "/api/metric-definitions", b),
+  benchmarks: () => req("GET", "/api/benchmarks"),
+  createBenchmark: (b) => req("POST", "/api/benchmarks", b),
+  valueStories: (accountId) => req("GET", `/api/value-stories${accountId ? "?account_id=" + accountId : ""}`),
+  createValueStory: (b) => req("POST", "/api/value-stories", b),
+  importPreview: (b) => req("POST", "/api/imports/metric-observations/preview", b),
+  importCommit: (b) => req("POST", "/api/imports/metric-observations/commit", b),
+  importRollback: (id) => req("POST", `/api/imports/${id}/rollback`),
+  operations: () => req("GET", "/api/operations"),
+  qbr: (accountId) => req("GET", `/api/accounts/${accountId}/qbr`),
+
   // v1 commercial & deployment
   expansions: (accountId) => req("GET", `/api/accounts/${accountId}/expansions`),
   createExpansion: (b) => req("POST", "/api/expansions", b),

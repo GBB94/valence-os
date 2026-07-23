@@ -244,3 +244,14 @@ deployment_moments:
 
 scope_changes:
   - {id: sc-tv-1, program_id: prog-tv-europe, description: Added Netherlands entity to Europe scope after legal review., agreed_by_person_id: p-tv-progowner, changed_on: 2026-07-05, source_interaction_id: int-tv-jul-call}
+
+# --- v2 value-story library (incl. negative evidence). All fictional. ---
+value_stories:
+  # Affirmatively promoted -> eligible for the client-facing QBR.
+  - {id: vs-tv-1, program_id: prog-tv-global, outcome: Regional GMs report more consistent manager 1:1s since rollout., tags: "adoption,manager-quality", evidence_tier: measured_operational, visibility_class: qbr_exec, identifiable: 0, is_negative: 0}
+  - {id: vs-tv-2, program_id: prog-tv-global, outcome: "Champion quote: 'This finally gives us one manager-development story across regions.'", tags: "champion", evidence_tier: client_quote, visibility_class: qbr_exec, identifiable: 0, is_negative: 0}
+  # Internal-only interpretation -> never client-facing by construction.
+  - {id: vs-tv-3, program_id: prog-tv-global, outcome: Adoption strong but expansion economics still unproven to the budget owner., tags: "commercial", evidence_tier: anecdote, visibility_class: internal, identifiable: 0, is_negative: 0}
+  # NEGATIVE evidence -> guards against optimism bias; never appears in client output.
+  - {id: vs-tv-4, program_id: prog-tv-europe, outcome: "Budget owner reservation: will not fund 3k seats without measured outcomes.", tags: "objection,expansion", evidence_tier: client_quote, visibility_class: internal, identifiable: 0, is_negative: 1}
+  - {id: vs-tv-5, program_id: prog-tv-europe, outcome: Works-council concern about employee data delayed the EU launch., tags: "friction,eu", evidence_tier: measured_operational, visibility_class: internal, identifiable: 0, is_negative: 1}

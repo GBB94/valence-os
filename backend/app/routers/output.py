@@ -17,3 +17,8 @@ def account_history(account_id: str, person_id: str | None = None, program_id: s
 @router.get("/team-update")
 def team_update(since: str | None = None, conn: sqlite3.Connection = Depends(get_conn)):
     return output_gen.team_update(conn, since=since)
+
+
+@router.get("/accounts/{account_id}/qbr")
+def qbr(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    return output_gen.qbr(conn, account_id)

@@ -98,6 +98,10 @@ COLUMNS = {
     "comms_entries": {"id", "program_id", "moment_id", "audience", "message", "sender", "channel", "send_date", "status"},
     "compliance_items": {"id", "program_id", "region", "lane", "status", "owner_person_id", "notes"},
     "scope_changes": {"id", "program_id", "description", "agreed_by_person_id", "changed_on", "source_interaction_id"},
+    "metric_definitions": {"id", "name", "meaning", "source_system", "owner", "version", "population", "formula_notes", "stale_after_days"},
+    "metric_observations": {"id", "definition_id", "definition_version", "program_id", "cohort_label", "period_label", "value", "unit", "target", "current_through", "source_reference_id", "import_batch_id"},
+    "benchmarks": {"id", "name", "value", "unit", "population", "period", "source", "version", "source_reference_id"},
+    "value_stories": {"id", "account_id", "program_id", "outcome", "tags", "evidence_tier", "visibility_class", "identifiable", "is_negative", "source_reference_id"},
 }
 # YAML key -> table for v0.2 execution objects.
 EXEC_SECTIONS = {
@@ -110,6 +114,7 @@ V1_ACCOUNT_SECTIONS = {"expansion_opportunities": "expansion_opportunities",
 V1_PROGRAM_SECTIONS = {"deployment_moments": "deployment_moments",
                        "comms_entries": "comms_entries", "compliance_items": "compliance_items",
                        "scope_changes": "scope_changes"}
+V2_ACCOUNT_SECTIONS = {"value_stories": "value_stories"}
 
 
 def _iso(v):
@@ -170,8 +175,8 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
     for key, table in EXEC_SECTIONS.items():
         for rec in data.get(key) or []:
             _insert(conn, table, rec)
-    # v1 account-scoped objects.
-    for key, table in V1_ACCOUNT_SECTIONS.items():
+    # v1 + v2 account-scoped objects.
+    for key, table in {**V1_ACCOUNT_SECTIONS, **V2_ACCOUNT_SECTIONS}.items():
         for rec in data.get(key) or []:
             rec.setdefault("account_id", acct_id)
             _insert(conn, table, rec)
@@ -209,6 +214,16 @@ def main():
             load_file(conn, team, skipped)
         for name in ("terravance.yaml", "northwind.yaml", "bluepeak.yaml"):
             load_file(conn, SEED_DIR / name, skipped)
+        # Global v2 data (metric definitions/observations, benchmarks) — after programs exist.
+        metrics = SEED_DIR / "metrics.yaml"
+        if metrics.exists():
+            mdata = yaml.safe_load(metrics.read_text()) or {}
+            for md in mdata.get("metric_definitions", []):
+                _insert(conn, "metric_definitions", md)
+            for mo in mdata.get("metric_observations", []):
+                _insert(conn, "metric_observations", mo)
+            for bm in mdata.get("benchmarks", []):
+                _insert(conn, "benchmarks", bm)
 
     counts = {
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]

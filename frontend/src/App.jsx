@@ -12,6 +12,10 @@ import History from "./views/History";
 import TeamUpdate from "./views/TeamUpdate";
 import Commercial from "./views/Commercial";
 import Timeline from "./views/Timeline";
+import Metrics from "./views/Metrics";
+import ValueLibrary from "./views/ValueLibrary";
+import QBR from "./views/QBR";
+import Operations from "./views/Operations";
 
 export default function App() {
   return (
@@ -32,6 +36,8 @@ function Shell() {
   const [histAccount, setHistAccount] = useState(null);
   const [commAccount, setCommAccount] = useState(null);
   const [tlAccount, setTlAccount] = useState(null);
+  const [valAccount, setValAccount] = useState(null);
+  const [qbrAccount, setQbrAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -92,8 +98,14 @@ function Shell() {
           <button className={"nav-item" + (view.name === "timeline" ? " active" : "")} onClick={() => setView({ name: "timeline" })}>Timeline</button>
           <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
 
+          <div className="nav-label">Data &amp; evidence</div>
+          <button className={"nav-item" + (view.name === "metrics" ? " active" : "")} onClick={() => setView({ name: "metrics" })}>Metrics</button>
+          <button className={"nav-item" + (view.name === "value" ? " active" : "")} onClick={() => setView({ name: "value" })}>Value library</button>
+
           <div className="nav-label">Output</div>
           <button className={"nav-item" + (view.name === "team-update" ? " active" : "")} onClick={() => setView({ name: "team-update" })}>Weekly team update</button>
+          <button className={"nav-item" + (view.name === "qbr" ? " active" : "")} onClick={() => setView({ name: "qbr" })}>QBR generator</button>
+          <button className={"nav-item" + (view.name === "operations" ? " active" : "")} onClick={() => setView({ name: "operations" })}>Operations</button>
         </div>
       </nav>
 
@@ -162,6 +174,14 @@ function Shell() {
           {view.name === "timeline" && (
             <Timeline accounts={accounts} accountId={tlAccount || accounts[0]?.id} setAccountId={setTlAccount} reloadKey={reloadKey} />
           )}
+          {view.name === "metrics" && <Metrics reloadKey={reloadKey} />}
+          {view.name === "value" && (
+            <ValueLibrary accounts={accounts} accountId={valAccount || accounts[0]?.id} setAccountId={setValAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "qbr" && (
+            <QBR accounts={accounts} accountId={qbrAccount || accounts[0]?.id} setAccountId={setQbrAccount} reloadKey={reloadKey} />
+          )}
+          {view.name === "operations" && <Operations reloadKey={reloadKey} />}
           {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>

@@ -150,6 +150,77 @@ def team_update(conn, *, since: str | None = None) -> dict:
     return {"stamp": stamp, "sections": sections, "markdown": _render_markdown(stamp, sections)}
 
 
+def qbr(conn, account_id: str) -> dict:
+    """Client-facing QBR skeleton. Assembles from live data and INCLUDES ONLY
+    affirmatively-promoted records by construction (Section 2 / Module K):
+
+    - value stories only where visibility_class in {qbr_exec, externally_referenceable}
+      AND is_negative = 0. Internal-only and negative evidence are never queried.
+    - metrics vs targets, with stale rendered as unknown (never carried-forward good state).
+    - benchmarks shown only as versioned/sourced claims (population + period attached).
+    - content is typed: confirmed_fact / internal_interpretation / open_hypothesis / recommended_action.
+    Stamped with generation time, data-current-through, and missing/stale sources.
+    """
+    acct = repo.get_row(conn, "accounts", account_id)
+    today = now_utc()[:10]
+    programs = {p["id"]: p for p in repo.list_rows(conn, "programs", where="account_id=?", params=(account_id,))}
+    pids = list(programs)
+
+    # metrics vs targets (stale -> unknown)
+    from datetime import date
+    metrics = []
+    missing_or_stale = []
+    for d in repo.list_rows(conn, "metric_definitions", where="1=1 ORDER BY name"):
+        obs = conn.execute(
+            "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
+            "ORDER BY current_through DESC LIMIT 1", (d["id"],)).fetchone()
+        stale = True
+        if obs and obs["current_through"]:
+            try:
+                stale = (date.fromisoformat(today) - date.fromisoformat(obs["current_through"])).days > d["stale_after_days"]
+            except ValueError:
+                stale = True
+        if not obs or stale:
+            missing_or_stale.append(d["name"])
+        metrics.append({"name": d["name"], "type": "confirmed_fact",
+                        "value": ("unknown" if (not obs or stale) else obs["value"]),
+                        "target": (obs["target"] if obs else None),
+                        "current_through": (obs["current_through"] if obs else None),
+                        "population": d["population"], "definition_version": d["version"]})
+
+    benchmarks = [{"name": b["name"], "type": "confirmed_fact", "value": b["value"], "unit": b["unit"],
+                   "population": b["population"], "period": b["period"], "source": b["source"], "version": b["version"]}
+                  for b in repo.list_rows(conn, "benchmarks", where="1=1 ORDER BY name")]
+
+    # ONLY affirmatively-promoted, non-negative value stories (by construction)
+    promoted = repo.list_rows(
+        conn, "value_stories",
+        where="account_id=? AND is_negative=0 AND visibility_class IN ('qbr_exec','externally_referenceable') ORDER BY evidence_tier DESC",
+        params=(account_id,))
+    value_stories = [{"outcome": v["outcome"], "type": "confirmed_fact" if v["evidence_tier"] in
+                      ("measured_operational", "correlated_business") else "internal_interpretation",
+                      "evidence_tier": v["evidence_tier"], "tags": v["tags"]} for v in promoted]
+
+    open_commitments = []
+    risk_open = 0
+    if pids:
+        qmarks = ",".join("?" * len(pids))
+        for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND status='open' AND program_id IN ({qmarks})", pids):
+            open_commitments.append({"description": r["description"], "due_date": r["due_date"], "type": "confirmed_fact"})
+        risk_open = conn.execute(f"SELECT COUNT(*) c FROM risks WHERE archived=0 AND status='open' AND program_id IN ({qmarks})", pids).fetchone()["c"]
+
+    stamp = {"generated_at": now_utc(), "data_current_through": today,
+             "missing_or_stale_sources": missing_or_stale,
+             "content_types": ["confirmed_fact", "internal_interpretation", "open_hypothesis", "recommended_action"]}
+    return {
+        "account_id": account_id, "account_name": acct["name"], "stamp": stamp,
+        "metrics": metrics, "benchmarks": benchmarks, "value_stories": value_stories,
+        "open_commitments": open_commitments,
+        "risk_posture": {"type": "internal_interpretation", "open_risks": risk_open},
+        "excluded_note": "Internal-only and negative-evidence records are excluded by construction, not by review.",
+    }
+
+
 def _render_markdown(stamp, sections) -> str:
     L = [f"# Weekly team update", "",
          f"_Generated {stamp['generated_at']} · data current through {stamp['data_current_through']} · "
