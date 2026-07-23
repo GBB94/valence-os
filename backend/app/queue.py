@@ -25,11 +25,13 @@ STALE_DAYS = 21  # matches the morning-check scenario ("untouched for three week
 PRIORITY = {
     "overdue_commitment": 1,
     "active_blocker": 2,
-    "renewal_window": 3,      # enabled by v1 contracts
-    "at_risk_milestone": 4,
-    "untriaged_inbox": 5,
-    "stale_stakeholder": 6,
-    "open_task": 7,
+    "renewal_window": 3,       # enabled by v1 contracts
+    "stale_import": 4,         # enabled by v2 metrics/imports
+    "fired_play": 5,           # enabled by v4 plays
+    "at_risk_milestone": 6,
+    "untriaged_inbox": 7,
+    "stale_stakeholder": 8,
+    "open_task": 9,
 }
 
 RENEWAL_WINDOW_DAYS = 120  # "renewal readiness visible at least 120 days out" (Section 10)
@@ -148,7 +150,42 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action="Start renewal prep / confirm procurement timeline.",
         ))
 
-    # 4. At-risk upcoming milestones (flagged, or past target and incomplete)
+    # 4. Failed or stale imports (metric sources past their freshness threshold)
+    for d in conn.execute("SELECT * FROM metric_definitions WHERE archived=0"):
+        latest = conn.execute(
+            "SELECT MAX(current_through) m FROM metric_observations WHERE archived=0 AND definition_id=?",
+            (d["id"],)).fetchone()["m"]
+        stale = True
+        age = None
+        if latest:
+            try:
+                age = (date.fromisoformat(today) - date.fromisoformat(latest)).days
+                stale = age > d["stale_after_days"]
+            except ValueError:
+                stale = True
+        if not latest or stale:
+            items.append(_item(
+                "stale_import", "metric_definition", d["id"], d["updated_at"], {},
+                title=f"Stale metric: {d['name']}",
+                because=(f"No fresh data — last through {latest} ({age}d ago)." if latest else "No observations imported yet."),
+                age_days=age or 999, due_date=None, next_action="Re-import from the Data team.",
+            ))
+
+    # 5. Fired plays awaiting completion
+    for r in conn.execute(
+        "SELECT pr.*, pd.name pname FROM play_runs pr JOIN play_definitions pd ON pd.id = pr.play_id "
+        "WHERE pr.status='fired'"):
+        acct = conn.execute("SELECT id aid, name aname FROM accounts WHERE id=?", (r["account_id"],)).fetchone()
+        p = {"aid": acct["aid"], "aname": acct["aname"], "pname": None} if acct else {}
+        items.append(_item(
+            "fired_play", "play_run", r["id"], r["fired_at"], p,
+            title=f"Play: {r['pname']}",
+            because=f"Fired — {r['trigger_context']}.",
+            age_days=_days_since(r["fired_at"], today), due_date=None,
+            next_action=r["action_text"] or "Run the play and record effectiveness.",
+        ))
+
+    # 6. At-risk upcoming milestones (flagged, or past target and incomplete)
     for r in conn.execute("SELECT * FROM milestones WHERE archived=0 AND status='upcoming'"):
         past = bool(r["target_date"]) and r["target_date"] < today
         if not (r["at_risk"] or past):
@@ -265,6 +302,7 @@ def _object_table(object_type: str) -> str:
         "commitment": "commitments", "risk": "risks", "issue": "issues",
         "milestone": "milestones", "task": "tasks", "capture_inbox_item": "capture_inbox_items",
         "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
+        "metric_definition": "metric_definitions", "play_run": "play_runs",
     }[object_type]
 
 

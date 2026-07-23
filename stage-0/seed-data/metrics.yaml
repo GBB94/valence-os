@@ -28,3 +28,9 @@ metric_observations:
 
 benchmarks:
   - {id: bm-1, name: Manager activation (enterprise cohort), value: 0.65, unit: ratio, population: F100 manager cohorts, period: H1 2026, source: Internal Data-team aggregate (fictional), version: "1"}
+
+# v4 play definitions (trigger-and-response). Fire via "Evaluate plays".
+play_definitions:
+  - {id: pd-renewal, name: Renewal prep, trigger_kind: renewal_window, action_template: "Kick off renewal prep for {title}: confirm procurement timeline and multithread the budget owner.", active: 1}
+  - {id: pd-overdue, name: Chase overdue commitment, trigger_kind: overdue_commitment, action_template: "Follow up on the overdue commitment: {title}.", active: 1}
+  - {id: pd-stale, name: Re-warm stale relationship, trigger_kind: stale_stakeholder, action_template: "Reach out — {because}", active: 1}

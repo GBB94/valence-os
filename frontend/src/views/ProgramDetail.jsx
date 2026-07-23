@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, StanceLabel, Empty, useToast, fmtDate, ROLE_LABELS } from "../ui";
+import { PhaseBadge, StanceLabel, Empty, SlideOver, useToast, fmtDate, ROLE_LABELS } from "../ui";
 import DeliveryPanel from "./DeliveryPanel";
 
 export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
   const toast = useToast();
   const [prog, setProg] = useState(null);
+  const [brief, setBrief] = useState(null);
 
   async function load() {
     try { setProg(await api.program(programId)); }
@@ -67,6 +68,7 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
         <h1>{prog.name}</h1>
         <PhaseBadge phase={prog.phase} />
         <div className="spacer" />
+        <button className="btn" onClick={async () => { try { setBrief(await api.brief(prog.id)); } catch (e) { toast(e.message, "err"); } }}>Prep brief</button>
         <button className="btn primary" onClick={() => onQuickEntry(prog.account_id, prog.id)}>Log interaction</button>
       </div>
       <div className="rowmeta" style={{ marginBottom: 4 }}>
@@ -148,6 +150,25 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
 
       <h2>Delivery control</h2>
       <DeliveryPanel programId={prog.id} people={prog.stakeholders?.map((s) => ({ id: s.person_id, name: s.person_name })) || []} reloadKey={reloadKey} />
+
+      {brief && (
+        <SlideOver title="Pre-call brief" onClose={() => setBrief(null)}>
+          <div className="rowmeta" style={{ marginBottom: 12 }}>{brief.label}</div>
+          <h3>Who’s on the call</h3>
+          {brief.stakeholders.length === 0 ? <div className="rowmeta">No stakeholders.</div> : brief.stakeholders.map((s, i) => (
+            <div key={i} style={{ marginBottom: 6 }}>{s.name} <span className="rowmeta">· {s.role}{s.stance ? ` · ${s.stance}` : ""}</span>{s.cares_about ? <div className="rowmeta">cares about: {s.cares_about}</div> : null}</div>
+          ))}
+          <h3 style={{ marginTop: 16 }}>Open commitments</h3>
+          {brief.open_commitments.length === 0 ? <div className="rowmeta">None.</div> : brief.open_commitments.map((c, i) => (
+            <div key={i} className="rowmeta">{c.description} — due {fmtDate(c.due_date)}</div>
+          ))}
+          <h3 style={{ marginTop: 16 }}>Top risks</h3>
+          {brief.top_risks.length === 0 ? <div className="rowmeta">None.</div> : brief.top_risks.map((r, i) => (
+            <div key={i} className="rowmeta">{r.is_blocker ? "🚩 " : ""}{r.description} ({r.severity})</div>
+          ))}
+          {brief.last_interaction && <div className="rowmeta" style={{ marginTop: 16 }}>Last touch: {fmtDate(brief.last_interaction.occurred_on)} — {brief.last_interaction.summary}</div>}
+        </SlideOver>
+      )}
     </div>
   );
 }

@@ -65,6 +65,19 @@ export const api = {
   waterfall: (accountId) => req("GET", `/api/accounts/${accountId}/waterfall`),
   observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
 
+  // v4 AI & automation
+  runExtraction: (b) => req("POST", "/api/extraction/run", b),
+  acceptProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/accept`, b),
+  rejectProposal: (id) => req("POST", `/api/extraction/proposals/${id}/reject`),
+  plays: () => req("GET", "/api/plays"),
+  createPlay: (b) => req("POST", "/api/plays", b),
+  evaluatePlays: () => req("POST", "/api/plays/evaluate"),
+  playRuns: (status) => req("GET", `/api/play-runs${status ? "?status=" + status : ""}`),
+  completePlayRun: (id, b) => req("POST", `/api/play-runs/${id}/complete`, b),
+  notifications: (unread) => req("GET", `/api/notifications${unread ? "?unread_only=true" : ""}`),
+  readNotification: (id) => req("POST", `/api/notifications/${id}/read`),
+  brief: (programId) => req("GET", `/api/programs/${programId}/brief`),
+
   // v1 commercial & deployment
   expansions: (accountId) => req("GET", `/api/accounts/${accountId}/expansions`),
   createExpansion: (b) => req("POST", "/api/expansions", b),

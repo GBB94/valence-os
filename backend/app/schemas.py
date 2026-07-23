@@ -479,3 +479,32 @@ class RecoveredSpendCreate(BaseModel):
     label: str = Field(min_length=1)
     amount: float
     source_note: Optional[str] = None
+
+
+# --- v4 AI & automation --------------------------------------------------------
+
+class ExtractionRequest(BaseModel):
+    transcript: str = Field(min_length=1)
+    account_id: str
+    program_id: Optional[str] = None
+    interaction_id: Optional[str] = None
+
+
+class ProposalAccept(BaseModel):
+    # optional per-item field overrides before applying (e.g. add owners/due date)
+    overrides: dict = Field(default_factory=dict)
+
+
+TriggerKind = Literal["renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker"]
+
+
+class PlayDefinitionCreate(BaseModel):
+    name: str = Field(min_length=1)
+    trigger_kind: TriggerKind
+    action_template: str = Field(min_length=1)
+    active: bool = True
+
+
+class PlayEffectiveness(BaseModel):
+    effectiveness: Literal["effective", "unclear", "ineffective"]
+    effectiveness_note: Optional[str] = None

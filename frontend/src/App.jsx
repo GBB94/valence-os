@@ -17,6 +17,8 @@ import ValueLibrary from "./views/ValueLibrary";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import StakeholderGraph from "./views/StakeholderGraph";
+import Extraction from "./views/Extraction";
+import Plays from "./views/Plays";
 
 export default function App() {
   return (
@@ -40,6 +42,14 @@ function Shell() {
   const [valAccount, setValAccount] = useState(null);
   const [qbrAccount, setQbrAccount] = useState(null);
   const [graphAccount, setGraphAccount] = useState(null);
+  const [exAccount, setExAccount] = useState(null);
+  const [notifs, setNotifs] = useState({ notifications: [], unread: 0 });
+  const [showNotifs, setShowNotifs] = useState(false);
+
+  const refreshNotifs = useCallback(async () => {
+    try { setNotifs(await api.notifications()); } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { refreshNotifs(); }, [refreshNotifs, reloadKey]);
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
@@ -105,6 +115,10 @@ function Shell() {
           <button className={"nav-item" + (view.name === "metrics" ? " active" : "")} onClick={() => setView({ name: "metrics" })}>Metrics</button>
           <button className={"nav-item" + (view.name === "value" ? " active" : "")} onClick={() => setView({ name: "value" })}>Value library</button>
 
+          <div className="nav-label">AI &amp; automation</div>
+          <button className={"nav-item" + (view.name === "extraction" ? " active" : "")} onClick={() => setView({ name: "extraction" })}>Transcript extraction</button>
+          <button className={"nav-item" + (view.name === "plays" ? " active" : "")} onClick={() => setView({ name: "plays" })}>Plays</button>
+
           <div className="nav-label">Output</div>
           <button className={"nav-item" + (view.name === "team-update" ? " active" : "")} onClick={() => setView({ name: "team-update" })}>Weekly team update</button>
           <button className={"nav-item" + (view.name === "qbr" ? " active" : "")} onClick={() => setView({ name: "qbr" })}>QBR generator</button>
@@ -120,6 +134,24 @@ function Shell() {
             onChange={(e) => setQ(e.target.value)}
           />
           <button className="btn primary" onClick={() => setQuick({})}>Log interaction</button>
+          <div style={{ position: "relative" }}>
+            <button className="btn" onClick={() => setShowNotifs((v) => !v)} title="Notifications">
+              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--risk)", fontWeight: 700 }}>{notifs.unread}</span>}
+            </button>
+            {showNotifs && (
+              <div className="card" style={{ position: "absolute", right: 0, top: 36, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto" }}>
+                <div className="card-h"><h3>Notifications</h3></div>
+                {notifs.notifications.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>Nothing yet.</div> :
+                  notifs.notifications.map((n) => (
+                    <div key={n.id} style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", opacity: n.read ? 0.5 : 1 }}>
+                      <div style={{ fontSize: 12 }}>{n.message}</div>
+                      <div className="actions"><span className="rowmeta">{n.created_at?.slice(0, 16).replace("T", " ")}</span><div className="spacer" />
+                        {!n.read && <button className="btn small ghost" onClick={async () => { await api.readNotification(n.id); refreshNotifs(); }}>Mark read</button>}</div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
           <div className="who">Sam Rivera · single editor</div>
         </div>
 
@@ -188,6 +220,10 @@ function Shell() {
             <QBR accounts={accounts} accountId={qbrAccount || accounts[0]?.id} setAccountId={setQbrAccount} reloadKey={reloadKey} />
           )}
           {view.name === "operations" && <Operations reloadKey={reloadKey} />}
+          {view.name === "extraction" && (
+            <Extraction accounts={accounts} accountId={exAccount || accounts[0]?.id} setAccountId={setExAccount} reloadKey={reloadKey} onApplied={onSaved} />
+          )}
+          {view.name === "plays" && <Plays reloadKey={reloadKey} onChanged={() => { bump(); refreshNotifs(); }} />}
           {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>

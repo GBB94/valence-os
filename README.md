@@ -48,7 +48,13 @@ Versioned migrations from the first table; append-only audit log on every write;
 
 **The full Stage-0 acceptance script passes** (capture → commitment + risk → queue → history → team update, no new object type). Run `cd backend && .venv/bin/python -m pytest` — see `tests/test_acceptance_full.py`.
 
-v1–v4 features (expansion opportunities, contracts, phase gates, metrics, visualizations, AI ingestion, plays) are out of scope and not scaffolded.
+## v1–v4 (all scoped phases, complete)
+- **v1 commercial & deployment** — expansion opportunities (staged budget, closed outcomes), contract versions (synced copy + operational overlay), phase gates, deployment moments, compliance/readiness lanes, scope changes, governance cadence, program Timeline, renewal-window queue trigger.
+- **v2 data & evidence** — Data-team metric definitions + observations with freshness (stale→unknown), versioned/sourced benchmarks, value-story library incl. negative evidence, CSV import adapter (preview/commit/rollback), QBR generator (client-facing, visibility-excluded by construction, content-typed, stamped), operations screen.
+- **v3 visualization** — Cytoscape stakeholder graph (size=influence, color=stance, edge=type) + power-interest toggle, Recharts budget waterfall, richer metric views.
+- **v4 AI & automation** — transcript extraction (local swappable mock under the Section 3 security model; per-item human acceptance), plays trigger engine with effectiveness notes, notifications, pre-call briefing.
+
+Migrations 0001–0007. 51 backend tests. The frozen-scope object model was never exceeded; every closure/visibility/trust rule is enforced in code (and tested), not by convention.
 
 ## Trust boundaries enforced now
 - No table or column anywhere for a named individual's product usage (there's a test asserting this).

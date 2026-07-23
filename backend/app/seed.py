@@ -105,6 +105,7 @@ COLUMNS = {
     "value_stories": {"id", "account_id", "program_id", "outcome", "tags", "evidence_tier", "visibility_class", "identifiable", "is_negative", "source_reference_id"},
     "relationship_edges": {"id", "account_id", "from_person_id", "to_person_id", "type", "program_id", "note"},
     "recovered_spend": {"id", "account_id", "label", "amount", "source_note"},
+    "play_definitions": {"id", "name", "trigger_kind", "action_template", "active"},
 }
 # YAML key -> table for v0.2 execution objects.
 EXEC_SECTIONS = {
@@ -228,6 +229,8 @@ def main():
                 _insert(conn, "metric_observations", mo)
             for bm in mdata.get("benchmarks", []):
                 _insert(conn, "benchmarks", bm)
+            for pl in mdata.get("play_definitions", []):
+                _insert(conn, "play_definitions", pl)
 
     counts = {
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]
