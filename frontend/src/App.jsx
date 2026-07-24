@@ -32,6 +32,7 @@ function Shell() {
   const [accounts, setAccounts] = useState([]);
   const [view, setView] = useState({ name: "home" });
   const [quick, setQuick] = useState(null); // {accountId, programId} | null
+  const [palette, setPalette] = useState(false);
   const [inboxCount, setInboxCount] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [execAccount, setExecAccount] = useState(null);
@@ -67,6 +68,15 @@ function Shell() {
   }, []);
 
   useEffect(() => { loadAccounts(); refreshInbox(); }, [loadAccounts, refreshInbox]);
+
+  // cmd-K / ctrl-K opens the command palette (Section 6: keyboard-first).
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
@@ -152,6 +162,7 @@ function Shell() {
               </div>
             )}
           </div>
+          <button className="btn small" onClick={() => setPalette(true)} title="Command palette">⌘K</button>
           <div className="who">Sam Rivera · single editor</div>
         </div>
 
@@ -238,6 +249,16 @@ function Shell() {
           onSaved={onSaved}
         />
       )}
+
+      {palette && (
+        <CommandPalette
+          accounts={accounts}
+          onClose={() => setPalette(false)}
+          onNavigate={navigateToResult}
+          setView={setView}
+          openQuick={() => setQuick({})}
+        />
+      )}
     </div>
   );
 }
@@ -248,6 +269,77 @@ const TYPE_LABEL = {
   milestone: "milestone", value_story: "value story", expansion_opportunity: "expansion",
   capture_inbox_item: "inbox note", scope_change: "scope change",
 };
+
+// Command palette (Section 6: keyboard-first, cmd-K). Fuzzy commands + live search,
+// arrow-key navigation, Enter to run, Esc to close.
+const NAV_COMMANDS = [
+  ["Portfolio home", { name: "home" }], ["Capture inbox", { name: "inbox" }],
+  ["All accounts", { name: "accounts" }], ["Execution board", { name: "execution" }],
+  ["Commercial", { name: "commercial" }], ["Timeline", { name: "timeline" }],
+  ["Stakeholder map", { name: "graph" }], ["History", { name: "history" }],
+  ["Metrics", { name: "metrics" }], ["Value library", { name: "value" }],
+  ["Transcript extraction", { name: "extraction" }], ["Plays", { name: "plays" }],
+  ["Weekly team update", { name: "team-update" }], ["QBR generator", { name: "qbr" }],
+  ["Operations", { name: "operations" }],
+];
+
+function CommandPalette({ accounts, onClose, onNavigate, setView, openQuick }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [sel, setSel] = useState(0);
+  const timer = useRef(null);
+
+  // Build the item list: an action, nav commands + account jumps (fuzzy filtered), then search hits.
+  const ql = q.trim().toLowerCase();
+  const commands = [
+    { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
+    ...NAV_COMMANDS.map(([label, view]) => ({ kind: "nav", label, hint: "go to", run: () => { setView(view); onClose(); } })),
+    ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { setView({ name: "account", accountId: a.id }); onClose(); } })),
+  ].filter((c) => !ql || c.label.toLowerCase().includes(ql));
+  const items = [...commands, ...results.map((r) => ({ kind: "result", label: r.title, hint: (TYPE_LABEL[r.object_type] || r.object_type) + " · " + (r.account_name || ""), run: () => { onNavigate(r); onClose(); } }))];
+
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    if (!ql) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      try { const r = await api.search(q); setResults(r.results.slice(0, 8)); } catch { /* ignore */ }
+    }, 160);
+    return () => timer.current && clearTimeout(timer.current);
+  }, [q]);
+  useEffect(() => { setSel(0); }, [q, results.length]);
+
+  function onKey(e) {
+    if (e.key === "Escape") { onClose(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
+    if (e.key === "Enter" && items[sel]) { e.preventDefault(); items[sel].run(); }
+  }
+
+  return (
+    <>
+      <div className="scrim" onClick={onClose} style={{ background: "rgba(20,22,28,.35)" }} />
+      <div style={{ position: "fixed", top: "12vh", left: "50%", transform: "translateX(-50%)", width: 560, maxWidth: "92vw", zIndex: 60 }}>
+        <div className="card" style={{ boxShadow: "0 12px 40px rgba(0,0,0,.28)", overflow: "hidden" }}>
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
+            placeholder="Type a command or search…"
+            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--border)", padding: "12px 14px", fontSize: 15, outline: "none" }} />
+          <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            {items.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No matches.</div> :
+              items.map((it, i) => (
+                <div key={it.kind + it.label + i} onMouseEnter={() => setSel(i)} onClick={it.run}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", cursor: "pointer",
+                    background: i === sel ? "var(--accent-weak)" : "transparent" }}>
+                  <span style={{ flex: 1, fontSize: 13, color: i === sel ? "var(--accent)" : "var(--text)" }}>{(it.label || "").slice(0, 64)}</span>
+                  <span className="rowmeta">{it.hint}</span>
+                </div>
+              ))}
+          </div>
+          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--border)" }}>↑↓ move · ↵ open · esc close</div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 // Global full-text search (Section 8) — debounced, results dropdown, keyboard-dismissable.
 function GlobalSearch({ onNavigate, reloadKey }) {
