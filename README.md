@@ -1,62 +1,79 @@
 # Valence OS
 
-Internal single-editor web app for managing F100 deployments and expansions. Built to `Valence-OS-Scoping-Doc.md` (v3.2, scope frozen). Standing rules in `CLAUDE.md`; Stage-0 paper model in `stage-0/`; decision trail in `decisions.md`.
+An internal, **single-editor** web app for running a handful of very deep Fortune-100 accounts end to end — the execution ledger, stakeholders, commercial motion, evidence, and generated outputs in one place. Built for an Engagement Manager at Valence (who sells *Nadia*, an AI coaching product) to live in daily and brief the team in minutes.
 
-**Build order:** Stage 0 ✅ → **v0.1 capture ✅ (current)** → v0.2 execution → v0.3 attention → v0.4 output.
+> **Context / source of truth.** This project is built to `Valence-OS-Scoping-Doc.md` (v3.2, scope frozen). The standing rules that govern every change are in `CLAUDE.md`; the Stage-0 paper model (entity diagram, field dictionary, state transitions, attention rules, wireframes, acceptance script, mock seed) is in `stage-0/`; and every non-obvious decision is logged newest-first in `decisions.md`. All data in the repo is **mock/synthetic** — no real client names, people, or figures anywhere.
+
+## What it is (the one-paragraph tour)
+Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into **commitments** (two owners: who does it + the Valence follow-up owner), **risks**, **issues**, **decisions**, **tasks**, and **milestones**. A rules-based, explainable **attention queue** ranks what needs you and why. **Commercial** tracks expansion opportunities (staged budget) and contract versions (canonical copy + operational overlay). **Metrics** are ingested from the Data team (never recomputed; stale renders as *unknown*); a **value-story library** captures wins *and* negative evidence. Generators produce a weekly **team update** and a client-facing **QBR** — both exclude internal-only material *by construction*. Visualizations: a **stakeholder graph** and a **budget waterfall**. **AI**: transcript extraction (pluggable — offline mock, your own local LLM, or the Claude API) proposing structured updates for per-item acceptance, plus a **plays** trigger engine.
 
 ## Stack
-- Backend: Python 3.12 · FastAPI · SQLite with versioned SQL migrations · raw `sqlite3`, no ORM.
-- Frontend: React (Vite), single accent, dense power-user layout.
-- One process: FastAPI serves the built frontend from `frontend/dist`; Vite dev server in development.
+- **Backend:** Python 3.12 · FastAPI · SQLite with **versioned SQL migrations** (raw `sqlite3`, no ORM) · SQLite **FTS5** for global search.
+- **Frontend:** React (Vite) · Cytoscape (stakeholder graph) · Recharts (budget waterfall) · dense Linear-class UI, one neutral surface + one accent.
+- **One process:** FastAPI serves the built frontend from `frontend/dist`; Vite dev server in development.
+- **Optional:** the `anthropic` SDK, only for the API transcript-extraction backend.
 
 ## Run it
 
 ```bash
-# 1. Backend deps (once)
+# 1. Backend env + deps (once)
 cd backend
 uv venv --python 3.12
-uv pip install "fastapi>=0.115" "uvicorn[standard]>=0.30" "pydantic>=2.7" "pyyaml>=6.0" "httpx>=0.27" "pytest>=8.0"
+uv pip install -e .                      # installs deps from pyproject.toml
+#   (or: uv pip install "fastapi" "uvicorn[standard]" "pydantic" "pyyaml" "httpx" "pytest" "anthropic")
 
 # 2. Load the mock seed (creates + migrates the DB)
 .venv/bin/python -m app.seed --reset
 
-# 3a. Production-ish: build the frontend, serve everything from :8000
+# 3a. Serve everything from :8000 (build the frontend, then run the API)
 cd ../frontend && npm install && npm run build
 cd ../backend && .venv/bin/python -m uvicorn app.main:app --port 8000
 #   open http://localhost:8000
 
 # 3b. Or dev with hot reload (two terminals)
 .venv/bin/python -m uvicorn app.main:app --port 8000 --reload   # terminal 1
-cd frontend && npm run dev                                      # terminal 2 -> http://localhost:5173
+cd ../frontend && npm run dev                                   # terminal 2 -> http://localhost:5173
 ```
 
-> Note: launch uvicorn as `python -m uvicorn` (not `.venv/bin/uvicorn`). The console
-> script bakes in an absolute shebang, so it breaks if the project folder is moved;
-> `python -m` uses the location-independent interpreter symlink. If the venv itself
-> was moved, recreate it: `rm -rf .venv && uv venv --python 3.12 && uv pip install ...`.
+- **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (60 tests)
+- **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
-Reset to clean mock data anytime: `python -m app.seed --reset`.
-Run backend tests: `cd backend && .venv/bin/python -m pytest`.
+## Repo layout
+```
+Valence-OS-Scoping-Doc.md   the source of truth (v3.2, frozen)
+CLAUDE.md                   standing rules (trust boundaries, data rules, design)
+decisions.md                decision log, newest first (D-01…)
+stage-0/                    paper model + mock seed data (seed-data/*.yaml)
+backend/
+  app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py, search.py, output_gen.py, queue.py …
+  migrations/               0001…0008 numbered SQL; every schema change is a migration
+  tests/                    pytest (per-slice + full acceptance script)
+frontend/src/               React views (one per module) + api.js
+```
 
-## What v0 does (execution ledger — all four slices)
-- **v0.1 capture** — accounts, programs, people, per-program stakeholder roles (dated + evidenced stance); 30-second interaction quick entry (account required, program optional); capture inbox for untriaged notes.
-- **v0.2 execution** — tasks, commitments (two owners + due date), decisions, risks, issues, milestones; closure rules enforced (mitigation ≠ closure, commitments close on acknowledgement, decisions supersede); inbox → object conversion with no retype.
-- **v0.3 attention** — the ranked, explainable portfolio queue (six triggers, each explains itself) with snooze/resolve rules; the two independent account statuses (delivery + commercial), no composite.
-- **v0.4 output** — account history / interaction timeline with back-references; one-click weekly team update, freshness-stamped, internal-only material excluded by construction.
+## Build status
 
-Versioned migrations from the first table; append-only audit log on every write; soft-delete throughout.
+**Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0008.
 
-**The full Stage-0 acceptance script passes** (capture → commitment + risk → queue → history → team update, no new object type). Run `cd backend && .venv/bin/python -m pytest` — see `tests/test_acceptance_full.py`.
+| Phase | Delivered |
+|---|---|
+| **v0.1 capture** | accounts, programs, people, per-program stakeholder roles (dated + evidenced stance), 30-second interaction quick entry, capture inbox |
+| **v0.2 execution** | tasks, commitments (two owners + due date), decisions, risks, issues, milestones; closure rules (mitigation ≠ closure, commitments close on acknowledgement, decisions supersede); inbox → object conversion, no retype |
+| **v0.3 attention** | ranked, explainable portfolio queue (9 triggers, each explains itself) with snooze/resolve; two independent account statuses (delivery + commercial), no composite |
+| **v0.4 output** | account history / interaction timeline with back-references; weekly team update (freshness-stamped, internal-only excluded by construction) |
+| **v1 commercial & deployment** | expansion opportunities (staged budget, closed outcomes), contract versions (synced copy + operational overlay), phase gates, deployment moments, compliance/readiness lanes, scope changes, governance cadence, program timeline, renewal-window queue trigger |
+| **v2 data & evidence** | metric definitions + observations w/ freshness (stale→unknown), versioned/sourced benchmarks, value-story library incl. negative evidence, CSV import adapter (preview/commit/rollback), QBR generator, operations screen |
+| **v3 visualization** | Cytoscape stakeholder graph (size=influence, color=stance) + power-interest toggle, Recharts budget waterfall |
+| **v4 AI & automation** | pluggable transcript extraction (mock / manual local-LLM / Claude API) under the Section-3 security model, plays trigger engine w/ effectiveness notes, notifications, pre-call briefing |
+| **+ global search** | SQLite FTS5 across native records and stored summaries (Section 8) |
 
-## v1–v4 (all scoped phases, complete)
-- **v1 commercial & deployment** — expansion opportunities (staged budget, closed outcomes), contract versions (synced copy + operational overlay), phase gates, deployment moments, compliance/readiness lanes, scope changes, governance cadence, program Timeline, renewal-window queue trigger.
-- **v2 data & evidence** — Data-team metric definitions + observations with freshness (stale→unknown), versioned/sourced benchmarks, value-story library incl. negative evidence, CSV import adapter (preview/commit/rollback), QBR generator (client-facing, visibility-excluded by construction, content-typed, stamped), operations screen.
-- **v3 visualization** — Cytoscape stakeholder graph (size=influence, color=stance, edge=type) + power-interest toggle, Recharts budget waterfall, richer metric views.
-- **v4 AI & automation** — transcript extraction (local swappable mock under the Section 3 security model; per-item human acceptance), plays trigger engine with effectiveness notes, notifications, pre-call briefing.
+**Remaining doc-described capabilities** (named in Sections 5–8 but never slotted into a numbered phase): Mutual Action Plan (§5N), Files & context library (§5O), cmd-K command palette (§6), full timeline swimlanes (§5F), stakeholder coverage sidebar (§5C), metric sparklines/bullet charts (§6b), account export/restore (§7), a job table + in-process worker (§7/8). Production-mode items (SSO/MFA, approved hosting/DB, encryption, backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
 
-Migrations 0001–0007. 51 backend tests. The frozen-scope object model was never exceeded; every closure/visibility/trust rule is enforced in code (and tested), not by convention.
-
-## Trust boundaries enforced now
-- No table or column anywhere for a named individual's product usage (there's a test asserting this).
-- Stakeholder stance requires a date + evidence note (DB CHECK + API guard).
-- Raw notes and stakeholder judgments are internal-only by default.
+## Trust & correctness rules enforced in code (and tested)
+- **No table or column anywhere for a named individual's product usage** — asserted by a test.
+- Client-facing generators (team update, QBR) include **only** affirmatively-promoted, non-negative records **by construction** — raw notes and stakeholder judgments can't leak.
+- Stakeholder assessments (stance, influence, relationship strength) **require a date + evidence note** (DB CHECK + API guard).
+- Metric-derived indicators past their freshness threshold render as **unknown**, never carried-forward.
+- **No hard-coded benchmarks** — benchmarks are versioned/sourced data with population + period.
+- Versioned migrations from the first table; append-only audit log on every write; soft-delete throughout.

@@ -17,6 +17,15 @@ dev = [
     "pytest>=8.0",
 ]
 
+# Only 'app' is an importable package here; 'migrations'/'tests' are data/tests, not packages.
+# This makes `uv pip install -e .` work (flat-layout auto-discovery would otherwise error).
+[tool.setuptools]
+packages = ["app"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]

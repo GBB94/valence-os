@@ -2,6 +2,15 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Post-v4 (2026-07-24) — filling doc-described gaps beyond the numbered build order
+
+Zach asked to keep building the scoped-but-unphased capabilities (Modules N/O, search, cmd-K, timeline swimlanes, etc.) using judgment. Order: search → MAP → files library → cmd-K → refinements.
+
+- **Rename:** product is now **Valence OS** (was Account OS) — everywhere incl. env var (`VALENCE_OS_DB`), DB file (`valence_os.sqlite`), package, scoping-doc filename, project dir. Pushed to private repo `github.com/GBB94/valence-os`.
+- **D-50 — Global search (Section 8) via SQLite FTS5.** Standalone `search_index` FTS5 table rebuilt on demand from native records + stored summaries (few-thousand-row scale → sub-ms reindex, always fresh, no per-table triggers to maintain). Prefix-matched, bm25-ranked, `snippet()` excerpts. Indexes the operator's own internal notes (single-editor tool). Top-bar becomes a global search with a results dropdown that navigates to the object's program/account.
+- **D-51 — `pyproject` declares `packages = ["app"]`** so `uv pip install -e .` works (flat-layout auto-discovery was erroring on app+migrations+tests).
+- README rewritten as the living project doc (context, tour, layout, module status).
+
 ## v4.1 (2026-07-24) — pluggable extractor
 
 - Zach wants the extractor kept flexible: run a local LLM manually OR call an API. Built three swappable backends behind one `get_extractor()` interface plus a manual ingest path:

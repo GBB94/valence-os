@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
 import { ToastProvider } from "./ui";
 import Accounts from "./views/Accounts";
@@ -31,7 +31,6 @@ export default function App() {
 function Shell() {
   const [accounts, setAccounts] = useState([]);
   const [view, setView] = useState({ name: "home" });
-  const [q, setQ] = useState("");
   const [quick, setQuick] = useState(null); // {accountId, programId} | null
   const [inboxCount, setInboxCount] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -72,9 +71,14 @@ function Shell() {
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
 
-  const filtered = q
-    ? accounts.filter((a) => a.name.toLowerCase().includes(q.toLowerCase()))
-    : accounts;
+  // Navigate to a global-search result: open its program if it has one, else its account.
+  function navigateToResult(r) {
+    if (r.object_type === "program" && r.object_id) setView({ name: "program", programId: r.object_id, accountId: r.account_id });
+    else if (r.program_id) setView({ name: "program", programId: r.program_id, accountId: r.account_id });
+    else if (r.account_id) setView({ name: "account", accountId: r.account_id });
+  }
+
+  const filtered = accounts;
 
   return (
     <div className="shell">
@@ -128,11 +132,7 @@ function Shell() {
 
       <div className="main">
         <div className="topbar">
-          <input
-            placeholder="Search accounts…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
           <button className="btn primary" onClick={() => setQuick({})}>Log interaction</button>
           <div style={{ position: "relative" }}>
             <button className="btn" onClick={() => setShowNotifs((v) => !v)} title="Notifications">
@@ -237,6 +237,71 @@ function Shell() {
           onClose={() => setQuick(null)}
           onSaved={onSaved}
         />
+      )}
+    </div>
+  );
+}
+
+const TYPE_LABEL = {
+  account: "account", program: "program", person: "person", interaction: "interaction",
+  commitment: "commitment", risk: "risk", issue: "issue", decision: "decision", task: "task",
+  milestone: "milestone", value_story: "value story", expansion_opportunity: "expansion",
+  capture_inbox_item: "inbox note", scope_change: "scope change",
+};
+
+// Global full-text search (Section 8) — debounced, results dropdown, keyboard-dismissable.
+function GlobalSearch({ onNavigate, reloadKey }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef(null);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    if (!q.trim()) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      try { const r = await api.search(q); setResults(r.results); setOpen(true); } catch { /* ignore */ }
+    }, 180);
+    return () => timer.current && clearTimeout(timer.current);
+  }, [q, reloadKey]);
+
+  useEffect(() => {
+    const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  function go(r) { onNavigate(r); setOpen(false); setQ(""); }
+
+  return (
+    <div ref={boxRef} style={{ position: "relative", flex: 1, maxWidth: 420 }}>
+      <input
+        placeholder="Search everything…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onFocus={() => q && setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && results[0]) go(results[0]); }}
+        style={{ width: "100%" }}
+      />
+      {open && q.trim() && (
+        <div className="card" style={{ position: "absolute", top: 34, left: 0, right: 0, zIndex: 40, maxHeight: 420, overflowY: "auto", boxShadow: "0 6px 20px rgba(0,0,0,.12)" }}>
+          {results.length === 0 ? (
+            <div className="rowmeta" style={{ padding: 12 }}>No matches for “{q}”.</div>
+          ) : (
+            results.map((r) => (
+              <button key={r.object_type + r.object_id} onClick={() => go(r)}
+                style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", background: "none", padding: "8px 12px", cursor: "pointer" }}
+                onMouseDown={(e) => e.preventDefault()}>
+                <div style={{ fontSize: 13 }}>
+                  <span className="badge" style={{ marginRight: 6 }}>{TYPE_LABEL[r.object_type] || r.object_type}</span>
+                  {(r.title || "").slice(0, 70)}
+                </div>
+                <div className="rowmeta">{r.account_name}{r.snippet ? ` · ${r.snippet}` : ""}</div>
+              </button>
+            ))
+          )}
+        </div>
       )}
     </div>
   );

@@ -21,6 +21,7 @@ async function req(method, path, body) {
 
 export const api = {
   health: () => req("GET", "/api/health"),
+  search: (q) => req("GET", `/api/search?q=${encodeURIComponent(q)}`),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
   createAccount: (b) => req("POST", "/api/accounts", b),

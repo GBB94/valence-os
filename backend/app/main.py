@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .db import connect, run_migrations
 from .routers import (
     accounts, ai, attention, commercial, data, delivery, execution, inbox, interactions,
-    output, people, programs, viz,
+    output, people, programs, search as search_router, viz,
 )
 
 
@@ -48,6 +48,7 @@ app.include_router(delivery.router)
 app.include_router(data.router)
 app.include_router(viz.router)
 app.include_router(ai.router)
+app.include_router(search_router.router)
 app.include_router(inbox.router)
 
 
