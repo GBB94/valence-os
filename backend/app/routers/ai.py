@@ -9,8 +9,8 @@ from .. import audit, execution_ops, extractor, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
-    CommitmentCreate, DecisionCreate, ExtractionRequest, IssueCreate, PlayDefinitionCreate,
-    PlayEffectiveness, ProposalAccept, RiskCreate, TaskCreate,
+    CommitmentCreate, DecisionCreate, ExtractionRequest, IssueCreate, ManualExtractionRequest,
+    PlayDefinitionCreate, PlayEffectiveness, ProposalAccept, RiskCreate, TaskCreate,
 )
 
 _TARGET_SCHEMA = {
@@ -29,33 +29,66 @@ def _notify(conn, kind, message, ref_type=None, ref_id=None):
 
 
 # --- Transcript extraction (Section 3 security model) ---
-@router.post("/extraction/run", status_code=201)
-def run_extraction(b: ExtractionRequest, conn: sqlite3.Connection = Depends(get_conn)):
-    """Propose structured updates from a transcript. Nothing is written to domain tables
-    here — only proposals, awaiting per-item human acceptance."""
-    repo.get_row(conn, "accounts", b.account_id)
-    ex = extractor.get_extractor()
-    proposals = ex.extract(b.transcript)  # pure local; no outbound calls
+def _persist_run(conn, *, account_id, program_id, interaction_id, model_version, prompt_version,
+                 transcript_chars, proposals):
+    """Store an extraction run + its proposals. Nothing touches domain tables here —
+    proposals await per-item human acceptance. Shared by every backend + manual paste."""
     ts = now_utc()
     run_id = new_id()
     with conn:
         conn.execute(
             "INSERT INTO extraction_runs (id, account_id, program_id, interaction_id, model_version, "
             "prompt_version, transcript_chars, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?, 'proposed', ?, ?)",
-            (run_id, b.account_id, b.program_id, b.interaction_id, ex.model_version, ex.prompt_version,
-             len(b.transcript), ts, ts),
+            (run_id, account_id, program_id, interaction_id, model_version, prompt_version, transcript_chars, ts, ts),
         )
-        # model + prompt versions recorded in the audit log
         audit.record(conn, object_type="extraction_run", object_id=run_id, action="create",
-                     after={"model_version": ex.model_version, "prompt_version": ex.prompt_version,
-                            "proposals": len(proposals)})
+                     after={"model_version": model_version, "prompt_version": prompt_version, "proposals": len(proposals)})
         for p in proposals:
             conn.execute(
                 "INSERT INTO extraction_proposals (id, run_id, mutation_type, payload_json, source_span, "
                 "confidence, status, created_at, updated_at) VALUES (?,?,?,?,?,?, 'proposed', ?, ?)",
-                (new_id(), run_id, p["mutation_type"], json.dumps(p["payload"]), p["source_span"],
-                 p["confidence"], ts, ts),
+                (new_id(), run_id, p["mutation_type"], json.dumps(p["payload"]), p["source_span"], p["confidence"], ts, ts),
             )
+    return run_id
+
+
+@router.get("/extraction/config")
+def extraction_config():
+    """Which backend is active, plus the strict schema and the prompt to hand a local LLM."""
+    return extractor.describe_config()
+
+
+@router.post("/extraction/run", status_code=201)
+def run_extraction(b: ExtractionRequest, conn: sqlite3.Connection = Depends(get_conn)):
+    """Propose structured updates from a transcript via the mock or API backend."""
+    repo.get_row(conn, "accounts", b.account_id)
+    try:
+        ex = extractor.get_extractor(b.backend)
+        proposals = ex.extract(b.transcript)
+    except (ValueError,) as e:
+        raise HTTPException(422, str(e))
+    except (RuntimeError,) as e:                       # backend unavailable (no SDK/creds) or model error
+        raise HTTPException(502, str(e))
+    run_id = _persist_run(conn, account_id=b.account_id, program_id=b.program_id,
+                          interaction_id=b.interaction_id, model_version=ex.model_version,
+                          prompt_version=ex.prompt_version, transcript_chars=len(b.transcript),
+                          proposals=proposals)
+    return get_run(run_id, conn)
+
+
+@router.post("/extraction/manual", status_code=201)
+def manual_extraction(b: ManualExtractionRequest, conn: sqlite3.Connection = Depends(get_conn)):
+    """Ingest JSON the operator produced with their OWN local LLM. The app makes no
+    external call; the pasted output is validated against the same strict schema."""
+    repo.get_row(conn, "accounts", b.account_id)
+    try:
+        proposals = extractor.validate_proposals(b.proposals_json)
+    except ValueError as e:
+        raise HTTPException(422, f"pasted output failed validation: {e}")
+    run_id = _persist_run(conn, account_id=b.account_id, program_id=b.program_id,
+                          interaction_id=b.interaction_id, model_version="manual-local-llm",
+                          prompt_version=extractor.ApiExtractor.prompt_version,
+                          transcript_chars=len(b.proposals_json), proposals=proposals)
     return get_run(run_id, conn)
 
 

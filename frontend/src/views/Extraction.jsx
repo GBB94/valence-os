@@ -11,16 +11,33 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
   const [transcript, setTranscript] = useState("");
   const [run, setRun] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [config, setConfig] = useState(null);
+  const [mode, setMode] = useState("auto");       // 'auto' (mock/api) | 'manual' (paste local-LLM JSON)
+  const [backend, setBackend] = useState("");     // '' = configured default, else 'mock'|'api'
+  const [pasteJson, setPasteJson] = useState("");
 
   useEffect(() => { if (accountId) api.account(accountId).then(setDetail).catch(() => {}); }, [accountId]);
+  useEffect(() => { api.extractionConfig().then(setConfig).catch(() => {}); }, []);
   const programs = detail?.programs ?? [];
   const people = detail?.people ?? [];
 
   async function doRun() {
     if (!transcript.trim()) { toast("Paste a transcript first", "err"); return; }
     setBusy(true);
-    try { setRun(await api.runExtraction({ account_id: accountId, program_id: programId || null, transcript })); }
+    try { setRun(await api.runExtraction({ account_id: accountId, program_id: programId || null, transcript, backend: backend || null })); }
     catch (e) { toast(e.message, "err"); } finally { setBusy(false); }
+  }
+  async function doManual() {
+    if (!pasteJson.trim()) { toast("Paste the model's JSON output first", "err"); return; }
+    setBusy(true);
+    try {
+      const r = await api.manualExtraction({ account_id: accountId, program_id: programId || null, proposals_json: pasteJson });
+      setRun(r); toast(`${r.proposals.length} proposal(s) ingested`);
+    } catch (e) { toast(e.message, "err"); } finally { setBusy(false); }
+  }
+  async function copyPrompt() {
+    try { await navigator.clipboard.writeText(`${config.manual_prompt}\n\n--- TRANSCRIPT ---\n${transcript}`); toast("Prompt + transcript copied"); }
+    catch { toast("Copy failed", "err"); }
   }
 
   if (!accounts.length) return <div className="subtle">Create an account first.</div>;
@@ -37,16 +54,44 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
           {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
+      <div className="actions" style={{ marginBottom: 8 }}>
+        <button className={"btn small" + (mode === "auto" ? " primary" : "")} onClick={() => setMode("auto")}>Auto</button>
+        <button className={"btn small" + (mode === "manual" ? " primary" : "")} onClick={() => setMode("manual")}>Manual (local LLM)</button>
+        {mode === "auto" && (
+          <>
+            <span className="rowmeta">backend:</span>
+            <select value={backend} onChange={(e) => setBackend(e.target.value)} style={{ height: 26, borderRadius: 6, border: "1px solid var(--border)", padding: "0 6px" }}>
+              <option value="">default{config ? ` (${config.backend})` : ""}</option>
+              <option value="mock">mock (offline)</option>
+              <option value="api">api ({config?.api_model || "Claude API"})</option>
+            </select>
+          </>
+        )}
+      </div>
       <div className="rowmeta" style={{ marginBottom: 12 }}>
-        Runs a local, sandboxed extractor (no external calls). Proposals are a strict, predefined set; nothing is written until you accept it. Content is treated as data, never as instructions.
+        {mode === "auto"
+          ? "Auto runs the configured extractor — the offline mock, or the Claude API (no browsing/tools, strict JSON schema)."
+          : "Manual: run your own local LLM, paste its JSON here. The app makes no external call. Either way, output is validated against the same strict schema and every proposal needs your acceptance."}
       </div>
 
       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
         <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={6} placeholder="Paste the call transcript…" style={{ width: "100%", fontFamily: "var(--mono)", fontSize: 12, border: "1px solid var(--border-strong)", borderRadius: 6, padding: 8 }} />
-        <div className="actions" style={{ marginTop: 8 }}>
-          <button className="btn primary" onClick={doRun} disabled={busy}>{busy ? "Extracting…" : "Extract proposals"}</button>
-          {run && <span className="rowmeta">model {run.model_version} · prompt {run.prompt_version} · {run.proposals.length} proposals</span>}
-        </div>
+        {mode === "auto" ? (
+          <div className="actions" style={{ marginTop: 8 }}>
+            <button className="btn primary" onClick={doRun} disabled={busy}>{busy ? "Extracting…" : "Extract proposals"}</button>
+            {run && <span className="rowmeta">model {run.model_version} · prompt {run.prompt_version} · {run.proposals.length} proposals</span>}
+          </div>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            <button className="btn small" onClick={copyPrompt} disabled={!config}>Copy prompt + transcript</button>
+            <div className="rowmeta" style={{ margin: "8px 0 4px" }}>Paste the model's JSON output:</div>
+            <textarea value={pasteJson} onChange={(e) => setPasteJson(e.target.value)} rows={5} placeholder='{"proposals":[…]}' style={{ width: "100%", fontFamily: "var(--mono)", fontSize: 12, border: "1px solid var(--border-strong)", borderRadius: 6, padding: 8 }} />
+            <div className="actions" style={{ marginTop: 8 }}>
+              <button className="btn primary" onClick={doManual} disabled={busy}>{busy ? "Ingesting…" : "Validate & ingest"}</button>
+              {run && <span className="rowmeta">{run.model_version} · {run.proposals.length} proposals</span>}
+            </div>
+          </div>
+        )}
       </div>
 
       {run && (

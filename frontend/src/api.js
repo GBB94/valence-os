@@ -66,7 +66,9 @@ export const api = {
   observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
 
   // v4 AI & automation
+  extractionConfig: () => req("GET", "/api/extraction/config"),
   runExtraction: (b) => req("POST", "/api/extraction/run", b),
+  manualExtraction: (b) => req("POST", "/api/extraction/manual", b),
   acceptProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/accept`, b),
   rejectProposal: (id) => req("POST", `/api/extraction/proposals/${id}/reject`),
   plays: () => req("GET", "/api/plays"),

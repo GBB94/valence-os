@@ -106,6 +106,37 @@ def test_plays_fire_dedupe_and_require_effectiveness(scene):
     assert not any(i["trigger_type"] == "fired_play" for i in q2["items"])
 
 
+def test_extraction_config_lists_backends(scene):
+    cfg = scene["c"].get("/api/extraction/config").json()
+    assert cfg["backend"] in ("mock", "api", "manual")
+    assert set(cfg["available_backends"]) == {"mock", "manual", "api"}
+    assert "schema" in cfg and "manual_prompt" in cfg
+
+
+def test_manual_paste_validates_against_schema(scene):
+    c, a = scene["c"], scene["a"]
+    good = '{"proposals":[{"mutation_type":"create_commitment","description":"Send summary","source_span":"we\'ll send it"}]}'
+    r = c.post("/api/extraction/manual", json={"account_id": a["id"], "program_id": scene["p"]["id"], "proposals_json": good})
+    assert r.status_code == 201
+    run = r.json()
+    assert run["model_version"] == "manual-local-llm"
+    assert run["proposals"][0]["mutation_type"] == "create_commitment"
+    # off-contract mutation type is rejected
+    bad = '{"proposals":[{"mutation_type":"delete_everything","description":"x","source_span":"y"}]}'
+    assert c.post("/api/extraction/manual", json={"account_id": a["id"], "proposals_json": bad}).status_code == 422
+    # not-JSON is rejected
+    assert c.post("/api/extraction/manual", json={"account_id": a["id"], "proposals_json": "not json"}).status_code == 422
+
+
+def test_manual_proposals_accept_like_any_other(scene):
+    c, a, p = scene["c"], scene["a"], scene["p"]
+    payload = '{"proposals":[{"mutation_type":"task","description":"x","source_span":"y"}]}'.replace('"task"', '"create_task"')
+    run = c.post("/api/extraction/manual", json={"account_id": a["id"], "program_id": p["id"], "proposals_json": payload}).json()
+    prop = run["proposals"][0]
+    res = c.post(f"/api/extraction/proposals/{prop['id']}/accept", json={})
+    assert res.status_code == 200 and res.json()["created_type"] == "task"
+
+
 def test_brief_assembles_prep_material(scene):
     c, a, p = scene["c"], scene["a"], scene["p"]
     person = c.post("/api/persons", json={"name": "Dana", "account_id": a["id"]}).json()

@@ -488,6 +488,15 @@ class ExtractionRequest(BaseModel):
     account_id: str
     program_id: Optional[str] = None
     interaction_id: Optional[str] = None
+    backend: Optional[Literal["mock", "api"]] = None   # override the configured default
+
+
+class ManualExtractionRequest(BaseModel):
+    """The operator ran their own local LLM and pastes its JSON output here."""
+    account_id: str
+    program_id: Optional[str] = None
+    interaction_id: Optional[str] = None
+    proposals_json: str = Field(min_length=1)          # raw JSON from the local model
 
 
 class ProposalAccept(BaseModel):
