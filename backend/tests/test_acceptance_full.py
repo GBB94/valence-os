@@ -21,7 +21,7 @@ OBJECT_TABLES = {  # the frozen object inventory (excludes infra: schema_migrati
 def client():
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
-    os.environ["ACCOUNT_OS_DB"] = path
+    os.environ["VALENCE_OS_DB"] = path
     from app.main import app
     with TestClient(app) as c:
         c._db_path = path

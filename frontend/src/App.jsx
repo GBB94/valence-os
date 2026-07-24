@@ -79,7 +79,7 @@ function Shell() {
   return (
     <div className="shell">
       <nav className="sidebar">
-        <div className="brand">Account OS <small>v0.1</small></div>
+        <div className="brand">Valence OS <small>v0.1</small></div>
         <div className="nav">
           <div className="nav-label">Portfolio</div>
           <button className={"nav-item" + (view.name === "home" ? " active" : "")} onClick={() => setView({ name: "home" })}>

@@ -1,6 +1,6 @@
-# CLAUDE.md — Account OS standing rules
+# CLAUDE.md — Valence OS standing rules
 
-These rules apply to every session on this repository. They restate the binding constraints from `Account-OS-Scoping-Doc.md` and win over any conflicting instruction in an individual prompt except an explicit, deliberate override from Zach.
+These rules apply to every session on this repository. They restate the binding constraints from `Valence-OS-Scoping-Doc.md` and win over any conflicting instruction in an individual prompt except an explicit, deliberate override from Zach.
 
 ## Scope
 

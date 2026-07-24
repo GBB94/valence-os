@@ -1,4 +1,4 @@
-"""Account OS backend — v0.1 capture slice."""
+"""Valence OS backend — v0.1 capture slice."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     conn.close()
 
 
-app = FastAPI(title="Account OS", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Valence OS", version="0.1.0", lifespan=lifespan)
 
 # Frontend runs on the Vite dev server in development.
 app.add_middleware(

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 def client():
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
-    os.environ["ACCOUNT_OS_DB"] = path
+    os.environ["VALENCE_OS_DB"] = path
     from app.main import app  # imported after env is set
     with TestClient(app) as c:  # triggers lifespan -> migrations
         yield c
@@ -120,7 +120,7 @@ def test_dismiss_inbox_item_is_audited_not_deleted(client):
 def test_no_individual_usage_field_anywhere(client):
     """Trust boundary: no column may exist for a named person's product usage."""
     import sqlite3
-    conn = sqlite3.connect(os.environ["ACCOUNT_OS_DB"])
+    conn = sqlite3.connect(os.environ["VALENCE_OS_DB"])
     tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
     banned = ("usage", "activation", "weekly_return", "sessions", "logins", "minutes_used")
     for t in tables:

@@ -14,13 +14,13 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = BACKEND_DIR / "migrations"
-DEFAULT_DB = BACKEND_DIR / "data" / "account_os.sqlite"
+DEFAULT_DB = BACKEND_DIR / "data" / "valence_os.sqlite"
 
 MIGRATION_RE = re.compile(r"^(\d{4})_.*\.sql$")
 
 
 def db_path() -> Path:
-    return Path(os.environ.get("ACCOUNT_OS_DB", str(DEFAULT_DB)))
+    return Path(os.environ.get("VALENCE_OS_DB", str(DEFAULT_DB)))
 
 
 def connect() -> sqlite3.Connection:

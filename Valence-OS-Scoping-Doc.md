@@ -1,4 +1,4 @@
-# Account OS: Scoping Document
+# Valence OS: Scoping Document
 ### Custom tooling for managing F100 deployments and expansions at Valence
 *Zach McCall · July 2026 · v3.2 (final) · SCOPE FROZEN — next action is Stage 0, defined by its completion test in Section 9*
 
@@ -20,7 +20,7 @@
 
 ## 1. Purpose and design principles
 
-One canonical system Zach lives in daily that can brief the team in minutes. Built from scratch (Python backend, JavaScript frontend). The prototype does not depend on purchasing a third-party customer-success platform; in production, Account OS complements rather than replaces Valence's canonical CRM, analytics, and document systems.
+One canonical system Zach lives in daily that can brief the team in minutes. Built from scratch (Python backend, JavaScript frontend). The prototype does not depend on purchasing a third-party customer-success platform; in production, Valence OS complements rather than replaces Valence's canonical CRM, analytics, and document systems.
 
 **Single-editor, not single-user.** Zach is the only direct operator in the initial version. Other Valence team members receive deliberately generated outputs (team updates, QBR materials), not access to the underlying workspace. Production authorization and record-level visibility must be revisited before any direct read access is added.
 
@@ -54,7 +54,7 @@ These come first because getting them wrong would put the tool in conflict with 
 - It stores **aggregate cohort usage** only, as supplied by the Valence Data team.
 - It has **no field anywhere for a named individual's product usage.** This is a schema-level prohibition, not a policy note.
 - The QBR generator ingests only Valence-approved aggregate insights. It never derives themes from coaching content itself.
-- As Nadia becomes more proactive and context-aware (calendar, meeting, and team signals), Account OS tracks **which capabilities are enabled for a deployment** but never ingests the underlying private context.
+- As Nadia becomes more proactive and context-aware (calendar, meeting, and team signals), Valence OS tracks **which capabilities are enabled for a deployment** but never ingests the underlying private context.
 
 **Stakeholder assessments are personal data.** Tags like supporter/skeptic, influence, and relationship strength describe identifiable people. They exist for a defined business purpose, access is limited to the operator, they are written as professional judgments with an evidence note and a date, and they fall under the same retention and hosting rules as everything else (Section 7).
 
@@ -82,16 +82,16 @@ Three paths, all landing in the same normalized model:
 
 **Source authority matrix.** Working assignment, to confirm on the job:
 
-| Data | Canonical system | Account OS stores |
+| Data | Canonical system | Valence OS stores |
 |---|---|---|
 | Contract value, official renewal date, opportunity records | CRM / RevOps | Synced copy + link, read-only locally |
 | Usage metrics, metric definitions | Valence Data team | Synced observations + definition version, read-only locally |
 | Original transcripts and client files | Approved document system | Link + summary by default (Section 7) |
-| Execution state: interactions, commitments, decisions, risks, plays, relationship judgments | **Account OS** | Native, editable |
+| Execution state: interactions, commitments, decisions, risks, plays, relationship judgments | **Valence OS** | Native, editable |
 
 Each synced field carries: source system, source identifier, import timestamp, and an editable-locally flag. The tool must not quietly become a competing CRM.
 
-**Operational overlay on canonical data.** Canonical fields are never overwritten locally. Where execution requires a different forecast or interpretation, Account OS stores a clearly labeled operational overlay alongside the canonical value, with rationale, author, and assessment date. Example: CRM renewal date December 31; Account OS expected decision date October 15; explanation, procurement requires ten weeks. Applies especially to renewal timing, projected seats, likely contract value, opportunity stage, and procurement timelines.
+**Operational overlay on canonical data.** Canonical fields are never overwritten locally. Where execution requires a different forecast or interpretation, Valence OS stores a clearly labeled operational overlay alongside the canonical value, with rationale, author, and assessment date. Example: CRM renewal date December 31; Valence OS expected decision date October 15; explanation, procurement requires ten weeks. Applies especially to renewal timing, projected seats, likely contract value, opportunity stage, and procurement timelines.
 
 **Open unknowns for the first weeks on the job:** where usage analytics live and their format, the Data team's canonical metric definitions, which CRM/RevOps systems hold contract data, and export permissions for each.
 

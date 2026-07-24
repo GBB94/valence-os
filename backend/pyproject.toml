@@ -1,7 +1,7 @@
 [project]
-name = "account-os-backend"
+name = "valence-os-backend"
 version = "0.1.0"
-description = "Account OS — v0 execution ledger (FastAPI + SQLite)"
+description = "Valence OS — v0 execution ledger (FastAPI + SQLite)"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

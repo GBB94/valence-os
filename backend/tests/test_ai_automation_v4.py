@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 def client():
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
-    os.environ["ACCOUNT_OS_DB"] = path
+    os.environ["VALENCE_OS_DB"] = path
     from app.main import app
     with TestClient(app) as c:
         yield c

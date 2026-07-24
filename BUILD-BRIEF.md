@@ -1,6 +1,6 @@
-# Account OS — Build Brief for Claude Code
+# Valence OS — Build Brief for Claude Code
 
-You are building Account OS, an internal single-editor web app for managing Fortune 100 enterprise accounts. The full specification is in `Account-OS-Scoping-Doc.md` in this repo. Read it in full before doing anything. It is the source of truth, and three sections of it are binding constraints, not background: Section 9 (build order), Section 11 (declined items and the frozen-scope rule), and Section 2 (trust boundaries).
+You are building Valence OS, an internal single-editor web app for managing Fortune 100 enterprise accounts. The full specification is in `Valence-OS-Scoping-Doc.md` in this repo. Read it in full before doing anything. It is the source of truth, and three sections of it are binding constraints, not background: Section 9 (build order), Section 11 (declined items and the frozen-scope rule), and Section 2 (trust boundaries).
 
 Also read `CLAUDE.md`, which contains the standing rules that apply to every session on this project.
 

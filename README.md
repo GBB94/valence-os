@@ -1,6 +1,6 @@
-# Account OS
+# Valence OS
 
-Internal single-editor web app for managing F100 deployments and expansions. Built to `Account-OS-Scoping-Doc.md` (v3.2, scope frozen). Standing rules in `CLAUDE.md`; Stage-0 paper model in `stage-0/`; decision trail in `decisions.md`.
+Internal single-editor web app for managing F100 deployments and expansions. Built to `Valence-OS-Scoping-Doc.md` (v3.2, scope frozen). Standing rules in `CLAUDE.md`; Stage-0 paper model in `stage-0/`; decision trail in `decisions.md`.
 
 **Build order:** Stage 0 ✅ → **v0.1 capture ✅ (current)** → v0.2 execution → v0.3 attention → v0.4 output.
 
