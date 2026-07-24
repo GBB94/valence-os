@@ -21,11 +21,30 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
     }
   }
 
+  async function importFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const bundle = JSON.parse(await file.text());
+      const r = await api.importAccount(bundle);
+      toast("Account restored");
+      onChanged?.();
+      onOpen(r.account_id);
+    } catch (err) {
+      toast(err.message?.includes("already exists") ? "That account already exists here" : (err.message || "Import failed"), "err");
+    }
+  }
+
   return (
     <div>
       <div className="actions" style={{ marginBottom: 16 }}>
         <h1>Accounts</h1>
         <div className="spacer" />
+        <label className="btn" style={{ cursor: "pointer" }}>
+          Import
+          <input type="file" accept="application/json" style={{ display: "none" }} onChange={importFile} />
+        </label>
         <button className="btn primary" onClick={() => setAdding((v) => !v)}>New account</button>
       </div>
 

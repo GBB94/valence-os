@@ -67,8 +67,10 @@ frontend/src/               React views (one per module) + api.js
 | **v3 visualization** | Cytoscape stakeholder graph (size=influence, color=stance) + power-interest toggle, Recharts budget waterfall |
 | **v4 AI & automation** | pluggable transcript extraction (mock / manual local-LLM / Claude API) under the Section-3 security model, plays trigger engine w/ effectiveness notes, notifications, pre-call briefing |
 | **+ global search** | SQLite FTS5 across native records and stored summaries (Section 8) |
+| **+ cmd-K palette** | keyboard-first command palette: nav + account jumps + live search (Section 6) |
+| **+ account export/restore** | full per-account export → restore into a clean install, round-trip tested (Section 7 / success criterion #8) |
 
-**Remaining doc-described capabilities** (named in Sections 5–8 but never slotted into a numbered phase): Mutual Action Plan (§5N), Files & context library (§5O), cmd-K command palette (§6), full timeline swimlanes (§5F), stakeholder coverage sidebar (§5C), metric sparklines/bullet charts (§6b), account export/restore (§7), a job table + in-process worker (§7/8). Production-mode items (SSO/MFA, approved hosting/DB, encryption, backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
+**Remaining doc-described capabilities** (named in Sections 5–8 but never slotted into a numbered phase): full timeline swimlanes (§5F), stakeholder coverage sidebar (§5C), metric sparklines/bullet charts (§6b), a job table + in-process worker (§7/8). Two need a small scope decision before building (they'd add an object or field): Mutual Action Plan (§5N) and tags on the Files & context library (§5O). Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
 
 ## Trust & correctness rules enforced in code (and tested)
 - **No table or column anywhere for a named individual's product usage** — asserted by a test.

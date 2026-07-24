@@ -25,6 +25,8 @@ export const api = {
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
   createAccount: (b) => req("POST", "/api/accounts", b),
+  exportAccount: (id) => req("GET", `/api/accounts/${id}/export`),
+  importAccount: (bundle) => req("POST", "/api/accounts/import", bundle),
   program: (id) => req("GET", `/api/programs/${id}`),
   createProgram: (b) => req("POST", "/api/programs", b),
   persons: (accountId) => req("GET", `/api/persons?account_id=${accountId}&include_valence=true`),

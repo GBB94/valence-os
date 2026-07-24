@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from .. import repo
+from .. import portfolio_io, repo
 from ..deps import get_conn
 from ..schemas import AccountCreate, AccountPatch
 
@@ -42,3 +42,15 @@ def patch_account(account_id: str, body: AccountPatch, conn: sqlite3.Connection 
 @router.post("/{account_id}/archive", status_code=204)
 def archive_account(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     repo.archive(conn, "accounts", account_id, object_type="account")
+
+
+@router.get("/{account_id}/export")
+def export_account(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Full structured export of an account and all its related records (Section 7)."""
+    return portfolio_io.export_account(conn, account_id)
+
+
+@router.post("/import", status_code=201)
+def import_account(bundle: dict, conn: sqlite3.Connection = Depends(get_conn)):
+    """Restore an exported account bundle into a clean installation."""
+    return portfolio_io.import_account(conn, bundle)

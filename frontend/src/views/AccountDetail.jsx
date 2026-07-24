@@ -39,6 +39,20 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
     }
   }
 
+  async function exportAccount() {
+    try {
+      const bundle = await api.exportAccount(accountId);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${acct.name.replace(/[^\w.-]+/g, "_")}.valence-export.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast("Account exported");
+    } catch (e) { toast(e.message, "err"); }
+  }
+
   if (!acct) return <div className="subtle">Loading…</div>;
 
   return (
@@ -48,6 +62,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
       <div className="actions" style={{ marginBottom: 4 }}>
         <h1>{acct.name}</h1>
         <div className="spacer" />
+        <button className="btn" onClick={exportAccount}>Export</button>
         <button className="btn primary" onClick={() => onQuickEntry(acct.id)}>Log interaction</button>
       </div>
       <div className="subtle" style={{ marginBottom: 10 }}>{acct.short_context}</div>

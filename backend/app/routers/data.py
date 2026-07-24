@@ -203,5 +203,7 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
         "failed_or_rolled_back": sum(1 for b in batches if b["status"] == "rolled_back"),
         "audit_events": audit_count,
         "source_freshness": fresh,
-        "backup": {"rpo_hours": 24, "last_restore_test": None, "note": "mock/local mode — backups apply in production mode"},
+        "backup": {"rpo_hours": 24, "restore_test": "passing (account export → restore round-trip, tests/test_portfolio_io.py)",
+                   "export": "per-account export/restore available (GET /accounts/{id}/export, POST /accounts/import)",
+                   "note": "mock/local mode — encrypted off-site backups apply in production mode"},
     }

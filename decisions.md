@@ -9,7 +9,10 @@ Zach asked to keep building the scoped-but-unphased capabilities (Modules N/O, s
 - **Rename:** product is now **Valence OS** (was Account OS) — everywhere incl. env var (`VALENCE_OS_DB`), DB file (`valence_os.sqlite`), package, scoping-doc filename, project dir. Pushed to private repo `github.com/GBB94/valence-os`.
 - **D-50 — Global search (Section 8) via SQLite FTS5.** Standalone `search_index` FTS5 table rebuilt on demand from native records + stored summaries (few-thousand-row scale → sub-ms reindex, always fresh, no per-table triggers to maintain). Prefix-matched, bm25-ranked, `snippet()` excerpts. Indexes the operator's own internal notes (single-editor tool). Top-bar becomes a global search with a results dropdown that navigates to the object's program/account.
 - **D-51 — `pyproject` declares `packages = ["app"]`** so `uv pip install -e .` works (flat-layout auto-discovery was erroring on app+migrations+tests).
+- **D-52 — cmd-K command palette (§6).** Frontend-only overlay (cmd/ctrl-K): fuzzy nav commands + account jumps + live global search, arrow-key nav, Enter/Esc. No schema change.
+- **D-53 — Account export/restore (§7 + success criterion #8).** `GET /accounts/{id}/export` produces a structured JSON bundle of the account and every related record (walks the object graph; pulls in referenced Valence owners, source references, and metric definitions). `POST /accounts/import` restores into a clean install (409 if the account already exists), FK-safe insert order, ids preserved. Round-trip tested (export from one DB → restore into a fresh one). UI: Export button on the account, Import (file) on the accounts list. Ops screen now reports the restore test passing.
 - README rewritten as the living project doc (context, tour, layout, module status).
+- **Scope note:** Mutual Action Plan (§5N) and Files-library tags (§5O) each need a new object or field, so they're held for a quick scope confirm rather than built silently under the frozen-scope rule.
 
 ## v4.1 (2026-07-24) — pluggable extractor
 
