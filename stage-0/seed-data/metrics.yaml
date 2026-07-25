@@ -21,9 +21,14 @@ metric_definitions:
     stale_after_days: 30
 
 metric_observations:
+  # A few months of history so the sparkline shows a trend. Latest (freshest current_through) wins.
+  - {id: mo-3, definition_id: md-activation, definition_version: "2", program_id: prog-tv-global, period_label: "2026-05", value: 0.64, unit: ratio, target: 0.70, current_through: 2026-05-31}
+  - {id: mo-4, definition_id: md-activation, definition_version: "2", program_id: prog-tv-global, period_label: "2026-06", value: 0.69, unit: ratio, target: 0.70, current_through: 2026-06-30}
   # Fresh observation (current_through recent) -> shows a value.
   - {id: mo-1, definition_id: md-activation, definition_version: "2", program_id: prog-tv-global, period_label: "2026-07", value: 0.72, unit: ratio, target: 0.70, current_through: 2026-07-10}
-  # Stale observation (old current_through) -> scoreboard renders "unknown", never carried-forward green.
+  # Weekly return history; latest current_through is old -> scoreboard renders "unknown" (stale), never carried-forward green.
+  - {id: mo-5, definition_id: md-weekly-return, definition_version: "3", program_id: prog-tv-global, period_label: "2026-03", value: 0.38, unit: ratio, target: 0.45, current_through: 2026-03-31}
+  - {id: mo-6, definition_id: md-weekly-return, definition_version: "3", program_id: prog-tv-global, period_label: "2026-04", value: 0.40, unit: ratio, target: 0.45, current_through: 2026-04-30}
   - {id: mo-2, definition_id: md-weekly-return, definition_version: "3", program_id: prog-tv-global, period_label: "2026-05", value: 0.41, unit: ratio, target: 0.45, current_through: 2026-05-20}
 
 benchmarks:

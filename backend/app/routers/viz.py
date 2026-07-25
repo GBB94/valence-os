@@ -74,6 +74,53 @@ def stakeholder_graph(account_id: str, program_id: str | None = None, conn: sqli
     return {"nodes": list(nodes.values()), "edges": edges}
 
 
+@router.get("/accounts/{account_id}/stakeholder-coverage")
+def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Coverage measure (Section 5C/6b): active senior relationships, days since last
+    meaningful touch, and whether the business case is multithreaded (2nd internal owner)."""
+    from datetime import date
+    from ..db import now_utc
+    repo.get_row(conn, "accounts", account_id)
+    today = now_utc()[:10]
+    senior = ("champion", "budget_owner", "program_owner")
+    rows = conn.execute(
+        "SELECT DISTINCT sr.person_id, sr.role FROM stakeholder_roles sr "
+        "JOIN programs pr ON pr.id=sr.program_id "
+        "WHERE pr.account_id=? AND sr.archived=0 AND sr.role IN (?,?,?)",
+        (account_id, *senior)).fetchall()
+    names = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
+    people = []
+    for r in rows:
+        last = conn.execute(
+            "SELECT MAX(i.occurred_on) m FROM interaction_participants ip JOIN interactions i ON i.id=ip.interaction_id "
+            "WHERE ip.person_id=? AND i.meaningful_touch=1 AND i.archived=0", (r["person_id"],)).fetchone()["m"]
+        days = None
+        if last:
+            try: days = (date.fromisoformat(today) - date.fromisoformat(last)).days
+            except ValueError: days = None
+        people.append({"name": names.get(r["person_id"]), "role": r["role"],
+                       "last_touch": last, "days_since_touch": days,
+                       "stale": days is None or days > 21})
+
+    # business-case owners = distinct internal owners driving expansion/commercial work
+    owners = set()
+    for x in repo.list_rows(conn, "expansion_opportunities", where="account_id=?", params=(account_id,)):
+        for c in ("sponsor_person_id", "budget_owner_person_id"):
+            if x.get(c): owners.add(x[c])
+    for c in conn.execute(
+        "SELECT DISTINCT internal_owner_id FROM commitments cm JOIN programs p ON p.id=cm.program_id "
+        "WHERE p.account_id=? AND cm.internal_owner_id IS NOT NULL", (account_id,)):
+        owners.add(c["internal_owner_id"])
+
+    return {
+        "senior_stakeholders": sorted(people, key=lambda x: (x["days_since_touch"] is None, -(x["days_since_touch"] or 0))),
+        "vp_plus_total": len(people),
+        "vp_plus_active": sum(1 for p in people if not p["stale"]),
+        "business_case_owner_count": len(owners),
+        "multithreaded": len(owners) >= 2,
+    }
+
+
 @router.get("/accounts/{account_id}/waterfall")
 def budget_waterfall(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     """Ordered narrative (Section 6b): current contract -> recovered vendor spend ->

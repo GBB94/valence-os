@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (57 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (60 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -70,7 +70,9 @@ frontend/src/               React views (one per module) + api.js
 | **+ cmd-K palette** | keyboard-first command palette: nav + account jumps + live search (Section 6) |
 | **+ account export/restore** | full per-account export → restore into a clean install, round-trip tested (Section 7 / success criterion #8) |
 
-**Remaining doc-described capabilities** (named in Sections 5–8 but never slotted into a numbered phase): full timeline swimlanes (§5F), stakeholder coverage sidebar (§5C), metric sparklines/bullet charts (§6b), a job table + in-process worker (§7/8). Two need a small scope decision before building (they'd add an object or field): Mutual Action Plan (§5N) and tags on the Files & context library (§5O). Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
+Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholder **coverage** sidebar (§5C), metric **sparklines + bullet charts** (§6b).
+
+**Remaining doc-described capabilities:** a job table + in-process worker (§7/8 — deliberately deferred; all work is synchronous at this scale). Two need a small scope decision before building (they'd add an object or field): Mutual Action Plan (§5N) and tags on the Files & context library (§5O). Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
 
 ## Trust & correctness rules enforced in code (and tested)
 - **No table or column anywhere for a named individual's product usage** — asserted by a test.

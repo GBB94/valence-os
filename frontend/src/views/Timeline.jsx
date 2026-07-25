@@ -30,16 +30,19 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
   if (!accounts.length) return <Empty title="No accounts yet">Create an account first.</Empty>;
   const programs = detail?.programs ?? [];
 
-  // gather dated markers
+  // gather dated markers by workstream lane
   const markers = [];
   if (data) {
     for (const m of data.program.execution?.milestones ?? [])
-      if (m.target_date) markers.push({ date: m.target_date, kind: "milestone", label: m.name, status: m.status });
+      if (m.target_date) markers.push({ date: m.target_date, kind: "milestone", lane: "Milestones", label: m.name, status: m.status });
     for (const mo of data.delivery.deployment_moments ?? [])
-      if (mo.event_date) markers.push({ date: mo.event_date, kind: "moment", label: mo.name });
+      if (mo.event_date) markers.push({ date: mo.event_date, kind: "moment", lane: "Deployment moments", label: mo.name });
+    for (const c of data.delivery.comms_entries ?? [])
+      if (c.send_date) markers.push({ date: c.send_date, kind: "comms", lane: "Comms", label: c.message || c.audience || "comms" });
   }
   const current = contracts.find((c) => c.is_current);
-  if (current?.renewal_date) markers.push({ date: current.renewal_date, kind: "renewal", label: "Renewal" });
+  if (current?.renewal_date) markers.push({ date: current.renewal_date, kind: "renewal", lane: "Renewal", label: "Renewal" });
+  const LANES = ["Milestones", "Deployment moments", "Comms", "Renewal"].filter((l) => markers.some((m) => m.lane === l));
 
   const today = new Date().toISOString().slice(0, 10);
   const dates = markers.map((m) => m.date).concat(today);
@@ -61,33 +64,42 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
       </div>
 
       {!data ? <div className="subtle">Loading…</div> : markers.length === 0 ? (
-        <div className="placeholder">No dated milestones, moments, or renewal for this program yet.</div>
+        <div className="placeholder">No dated milestones, moments, comms, or renewal for this program yet.</div>
       ) : (
-        <div className="card" style={{ padding: "28px 24px" }}>
-          <div style={{ position: "relative", height: 120, marginTop: 10 }}>
-            {/* axis */}
-            <div style={{ position: "absolute", top: 60, left: 0, right: 0, height: 2, background: "var(--border-strong)" }} />
-            {/* today */}
-            <div style={{ position: "absolute", top: 30, bottom: 20, left: pct(today), width: 2, background: "var(--accent)" }} title="today">
-              <span style={{ position: "absolute", top: -18, left: -14, fontSize: 10, color: "var(--accent)" }}>today</span>
-            </div>
-            {markers.sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
-              <div key={i} style={{ position: "absolute", left: pct(m.date), top: 60, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
-                <Marker kind={m.kind} status={m.status} />
-                <div style={{ position: "absolute", top: i % 2 ? 12 : -34, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 11, color: "var(--text-2)" }}>
-                  {m.label}<div className="rowmeta" style={{ textAlign: "center" }}>{m.date}</div>
-                </div>
-              </div>
-            ))}
+        <div className="card" style={{ padding: "16px 24px 24px" }}>
+          {/* date axis header */}
+          <div style={{ position: "relative", height: 18, marginLeft: 140 }}>
+            <span className="rowmeta" style={{ position: "absolute", left: 0 }}>{min}</span>
+            <span className="rowmeta" style={{ position: "absolute", right: 0 }}>{max}</span>
           </div>
-          <div className="rowmeta" style={{ marginTop: 20, display: "flex", gap: 16 }}>
-            <span><Marker kind="milestone" /> milestone</span>
+          {/* one swimlane per workstream */}
+          {LANES.map((lane) => (
+            <div key={lane} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--border)", minHeight: 46 }}>
+              <div className="rowmeta" style={{ width: 140, flex: "none", textTransform: "uppercase", letterSpacing: ".04em" }}>{lane}</div>
+              <div style={{ position: "relative", flex: 1, height: 46 }}>
+                {/* lane baseline + today marker */}
+                <div style={{ position: "absolute", top: 23, left: 0, right: 0, height: 1, background: "var(--border)" }} />
+                <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--accent)", opacity: 0.5 }} title="today" />
+                {markers.filter((m) => m.lane === lane).sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
+                  <div key={i} style={{ position: "absolute", left: pct(m.date), top: 23, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
+                    <Marker kind={m.kind} status={m.status} />
+                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10, color: "var(--text-2)" }}>
+                      {(m.label || "").slice(0, 22)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="rowmeta" style={{ marginTop: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span><Marker kind="milestone" /> milestone (green=complete)</span>
             <span><Marker kind="moment" /> deployment moment</span>
+            <span><Marker kind="comms" /> comms</span>
             <span><Marker kind="renewal" /> renewal</span>
+            <span style={{ color: "var(--accent)" }}>│ today</span>
           </div>
         </div>
       )}
-      <div className="rowmeta" style={{ marginTop: 8 }}>Two-timescale swimlanes and the full workstream view are refined further in v3; this is the v1 dated skeleton.</div>
     </div>
   );
 }
@@ -98,6 +110,7 @@ function Marker({ kind, status }) {
     return <span style={{ display: "inline-block", width: 12, height: 12, background: c, transform: "rotate(45deg)", verticalAlign: "middle" }} />;
   }
   if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--accent)", verticalAlign: "middle" }} />;
+  if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--warn)", verticalAlign: "middle" }} />;
   return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--text-2)", verticalAlign: "middle" }} />;
 }
 

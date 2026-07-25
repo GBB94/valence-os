@@ -15,6 +15,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   const [graph, setGraph] = useState(null);
   const [mode, setMode] = useState("network"); // 'network' | 'power_interest'
   const [selected, setSelected] = useState(null);
+  const [coverage, setCoverage] = useState(null);
   const elRef = useRef(null);
   const cyRef = useRef(null);
 
@@ -27,6 +28,11 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
     if (!accountId) return;
     api.stakeholderGraph(accountId, programId || undefined).then(setGraph).catch((e) => toast(e.message, "err"));
   }, [accountId, programId, reloadKey]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    api.stakeholderCoverage(accountId).then(setCoverage).catch(() => setCoverage(null));
+  }, [accountId, reloadKey]);
 
   useEffect(() => {
     if (mode !== "network" || !graph || !elRef.current) return;
@@ -89,6 +95,29 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             Size = influence · color = stance (green supporter, red skeptic, grey unconverted) · solid = reports-to, blue dashed = influences, dotted = sponsors.
           </div>
         </div>
+        <div>
+        {coverage && (
+          <div className="card" style={{ padding: 14, marginBottom: 10 }}>
+            <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>Coverage</div>
+            <div style={{ fontSize: 13, marginBottom: 4 }}>
+              <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong> senior relationships active
+              <span className="rowmeta"> (touched ≤21d)</span>
+            </div>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>
+              Business case: {coverage.multithreaded
+                ? <span style={{ color: "var(--ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
+                : <span style={{ color: "var(--warn)" }}>single-threaded — add a 2nd owner</span>}
+            </div>
+            {coverage.senior_stakeholders.map((s, i) => (
+              <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>{s.name} · {s.role.replace(/_/g, " ")}</span>
+                <span style={{ color: s.stale ? "var(--warn)" : "var(--text-3)" }}>
+                  {s.days_since_touch == null ? "no touch" : `${s.days_since_touch}d`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="card" style={{ padding: 14 }}>
           {selected ? (
             <>
@@ -102,6 +131,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
               </div>
             </>
           ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
+        </div>
         </div>
       </div>
     </div>

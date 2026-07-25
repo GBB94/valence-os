@@ -66,6 +66,23 @@ def test_waterfall_orders_current_recovered_expansion_total(scene):
     assert w["steps"][0]["amount"] == 900000 and w["steps"][-1]["amount"] == 3000000
 
 
+def test_stakeholder_coverage(scene):
+    c, a, p = scene["c"], scene["a"], scene["p"]
+    cov = c.get(f"/api/accounts/{a['id']}/stakeholder-coverage").json()
+    # champ (champion) + boss (budget_owner) are senior; neither touched -> stale
+    assert cov["vp_plus_total"] == 2 and cov["vp_plus_active"] == 0
+    assert cov["multithreaded"] is False   # no business-case owners yet
+    # two commitments with distinct internal owners -> multithreaded business case
+    o1 = c.post("/api/persons", json={"name": "V1", "affiliation": "valence"}).json()["id"]
+    o2 = c.post("/api/persons", json={"name": "V2", "affiliation": "valence"}).json()["id"]
+    cl = c.post("/api/persons", json={"name": "Client", "account_id": a["id"]}).json()["id"]
+    for o in (o1, o2):
+        c.post("/api/commitments", json={"program_id": p["id"], "description": "x",
+                                         "responsible_party_id": cl, "internal_owner_id": o, "due_date": "2026-08-01"})
+    cov2 = c.get(f"/api/accounts/{a['id']}/stakeholder-coverage").json()
+    assert cov2["business_case_owner_count"] == 2 and cov2["multithreaded"] is True
+
+
 def test_observation_history_series(scene):
     c = scene["c"]
     d = c.post("/api/metric-definitions", json={"name": "Activation"}).json()

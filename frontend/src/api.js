@@ -66,6 +66,7 @@ export const api = {
   setGraphAssessment: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}/graph`, b),
   createEdge: (b) => req("POST", "/api/relationship-edges", b),
   waterfall: (accountId) => req("GET", `/api/accounts/${accountId}/waterfall`),
+  stakeholderCoverage: (accountId) => req("GET", `/api/accounts/${accountId}/stakeholder-coverage`),
   observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
 
   // v4 AI & automation

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { api } from "../api";
 import { SlideOver, useToast, fmtDate } from "../ui";
 
@@ -49,6 +50,16 @@ export default function Metrics({ reloadKey }) {
               {o && !c.stale && (
                 <div className="rowmeta">
                   target {fmtNum(o.target, o.unit)}{delta != null && <span style={{ color: delta >= 0 ? "var(--ok)" : "var(--risk)", marginLeft: 6 }}>{delta >= 0 ? "▲" : "▼"} {fmtNum(Math.abs(delta), o.unit)}</span>}
+                </div>
+              )}
+              {o && !c.stale && o.target != null && <Bullet value={o.value} target={o.target} />}
+              {c.series && c.series.length > 1 && (
+                <div style={{ height: 30, marginTop: 6 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={c.series} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
+                      <Line type="monotone" dataKey="value" stroke={c.stale ? "var(--text-3)" : "var(--accent)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               )}
               <div className="rowmeta" style={{ marginTop: 6 }}>
@@ -139,6 +150,19 @@ function ImportPanel({ onClose, onDone }) {
         </div>
       )}
     </SlideOver>
+  );
+}
+
+// Bullet chart (Section 6b: "bullet charts over gauges") — value bar vs a target tick.
+function Bullet({ value, target }) {
+  const scale = Math.max(value || 0, target || 0, 0.0001) * 1.15;
+  const pct = (n) => `${Math.min(100, ((n || 0) / scale) * 100)}%`;
+  const met = value >= target;
+  return (
+    <div style={{ position: "relative", height: 8, background: "var(--surface-2)", borderRadius: 4, marginTop: 6, border: "1px solid var(--border)" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pct(value), background: met ? "var(--ok)" : "var(--warn)", borderRadius: 4 }} />
+      <div style={{ position: "absolute", left: pct(target), top: -2, bottom: -2, width: 2, background: "var(--text)" }} title="target" />
+    </div>
   );
 }
 

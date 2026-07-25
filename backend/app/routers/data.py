@@ -53,6 +53,12 @@ def scoreboard(conn: sqlite3.Connection = Depends(get_conn)):
             except ValueError:
                 card["stale"] = True
         card["display_value"] = "unknown" if (not obs or card["stale"]) else obs["value"]
+        # trend series for the sparkline (Section 6b) — last ~8 observations by period
+        series = conn.execute(
+            "SELECT period_label, value, target FROM metric_observations WHERE archived=0 AND definition_id=? "
+            "ORDER BY period_label DESC LIMIT 8", (d["id"],)).fetchall()
+        card["series"] = [{"period": r["period_label"], "value": r["value"], "target": r["target"]}
+                          for r in reversed(series)]
         out.append(card)
     return {"as_of": today, "cards": out}
 
