@@ -54,11 +54,12 @@ COLUMNS = {
     "tasks": {
         "id", "program_id", "description", "internal_owner_id", "due_date", "status",
         "closed_on", "closed_by", "close_note", "source_interaction_id", "source_reference_id",
+        "client_visible",
     },
     "commitments": {
         "id", "program_id", "description", "responsible_party_id", "internal_owner_id",
         "due_date", "status", "acknowledged_by_id", "closed_on", "closed_by", "close_note",
-        "source_interaction_id", "source_reference_id",
+        "source_interaction_id", "source_reference_id", "client_visible",
     },
     "decisions": {
         "id", "program_id", "description", "decided_on", "decided_by_id", "rationale",
@@ -76,7 +77,7 @@ COLUMNS = {
     },
     "milestones": {
         "id", "program_id", "name", "target_date", "success_criteria", "at_risk", "status",
-        "completed_on", "completed_by", "completion_note", "source_interaction_id",
+        "completed_on", "completed_by", "completion_note", "source_interaction_id", "client_visible",
     },
     "expansion_opportunities": {
         "id", "account_id", "name", "use_case", "target_seats", "expected_value",

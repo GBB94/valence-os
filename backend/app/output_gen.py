@@ -221,6 +221,47 @@ def qbr(conn, account_id: str) -> dict:
     }
 
 
+_MAP_TABLE = {"commitment": "commitments", "task": "tasks", "milestone": "milestones"}
+
+
+def mutual_action_plan(conn, account_id: str) -> dict:
+    """Client-facing joint plan (Section 5N). Includes ONLY affirmatively-promoted
+    (client_visible = 1) commitments, tasks, and milestones, by construction — internal
+    items and internal-only fields (raw notes, stance) are never queried. Visibility rules
+    apply exactly like the QBR / team update."""
+    acct = repo.get_row(conn, "accounts", account_id)
+    today = now_utc()[:10]
+    programs = {p["id"]: p["name"] for p in repo.list_rows(conn, "programs", where="account_id=?", params=(account_id,))}
+    names = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
+    pids = list(programs)
+    items = []
+    if pids:
+        qmarks = ",".join("?" * len(pids))
+        for r in conn.execute(f"SELECT * FROM milestones WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
+            items.append({"type": "milestone", "what": r["name"], "owner": None,
+                          "due": r["target_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+        for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
+            items.append({"type": "commitment", "what": r["description"], "owner": names.get(r["responsible_party_id"]),
+                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+        for r in conn.execute(f"SELECT * FROM tasks WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
+            items.append({"type": "task", "what": r["description"], "owner": names.get(r["internal_owner_id"]),
+                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+    items.sort(key=lambda x: (x["due"] or "9999", x["type"]))
+    md = [f"# Mutual action plan — {acct['name']}", "",
+          f"_Jointly owned · generated {now_utc()} · current through {today}_", ""]
+    if not items:
+        md.append("_No items have been shared to this plan yet._")
+    else:
+        md.append("| What | Owner | Due | Status | Program |")
+        md.append("|---|---|---|---|---|")
+        for it in items:
+            md.append(f"| {it['what']} | {it['owner'] or '—'} | {it['due'] or '—'} | {it['status']} | {it['program'] or '—'} |")
+    return {"account_id": account_id, "account_name": acct["name"],
+            "stamp": {"generated_at": now_utc(), "data_current_through": today},
+            "items": items, "markdown": "\n".join(md),
+            "note": "Client-facing: only items explicitly promoted to the plan appear here, by construction."}
+
+
 def _render_markdown(stamp, sections) -> str:
     L = [f"# Weekly team update", "",
          f"_Generated {stamp['generated_at']} · data current through {stamp['data_current_through']} · "

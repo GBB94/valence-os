@@ -474,6 +474,13 @@ class EdgeCreate(BaseModel):
     note: Optional[str] = None
 
 
+class MapPromote(BaseModel):
+    """Promote / demote an execution object onto the client-facing mutual action plan."""
+    object_type: Literal["commitment", "task", "milestone"]
+    object_id: str
+    client_visible: bool
+
+
 class RecoveredSpendCreate(BaseModel):
     account_id: str
     label: str = Field(min_length=1)

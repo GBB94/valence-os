@@ -20,6 +20,20 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
 
   const afterClose = () => { setClosing(null); load(); onChanged?.(); };
 
+  async function togglePlan(kind, item) {
+    try {
+      await api.mapPromote({ object_type: kind, object_id: item.id, client_visible: !item.client_visible });
+      toast(item.client_visible ? "Removed from plan" : "Added to mutual action plan");
+      load(); onChanged?.();
+    } catch (e) { toast(e.message, "err"); }
+  }
+  const PlanStar = ({ kind, item }) => (
+    <button className="btn small ghost" title={item.client_visible ? "On the mutual action plan — click to remove" : "Add to mutual action plan"}
+      onClick={() => togglePlan(kind, item)} style={{ color: item.client_visible ? "var(--accent)" : "var(--text-3)" }}>
+      {item.client_visible ? "★" : "☆"}
+    </button>
+  );
+
   if (!accounts.length) return <Empty title="No accounts yet">Create an account first.</Empty>;
 
   return (
@@ -41,7 +55,7 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
                 <td>{c.description}<div className="rowmeta">{c.program_name} · {c.responsible_party_name || "—"} → {c.internal_owner_name || "—"}</div></td>
                 <td className="rowmeta">{fmtDate(c.due_date)}</td>
                 <td>{statusCell(c.status, c.overdue ? "overdue" : null)}</td>
-                <td>{c.status === "open" && <button className="btn small" onClick={() => setClosing({ kind: "commitment", item: c })}>Close</button>}</td>
+                <td><div className="actions"><PlanStar kind="commitment" item={c} />{c.status === "open" && <button className="btn small" onClick={() => setClosing({ kind: "commitment", item: c })}>Close</button>}</div></td>
               </tr>
             )}
           </Section>
@@ -74,7 +88,7 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
                 <td>{m.name}<div className="rowmeta">{m.program_name}{m.success_criteria ? ` · ${m.success_criteria}` : ""}</div></td>
                 <td className="rowmeta">{fmtDate(m.target_date)}</td>
                 <td>{statusCell(m.status === "complete" ? "complete" : "upcoming", m.derived_at_risk ? "at risk" : null)}</td>
-                <td>{m.status === "upcoming" && <button className="btn small" onClick={() => setClosing({ kind: "milestone", item: m })}>Complete</button>}</td>
+                <td><div className="actions"><PlanStar kind="milestone" item={m} />{m.status === "upcoming" && <button className="btn small" onClick={() => setClosing({ kind: "milestone", item: m })}>Complete</button>}</div></td>
               </tr>
             )}
           </Section>
@@ -85,7 +99,7 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
                 <td>{t.description}<div className="rowmeta">{t.program_name}{t.internal_owner_name ? ` · ${t.internal_owner_name}` : ""}</div></td>
                 <td className="rowmeta">{fmtDate(t.due_date)}</td>
                 <td>{statusCell(t.status, t.overdue ? "overdue" : null)}</td>
-                <td>{t.status === "open" && <button className="btn small" onClick={() => setClosing({ kind: "task", item: t })}>Done</button>}</td>
+                <td><div className="actions"><PlanStar kind="task" item={t} />{t.status === "open" && <button className="btn small" onClick={() => setClosing({ kind: "task", item: t })}>Done</button>}</div></td>
               </tr>
             )}
           </Section>

@@ -110,6 +110,8 @@ export const api = {
     return req("GET", `/api/accounts/${accountId}/history${qs ? "?" + qs : ""}`);
   },
   teamUpdate: (since) => req("GET", `/api/team-update${since ? "?since=" + since : ""}`),
+  accountMap: (accountId) => req("GET", `/api/accounts/${accountId}/map`),
+  mapPromote: (b) => req("POST", "/api/map/promote", b),
   queue: () => req("GET", "/api/queue"),
   snoozeQueue: (b) => req("POST", "/api/queue/snooze", b),
   resolveQueue: (b) => req("POST", "/api/queue/resolve", b),

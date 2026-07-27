@@ -2,6 +2,12 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## MAP slice (2026-07-27) — Mutual Action Plan (§5N)
+
+Zach approved this as a single, self-contained slice (Option 1: promotion flag) after asking me to stop building ahead and re-establish slice discipline. Built and stopped for review.
+
+- **D-57 — MAP via a client-visible promotion flag, no new object type.** Migration 0009 adds `client_visible` (default 0) to commitments, tasks, milestones. `POST /map/promote` toggles it (audited); `GET /accounts/{id}/map` assembles the plan from ONLY promoted items, with client-safe fields (what / owner / due / status / program) — internal items and internal-only fields are never queried, the same visibility-by-construction as QBR/team-update (asserted: a planted "INTERNAL" commitment never appears). UI: a ★ toggle per commitment/task/milestone on the Execution board, plus a Mutual-action-plan view (table + copy-markdown) under Output. Seed promotes two Terravance items. 4 tests.
+
 ## Post-v4 (2026-07-24) — filling doc-described gaps beyond the numbered build order
 
 Zach asked to keep building the scoped-but-unphased capabilities (Modules N/O, search, cmd-K, timeline swimlanes, etc.) using judgment. Order: search → MAP → files library → cmd-K → refinements.

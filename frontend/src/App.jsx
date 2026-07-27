@@ -10,6 +10,7 @@ import ExecutionBoard from "./views/ExecutionBoard";
 import Queue from "./views/Queue";
 import History from "./views/History";
 import TeamUpdate from "./views/TeamUpdate";
+import MutualActionPlan from "./views/MutualActionPlan";
 import Commercial from "./views/Commercial";
 import Timeline from "./views/Timeline";
 import Metrics from "./views/Metrics";
@@ -41,6 +42,7 @@ function Shell() {
   const [tlAccount, setTlAccount] = useState(null);
   const [valAccount, setValAccount] = useState(null);
   const [qbrAccount, setQbrAccount] = useState(null);
+  const [mapAccount, setMapAccount] = useState(null);
   const [graphAccount, setGraphAccount] = useState(null);
   const [exAccount, setExAccount] = useState(null);
   const [notifs, setNotifs] = useState({ notifications: [], unread: 0 });
@@ -134,6 +136,7 @@ function Shell() {
           <button className={"nav-item" + (view.name === "plays" ? " active" : "")} onClick={() => setView({ name: "plays" })}>Plays</button>
 
           <div className="nav-label">Output</div>
+          <button className={"nav-item" + (view.name === "map" ? " active" : "")} onClick={() => setView({ name: "map" })}>Mutual action plan</button>
           <button className={"nav-item" + (view.name === "team-update" ? " active" : "")} onClick={() => setView({ name: "team-update" })}>Weekly team update</button>
           <button className={"nav-item" + (view.name === "qbr" ? " active" : "")} onClick={() => setView({ name: "qbr" })}>QBR generator</button>
           <button className={"nav-item" + (view.name === "operations" ? " active" : "")} onClick={() => setView({ name: "operations" })}>Operations</button>
@@ -235,6 +238,9 @@ function Shell() {
             <Extraction accounts={accounts} accountId={exAccount || accounts[0]?.id} setAccountId={setExAccount} reloadKey={reloadKey} onApplied={onSaved} />
           )}
           {view.name === "plays" && <Plays reloadKey={reloadKey} onChanged={() => { bump(); refreshNotifs(); }} />}
+          {view.name === "map" && (
+            <MutualActionPlan accounts={accounts} accountId={mapAccount || accounts[0]?.id} setAccountId={setMapAccount} reloadKey={reloadKey} />
+          )}
           {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>
