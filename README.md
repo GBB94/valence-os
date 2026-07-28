@@ -54,7 +54,7 @@ frontend/src/               React views (one per module) + api.js
 
 ## Build status
 
-**Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0008.
+**Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0009.
 
 | Phase | Delivered |
 |---|---|
