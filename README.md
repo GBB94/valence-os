@@ -47,7 +47,7 @@ decisions.md                decision log, newest first (D-01…)
 stage-0/                    paper model + mock seed data (seed-data/*.yaml)
 backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py, search.py, output_gen.py, queue.py …
-  migrations/               0001…0008 numbered SQL; every schema change is a migration
+  migrations/               0001…0009 numbered SQL; every schema change is a migration
   tests/                    pytest (per-slice + full acceptance script)
 frontend/src/               React views (one per module) + api.js
 ```
