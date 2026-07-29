@@ -2,12 +2,18 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Files-library tags slice (2026-07-29) — completes Module O (§5O)
+
+Zach approved exactly one schema change — `tags` on source_references — to finish §5O ("tagged, searchable"). Everything else in that turn was declined (see HANDOFF.md).
+
+- **D-59 — Tags as a comma-separated TEXT field, not a new object.** Migration 0010 adds `tags TEXT` to source_references — the tag pattern already used by value_stories, so tags stay a tag (§11), not an object. `SourceReferenceCreate` accepts `tags`; new `PATCH /source-references/{id}` (SourceReferencePatch) edits label/url/locator/tags, so an existing untagged link can be retagged; clearing uses `tags=""` (empty string survives repo.patch's None-filter). `GET /library` now parses `tags` into `tag_list` per row, returns the distinct sorted `all_tags`, adds a `?tag=` filter, and folds tag text into the `q` search. UI: tags column with editable chips (click a row's tags → prompt), a tag filter dropdown, and a Tags input on the Add-link form. Seed tags the June steering deck `steering,governance,europe`. 1 test (create/edit/filter/search/clear). §5O is now complete.
+
 ## Files & context library slice (2026-07-29) — Module O (§5O)
 
 Single slice, no schema change (respecting the frozen-scope ask-first rule after the build-ahead correction).
 
 - **D-58 — Files & context library over existing SourceReferences, zero schema change.** `GET /library?q=&type=&account_id=` lists source references (link-first pointers), each decorated with the records that **cite** it (computed by scanning every table's `source_reference_id`), the accounts they belong to, and a citation count; server-side filter by text/type/account. UI: a Files & context view (search + type filter + "Add link" form, link-first) under Accounts. Reuses the existing `POST /source-references`. 2 tests.
-- **Held:** §5O's "tagged" is the only remaining piece; it needs a `tags` field on source_references (a scope touch) — flagged for Zach's OK rather than added silently.
+- **Now done:** §5O's "tagged" piece was the one held item — completed by D-59 above with Zach's approval.
 
 ## MAP slice (2026-07-27) — Mutual Action Plan (§5N)
 

@@ -20,8 +20,12 @@ _CITERS = [
 ]
 
 
+def _tags(s):
+    return [t.strip() for t in (s or "").split(",") if t.strip()]
+
+
 @router.get("/library")
-def library(q: str = "", type: str = "", account_id: str = "", conn: sqlite3.Connection = Depends(get_conn)):
+def library(q: str = "", type: str = "", account_id: str = "", tag: str = "", conn: sqlite3.Connection = Depends(get_conn)):
     """Files & context library (Section 5O): link-first, searchable list of source references,
     each with the records that cite it. (Tags — the last §5O bit — need a schema field; held.)"""
     names = {a["id"]: a["name"] for a in repo.list_rows(conn, "accounts", where="1=1")}
@@ -40,17 +44,22 @@ def library(q: str = "", type: str = "", account_id: str = "", conn: sqlite3.Con
             })
 
     refs = repo.list_rows(conn, "source_references", where="1=1 ORDER BY created_at DESC")
+    all_tags = sorted({t for s in refs for t in _tags(s.get("tags"))})
     out = []
     ql = q.strip().lower()
     for s in refs:
         s["citations"] = cites.get(s["id"], [])
         s["citation_count"] = len(s["citations"])
         s["accounts"] = sorted({c["account_name"] for c in s["citations"] if c["account_name"]})
+        s["tag_list"] = _tags(s.get("tags"))
         if type and s["type"] != type:
             continue
         if account_id and account_id not in {c["account_id"] for c in s["citations"]}:
             continue
-        if ql and ql not in (s.get("label", "") + " " + (s.get("url") or "") + " " + " ".join(s["accounts"])).lower():
+        if tag and tag not in s["tag_list"]:
+            continue
+        if ql and ql not in (s.get("label", "") + " " + (s.get("url") or "") + " "
+                             + " ".join(s["accounts"]) + " " + " ".join(s["tag_list"])).lower():
             continue
         out.append(s)
-    return {"count": len(out), "sources": out}
+    return {"count": len(out), "all_tags": all_tags, "sources": out}

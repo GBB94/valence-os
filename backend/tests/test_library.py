@@ -52,3 +52,26 @@ def test_library_filters_by_type_search_and_account(client):
     # account filter uses citations; the deck is uncited so it's excluded when filtering by account
     by_acct = client.get(f"/api/library?account_id={a['id']}").json()["sources"]
     assert {s["id"] for s in by_acct} == {tx["id"]}
+
+
+def test_library_tags_create_edit_filter_and_search(client):
+    a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    tagged = client.post("/api/source-references", json={
+        "type": "file", "label": "Steering deck", "tags": "steering, governance"}).json()
+    plain = client.post("/api/source-references", json={"type": "file", "label": "Random deck"}).json()
+
+    lib = client.get("/api/library").json()
+    row = next(s for s in lib["sources"] if s["id"] == tagged["id"])
+    assert row["tag_list"] == ["steering", "governance"]
+    assert lib["all_tags"] == ["governance", "steering"]  # distinct, sorted
+
+    # filter by tag returns only the tagged deck
+    assert {s["id"] for s in client.get("/api/library?tag=steering").json()["sources"]} == {tagged["id"]}
+    # search matches on tag text
+    assert {s["id"] for s in client.get("/api/library?q=governance").json()["sources"]} == {tagged["id"]}
+
+    # edit tags via PATCH: retag the plain deck, clear the tagged one
+    client.patch(f"/api/source-references/{plain['id']}", json={"tags": "steering"})
+    client.patch(f"/api/source-references/{tagged['id']}", json={"tags": ""})
+    assert {s["id"] for s in client.get("/api/library?tag=steering").json()["sources"]} == {plain["id"]}
+    assert client.get("/api/library").json()["all_tags"] == ["steering"]

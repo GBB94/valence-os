@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (66 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (67 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -47,14 +47,14 @@ decisions.md                decision log, newest first (D-01…)
 stage-0/                    paper model + mock seed data (seed-data/*.yaml)
 backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py, search.py, output_gen.py, queue.py …
-  migrations/               0001…0009 numbered SQL; every schema change is a migration
+  migrations/               0001…0010 numbered SQL; every schema change is a migration
   tests/                    pytest (per-slice + full acceptance script)
 frontend/src/               React views (one per module) + api.js
 ```
 
 ## Build status
 
-**Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0009.
+**Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0010.
 
 | Phase | Delivered |
 |---|---|
@@ -70,9 +70,9 @@ frontend/src/               React views (one per module) + api.js
 | **+ cmd-K palette** | keyboard-first command palette: nav + account jumps + live search (Section 6) |
 | **+ account export/restore** | full per-account export → restore into a clean install, round-trip tested (Section 7 / success criterion #8) |
 
-Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholder **coverage** sidebar (§5C), metric **sparklines + bullet charts** (§6b), the **Mutual Action Plan** (§5N — client-facing joint plan from items promoted via a ★ on the Execution board), and the **Files & context library** (§5O — link-first, searchable list of source references with the records that cite each).
+Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholder **coverage** sidebar (§5C), metric **sparklines + bullet charts** (§6b), the **Mutual Action Plan** (§5N — client-facing joint plan from items promoted via a ★ on the Execution board), and the **Files & context library** (§5O — link-first, searchable, **tagged** list of source references with the records that cite each).
 
-**Remaining doc-described capabilities:** a job table + in-process worker (§7/8 — deliberately deferred; all work is synchronous at this scale). One small piece needs a scope decision (it'd add a field): **tags** on the Files & context library (§5O). Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out.
+**Remaining doc-described capabilities:** a job table + in-process worker (§7/8 — deliberately deferred; all work is synchronous at this scale). Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) are gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out. **This is the intended stopping point** — next phase is real-world use, then v4 scoping; see `HANDOFF.md`.
 
 ## Trust & correctness rules enforced in code (and tested)
 - **No table or column anywhere for a named individual's product usage** — asserted by a test.

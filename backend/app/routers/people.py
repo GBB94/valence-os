@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from .. import repo
 from ..deps import get_conn
-from ..schemas import PersonCreate, PersonPatch, SourceReferenceCreate
+from ..schemas import PersonCreate, PersonPatch, SourceReferenceCreate, SourceReferencePatch
 
 router = APIRouter(prefix="/api", tags=["people"])
 
@@ -47,3 +47,8 @@ def list_source_references(conn: sqlite3.Connection = Depends(get_conn)):
 @router.post("/source-references", status_code=201)
 def create_source_reference(body: SourceReferenceCreate, conn: sqlite3.Connection = Depends(get_conn)):
     return repo.insert(conn, "source_references", body.model_dump(), object_type="source_reference")
+
+
+@router.patch("/source-references/{ref_id}")
+def patch_source_reference(ref_id: str, body: SourceReferencePatch, conn: sqlite3.Connection = Depends(get_conn)):
+    return repo.patch(conn, "source_references", ref_id, body.model_dump(), object_type="source_reference")

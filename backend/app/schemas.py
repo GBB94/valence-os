@@ -113,6 +113,14 @@ class SourceReferenceCreate(BaseModel):
     label: str = Field(min_length=1)
     url: Optional[str] = None
     locator: Optional[str] = None
+    tags: Optional[str] = None          # comma-separated (Section 5O)
+
+
+class SourceReferencePatch(BaseModel):
+    label: Optional[str] = None
+    url: Optional[str] = None
+    locator: Optional[str] = None
+    tags: Optional[str] = None
 
 
 # --- v0.2 execution objects ---------------------------------------------------

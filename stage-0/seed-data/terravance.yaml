@@ -144,7 +144,7 @@ interactions:
 
 # --- Source references ---
 source_references:
-  - {id: src-tv-steerdeck, type: file, label: "June steering forum deck (link)", url: "https://example.test/terravance/steering-2026-06", locator: "slide 4"}
+  - {id: src-tv-steerdeck, type: file, label: "June steering forum deck (link)", url: "https://example.test/terravance/steering-2026-06", locator: "slide 4", tags: "steering,governance,europe"}
 
 # --- Execution objects ---
 commitments:

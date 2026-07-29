@@ -22,13 +22,14 @@ async function req(method, path, body) {
 export const api = {
   health: () => req("GET", "/api/health"),
   search: (q) => req("GET", `/api/search?q=${encodeURIComponent(q)}`),
-  library: ({ q = "", type = "", accountId = "" } = {}) => {
+  library: ({ q = "", type = "", accountId = "", tag = "" } = {}) => {
     const p = new URLSearchParams();
-    if (q) p.set("q", q); if (type) p.set("type", type); if (accountId) p.set("account_id", accountId);
+    if (q) p.set("q", q); if (type) p.set("type", type); if (accountId) p.set("account_id", accountId); if (tag) p.set("tag", tag);
     const qs = p.toString();
     return req("GET", `/api/library${qs ? "?" + qs : ""}`);
   },
   createSourceReference: (b) => req("POST", "/api/source-references", b),
+  patchSourceReference: (id, b) => req("PATCH", `/api/source-references/${id}`, b),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
   createAccount: (b) => req("POST", "/api/accounts", b),
