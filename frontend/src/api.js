@@ -22,6 +22,13 @@ async function req(method, path, body) {
 export const api = {
   health: () => req("GET", "/api/health"),
   search: (q) => req("GET", `/api/search?q=${encodeURIComponent(q)}`),
+  library: ({ q = "", type = "", accountId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q); if (type) p.set("type", type); if (accountId) p.set("account_id", accountId);
+    const qs = p.toString();
+    return req("GET", `/api/library${qs ? "?" + qs : ""}`);
+  },
+  createSourceReference: (b) => req("POST", "/api/source-references", b),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
   createAccount: (b) => req("POST", "/api/accounts", b),

@@ -2,6 +2,13 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Files & context library slice (2026-07-29) — Module O (§5O)
+
+Single slice, no schema change (respecting the frozen-scope ask-first rule after the build-ahead correction).
+
+- **D-58 — Files & context library over existing SourceReferences, zero schema change.** `GET /library?q=&type=&account_id=` lists source references (link-first pointers), each decorated with the records that **cite** it (computed by scanning every table's `source_reference_id`), the accounts they belong to, and a citation count; server-side filter by text/type/account. UI: a Files & context view (search + type filter + "Add link" form, link-first) under Accounts. Reuses the existing `POST /source-references`. 2 tests.
+- **Held:** §5O's "tagged" is the only remaining piece; it needs a `tags` field on source_references (a scope touch) — flagged for Zach's OK rather than added silently.
+
 ## MAP slice (2026-07-27) — Mutual Action Plan (§5N)
 
 Zach approved this as a single, self-contained slice (Option 1: promotion flag) after asking me to stop building ahead and re-establish slice discipline. Built and stopped for review.

@@ -11,6 +11,7 @@ import Queue from "./views/Queue";
 import History from "./views/History";
 import TeamUpdate from "./views/TeamUpdate";
 import MutualActionPlan from "./views/MutualActionPlan";
+import Library from "./views/Library";
 import Commercial from "./views/Commercial";
 import Timeline from "./views/Timeline";
 import Metrics from "./views/Metrics";
@@ -126,6 +127,7 @@ function Shell() {
           <button className={"nav-item" + (view.name === "timeline" ? " active" : "")} onClick={() => setView({ name: "timeline" })}>Timeline</button>
           <button className={"nav-item" + (view.name === "graph" ? " active" : "")} onClick={() => setView({ name: "graph" })}>Stakeholder map</button>
           <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
+          <button className={"nav-item" + (view.name === "library" ? " active" : "")} onClick={() => setView({ name: "library" })}>Files &amp; context</button>
 
           <div className="nav-label">Data &amp; evidence</div>
           <button className={"nav-item" + (view.name === "metrics" ? " active" : "")} onClick={() => setView({ name: "metrics" })}>Metrics</button>
@@ -241,6 +243,7 @@ function Shell() {
           {view.name === "map" && (
             <MutualActionPlan accounts={accounts} accountId={mapAccount || accounts[0]?.id} setAccountId={setMapAccount} reloadKey={reloadKey} />
           )}
+          {view.name === "library" && <Library reloadKey={reloadKey} />}
           {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
           {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
         </div>
