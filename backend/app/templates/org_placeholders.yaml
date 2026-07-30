@@ -1,0 +1,36 @@
+# Org-chart placeholder template (PHASE-3-SPEC.md §3)
+# Editable seed file. Every new account starts knowing who it's MISSING. Each placeholder is
+# seeded as a persons row (is_placeholder=1) with a stakeholder_role so it shows on the graph.
+# find_by_offset_days is relative to kickoff. europe_only items seed only when Europe is in scope.
+placeholders:
+  - expected_role: champion
+    title: Champion
+    why: No single internal owner will carry the deployment without a named champion.
+    expected_influence: high
+    find_by_offset_days: 7
+  - expected_role: budget_owner
+    title: Budget owner
+    why: Controls the funding line and the renewal decision.
+    expected_influence: high
+    find_by_offset_days: 14
+  - expected_role: other
+    title: CHRO
+    why: Executive sponsor for talent; unlocks HR-led launch.
+    expected_influence: high
+    find_by_offset_days: 30
+  - expected_role: it
+    title: IT security lead
+    why: Owns the security review that gates go-live.
+    expected_influence: medium
+    find_by_offset_days: 21
+  - expected_role: legal_dpo
+    title: Legal / DPO
+    why: Owns the DPA and data-handling approval.
+    expected_influence: medium
+    find_by_offset_days: 21
+  - expected_role: works_council_contact
+    title: Works-council contact
+    why: Consultation is a hard gate on any European rollout.
+    expected_influence: medium
+    find_by_offset_days: 30
+    europe_only: true

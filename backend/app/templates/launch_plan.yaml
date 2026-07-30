@@ -1,0 +1,46 @@
+# Launch plan template (PHASE-3-SPEC.md §1b, §1c)
+# Editable seed file — evolve the standard launch without code changes.
+# Milestone target dates and prep-task due dates are all OFFSETS in days from the kickoff date.
+
+# §1b — standard milestone set, all relative to kickoff (day 0).
+milestones:
+  - key: kickoff
+    name: Kickoff call
+    offset_days: 0
+    success_criteria: Kickoff held; success definition, budget owner, and metric of record confirmed.
+  - key: tech_setup
+    name: Tech setup complete
+    offset_days: 14
+    success_criteria: Access, SSO, and data flow validated end to end.
+  - key: hr_soft_launch
+    name: HR soft launch
+    offset_days: 30
+    success_criteria: First cohort invited via HR; comms sent.
+  - key: organic_launch
+    name: Organic launch
+    offset_days: 45
+    success_criteria: Open enrollment live; adoption being tracked.
+  - key: first_integration
+    name: First programmatic integration
+    offset_days: 60
+    success_criteria: One workflow/talent-calendar integration point live.
+  - key: first_value_readout
+    name: First value readout
+    offset_days: 75
+    success_criteria: First value story captured with evidence tier.
+  - key: day_90_stepback
+    name: Day-90 step-back
+    offset_days: 90
+    success_criteria: Step-back held; expansion hypothesis reviewed against evidence.
+
+# §1c — kickoff prep tasks, BACK-scheduled from kickoff (negative offsets).
+prep_tasks:
+  - key: deck_ready
+    description: Kickoff deck ready for review
+    offset_days: -3
+  - key: agenda_sent
+    description: Kickoff agenda sent to client
+    offset_days: -2
+  - key: internal_alignment
+    description: Internal alignment on kickoff goals and roles
+    offset_days: -1

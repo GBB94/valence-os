@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { api } from "../api";
 import { Empty, useToast } from "../ui";
+import Onboarding from "./Onboarding";
 
 export default function Accounts({ accounts, onOpen, onChanged }) {
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [ctx, setCtx] = useState("");
+  const [onboarding, setOnboarding] = useState(null); // the just-created account being onboarded
 
   async function create() {
     if (!name.trim()) return;
@@ -15,7 +17,7 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
       toast("Account created");
       setName(""); setCtx(""); setAdding(false);
       onChanged?.();
-      onOpen(a.id);
+      setOnboarding(a);  // §1 — creating an account triggers the guided onboarding flow
     } catch (e) {
       toast(e.message, "err");
     }
@@ -87,6 +89,14 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
           </table>
         )}
       </div>
+
+      {onboarding && (
+        <Onboarding
+          account={onboarding}
+          onClose={() => setOnboarding(null)}
+          onDone={() => { onChanged?.(); onOpen(onboarding.id); }}
+        />
+      )}
     </div>
   );
 }

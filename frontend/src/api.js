@@ -129,4 +129,22 @@ export const api = {
   closeRisk: (id, b) => req("POST", `/api/risks/${id}/close`, b),
   resolveIssue: (id, b) => req("POST", `/api/issues/${id}/resolve`, b),
   completeMilestone: (id, b) => req("POST", `/api/milestones/${id}/complete`, b),
+
+  // Phase 3 Stage 1 — onboarding, checklists, org-chart placeholders
+  onboard: (accountId, b) => req("POST", `/api/accounts/${accountId}/onboard`, b),
+  onboarding: (accountId) => req("GET", `/api/accounts/${accountId}/onboarding`),
+  deckSkeleton: (accountId, programId) => req("GET", `/api/accounts/${accountId}/deck-skeleton${programId ? "?program_id=" + programId : ""}`),
+  intakeParse: (text) => req("POST", "/api/intake/parse", { text }),
+  intakeAccept: (b) => req("POST", "/api/intake/accept", b),
+  checklistItems: ({ accountId, programId, section } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId);
+    if (programId) p.set("program_id", programId);
+    if (section) p.set("section", section);
+    return req("GET", `/api/checklist-items?${p.toString()}`);
+  },
+  addChecklistItem: (b) => req("POST", "/api/checklist-items", b),
+  patchChecklistItem: (id, b) => req("PATCH", `/api/checklist-items/${id}`, b),
+  createPlaceholder: (b) => req("POST", "/api/placeholders", b),
+  convertPlaceholder: (personId, b) => req("POST", `/api/placeholders/${personId}/convert`, b),
 };

@@ -10,6 +10,13 @@ Valence OS is an internal, single-editor web app for one Valence Engagement Mana
 
 **The prior "do not resume building" guidance is retired by the Phase 3 spec.** Building to feature-complete is now the instruction; the evidence gates are gone. What stays binding: the §2 trust boundaries, the design guide, mock-only data, tests green, decisions logged. The single remaining gate is **data governance, not scope** — every external connection is a mock adapter until hosting/data-handling is cleared at Valence (see `CONNECTIONS.md`, and `PHASE-3-SPEC.md §9`). Phase 3 progress and the newly permitted dependencies are logged in `decisions.md` (regime change: D-73).
 
+**Phase 3 progress (build order in `PHASE-3-SPEC.md §10`):**
+- **Task Zero — done.** Docs regime change; job table (migration 0011) + single in-process worker (`app/jobs.py`, env-gated `VALENCE_OS_WORKER`, default off) + jobs API. D-73/D-74.
+- **Stage 1 — done.** Guided onboarding, launch checklists, org-chart placeholders (migration 0012). New backend: `app/onboarding.py`, `app/intake.py`, `app/routers/onboarding.py`, editable templates under `app/templates/`. Two new queue triggers (`checklist_overdue`, `unidentified_placeholder`). Frontend: onboarding wizard (`Onboarding.jsx`, fires on account create), checklists panel in the Plan tab (`Checklists.jsx`), placeholder nodes + coverage on the graph. Screenshots in `design-screenshots/stage-1/` (both themes). D-75. **86 tests pass.**
+- **Stages 2-6 — pending.** Association engine + ingestion, extraction extensions + review UI, finished-artifact generators, new triggers + calendar, CONNECTIONS.md + e2e demo.
+
+**Running Phase 3 test count: 86** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
+
 ## How to run / seed / test
 
 Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`, which is macOS-TCC-blocked — do not move it back). Backend is Python 3.12 + FastAPI + raw `sqlite3`; frontend is React (Vite).

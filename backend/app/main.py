@@ -12,8 +12,8 @@ from . import jobs
 from .db import connect, run_migrations
 from .routers import (
     accounts, ai, attention, commercial, data, delivery, execution, inbox, interactions,
-    jobs as jobs_router, library, mutual_action_plan, output, people, programs,
-    search as search_router, viz,
+    jobs as jobs_router, library, mutual_action_plan, onboarding as onboarding_router,
+    output, people, programs, search as search_router, viz,
 )
 
 
@@ -66,6 +66,7 @@ app.include_router(library.router)
 app.include_router(mutual_action_plan.router)
 app.include_router(inbox.router)
 app.include_router(jobs_router.router)
+app.include_router(onboarding_router.router)
 
 
 @app.get("/api/health")

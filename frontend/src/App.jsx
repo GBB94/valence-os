@@ -17,6 +17,7 @@ import ValueLibrary from "./views/ValueLibrary";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import StakeholderGraph from "./views/StakeholderGraph";
+import Checklists from "./views/Checklists";
 import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
 
@@ -406,6 +407,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
         )}
         {tab === "plan" && (
           <div className="stack">
+            <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
             {selProgram
               ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
               : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}

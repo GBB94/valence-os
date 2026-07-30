@@ -1,0 +1,71 @@
+# Launch checklist template (PHASE-3-SPEC.md §2, and §1e first-call questions)
+# Editable seed file — add a Valence-specific item by editing here, not the schema.
+# Each item: label, optional detail, optional fills_field (an account/program field the answer
+# should fill — §1e), and due_offset_days relative to kickoff. Falling-behind escalation is
+# derived in the queue: past due -> Today; more than 7 days past -> risk treatment + overview.
+
+# §1e — first call: the things to understand in call one. Answering prompts filling the field.
+first_call:
+  - label: Confirm the success definition
+    detail: What does a win look like to them, in their words?
+    fills_field: program.success_criteria
+    due_offset_days: 0
+  - label: Identify the budget owner
+    detail: Who controls the funding line and the renewal decision?
+    fills_field: null
+    due_offset_days: 0
+  - label: Confirm the metric of record
+    detail: Which single metric will both sides treat as the scorecard?
+    fills_field: null
+    due_offset_days: 0
+  - label: Map the talent calendar
+    detail: Review cycles, promotion windows, and blackout periods that gate rollout.
+    fills_field: null
+    due_offset_days: 0
+  - label: Establish incumbent status
+    detail: Who is the incumbent vendor and what is the displacement path?
+    fills_field: account.incumbent_note
+    due_offset_days: 0
+  - label: Trace the IT / legal path
+    detail: Security review, DPA, and the approval chain.
+    fills_field: null
+    due_offset_days: 0
+  - label: Assess works-council exposure
+    detail: Where Europe is in scope, the consultation requirement and timeline.
+    fills_field: null
+    due_offset_days: 0
+
+# §2 — first two weeks.
+first_two_weeks:
+  - label: Metric definitions agreed
+    due_offset_days: 14
+  - label: Scorecard and budget owner named
+    due_offset_days: 14
+  - label: Comms plan drafted
+    due_offset_days: 14
+  - label: Tech setup started
+    due_offset_days: 14
+  - label: Compliance lanes opened
+    due_offset_days: 14
+
+# §2 — first 30 days.
+first_30_days:
+  - label: HR soft launch done
+    due_offset_days: 30
+  - label: Baselines captured
+    due_offset_days: 30
+  - label: First cohort activated
+    due_offset_days: 30
+  - label: Governance cadence running
+    due_offset_days: 30
+
+# §2 — first 90 days.
+first_90_days:
+  - label: Organic launch complete
+    due_offset_days: 45
+  - label: Programmatic integrations identified
+    due_offset_days: 60
+  - label: Value stories captured
+    due_offset_days: 75
+  - label: Day-90 step-back scheduled
+    due_offset_days: 90

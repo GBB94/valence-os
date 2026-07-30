@@ -9,6 +9,10 @@ import { useToast, AgeChip } from "../ui";
 // the reporting hierarchy, no force-directed hairball. Toggle to a power-interest grid.
 const STANCE_VAR = { supporter: "--data-1", skeptic: "--data-3", unconverted: "--data-muted", null: "--data-muted" };
 const STANCE_SHAPE = { supporter: "ellipse", skeptic: "diamond", unconverted: "round-rectangle", null: "round-rectangle" };
+// §3 placeholder: a position known to exist but not yet identified — rendered in the unknown
+// treatment (status-unknown fill + hexagon), sized by EXPECTED influence.
+const PLACEHOLDER_VAR = "--status-unknown";
+const PLACEHOLDER_SHAPE = "hexagon";
 
 export default function StakeholderGraph({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
@@ -59,7 +63,10 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
     const cy = cytoscape({
       container: elRef.current,
       elements: [
-        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.name, size: n.size, color: stanceColor(n.stance), shape: STANCE_SHAPE[n.stance] || "round-rectangle", role: n.role } })),
+        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.is_placeholder ? (n.title || n.name) : n.name, size: n.size,
+          color: n.is_placeholder ? v(PLACEHOLDER_VAR) : stanceColor(n.stance),
+          shape: n.is_placeholder ? PLACEHOLDER_SHAPE : (STANCE_SHAPE[n.stance] || "round-rectangle"),
+          dashed: n.is_placeholder ? "dashed" : "solid", role: n.role } })),
         ...graph.edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, type: e.type } })),
       ],
       style: [
@@ -67,6 +74,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
           "background-color": "data(color)", shape: "data(shape)", width: "data(size)", height: "data(size)",
           label: "data(label)", "font-size": 10, color: labelColor, "text-valign": "bottom",
           "text-margin-y": 3, "border-width": 1, "border-color": nodeBorder } },
+        // placeholders (§3): dashed border marks a position that isn't a confirmed person yet
+        { selector: 'node[dashed="dashed"]', style: {
+          "border-width": 2, "border-color": v("--status-unknown"), "border-style": "dashed" } },
         { selector: "edge", style: {
           "curve-style": "bezier", "target-arrow-shape": "triangle", width: 2,
           "line-color": edgeColor, "target-arrow-color": edgeColor, "font-size": 8,
@@ -112,7 +122,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
               ? <div ref={elRef} style={{ height: 460 }} />
               : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
           <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
-            Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · solid = reports-to, dashed = influences, dotted = sponsors.
+            Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · ⬡ dashed = unidentified position · solid = reports-to, dashed = influences, dotted = sponsors.
           </div>
         </div>
         <div>
@@ -128,6 +138,12 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 ? <span style={{ color: "var(--status-ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
                 : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a 2nd owner</span>}
             </div>
+            {coverage.placeholder_count > 0 && (
+              <div style={{ fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="unknown-hatch" style={{ width: 10, height: 10, display: "inline-block", flex: "none" }} />
+                <strong>{coverage.placeholder_count}</strong>&nbsp;critical position{coverage.placeholder_count === 1 ? "" : "s"} unidentified
+              </div>
+            )}
             {coverage.senior_stakeholders.map((s, i) => (
               <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{s.name} · {s.role.replace(/_/g, " ")}</span>
@@ -138,16 +154,31 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         )}
         <div className="card" style={{ padding: 14 }}>
           {selected ? (
-            <>
-              <h3 style={{ marginTop: 0 }}>{selected.name}</h3>
-              <div className="rowmeta">{selected.title}</div>
-              <div className="kv" style={{ marginTop: 10 }}>
-                <dt>Role</dt><dd>{selected.role}</dd>
-                <dt>Stance</dt><dd>{selected.stance || "—"}</dd>
-                <dt>Influence</dt><dd>{selected.influence || "—"}</dd>
-                <dt>Relationship</dt><dd>{selected.relationship_strength || "—"}</dd>
-              </div>
-            </>
+            selected.is_placeholder ? (
+              <>
+                <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span className="unknown-hatch" style={{ width: 12, height: 12, display: "inline-block", flex: "none" }} />
+                  {selected.title || selected.name}
+                </h3>
+                <div className="rowmeta">Unidentified position</div>
+                <div className="kv" style={{ marginTop: 10 }}>
+                  <dt>Expected role</dt><dd>{(selected.role || "—").replace(/_/g, " ")}</dd>
+                  <dt>Expected influence</dt><dd>{selected.expected_influence || "—"}</dd>
+                  <dt>Find by</dt><dd>{selected.find_by_date ? <AgeChip date={selected.find_by_date} /> : "—"}</dd>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ marginTop: 0 }}>{selected.name}</h3>
+                <div className="rowmeta">{selected.title}</div>
+                <div className="kv" style={{ marginTop: 10 }}>
+                  <dt>Role</dt><dd>{selected.role}</dd>
+                  <dt>Stance</dt><dd>{selected.stance || "—"}</dd>
+                  <dt>Influence</dt><dd>{selected.influence || "—"}</dd>
+                  <dt>Relationship</dt><dd>{selected.relationship_strength || "—"}</dd>
+                </div>
+              </>
+            )
           ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
         </div>
         </div>
@@ -173,7 +204,7 @@ function PowerInterest({ nodes, onSelect }) {
         return (
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
-            <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: `var(${STANCE_VAR[n.stance] || "--data-muted"})`, border: "1px solid var(--bg-surface)" }} />
+            <div className={n.is_placeholder ? "unknown-hatch" : ""} style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: n.is_placeholder ? 2 : "50%", background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`, border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
             <div style={{ fontSize: 10, color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );

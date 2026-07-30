@@ -52,7 +52,11 @@ def stakeholder_graph(account_id: str, program_id: str | None = None, conn: sqli
             continue
         n = nodes.setdefault(pid, {"id": pid, "name": person["name"], "title": person["title"],
                                    "role": r["role"], "stance": r["stance"], "influence": r["influence"],
-                                   "relationship_strength": r["relationship_strength"]})
+                                   "relationship_strength": r["relationship_strength"],
+                                   # §3 placeholder: a position known to exist but not yet identified
+                                   "is_placeholder": bool(person.get("is_placeholder")),
+                                   "expected_influence": person.get("expected_influence"),
+                                   "find_by_date": person.get("find_by_date")})
         # prefer a set influence/stance over null
         if r["influence"] and not n["influence"]:
             n["influence"] = r["influence"]
@@ -62,8 +66,10 @@ def stakeholder_graph(account_id: str, program_id: str | None = None, conn: sqli
     interest = {"supporter": 3, "unconverted": 2, "skeptic": 1, None: 2}
     power = {"high": 3, "medium": 2, "low": 1, None: 1}
     for n in nodes.values():
-        n["size"] = _INFLUENCE_SIZE.get(n["influence"], 22)
-        n["power"] = power[n["influence"]]
+        # placeholders size by EXPECTED influence and render in the unknown treatment (frontend)
+        infl = n["expected_influence"] if n["is_placeholder"] else n["influence"]
+        n["size"] = _INFLUENCE_SIZE.get(infl, 22)
+        n["power"] = power.get(infl, 1)
         n["interest"] = interest.get(n["stance"], 2)
 
     edges = []
@@ -83,10 +89,12 @@ def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get
     repo.get_row(conn, "accounts", account_id)
     today = now_utc()[:10]
     senior = ("champion", "budget_owner", "program_owner")
+    # real senior relationships only — placeholders are counted separately as exposure (§3)
     rows = conn.execute(
         "SELECT DISTINCT sr.person_id, sr.role FROM stakeholder_roles sr "
         "JOIN programs pr ON pr.id=sr.program_id "
-        "WHERE pr.account_id=? AND sr.archived=0 AND sr.role IN (?,?,?)",
+        "JOIN persons pe ON pe.id=sr.person_id "
+        "WHERE pr.account_id=? AND sr.archived=0 AND pe.is_placeholder=0 AND sr.role IN (?,?,?)",
         (account_id, *senior)).fetchall()
     names = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
     people = []
@@ -112,12 +120,19 @@ def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get
         "WHERE p.account_id=? AND cm.internal_owner_id IS NOT NULL", (account_id,)):
         owners.add(c["internal_owner_id"])
 
+    # §3 — unidentified critical positions count as exposure, not as active relationships.
+    placeholders = conn.execute(
+        "SELECT id, title, expected_role, expected_influence, find_by_date FROM persons "
+        "WHERE account_id=? AND is_placeholder=1 AND archived=0", (account_id,)).fetchall()
+
     return {
         "senior_stakeholders": sorted(people, key=lambda x: (x["days_since_touch"] is None, -(x["days_since_touch"] or 0))),
         "vp_plus_total": len(people),
         "vp_plus_active": sum(1 for p in people if not p["stale"]),
         "business_case_owner_count": len(owners),
         "multithreaded": len(owners) >= 2,
+        "placeholder_count": len(placeholders),
+        "placeholders": [dict(p) for p in placeholders],
     }
 
 

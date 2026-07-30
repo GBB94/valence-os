@@ -25,6 +25,8 @@ STALE_DAYS = 21  # matches the morning-check scenario ("untouched for three week
 PRIORITY = {
     "overdue_commitment": 1,
     "active_blocker": 2,
+    "checklist_overdue": 3,        # Phase 3 §2 — baseline; escalates to 2 when >1wk past due
+    "unidentified_placeholder": 3, # Phase 3 §3 — baseline; escalates to 2 when >1wk past find-by
     "renewal_window": 3,       # enabled by v1 contracts
     "stale_import": 4,         # enabled by v2 metrics/imports
     "fired_play": 5,           # enabled by v4 plays
@@ -33,6 +35,9 @@ PRIORITY = {
     "stale_stakeholder": 8,
     "open_task": 9,
 }
+
+# Trigger escalates into the top "needs you now" band once this far past its date (§2/§3).
+ESCALATE_AFTER_DAYS = 7
 
 RENEWAL_WINDOW_DAYS = 120  # "renewal readiness visible at least 120 days out" (Section 10)
 
@@ -219,7 +224,9 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
     for r in conn.execute(
         "SELECT sr.*, pr.account_id acct FROM stakeholder_roles sr "
         "JOIN programs pr ON pr.id = sr.program_id "
-        "WHERE sr.archived=0 AND sr.role IN (%s)" % ",".join("?" * len(SENIOR_ROLES)),
+        "JOIN persons pe ON pe.id = sr.person_id "
+        # placeholders are unidentified positions, not stale relationships (their own trigger)
+        "WHERE sr.archived=0 AND pe.is_placeholder=0 AND sr.role IN (%s)" % ",".join("?" * len(SENIOR_ROLES)),
         SENIOR_ROLES,
     ):
         last = conn.execute(
@@ -240,6 +247,50 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             because=f"No meaningful touch in {days}d.",
             age_days=days, due_date=None, next_action="Reach out or schedule.",
         ))
+
+    # 7. Launch-checklist items past their due window (Phase 3 §2 escalation)
+    for r in conn.execute(
+        "SELECT ci.*, a.id aid, a.name aname, p.id pid, p.name pname "
+        "FROM checklist_items ci JOIN accounts a ON a.id = ci.account_id "
+        "LEFT JOIN programs p ON p.id = ci.program_id "
+        "WHERE ci.archived=0 AND ci.status='open' AND ci.due_date IS NOT NULL AND ci.due_date < ?",
+        (today,),
+    ):
+        overdue = _days_since(r["due_date"], today)
+        p = {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]}
+        section = r["section"].replace("_", " ")
+        it = _item(
+            "checklist_overdue", "checklist_item", r["id"], r["updated_at"], p,
+            title=r["label"],
+            because=f"Launch checklist slipping — {section} item {overdue}d past due.",
+            age_days=overdue, due_date=r["due_date"],
+            next_action="Do it, mark it done, or push the date.",
+        )
+        it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3  # >1wk past -> risk band
+        items.append(it)
+
+    # 8. Unidentified org-chart placeholders past their find-by date (Phase 3 §3)
+    for r in conn.execute(
+        "SELECT pe.*, a.name aname FROM persons pe JOIN accounts a ON a.id = pe.account_id "
+        "WHERE pe.archived=0 AND pe.is_placeholder=1 AND pe.find_by_date IS NOT NULL AND pe.find_by_date < ?",
+        (today,),
+    ):
+        overdue = _days_since(r["find_by_date"], today)
+        prow = conn.execute(
+            "SELECT program_id FROM stakeholder_roles WHERE person_id=? AND archived=0 LIMIT 1",
+            (r["id"],)).fetchone()
+        p = progs.get(prow["program_id"], {}) if prow and prow["program_id"] else {}
+        if not p:
+            p = {"aid": r["account_id"], "aname": r["aname"], "pid": None, "pname": None}
+        it = _item(
+            "unidentified_placeholder", "person", r["id"], r["updated_at"], p,
+            title=f"Still unidentified: {r['title'] or r['name']}",
+            because=f"Critical position not identified — find-by {r['find_by_date']} passed {overdue}d ago.",
+            age_days=overdue, due_date=r["find_by_date"],
+            next_action="Identify the person and convert the placeholder.",
+        )
+        it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3
+        items.append(it)
 
     # 6. Open tasks (overdue ones sort to the top of this band)
     for r in conn.execute("SELECT * FROM tasks WHERE archived=0 AND status='open'"):
@@ -303,6 +354,7 @@ def _object_table(object_type: str) -> str:
         "milestone": "milestones", "task": "tasks", "capture_inbox_item": "capture_inbox_items",
         "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
         "metric_definition": "metric_definitions", "play_run": "play_runs",
+        "checklist_item": "checklist_items", "person": "persons",
     }[object_type]
 
 
