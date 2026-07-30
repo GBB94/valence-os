@@ -1,4 +1,19 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+
+// Canvas/SVG charts can't use CSS var() in attributes — resolve the token to a concrete color,
+// and re-render when the theme flips so both themes render correctly (DESIGN-GUIDE §8).
+export function cssVar(name, fallback = "") {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+export function useThemeTick() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setTick((t) => t + 1));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return tick;
+}
 
 // --- Toast (auto-save feedback; non-blocking, per Section 6) ---
 const ToastCtx = createContext(() => {});

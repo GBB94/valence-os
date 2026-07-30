@@ -3,10 +3,10 @@ import cytoscape from "cytoscape";
 import { api } from "../api";
 import { useToast } from "../ui";
 
-// The signature element (Section 6b): node size = influence, color = stance,
-// edge thickness = type, arrowheads = direction; anchored on reporting hierarchy,
-// no force-directed hairball. Toggle to a power-interest grid.
-const STANCE_COLOR = { supporter: "#2b8a3e", skeptic: "#c92a2a", unconverted: "#8a909c", null: "#8a909c" };
+// The signature element (Section 6b / DESIGN-GUIDE §8): node size = influence, fill = stance
+// (from the status family), edge thickness = type, arrowheads = direction; anchored on the
+// reporting hierarchy, no force-directed hairball. Toggle to a power-interest grid.
+const STANCE_VAR = { supporter: "--status-ok", skeptic: "--status-risk", unconverted: "--status-unknown", null: "--status-unknown" };
 
 export default function StakeholderGraph({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
@@ -46,16 +46,17 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
     // Canvas can't use CSS var() — resolve the theme's colors from the computed root vars.
     const css = getComputedStyle(document.documentElement);
     const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
-    const labelColor = v("--text", "#1a1d23");
-    const nodeBorder = v("--surface", "#fff");
-    const edgeColor = v("--border-strong", "#ccd1d9");
-    const edgeLabel = v("--text-3", "#8a909c");
-    const reportsColor = v("--text-2", "#5b616e");
-    const accentColor = v("--accent", "#3b5bdb");
+    const labelColor = v("--ink-primary", "#14161C");
+    const nodeBorder = v("--bg-surface", "#fff");
+    const edgeColor = v("--line-strong", "#CDD2DA");
+    const edgeLabel = v("--ink-tertiary", "#868D9B");
+    const reportsColor = v("--line-strong", "#CDD2DA");
+    const relColor = v("--data-2", "#6A63D9");     // influence + sponsorship edges
+    const stanceColor = (s) => v(STANCE_VAR[s] || "--status-unknown", "#868D9B");
     const cy = cytoscape({
       container: elRef.current,
       elements: [
-        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.name, size: n.size, color: STANCE_COLOR[n.stance], role: n.role } })),
+        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.name, size: n.size, color: stanceColor(n.stance), role: n.role } })),
         ...graph.edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, type: e.type } })),
       ],
       style: [
@@ -68,8 +69,8 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
           "line-color": edgeColor, "target-arrow-color": edgeColor, "font-size": 8,
           label: "data(type)", color: edgeLabel } },
         { selector: 'edge[type="reports_to"]', style: { "line-style": "solid", width: 3, "line-color": reportsColor, "target-arrow-color": reportsColor } },
-        { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": accentColor, "target-arrow-color": accentColor } },
-        { selector: 'edge[type="sponsors"]', style: { "line-style": "dotted" } },
+        { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": relColor, "target-arrow-color": relColor } },
+        { selector: 'edge[type="sponsors"]', style: { "line-style": "dotted", "line-color": relColor, "target-arrow-color": relColor } },
       ],
       layout: { name: "breadthfirst", directed: true, spacingFactor: 1.3, padding: 20 },
     });
@@ -171,7 +172,7 @@ function PowerInterest({ nodes, onSelect }) {
         return (
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
-            <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: STANCE_COLOR[n.stance], border: "1px solid #fff" }} />
+            <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: `var(${STANCE_VAR[n.stance] || "--status-unknown"})`, border: "1px solid var(--bg-surface)" }} />
             <div style={{ fontSize: 10, color: "var(--text-2)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );

@@ -57,7 +57,7 @@ export default function Metrics({ reloadKey }) {
                 <div style={{ height: 30, marginTop: 6 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={c.series} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
-                      <Line type="monotone" dataKey="value" stroke={c.stale ? "var(--text-3)" : "var(--accent)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="value" stroke={c.stale ? "var(--data-muted)" : "var(--data-1)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -159,9 +159,9 @@ function Bullet({ value, target }) {
   const pct = (n) => `${Math.min(100, ((n || 0) / scale) * 100)}%`;
   const met = value >= target;
   return (
-    <div style={{ position: "relative", height: 8, background: "var(--surface-2)", borderRadius: 4, marginTop: 6, border: "1px solid var(--border)" }}>
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pct(value), background: met ? "var(--ok)" : "var(--warn)", borderRadius: 4 }} />
-      <div style={{ position: "absolute", left: pct(target), top: -2, bottom: -2, width: 2, background: "var(--text)" }} title="target" />
+    <div style={{ position: "relative", height: 8, background: "var(--data-muted)", borderRadius: 4, marginTop: 6, border: "1px solid var(--line-hairline)" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pct(value), background: "var(--data-1)", borderRadius: 4 }} />
+      <div style={{ position: "absolute", left: pct(target), top: -2, bottom: -2, width: 2, background: "var(--ink-primary)" }} title="target" />
     </div>
   );
 }
