@@ -103,7 +103,20 @@ The dark accent fix was made by darkening `--accent-tint` and `--bg-selected` to
 
 **Spot-check of pairings left unchanged** (already passing, both themes): ink-primary 18.08 / 14.63, ink-secondary 6.62 / 7.46, status-risk-on-surface 5.43 / 5.29, status-risk-on-tint 4.66, accent-on-surface 8.51 / 4.71, dark status-ok/warn-on-surface 6.68 / 6.79.
 
-**Keyboard + semantics:** reviewed statically — tables use `<table>/<th scope>`, the tablist carries `role="tablist"`/`aria-selected`, focus rings are a tokenized `--accent-ring` (not `outline:none`), and `prefers-reduced-motion` / `color-scheme` are honored. Not marked complete: a live tab-through of every screen in both themes, and **before/after screenshots** (Today, account Overview, Ledger, graph) — both pending a connected browser, tracked as the only open item from the punchlist's Section 5.
+**Keyboard + semantics:** reviewed statically — tables use `<table>/<th scope>`, the tablist carries `role="tablist"`/`aria-selected`, focus rings are a tokenized `--accent-ring` (not `outline:none`), and `prefers-reduced-motion` / `color-scheme` are honored.
+
+**Rendered evidence (both themes, run against seeded mock data on a live build):** captured at 1440×900 in `design-screenshots/` and confirmed by review. These verify the redesign in situ, not just by computed values:
+
+| View | Light | Dark | Confirms |
+|---|---|---|---|
+| Today | `today-light.png` | `today-dark.png` | 2px attention rail colored by urgency band; freshness age chips with the decay-ramp / hatch treatment (`10w`, `6w` past-threshold); status paired with band labels, never colour alone |
+| Account Overview | `overview-light.png` | `overview-dark.png` | Sticky context header with delivery/commercial status + renewal; seven-tab workspace; stale status renders `Unknown` with a hatched age chip, not carried-forward |
+| Ledger | `ledger-light.png` | `ledger-dark.png` | Merged chronological master-detail; tokenised surfaces hold contrast in both themes |
+| Stakeholder graph | `graph-light.png` | `graph-dark.png` | **Stance by shape + data-family colour, never a status hue** — ● supporter (`--data-1`), ▮ unconverted (neutral); matches the `StanceLabel` primitive (D-70) |
+
+No flash-of-incorrect-theme on load in either theme (pre-paint script in `index.html`). The active-nav accent-on-tint pairing corrected above reads correctly in the dark captures.
+
+The **live keyboard tab-through** of every screen remains a manual step not scriptable here; the semantics that make it work (roles, scopes, visible tokenised focus ring) are in place and reviewed. That is the one item left open.
 
 ## Summary
 
