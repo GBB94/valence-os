@@ -173,7 +173,7 @@ function PowerInterest({ nodes, onSelect }) {
         return (
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
-            <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: `var(${STANCE_VAR[n.stance] || "--status-unknown"})`, border: "1px solid var(--bg-surface)" }} />
+            <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: `var(${STANCE_VAR[n.stance] || "--data-muted"})`, border: "1px solid var(--bg-surface)" }} />
             <div style={{ fontSize: 10, color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );

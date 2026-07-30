@@ -57,8 +57,8 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
 
   return (
     <div>
-      {/* Account header — v0.1 subset. Delivery/commercial statuses arrive in v0.3;
-          renewal countdown needs contracts (v1). Not shown, not faked. */}
+      {/* The sticky account context header (statuses, renewal countdown, phase) is the
+          workspace chrome; this Overview body shows programs and recent interactions. */}
       <div className="actions" style={{ marginBottom: 4 }}>
         <h1>{acct.name}</h1>
         <div className="spacer" />

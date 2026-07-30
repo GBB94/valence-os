@@ -85,10 +85,11 @@ input, select, textarea { background: var(--bg-surface); color: var(--ink-primar
 .palette { position: fixed; top: 12vh; left: 50%; transform: translateX(-50%); width: 640px; max-width: 92vw; z-index: 60; }
 
 /* Row density (top-bar toggle, persisted). Compact 32px default, comfortable 40px. */
-:root[data-density="compact"] td { padding: 5px 12px; }
-:root[data-density="compact"] th { padding: 6px 12px; }
-:root[data-density="default"] td { padding: 10px 12px; }
-:root[data-density="default"] th { padding: 9px 12px; }
+/* Row heights: compact 32px, comfortable 40px (13px text, 18px line + symmetric padding). */
+:root[data-density="compact"] td { padding: 7px 12px; line-height: 18px; }
+:root[data-density="compact"] th { padding: 7px 12px; line-height: 16px; }
+:root[data-density="default"] td { padding: 11px 12px; line-height: 18px; }
+:root[data-density="default"] th { padding: 10px 12px; line-height: 16px; }
 .cell-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch; }
 .mono { font-family: var(--font-mono); }
 
@@ -197,7 +198,15 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .badge.phase { text-transform: capitalize; }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--ink-tertiary); }
 .dot.ok { background: var(--status-ok); } .dot.warn { background: var(--status-warn); } .dot.risk { background: var(--status-risk); }
-.stance-supporter { color: var(--status-ok); } .stance-skeptic { color: var(--status-risk); } .stance-unconverted { color: var(--ink-secondary); }
+/* Stance is categorical (D-67): data family + shape, matching the graph — never a status hue. */
+.stance { display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; }
+.stance-mark { width: 8px; height: 8px; display: inline-block; flex: none; }
+.stance-supporter { color: var(--data-1); }
+.stance-supporter .stance-mark { background: var(--data-1); border-radius: 50%; }
+.stance-skeptic { color: var(--data-3); }
+.stance-skeptic .stance-mark { background: var(--data-3); width: 7px; height: 7px; transform: rotate(45deg); }
+.stance-unconverted { color: var(--ink-secondary); }
+.stance-unconverted .stance-mark { background: var(--ink-secondary); border-radius: 1px; }
 .tag-internal { font-size: 10px; color: var(--status-warn); border: 1px solid var(--status-warn); border-radius: var(--r-sm); padding: 0 4px; margin-left: 6px; vertical-align: middle; }
 
 /* Buttons */

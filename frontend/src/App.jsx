@@ -359,11 +359,17 @@ function Collapsible({ title, children, defaultOpen = false }) {
 // ---- Account workspace: sticky context header + tab strip + tab content ----
 function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs }) {
   const [detail, setDetail] = useState(null);
+  const [renewal, setRenewal] = useState(null);
 
   useEffect(() => {
     if (!accountId) return;
     let live = true;
     api.account(accountId).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    api.contracts(accountId).then((cs) => {
+      if (!live) return;
+      const cur = (cs || []).find((c) => c.is_current) || (cs || [])[0];
+      setRenewal(cur?.renewal_date || null);
+    }).catch(() => setRenewal(null));
     return () => { live = false; };
   }, [accountId, reloadKey]);
 
@@ -373,7 +379,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
 
   return (
     <>
-      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram} setProgramFilter={setProgramFilter} />
+      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram} setProgramFilter={setProgramFilter} renewal={renewal} />
       <div className="tabstrip" role="tablist">
         {WORKSPACE_TABS.map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key}
@@ -422,9 +428,18 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
   );
 }
 
-function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter }) {
+function renewalText(dateStr) {
+  if (!dateStr) return null;
+  const until = Math.round((new Date(dateStr.slice(0, 10) + "T00:00:00").getTime() - Date.now()) / 86400000);
+  const fmt = (n) => (n < 45 ? `${n}d` : n < 365 ? `${Math.round(n / 30)}mo` : `${(n / 365).toFixed(1)}y`);
+  if (until < 0) return { text: `overdue ${fmt(-until)}`, warn: true };
+  return { text: `in ${fmt(until)}`, warn: until <= 90 };
+}
+
+function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter, renewal }) {
   if (!detail) return <div className="ctx-header"><div className="ctx-name subtle">Loading…</div></div>;
   const phase = selProgram?.phase;
+  const ren = renewalText(renewal);
   return (
     <div className="ctx-header">
       <div className="ctx-name">{detail.name}</div>
@@ -434,6 +449,13 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
       </select>
       <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} />
       <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} />
+      {ren && (
+        <div className="ctx-stat">
+          <span className="ctx-k">Renewal</span>
+          <span className="ctx-v" style={ren.warn ? { color: "var(--status-warn)" } : undefined}>{ren.text}</span>
+          <span className="rowmeta mono">{fmtDate(renewal)}</span>
+        </div>
+      )}
       {phase && (
         <div className="ctx-stat">
           <span className="ctx-k">Phase</span>

@@ -91,12 +91,13 @@ export function Tooltip({ text, children, label = "i" }) {
   );
 }
 
+// Stance = categorical (D-67): color from the data family + a shape, matching the graph, so it
+// reads without color and never as health. ● supporter / ◆ skeptic / ▮ unconverted.
 export function StanceLabel({ stance }) {
   if (!stance) return <span className="rowmeta">—</span>;
-  const dot = stance === "supporter" ? "ok" : stance === "skeptic" ? "risk" : "";
   return (
-    <span className={"stance-" + stance}>
-      <span className={"dot " + dot} /> {stance}
+    <span className={"stance stance-" + stance}>
+      <span className="stance-mark" aria-hidden="true" /> {stance}
     </span>
   );
 }

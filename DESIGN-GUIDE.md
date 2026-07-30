@@ -234,7 +234,7 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 **Rules of use.**
 
 - Green, amber, and red appear only to encode state. Never for emphasis, never for branding, never on a chart other than the budget waterfall.
-- The waterfall is the single documented exception, and status indicators never appear on the same screen as it. Enforce this in the layout, not in a comment.
+- The waterfall is the single documented exception. Because the app is a tabbed workspace with a sticky status header, strict screen-level separation is impossible; the enforceable rule is that **no status indicator appears inside the same card or panel as a financial chart**. Enforce this in the layout, not in a comment. (Narrowed from "same screen" — D-70.)
 - Elevation is rare. Tables, cards, and panels separate with hairlines. Only the slide-over, the command palette, and toasts get a shadow.
 - Tints back badges and selected rows only. Never tint a large surface.
 
@@ -355,7 +355,7 @@ All inherit the tokens; none introduce a palette.
 
 **Stakeholder graph.** The one expressive surface. Full-bleed canvas on `--bg-app`, nodes on `--bg-surface` with hairline strokes, size encoding influence, fill **and node shape** encoding stance from the **categorical data family** (`--data-*`) — stance is a position, not account health, so it is not a status hue, and the shape lets it read without color — edge thickness encoding relationship strength, arrowheads encoding direction. Reporting edges solid in `--line-strong`; influence and sponsorship edges dashed in `--data-2`. Labels at 11px, on hover or above a zoom threshold. Clicking opens the standard slide-over. The power-interest grid is a toggle, not a second screen, sharing node styling.
 
-**Budget waterfall.** `--fin-positive`, `--fin-negative`, `--fin-total`, direct value labels in mono on every bar, no legend, no truncated axis, minor sources grouped with subtotals. No status indicator may appear on this screen.
+**Budget waterfall.** `--fin-positive`, `--fin-negative`, `--fin-total`, direct value labels in mono on every bar, no legend, no truncated axis, minor sources grouped with subtotals. No status indicator may appear in the same card or panel as this chart (D-70).
 
 **Sparklines and bullet charts.** `--data-1` for the measure, `--data-muted` for qualitative bands, a 1px `--ink-primary` target marker. One baseline, no gridlines, no axis labels on sparklines.
 
