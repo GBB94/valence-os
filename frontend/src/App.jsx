@@ -4,11 +4,9 @@ import { ToastProvider, fmtDate } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
-import Inbox from "./views/Inbox";
+import Ledger from "./views/Ledger";
 import QuickEntry from "./views/QuickEntry";
-import ExecutionBoard from "./views/ExecutionBoard";
 import Queue from "./views/Queue";
-import History from "./views/History";
 import TeamUpdate from "./views/TeamUpdate";
 import MutualActionPlan from "./views/MutualActionPlan";
 import Library from "./views/Library";
@@ -346,6 +344,18 @@ function DensityToggle({ density, setDensity }) {
   );
 }
 
+function Collapsible({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="collapsible">
+      <button className="collapsible-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className="rail-icon">{open ? "▾" : "▸"}</span> {title}
+      </button>
+      {open && <div className="collapsible-body">{children}</div>}
+    </div>
+  );
+}
+
 function PageHelp({ info }) {
   if (!info) return null;
   return (
@@ -389,10 +399,10 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
         )}
         {tab === "ledger" && (
           <div className="stack">
-            <Inbox reloadKey={reloadKey} onCountChange={setInboxCount} onConverted={onSaved} />
-            <ExecutionBoard accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onChanged={onSaved} />
-            <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
-            <History accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+            <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved} />
+            <Collapsible title="Extract from a transcript">
+              <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
+            </Collapsible>
           </div>
         )}
         {tab === "people" && (

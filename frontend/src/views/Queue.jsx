@@ -19,31 +19,38 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
 
   if (!q) return <div className="subtle">Loading…</div>;
 
+  const bands = BANDS.map((b) => ({ ...b, items: q.items.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
+
   return (
     <div>
       <div className="actions" style={{ marginBottom: 4 }}>
-        <h1>Portfolio home</h1>
+        <h1>Today</h1>
         <div className="spacer" />
         <span className="rowmeta">{q.items.length} to act · as of {q.as_of}</span>
       </div>
       <div className="rowmeta" style={{ marginBottom: 14 }}>
-        Ranked by rule, and every item explains itself. Snoozing needs a return date or a condition; resolving needs a linked follow-up.
+        Ranked by rule, grouped by urgency, and every item explains itself. This screen exists to be emptied.
       </div>
 
-      <div className="card">
-        {q.items.length === 0 ? (
-          <Empty title="Queue clear">Nothing needs attention right now.</Empty>
-        ) : (
-          <table>
-            <thead>
-              <tr><th style={{ width: 22 }}></th><th>Item</th><th style={{ width: 92 }}>Age</th><th style={{ width: 150 }}></th></tr>
-            </thead>
-            <tbody>
-              {q.items.map((it) => <QueueRow key={it.key} it={it} onOpenAccount={onOpenAccount} onSnooze={() => setSnoozing(it)} onResolve={() => setResolving(it)} />)}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {q.items.length === 0 ? (
+        <div className="card"><Empty title="Queue clear">Nothing needs attention right now.</Empty></div>
+      ) : (
+        bands.map((b) => (
+          <div key={b.key} style={{ marginBottom: 18 }}>
+            <div className="band-head"><span className={"state-mark " + b.band} /> {b.label} <span className="rowmeta">{b.items.length}</span></div>
+            <div className="card">
+              <table>
+                <thead>
+                  <tr><th style={{ width: 3, padding: 0 }}></th><th>What needs you</th><th style={{ width: 160 }}>Account</th><th style={{ width: 76 }}>Age</th><th style={{ width: 150 }}></th></tr>
+                </thead>
+                <tbody>
+                  {b.items.map((it) => <QueueRow key={it.key} it={it} band={b.band} onOpenAccount={onOpenAccount} onSnooze={() => setSnoozing(it)} onResolve={() => setResolving(it)} />)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      )}
 
       {q.snoozed_count > 0 && (
         <div style={{ marginTop: 10 }}>
@@ -73,20 +80,28 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
   );
 }
 
-const BAND = { 1: "risk", 2: "risk", 3: "warn", 4: "", 5: "", 6: "" };
+// Urgency bands (DESIGN-GUIDE §2.5): grouped, not one flat list. Priority 1–6 from the queue.
+const BANDS = [
+  { key: "now", label: "Needs you now", band: "risk", match: (p) => p <= 2 },
+  { key: "week", label: "This week", band: "warn", match: (p) => p === 3 },
+  { key: "watch", label: "Keep an eye", band: "neutral", match: (p) => p >= 4 },
+];
 
-function QueueRow({ it, onOpenAccount, onSnooze, onResolve }) {
+function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
   return (
     <tr>
-      <td><span className={"dot " + BAND[it.priority]} title={`priority ${it.priority}`} /></td>
+      <td className={"rail-cell band-" + band} style={{ padding: 0 }}></td>
       <td>
-        <div>{it.title}</div>
+        <div className="cell-title">{it.title}</div>
         <div className="rowmeta">
-          <a onClick={() => onOpenAccount(it.account_id)} style={{ cursor: "pointer" }}>{it.account_name}</a>
-          {it.program_name ? ` · ${it.program_name}` : ""} — {it.because} <span style={{ color: "var(--accent)" }}>{it.next_action}</span>
+          {it.because} <span style={{ color: "var(--accent)" }}>{it.next_action}</span>
         </div>
       </td>
-      <td className="rowmeta">{it.age_days}d{it.due_date ? <div>due {it.due_date}</div> : null}</td>
+      <td>
+        <a onClick={() => onOpenAccount(it.account_id)} style={{ cursor: "pointer" }}>{it.account_name}</a>
+        {it.program_name ? <div className="rowmeta">{it.program_name}</div> : null}
+      </td>
+      <td className="mono rowmeta">{it.age_days}d{it.due_date ? <div>due {it.due_date}</div> : null}</td>
       <td>
         <div className="actions">
           <button className="btn small" onClick={onSnooze}>Snooze</button>

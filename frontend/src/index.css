@@ -89,6 +89,52 @@ input, select, textarea { background: var(--bg-surface); color: var(--ink-primar
 :root[data-density="compact"] th { padding: 6px 12px; }
 :root[data-density="default"] td { padding: 10px 12px; }
 :root[data-density="default"] th { padding: 9px 12px; }
+.cell-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch; }
+.mono { font-family: var(--font-mono); }
+
+/* Ledger — filter chips + master-detail */
+.chiprow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong); background: var(--bg-surface); color: var(--ink-secondary);
+  font-size: var(--t-small); cursor: pointer; font-family: inherit;
+}
+.filter-chip:hover { background: var(--bg-hover); }
+.filter-chip.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); font-weight: 500; }
+.chip-count { font-size: var(--t-micro); color: var(--ink-tertiary); font-family: var(--font-mono); }
+.filter-chip.active .chip-count { color: var(--accent); }
+.ledger { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; align-items: start; }
+.ledger-list { overflow: hidden; }
+.ledger-detail { min-height: 240px; padding: 16px; position: sticky; top: 16px; }
+tbody tr.sel { background: var(--bg-selected); }
+tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, var(--status-unknown-tint) 5px, var(--status-unknown-tint) 6px); }
+
+/* State badge — color + shape (never color alone) */
+.state-badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--t-micro); text-transform: capitalize; color: var(--ink-secondary); }
+.state-mark { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.state-mark.ok { background: var(--status-ok); }
+.state-mark.warn { background: transparent; border: 1.5px solid var(--status-warn); }
+.state-mark.risk { background: var(--status-risk); }
+.state-mark.neutral { background: var(--ink-tertiary); }
+.state-mark.unknown { background: repeating-linear-gradient(45deg, var(--status-unknown), var(--status-unknown) 1px, transparent 1px, transparent 3px); border: 1px solid var(--status-unknown); }
+.band-ok { color: var(--status-ok); } .band-warn { color: var(--status-warn); } .band-risk { color: var(--status-risk); } .band-unknown { color: var(--ink-secondary); }
+
+.detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.detail-title { font-size: var(--t-body-lg); line-height: 1.4; margin-bottom: 12px; }
+.detail-body .kv { grid-template-columns: 120px 1fr; }
+
+/* Today — urgency bands + attention rail */
+.band-head { display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-secondary); margin-bottom: 6px; }
+.rail-cell { width: 3px; }
+.rail-cell.band-risk { background: var(--status-risk); }
+.rail-cell.band-warn { background: var(--status-warn); }
+.rail-cell.band-neutral { background: var(--line-strong); }
+
+/* Collapsible section */
+.collapsible { border: 1px solid var(--line-hairline); border-radius: var(--r-md); background: var(--bg-surface); }
+.collapsible-head { width: 100%; text-align: left; border: 0; background: none; padding: 10px 12px; font-size: var(--t-body); color: var(--ink-primary); cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 8px; }
+.collapsible-body { padding: 0 12px 12px; }
 
 /* Per-page help tooltip (topbar ⓘ) — hover or keyboard-focus to see what a page is for */
 .pagehelp { position: relative; display: inline-flex; align-items: center; cursor: help; }
