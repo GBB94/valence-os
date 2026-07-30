@@ -1,0 +1,170 @@
+/* Valence OS — design tokens (single source of truth).
+   Per DESIGN-GUIDE.md: no raw hex or arbitrary pixel values may live outside this file.
+   Cool graphite neutrals, one ink-indigo accent (interaction only), semantic hues for
+   status only. Both light and dark are first-class. Fonts are self-hosted (no CDN). */
+
+/* ---- Self-hosted faces (IBM Plex Sans / Mono, latin, woff2) ------------------------- */
+@font-face {
+  font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("./assets/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("./assets/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("./assets/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("./assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("./assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
+/* ---- Light (default) ---------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg-app:        #F6F7F9;
+  --bg-surface:    #FFFFFF;
+  --bg-sunken:     #EFF1F4;
+  --bg-hover:      #F2F4F7;
+  --bg-selected:   #EEEEFC;
+
+  /* Lines */
+  --line-hairline: #E3E6EB;
+  --line-strong:   #CDD2DA;
+
+  /* Ink */
+  --ink-primary:   #14161C;
+  --ink-secondary: #565D6B;
+  --ink-tertiary:  #868D9B;
+  --ink-inverse:   #FFFFFF;
+
+  /* Accent (interaction only, never state) */
+  --accent:        #3A34C4;
+  --accent-hover:  #2F2AA6;
+  --accent-tint:   #ECEBFA;
+  --accent-ring:   rgba(58, 52, 196, 0.35);
+
+  /* Status (state only, never decoration) */
+  --status-ok:           #1F8A54;
+  --status-ok-tint:      #E6F4EC;
+  --status-warn:         #B26B00;
+  --status-warn-tint:    #FBF0DF;
+  --status-risk:         #C0392F;
+  --status-risk-tint:    #FBEAE8;
+  --status-unknown:      #868D9B;
+  --status-unknown-tint: #F0F1F4;
+
+  /* Financial direction (the documented exception) */
+  --fin-positive:  #1F8A54;
+  --fin-negative:  #C0392F;
+  --fin-total:     #5A6070;
+
+  /* Categorical data (charts, graph, non-status encodings) */
+  --data-1: #3A34C4;
+  --data-2: #6A63D9;
+  --data-3: #9A95E8;
+  --data-4: #C6C3F2;
+  --data-muted: #C3C8D1;
+
+  /* Radii and elevation */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+  --shadow-panel: 0 1px 2px rgba(20,22,28,.05), 0 12px 32px rgba(20,22,28,.10);
+
+  /* Spacing scale (4px base) — the only permitted spacing values */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+  --sp-8: 24px;
+  --sp-9: 32px;
+  --sp-10: 40px;
+  --sp-11: 48px;
+
+  /* Type */
+  --font-ui:   "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --t-micro:   11px;
+  --t-small:   12px;
+  --t-body:    13px;
+  --t-body-lg: 15px;
+  --t-h3:      16px;
+  --t-h2:      20px;
+  --t-h1:      26px;
+  --t-metric:  32px;
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-med:  180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---- Dark --------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-app:        #0E1013;
+  --bg-surface:    #16191E;
+  --bg-sunken:     #101317;
+  --bg-hover:      #1D2127;
+  --bg-selected:   #1E1F3D;
+
+  --line-hairline: #262B33;
+  --line-strong:   #363C46;
+
+  --ink-primary:   #E8EAEE;
+  --ink-secondary: #A2A9B6;
+  --ink-tertiary:  #6F7784;
+  --ink-inverse:   #0E1013;
+
+  --accent:        #7C74F0;
+  --accent-hover:  #948DF5;
+  --accent-tint:   #1E1F3D;
+  --accent-ring:   rgba(124, 116, 240, 0.40);
+
+  --status-ok:           #3FB37F;
+  --status-ok-tint:      #12291F;
+  --status-warn:         #D9922B;
+  --status-warn-tint:    #2B2113;
+  --status-risk:         #E5645A;
+  --status-risk-tint:    #2E1A18;
+  --status-unknown:      #6F7784;
+  --status-unknown-tint: #1A1D22;
+
+  --fin-positive:  #3FB37F;
+  --fin-negative:  #E5645A;
+  --fin-total:     #A2A9B6;
+
+  --data-1: #7C74F0;
+  --data-2: #948DF5;
+  --data-3: #ADA8F8;
+  --data-4: #C9C5FB;
+  --data-muted: #454B55;
+
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.40), 0 12px 32px rgba(0,0,0,.50);
+}
+
+/* ---- Reset ------------------------------------------------------------------------- */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  color: var(--ink-primary);
+  background: var(--bg-app);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

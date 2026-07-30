@@ -32,8 +32,32 @@ These rules apply to every session on this repository. They restate the binding 
 
 ## Design
 
-- Follow Section 6 of the scoping doc. Dense power-user tool (Linear-class), one neutral surface, one accent, semantic colors for status only (financial charts are the single documented exception and never share a screen with status indicators). cmd-K palette, auto-save with toasts, no blocking modals for routine actions.
-- Buttons say what they do, sentence case. Empty states invite action. Errors state what happened and how to fix it.
+- `DESIGN-GUIDE.md` is the standing design authority. It supersedes §6 of the
+  scoping doc and the navigation inherited from the §5 module list. Read it
+  before any frontend change.
+- No raw hex values, no arbitrary pixel values. Everything comes from
+  `tokens.css`. Both light and dark are first-class; a change that only works
+  in one theme is not done.
+- Color carries meaning only. Green, amber, and red are reserved for status.
+  The accent is for interaction, never for state. The budget waterfall is the
+  single documented exception and never shares a screen with status indicators.
+- No state is conveyed by color alone. Every status pairs a color with a shape
+  or a label.
+- Every dated record shows the freshness language: age chip, decay ramp, and
+  the cross-hatched unknown treatment for anything past its threshold. Stale
+  data never renders as carried-forward good state.
+- Navigation is Today, Accounts, Library, Operations. Account-scoped work lives
+  in the account workspace tabs. Do not add a new top-level destination without
+  asking.
+- Capture is global and keyboard-first, never a place you navigate to.
+- Quality floor is non-negotiable: 4.5:1 contrast audited in both themes,
+  visible keyboard focus, semantic tables, `prefers-reduced-motion` and
+  `color-scheme` honored, no flash of incorrect theme.
+- After any structural UI change, re-verify the §2 trust boundaries still hold:
+  no individual product usage anywhere, client-facing outputs include only
+  promoted records, stakeholder assessments keep date and evidence.
+- Schema changes are proposals, not blockers. Batch them with a one-line
+  rationale and present them at the end of the phase.
 
 ## Process
 

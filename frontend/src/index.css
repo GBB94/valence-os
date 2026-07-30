@@ -27,8 +27,9 @@
   --scrim: rgba(20,22,28,.28);
 
   --radius: 6px;
-  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Phase A bridge: activate the self-hosted Plex faces now; full token conversion is Phase B. */
+  --mono: var(--font-mono);
+  --sans: var(--font-ui);
 }
 
 /* Dark mode — same one-accent, semantic-status-only system, retuned for a dark surface.
