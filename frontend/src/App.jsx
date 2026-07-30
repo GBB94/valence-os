@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider, fmtDate, Tooltip, SegTabs } from "./ui";
+import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
@@ -432,22 +432,27 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
         <option value="">All programs</option>
         {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
-      <div className="ctx-stat">
-        <span className="ctx-k">Delivery</span>
-        <span className="ctx-v">{(detail.delivery_status || "—").replace(/_/g, " ")}</span>
-        <span className="rowmeta">{fmtDate(detail.delivery_status_assessed_on)}</span>
-      </div>
-      <div className="ctx-stat">
-        <span className="ctx-k">Commercial</span>
-        <span className="ctx-v">{(detail.commercial_status || "—").replace(/_/g, " ")}</span>
-        <span className="rowmeta">{fmtDate(detail.commercial_status_assessed_on)}</span>
-      </div>
+      <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} />
+      <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} />
       {phase && (
         <div className="ctx-stat">
           <span className="ctx-k">Phase</span>
           <span className="ctx-v badge phase">{phase}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// Manually-assessed status (§7): keeps its color, but past the 30-day reassessment interval
+// it gains a dotted outline + the age chip, so a stale judgment can't pass as a fresh one.
+function StatusStat({ label, status, assessed }) {
+  const stale = ageDays(assessed) != null && ageDays(assessed) > 30;
+  return (
+    <div className="ctx-stat">
+      <span className="ctx-k">{label}</span>
+      <span className={"ctx-v" + (stale ? " status-stale-outline" : "")}>{(status || "—").replace(/_/g, " ")}</span>
+      <AgeChip date={assessed} />
     </div>
   );
 }

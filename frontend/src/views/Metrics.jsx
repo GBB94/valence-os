@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { api } from "../api";
-import { SlideOver, useToast, fmtDate } from "../ui";
+import { SlideOver, useToast, fmtDate, Unknown } from "../ui";
 
 // Metrics scoreboard (Section 6b): 5-second read, number/target/delta, freshness stamp,
 // stale = unknown (enforced server-side). Plus benchmarks and the CSV import adapter.
@@ -44,8 +44,8 @@ export default function Metrics({ reloadKey }) {
           return (
             <div className="card" key={c.definition.id} style={{ padding: 12 }}>
               <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>{c.definition.name}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, margin: "4px 0" }}>
-                {c.display_value === "unknown" ? <span style={{ color: "var(--text-3)" }}>unknown</span> : fmtNum(c.display_value, o?.unit)}
+              <div className="metric-value">
+                {(c.stale || c.display_value === "unknown") ? <Unknown since={o?.current_through} /> : fmtNum(c.display_value, o?.unit)}
               </div>
               {o && !c.stale && (
                 <div className="rowmeta">

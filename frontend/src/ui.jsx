@@ -121,3 +121,42 @@ export const ROLE_LABELS = {
 export function fmtDate(d) {
   return d ? d.slice(0, 10) : "—";
 }
+
+// --- Freshness language (DESIGN-GUIDE §7). The signature motif: every dated record shows
+//     its age in one monospaced form, and the decay ramp makes an aging screen look aging. ---
+export function ageDays(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr.slice(0, 10) + "T00:00:00");
+  if (isNaN(d)) return null;
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
+}
+export function ageLabel(n) {
+  if (n == null) return "—";
+  if (n < 1) return "today";
+  if (n < 21) return `${n}d`;
+  if (n < 84) return `${Math.round(n / 7)}w`;
+  return `${Math.round(n / 30)}mo`;
+}
+// bucket: fresh 0–7 · aging 8–21 · stale 22+  (§7 decay ramp)
+export function ageBucket(n) {
+  if (n == null) return "none";
+  if (n <= 7) return "fresh";
+  if (n <= 21) return "aging";
+  return "stale";
+}
+export function AgeChip({ date }) {
+  const n = ageDays(date);
+  return <span className={"age age-" + ageBucket(n)} title={date ? `as of ${fmtDate(date)}` : undefined}>{ageLabel(n)}</span>;
+}
+
+// The unknown treatment: cross-hatched tint + "Unknown" + the age chip that explains why.
+// For a metric-derived indicator whose inputs passed their freshness threshold — never a
+// carried-forward last value (§7, and the trust boundary in CLAUDE.md).
+export function Unknown({ since }) {
+  return (
+    <span className="unknown-chip" title="Inputs are stale — value unknown, not carried forward">
+      <span className="unknown-hatch" aria-hidden="true" />
+      Unknown{since && <span className="age age-stale" style={{ marginLeft: 6 }}>{ageLabel(ageDays(since))}</span>}
+    </span>
+  );
+}

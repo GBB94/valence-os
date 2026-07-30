@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate, SegTabs } from "../ui";
+import { Empty, SlideOver, useToast, fmtDate, SegTabs, AgeChip } from "../ui";
 import ConvertPanel from "./ConvertPanel";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
@@ -26,21 +26,6 @@ function stateOf(kind, r) {
   if (kind === "issue" && r.is_blocker) return { label: s || "open", band: "risk" };
   if (kind === "decision") return { label: s || "recorded", band: "neutral" };
   return { label: s || "open", band: "warn" };
-}
-
-function ageDays(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr.slice(0, 10) + "T00:00:00");
-  if (isNaN(d)) return null;
-  return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
-}
-function ageChip(dateStr) {
-  const n = ageDays(dateStr);
-  if (n == null) return "—";
-  if (n < 1) return "today";
-  if (n < 21) return `${n}d`;
-  if (n < 84) return `${Math.round(n / 7)}w`;
-  return `${Math.round(n / 30)}mo`;
 }
 
 function StateBadge({ band, label }) {
@@ -145,7 +130,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
                       <div className="rowmeta">{[r.program, r.owner].filter(Boolean).join(" · ") || <span>&nbsp;</span>}</div>
                     </td>
                     <td><StateBadge band={r.state.band} label={r.state.label} /></td>
-                    <td className="mono rowmeta">{ageChip(r.date)}</td>
+                    <td><AgeChip date={r.date} /></td>
                   </tr>
                 ))}
               </tbody>
