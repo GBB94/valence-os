@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays } from "./ui";
+import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
@@ -190,7 +190,7 @@ function Shell() {
               🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--status-risk)", fontWeight: 600 }}>{notifs.unread}</span>}
             </button>
             {showNotifs && (
-              <div className="card" style={{ position: "absolute", right: 0, top: 34, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
+              <Card style={{ position: "absolute", right: 0, top: 34, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
                 <div className="card-h"><h3>Notifications</h3></div>
                 {notifs.notifications.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>Nothing yet.</div> :
                   notifs.notifications.map((n) => (
@@ -200,7 +200,7 @@ function Shell() {
                         {!n.read && <button className="btn small ghost" onClick={async () => { await api.readNotification(n.id); refreshNotifs(); }}>Mark read</button>}</div>
                     </div>
                   ))}
-              </div>
+              </Card>
             )}
           </div>
           <DensityToggle density={density} setDensity={setDensity} />
@@ -491,75 +491,6 @@ function OutputsTab({ accounts, accountId, setAcct, reloadKey }) {
       {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
       {which === "map" && <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
     </div>
-  );
-}
-
-const TYPE_LABEL = {
-  account: "account", program: "program", person: "person", interaction: "interaction",
-  commitment: "commitment", risk: "risk", issue: "issue", decision: "decision", task: "task",
-  milestone: "milestone", value_story: "value story", expansion_opportunity: "expansion",
-  capture_inbox_item: "inbox note", scope_change: "scope change",
-};
-
-// Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.
-const NAV_COMMANDS = [
-  ["Today", { dest: "today" }], ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
-];
-
-function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick }) {
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState([]);
-  const [sel, setSel] = useState(0);
-  const timer = useRef(null);
-
-  const ql = q.trim().toLowerCase();
-  const commands = [
-    { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
-    ...NAV_COMMANDS.map(([label, dest]) => ({ kind: "nav", label, hint: "go to", run: () => { go(dest); onClose(); } })),
-    ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { openAccount(a.id); onClose(); } })),
-  ].filter((c) => !ql || c.label.toLowerCase().includes(ql));
-  const items = [...commands, ...results.map((r) => ({ kind: "result", label: r.title, hint: (TYPE_LABEL[r.object_type] || r.object_type) + " · " + (r.account_name || ""), run: () => { onNavigate(r); onClose(); } }))];
-
-  useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (!ql) { setResults([]); return; }
-    timer.current = setTimeout(async () => {
-      try { const r = await api.search(q); setResults(r.results.slice(0, 8)); } catch { /* ignore */ }
-    }, 160);
-    return () => timer.current && clearTimeout(timer.current);
-  }, [q]);
-  useEffect(() => { setSel(0); }, [q, results.length]);
-
-  function onKey(e) {
-    if (e.key === "Escape") { onClose(); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
-    if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-    if (e.key === "Enter" && items[sel]) { e.preventDefault(); items[sel].run(); }
-  }
-
-  return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="palette">
-        <div className="card" style={{ boxShadow: "var(--shadow-panel)", overflow: "hidden" }}>
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
-            placeholder="Type a command or search…"
-            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 14px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
-          <div style={{ maxHeight: 360, overflowY: "auto" }}>
-            {items.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No matches.</div> :
-              items.map((it, i) => (
-                <div key={it.kind + it.label + i} onMouseEnter={() => setSel(i)} onClick={it.run}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", cursor: "pointer",
-                    background: i === sel ? "var(--accent-tint)" : "transparent" }}>
-                  <span style={{ flex: 1, fontSize: "var(--t-body)", color: i === sel ? "var(--accent)" : "var(--ink-primary)" }}>{(it.label || "").slice(0, 64)}</span>
-                  <span className="rowmeta">{it.hint}</span>
-                </div>
-              ))}
-          </div>
-          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
-        </div>
-      </div>
-    </>
   );
 }
 

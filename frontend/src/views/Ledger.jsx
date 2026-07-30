@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate, SegTabs, AgeChip } from "../ui";
+import { Empty, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
 import ConvertPanel from "./ConvertPanel";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
@@ -124,7 +124,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
               <tbody>
                 {shown.map((r) => (
                   <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}>
-                    <td><span className="badge">{KIND_LABEL[r.kind]}</span></td>
+                    <td><Badge>{KIND_LABEL[r.kind]}</Badge></td>
                     <td>
                       <div className="cell-title">{r.title}</div>
                       <div className="rowmeta">{[r.program, r.owner].filter(Boolean).join(" · ") || <span>&nbsp;</span>}</div>
@@ -157,7 +157,7 @@ function Detail({ row, onConvert, onClose }) {
   return (
     <div className="detail-body">
       <div className="detail-head">
-        <span className="badge">{KIND_LABEL[row.kind]}</span>
+        <Badge>{KIND_LABEL[row.kind]}</Badge>
         <StateBadge band={row.state.band} label={row.state.label} />
         <span className="mono rowmeta" style={{ marginLeft: "auto" }}>{fmtDate(row.date)}</span>
       </div>
@@ -186,10 +186,10 @@ function Detail({ row, onConvert, onClose }) {
       )}
 
       <div className="actions" style={{ marginTop: 16 }}>
-        {row.kind === "inbox" && <button className="btn primary small" onClick={onConvert}>Convert to record</button>}
-        {closable && <button className="btn primary small" onClick={onClose}>
+        {row.kind === "inbox" && <Btn variant="primary" size="small" onClick={onConvert}>Convert to record</Btn>}
+        {closable && <Btn variant="primary" size="small" onClick={onClose}>
           {row.kind === "issue" ? "Resolve issue" : row.kind === "risk" ? "Close risk" : row.kind === "commitment" ? "Close commitment" : "Close task"}
-        </button>}
+        </Btn>}
       </div>
     </div>
   );
@@ -245,9 +245,7 @@ function CloseItemPanel({ row, onClose, onDone }) {
           </select>
         </div>
       )}
-      <div className="field"><label>Note</label>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened (optional)" />
-      </div>
+      <Input as="textarea" label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened (optional)" />
     </SlideOver>
   );
 }
