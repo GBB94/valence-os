@@ -44,7 +44,7 @@ export default function ValueLibrary({ accounts, accountId, setAccountId, reload
                 <tr key={s.id}>
                   <td>{s.outcome}{s.tags ? <div className="rowmeta">{s.tags}</div> : null}</td>
                   <td className="rowmeta">{s.evidence_tier.replace(/_/g, " ")}</td>
-                  <td><span className="badge" style={["qbr_exec", "externally_referenceable"].includes(s.visibility_class) ? { borderColor: "var(--status-ok)", color: "var(--status-ok)" } : {}}>{VIS_LABEL[s.visibility_class]}</span></td>
+                  <td><span className="badge" style={["qbr_exec", "externally_referenceable"].includes(s.visibility_class) ? { borderColor: "var(--data-1)", color: "var(--data-1)" } : {}}>{VIS_LABEL[s.visibility_class]}</span></td>
                 </tr>
               ))}
             </tbody>

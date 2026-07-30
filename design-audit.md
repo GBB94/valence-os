@@ -37,7 +37,9 @@ Every `var(--old)` reference in `.jsx` and `index.css` was renamed to the new to
 
 `--toast-bg`, `--toast-fg`, `--scrim` were kept as real surface-role tokens (not aliases).
 
-## 2. Raw hex still in `.jsx` — 11, all chart fallbacks (TO FIX)
+> **Update (corrective pass, same day):** §2, §3, and §4 below are now **FIXED** — see decisions D-67/D-68. Only §5 (inline spacing → `--sp`) remains deferred.
+
+## 2. Raw hex still in `.jsx` — 11, all chart fallbacks (FIXED)
 
 Canvas (Cytoscape) and SVG (Recharts) can't take `var()` in attributes, so charts resolve tokens via `getComputedStyle` with a literal fallback string. Those fallbacks are the only raw hex left:
 
@@ -46,7 +48,7 @@ Canvas (Cytoscape) and SVG (Recharts) can't take `var()` in attributes, so chart
 | `views/StakeholderGraph.jsx` | 49–55 | `#14161C #fff #CDD2DA #868D9B #6A63D9` | Drop the fallbacks — tokens.css is imported before render, so `getComputedStyle` always resolves; the fallbacks never fire and several are light-theme values that would mispaint if they did. |
 | `views/Waterfall.jsx` | 15–16 | `#5A6070 #1F8A54 #C0392F` | Same — drop the fallbacks. |
 
-## 3. Categorical use of status color — 3 confirmed + 1 doc conflict (TO FIX)
+## 3. Categorical use of status color — FIXED (stance ruled to data family)
 
 Green/amber/red must encode state only. Categorical encodings to move onto `--data-1…4`:
 
@@ -59,7 +61,7 @@ Green/amber/red must encode state only. Categorical encodings to move onto `--da
 
 Legitimate status uses that stay: freshness/staleness, pass/fail gates, on/off-target metric deltas, milestone complete-vs-pending.
 
-## 4. Synthetic bold — 1 site left (TO FIX)
+## 4. Synthetic bold — FIXED
 
 Only weights 400/500/600 are self-hosted; 700 is faked and banned by the guide.
 

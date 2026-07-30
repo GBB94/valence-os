@@ -353,7 +353,7 @@ Build this once as a small set of components and use it everywhere.
 
 All inherit the tokens; none introduce a palette.
 
-**Stakeholder graph.** The one expressive surface. Full-bleed canvas on `--bg-app`, nodes on `--bg-surface` with hairline strokes, size encoding influence, fill encoding stance from the status family, edge thickness encoding relationship strength, arrowheads encoding direction. Reporting edges solid in `--line-strong`; influence and sponsorship edges dashed in `--data-2`. Labels at 11px, on hover or above a zoom threshold. Clicking opens the standard slide-over. The power-interest grid is a toggle, not a second screen, sharing node styling.
+**Stakeholder graph.** The one expressive surface. Full-bleed canvas on `--bg-app`, nodes on `--bg-surface` with hairline strokes, size encoding influence, fill **and node shape** encoding stance from the **categorical data family** (`--data-*`) — stance is a position, not account health, so it is not a status hue, and the shape lets it read without color — edge thickness encoding relationship strength, arrowheads encoding direction. Reporting edges solid in `--line-strong`; influence and sponsorship edges dashed in `--data-2`. Labels at 11px, on hover or above a zoom threshold. Clicking opens the standard slide-over. The power-interest grid is a toggle, not a second screen, sharing node styling.
 
 **Budget waterfall.** `--fin-positive`, `--fin-negative`, `--fin-total`, direct value labels in mono on every bar, no legend, no truncated axis, minor sources grouped with subtotals. No status indicator may appear on this screen.
 

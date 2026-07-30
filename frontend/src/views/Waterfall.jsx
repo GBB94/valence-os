@@ -11,9 +11,10 @@ const money = (v) => "$" + Number(v).toLocaleString();
 export default function Waterfall({ accountId }) {
   const [data, setData] = useState(null);
   const tick = useThemeTick();
+  // tokens.css loads before render, so the vars always resolve — no hex fallbacks.
   const COLOR = useMemo(() => ({
-    start: cssVar("--fin-total", "#5A6070"), total: cssVar("--fin-total", "#5A6070"),
-    add: cssVar("--fin-positive", "#1F8A54"), subtract: cssVar("--fin-negative", "#C0392F"),
+    start: cssVar("--fin-total"), total: cssVar("--fin-total"),
+    add: cssVar("--fin-positive"), subtract: cssVar("--fin-negative"),
   }), [tick]);
   useEffect(() => { if (accountId) api.waterfall(accountId).then(setData).catch(() => setData(null)); }, [accountId]);
   if (!data || data.steps.length <= 1) return null;

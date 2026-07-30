@@ -3,10 +3,12 @@ import cytoscape from "cytoscape";
 import { api } from "../api";
 import { useToast } from "../ui";
 
-// The signature element (Section 6b / DESIGN-GUIDE §8): node size = influence, fill = stance
-// (from the status family), edge thickness = type, arrowheads = direction; anchored on the
-// reporting hierarchy, no force-directed hairball. Toggle to a power-interest grid.
-const STANCE_VAR = { supporter: "--status-ok", skeptic: "--status-risk", unconverted: "--status-unknown", null: "--status-unknown" };
+// The signature element (Section 6b / DESIGN-GUIDE §8): node size = influence, fill + shape =
+// stance (categorical → the data family, paired with a shape so it reads without color; stance
+// is a position, not account health), edge thickness = type, arrowheads = direction; anchored on
+// the reporting hierarchy, no force-directed hairball. Toggle to a power-interest grid.
+const STANCE_VAR = { supporter: "--data-1", skeptic: "--data-3", unconverted: "--data-muted", null: "--data-muted" };
+const STANCE_SHAPE = { supporter: "ellipse", skeptic: "diamond", unconverted: "round-rectangle", null: "round-rectangle" };
 
 export default function StakeholderGraph({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
@@ -44,24 +46,25 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   useEffect(() => {
     if (mode !== "network" || !graph || !elRef.current) return;
     // Canvas can't use CSS var() — resolve the theme's colors from the computed root vars.
+    // tokens.css loads before render, so the computed vars always resolve — no hex fallbacks.
     const css = getComputedStyle(document.documentElement);
-    const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
-    const labelColor = v("--ink-primary", "#14161C");
-    const nodeBorder = v("--bg-surface", "#fff");
-    const edgeColor = v("--line-strong", "#CDD2DA");
-    const edgeLabel = v("--ink-tertiary", "#868D9B");
-    const reportsColor = v("--line-strong", "#CDD2DA");
-    const relColor = v("--data-2", "#6A63D9");     // influence + sponsorship edges
-    const stanceColor = (s) => v(STANCE_VAR[s] || "--status-unknown", "#868D9B");
+    const v = (name) => css.getPropertyValue(name).trim();
+    const labelColor = v("--ink-primary");
+    const nodeBorder = v("--bg-surface");
+    const edgeColor = v("--line-strong");
+    const edgeLabel = v("--ink-tertiary");
+    const reportsColor = v("--line-strong");
+    const relColor = v("--data-2");     // influence + sponsorship edges
+    const stanceColor = (s) => v(STANCE_VAR[s] || "--data-muted");
     const cy = cytoscape({
       container: elRef.current,
       elements: [
-        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.name, size: n.size, color: stanceColor(n.stance), role: n.role } })),
+        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.name, size: n.size, color: stanceColor(n.stance), shape: STANCE_SHAPE[n.stance] || "round-rectangle", role: n.role } })),
         ...graph.edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, type: e.type } })),
       ],
       style: [
         { selector: "node", style: {
-          "background-color": "data(color)", width: "data(size)", height: "data(size)",
+          "background-color": "data(color)", shape: "data(shape)", width: "data(size)", height: "data(size)",
           label: "data(label)", "font-size": 10, color: labelColor, "text-valign": "bottom",
           "text-margin-y": 3, "border-width": 1, "border-color": nodeBorder } },
         { selector: "edge", style: {
@@ -109,7 +112,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
               ? <div ref={elRef} style={{ height: 460 }} />
               : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
           <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
-            Size = influence · color = stance (green supporter, red skeptic, grey unconverted) · solid = reports-to, blue dashed = influences, dotted = sponsors.
+            Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · solid = reports-to, dashed = influences, dotted = sponsors.
           </div>
         </div>
         <div>

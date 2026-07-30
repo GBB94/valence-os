@@ -110,7 +110,7 @@ function Marker({ kind, status }) {
     return <span style={{ display: "inline-block", width: 12, height: 12, background: c, transform: "rotate(45deg)", verticalAlign: "middle" }} />;
   }
   if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--accent)", verticalAlign: "middle" }} />;
-  if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--status-warn)", verticalAlign: "middle" }} />;
+  if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--data-2)", verticalAlign: "middle" }} />;
   return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--ink-secondary)", verticalAlign: "middle" }} />;
 }
 

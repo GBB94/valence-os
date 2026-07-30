@@ -9,7 +9,7 @@ Accounts contain **programs** (bounded deployments/commercial motions, each with
 
 ## Stack
 - **Backend:** Python 3.12 · FastAPI · SQLite with **versioned SQL migrations** (raw `sqlite3`, no ORM) · SQLite **FTS5** for global search.
-- **Frontend:** React (Vite) · Cytoscape (stakeholder graph) · Recharts (budget waterfall) · dense Linear-class UI, one neutral surface + one accent.
+- **Frontend:** React (Vite) · Cytoscape (stakeholder graph) · Recharts (budget waterfall) · a dense "instrument, not dashboard" UI redesigned to **`DESIGN-GUIDE.md`** (the standing design authority): a token system (`tokens.css`), self-hosted IBM Plex, three-state light/dark theming, a four-destination IA (Today / Accounts / Library / Operations) with a tabbed account workspace, and the freshness language on every dated record.
 - **One process:** FastAPI serves the built frontend from `frontend/dist`; Vite dev server in development.
 - **Optional:** the `anthropic` SDK, only for the API transcript-extraction backend.
 
@@ -55,6 +55,8 @@ frontend/src/               React views (one per module) + api.js
 ## Build status
 
 **Section 9 build order — complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation). Migrations 0001–0010.
+
+**Frontend redesign — complete:** fully redesigned to `DESIGN-GUIDE.md` (eight phases A–H + a corrective pass), landed on `main`. Backend, behavior, and the §2 trust boundaries unchanged; no schema changes. See `design-audit.md` for the value inventory.
 
 | Phase | Delivered |
 |---|---|

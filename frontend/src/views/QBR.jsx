@@ -3,7 +3,9 @@ import { api } from "../api";
 import { useToast, fmtDate } from "../ui";
 
 const TYPE_LABEL = { confirmed_fact: "fact", internal_interpretation: "interpretation", open_hypothesis: "hypothesis", recommended_action: "recommendation" };
-const TYPE_COLOR = { confirmed_fact: "var(--status-ok)", internal_interpretation: "var(--status-warn)", open_hypothesis: "var(--ink-tertiary)", recommended_action: "var(--accent)" };
+// Evidence type is categorical (fact vs interpretation vs hypothesis vs action), not health —
+// so it uses the data family, never status hues. Badges also carry a text label (§6).
+const TYPE_COLOR = { confirmed_fact: "var(--data-1)", internal_interpretation: "var(--data-3)", open_hypothesis: "var(--ink-tertiary)", recommended_action: "var(--data-2)" };
 
 export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();

@@ -2,6 +2,15 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Redesign corrective pass (2026-07-30) — gap review
+
+Acting on a corrective brief written against Phase A / in-flight Phase B; reconciled to current `main` (all phases landed). Committed the missing `design-audit.md` (Phase-A deliverable, retrospective). Fixes:
+
+- **D-67 — Stance color moves off the status family (ruling).** The corrective brief §3.2 and DESIGN-GUIDE §8 conflicted on stakeholder-stance color. Zach ruled: stance is categorical (a position, not account health), so it uses the **data family** (`--data-1/3/muted`) paired with **node shape** (● supporter / ◆ skeptic / ▮ unconverted) so it reads without color. DESIGN-GUIDE §8 updated to match; green/amber/red are now purely health. Other categorical misuses fixed the same way: QBR evidence-type (`TYPE_COLOR`), ValueLibrary visibility badge, Timeline comms marker → `--data-*`.
+- **D-68 — No raw hex in `.jsx`.** Dropped the chart `cssVar()` hex fallbacks in StakeholderGraph + Waterfall (`tokens.css` loads before render, so the vars always resolve; the fallbacks were dead and several were light-theme values that would mispaint the graph in dark mode if they ever fired). Fixed the last `fontWeight: 700` (Operations) → 600.
+- **Docs reconciled:** `HANDOFF.md` no longer reads as "stop building" to a fresh session — it now distinguishes the product-feature stopping point (still in force) from the presentation layer (deliberately reopened by DESIGN-GUIDE, now done). `README.md` retired the "Linear-class" language and notes the redesign.
+- Deferred (unchanged): inline spacing px → `--sp` scale is cosmetic-only; see `design-audit.md` §5.
+
 ## Frontend redesign (2026-07-30) — DESIGN-GUIDE.md, Phases A–H
 
 Full presentation-layer redesign to `DESIGN-GUIDE.md` (which supersedes scoping-doc §6). One PR per phase, stacked (#1–#8), tests green throughout. Behavior, backend, and the §2 trust boundaries unchanged; re-verified 67/67 at the close.

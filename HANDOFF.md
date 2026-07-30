@@ -6,7 +6,9 @@ _Written 2026-07-29 for a fresh session with no conversation history. Read this,
 
 Valence OS is an internal, single-editor web app for one Valence Engagement Manager to run a few very deep Fortune-100 accounts end to end. It is built **strictly to the frozen scoping doc** (`Valence-OS-Scoping-Doc.md`, v3.2). The build order and trust boundaries in that doc and in `CLAUDE.md` are binding and win over any individual prompt except an explicit, deliberate override from Zach.
 
-**Status: the intended stopping point.** The Section 9 build order (Stage 0 → v0 → v4) is complete, plus the doc-described gap items, plus §5N (MAP) and §5O (Files & context library, now including tags). **The next phase is real-world use, not more building.** v4-of-the-product / "what's next" gets scoped only after real calls have been captured and the open questions below are answered at Valence. Do not resume building features on your own initiative.
+**Status: feature-complete backend + a completed frontend redesign, both on `main`.** The Section 9 build order (Stage 0 → v0 → v4) is complete, plus the doc-described gap items, §5N (MAP), and §5O (Files & context library incl. tags). Then the **frontend was fully redesigned to `DESIGN-GUIDE.md`** (the standing design authority, which supersedes scoping-doc §6) — eight phases + a corrective pass, all landed on `main`. See the "Design system & information architecture" section below and `design-audit.md`.
+
+**On "do not resume building" — read carefully, the two statements are not in conflict.** The *product feature set* is at its intended stopping point: no new object types, screens, or capabilities on your own initiative — the next product step is real-world use, and v4-of-the-product gets scoped only after real calls are captured and the §12 questions are answered at Valence. That is separate from the *presentation layer*, which was deliberately reopened by `DESIGN-GUIDE.md` and is now done. Design/visual refinements that honor the guide and the trust boundaries are fine; new product features are not.
 
 ## How to run / seed / test
 

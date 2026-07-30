@@ -19,7 +19,7 @@ export default function Operations({ reloadKey }) {
           <div className="rowmeta" style={{ textTransform: "uppercase" }}>Job worker</div>
           <div>{ops.job_worker}</div>
           <div className="rowmeta" style={{ marginTop: 10, textTransform: "uppercase" }}>Audit events</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{ops.audit_events.toLocaleString()}</div>
+          <div style={{ fontSize: 20, fontWeight: 600 }}>{ops.audit_events.toLocaleString()}</div>
         </div>
         <div className="card" style={{ padding: 12 }}>
           <div className="rowmeta" style={{ textTransform: "uppercase" }}>Backup</div>
