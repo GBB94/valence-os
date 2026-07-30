@@ -10,6 +10,11 @@ dependencies = [
     "pyyaml>=6.0",
     "httpx>=0.27",           # test client
     "anthropic>=0.40",       # optional 'api' extractor backend (see app/extractor.py)
+    # Phase 3 (PHASE-3-SPEC.md §0b) — declared now, imported per-stage:
+    "python-pptx>=1.0",      # real .pptx deck/kit export (Section 6)
+    "ics>=0.7",              # calendar .ics read/write adapter (Section 8)
+    # Email .eml parsing uses the stdlib `email` module — no dependency (see decisions.md D-73).
+    # Transcription is an adapter interface with a mock impl (code, not a dependency).
 ]
 
 [dependency-groups]

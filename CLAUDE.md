@@ -4,9 +4,12 @@ These rules apply to every session on this repository. They restate the binding 
 
 ## Scope
 
-- The scope is frozen. New object types or fields outside `stage-0/field-dictionary.md` require asking first, and the bar from the scoping doc applies: a new object requires retiring an existing one or evidence from real use.
-- Build order is Stage 0 → v0.1 → v0.2 → v0.3 → v0.4, then stop for direction. Never build ahead of the current slice or scaffold for future phases.
-- Declined items in Section 11 of the scoping doc stay declined. Do not reintroduce them as "improvements."
+**Current authority: `PHASE-3-SPEC.md`** (Zach, July 2026), a deliberate override of the frozen-scope regime below. Read it first. It retires the Phase 2 evidence gates and directs a feature-complete build in the order of its Section 10. The trust boundaries, the design rules, tests-green, decisions-logged, and **mock-only data** are all explicitly *unchanged and still binding*. What changes is only the scope/slice discipline: object types, fields, screens, and background infrastructure named in the Phase 3 spec are in-scope to build now. New objects/fields **outside** what that spec calls for still require asking first.
+
+- The one remaining gate is **data governance, not scope**: build everything, connect nothing real. Every external touchpoint (email, recordings, calendar, transcription, LLM endpoint, notification channel, file storage, hosting) is an adapter with a mock implementation. Flipping any adapter to a real source requires the hosting/data-handling conversation at Valence to have happened and is recorded in `decisions.md`. `CONNECTIONS.md` is the registry.
+- Follow the Phase 3 build order (spec §10); each stage lands with tests, both-theme screenshots, and a HANDOFF.md update before the next begins.
+
+_Superseded by the above, retained for history:_ ~~The scope is frozen; new object types or fields outside `stage-0/field-dictionary.md` require asking first. Build order is Stage 0 → v0.1 → … → v0.4, then stop. Declined items in Section 11 of the scoping doc stay declined.~~ The Section 11 declines and the field dictionary remain the reference for anything the Phase 3 spec does *not* address.
 
 ## Trust boundaries (schema-level, non-negotiable)
 

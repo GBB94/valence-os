@@ -2,6 +2,14 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Phase 3 — feature-complete build (2026-07-30)
+
+Acting on `PHASE-3-SPEC.md`. Decisions logged as I go, continuing from D-72.
+
+- **D-73 — Regime change: frozen scope → feature-complete build (Zach override).** `PHASE-3-SPEC.md` retires the Phase 2 evidence gates and directs a feature-complete build. Per CLAUDE.md's own clause, an explicit deliberate override from Zach wins; this is that override. Amended CLAUDE.md §Scope to name the spec as current authority and HANDOFF.md to mark Phase 3 in progress. **Unchanged and still binding:** trust boundaries, design guide, mock-only data, tests green, decisions logged. The single remaining gate is now **data governance, not scope** — build everything, connect nothing real; every external touchpoint is a mock adapter flipped only after the Valence hosting/data conversation (tracked in `CONNECTIONS.md`).
+  - **Newly permitted dependencies (spec §0b):** `python-pptx` (real .pptx deck export, Section 6) and `ics` (calendar .ics read/write, Section 8) added to `pyproject.toml`. **Email .eml parsing uses the Python stdlib `email` module** — no new dependency, consistent with "keep it boring"; noted here so a later session doesn't add a redundant one. **Transcription is an adapter interface with a mock implementation** (code, not a dependency); a real engine is a `CONNECTIONS.md` switch. Deps are declared now but installed per-stage as each is first imported, so the current venv/tests stay green until then.
+- **D-74 — Job table + single in-process worker (spec §0b prerequisite).** The §7/8 job infra, deliberately skipped in Phase 2 (all work was synchronous), is the first Phase 3 engineering task because transcription, email sync, association, and scheduled generation are background work. Built boring: a `jobs` table (migration 0011), an `app/jobs.py` handler-registry + `enqueue`/`run_next`/`run_pending`, and a `Worker` thread that polls on its own connection. **The auto-worker is env-gated** (`VALENCE_OS_WORKER`, default OFF) so tests are deterministic and drive jobs synchronously via `run_pending`/the run endpoint; the real server turns it on. Failures write a notification and leave the job row with its error and attempt count; domain mutations inside handlers audit themselves through the normal repo path, so job rows are not separately audited.
+
 ## Redesign punch list (2026-07-30) — closing built-but-not-adopted gaps
 
 Acting on the punch-list verification brief. Four PRs; decisions logged as I go.
