@@ -6,14 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Valence OS</title>
     <script>
-      // Set the theme before first paint to avoid a light flash. Mirrors getInitialTheme() in App.jsx.
+      // Apply the theme before first paint to avoid a flash of the wrong theme.
+      // Mirrors the three-state model in App.jsx: stored choice is system|light|dark.
       (function () {
         try {
-          var t = localStorage.getItem("valence-theme");
-          if (t !== "light" && t !== "dark") {
-            t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          var choice = localStorage.getItem("valence-theme");
+          if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
+          var applied = choice;
+          if (choice === "system") {
+            applied = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           }
-          document.documentElement.dataset.theme = t;
+          document.documentElement.dataset.theme = applied;
         } catch (e) {}
       })();
     </script>

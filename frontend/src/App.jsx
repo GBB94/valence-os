@@ -30,13 +30,24 @@ export default function App() {
   );
 }
 
-// Light/dark: default to the OS preference, override with the topbar toggle (persisted).
-function getInitialTheme() {
+// Theme: three-state choice (System / Light / Dark), persisted. "System" tracks the OS
+// preference live. The stored value is the CHOICE; resolveTheme() maps it to an applied theme.
+const THEME_CYCLE = { system: "light", light: "dark", dark: "system" };
+const THEME_ICON = { system: "◐", light: "☀", dark: "☾" };
+const THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
+
+function getStoredThemeChoice() {
   try {
-    const stored = localStorage.getItem("valence-theme");
-    if (stored === "light" || stored === "dark") return stored;
+    const s = localStorage.getItem("valence-theme");
+    if (s === "system" || s === "light" || s === "dark") return s;
   } catch { /* ignore */ }
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "system";
+}
+function resolveTheme(choice) {
+  if (choice === "system") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return choice;
 }
 
 function Shell() {
@@ -57,11 +68,17 @@ function Shell() {
   const [exAccount, setExAccount] = useState(null);
   const [notifs, setNotifs] = useState({ notifications: [], unread: 0 });
   const [showNotifs, setShowNotifs] = useState(false);
-  const [theme, setTheme] = useState(getInitialTheme);
+  const [theme, setTheme] = useState(getStoredThemeChoice);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
+    const apply = () => { document.documentElement.dataset.theme = resolveTheme(theme); };
+    apply();
+    if (theme === "system" && window.matchMedia) {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
   }, [theme]);
 
   const refreshNotifs = useCallback(async () => {
@@ -183,9 +200,9 @@ function Shell() {
             )}
           </div>
           <PageHelp name={view.name} />
-          <button className="btn small" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle dark mode">
-            {theme === "dark" ? "☀" : "☾"}
+          <button className="btn small" onClick={() => setTheme((t) => THEME_CYCLE[t])}
+            title={`Theme: ${THEME_LABEL[theme]} — click to change`} aria-label={`Theme: ${THEME_LABEL[theme]}. Click to change.`}>
+            {THEME_ICON[theme]}
           </button>
           <button className="btn small" onClick={() => setPalette(true)} title="Command palette">⌘K</button>
           <div className="who">Sam Rivera · single editor</div>
@@ -384,7 +401,7 @@ function CommandPalette({ accounts, onClose, onNavigate, setView, openQuick }) {
 
   return (
     <>
-      <div className="scrim" onClick={onClose} style={{ background: "rgba(20,22,28,.35)" }} />
+      <div className="scrim" onClick={onClose} />
       <div style={{ position: "fixed", top: "12vh", left: "50%", transform: "translateX(-50%)", width: 560, maxWidth: "92vw", zIndex: 60 }}>
         <div className="card" style={{ boxShadow: "0 12px 40px rgba(0,0,0,.28)", overflow: "hidden" }}>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
