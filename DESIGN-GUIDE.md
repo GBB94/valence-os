@@ -345,7 +345,7 @@ Build this once as a small set of components and use it everywhere.
 
 **The unknown treatment.** When a metric-derived indicator's inputs pass their freshness threshold, it does not show its last value in green. It shows a cross-hatched tint (`--status-unknown-tint` with a 45-degree 1px hatch), the label "Unknown," and the age chip explaining why. Manually assessed delivery and commercial statuses behave differently, per the doc: they keep their color but gain a dotted outline and an age chip once past the 30-day reassessment interval.
 
-**The attention rail.** On Today, each row carries a 2px leading edge colored by trigger class. Beside it, the reason renders as 11px plain text, because the doc requires every item to explain itself and a colored bar explains nothing.
+**The attention rail.** On Today, each row carries a 2px leading edge colored by **urgency band** (the queue's ranking band, which is what the operator scans by — trigger class proved too granular to read as a color). Beside it, the reason renders as 11px plain text, because the doc requires every item to explain itself and a colored bar explains nothing.
 
 ---
 

@@ -140,7 +140,7 @@ tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transpare
 
 /* Today — urgency bands + attention rail */
 .band-head { display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-secondary); margin-bottom: 6px; }
-.rail-cell { width: 3px; }
+.rail-cell { width: 2px; }
 .rail-cell.band-risk { background: var(--status-risk); }
 .rail-cell.band-warn { background: var(--status-warn); }
 .rail-cell.band-neutral { background: var(--line-strong); }

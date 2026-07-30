@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { api } from "../api";
-import { useToast } from "../ui";
+import { useToast, AgeChip } from "../ui";
 
 // The signature element (Section 6b / DESIGN-GUIDE §8): node size = influence, fill + shape =
 // stance (categorical → the data family, paired with a shape so it reads without color; stance
@@ -131,9 +131,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             {coverage.senior_stakeholders.map((s, i) => (
               <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{s.name} · {s.role.replace(/_/g, " ")}</span>
-                <span style={{ color: s.stale ? "var(--status-warn)" : "var(--ink-tertiary)" }}>
-                  {s.days_since_touch == null ? "no touch" : `${s.days_since_touch}d`}
-                </span>
+                {s.days_since_touch == null ? <span className="rowmeta">no touch</span> : <AgeChip days={s.days_since_touch} />}
               </div>
             ))}
           </div>

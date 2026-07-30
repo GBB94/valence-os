@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, useToast, fmtDate } from "../ui";
+import { SlideOver, useToast, fmtDate, AgeChip } from "../ui";
 
 // Plays trigger engine (v4). Definitions fire runs against current state; each run
 // records an effectiveness note so the playbook improves, not just automates.
@@ -52,7 +52,7 @@ export default function Plays({ reloadKey, onChanged }) {
         <div className="card-h"><h3>Fired — awaiting completion</h3><div className="spacer" /><span className="rowmeta">{fired.length}</span></div>
         {fired.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>None. Click “Evaluate now”.</div> : (
           <table><tbody>{fired.map((r) => (
-            <tr key={r.id}><td>{r.action_text}<div className="rowmeta">{r.play_name} · {r.trigger_context} · fired {fmtDate(r.fired_at)}</div></td>
+            <tr key={r.id}><td>{r.action_text}<div className="rowmeta">{r.play_name} · {r.trigger_context} · fired <AgeChip date={r.fired_at} /></div></td>
               <td style={{ width: 110 }}><button className="btn small" onClick={() => setCompleting(r)}>Complete</button></td></tr>
           ))}</tbody></table>
         )}

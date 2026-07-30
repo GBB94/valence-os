@@ -2,6 +2,12 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Redesign punch list (2026-07-30) — closing built-but-not-adopted gaps
+
+Acting on the punch-list verification brief. Four PRs; decisions logged as I go.
+
+- **D-69 — Freshness language adopted, not just built.** `AgeChip` was wired into every surface that renders a record's own *past* date: Today (queue, via a `days` variant), stakeholder last-touch, interactions (AccountDetail), play runs (fired_at), metric observation freshness — on top of the Ledger + status header it already had. Deliberately **not** applied to future/contractual dates (renewal, due, target): an "age" of a future date is meaningless, so those keep `fmtDate`. Value stories surface no record date today, so nothing to age there. Primitive fixes: `ageDays`/`ageLabel` now keep the full timestamp so the `Nh`/`Nm`/`now` form appears (was flooring to whole days); attention rail corrected to **2px** (was 3px). Kept the rail colored by **urgency band** (not trigger class — too granular to read as a color) and updated DESIGN-GUIDE §7 to match so the two agree.
+
 ## Redesign corrective pass (2026-07-30) — gap review
 
 Acting on a corrective brief written against Phase A / in-flight Phase B; reconciled to current `main` (all phases landed). Committed the missing `design-audit.md` (Phase-A deliverable, retrospective). Fixes:

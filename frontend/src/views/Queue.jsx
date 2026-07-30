@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, PageHeader } from "../ui";
+import { Empty, SlideOver, useToast, PageHeader, AgeChip } from "../ui";
 
 // Portfolio home — the ranked, explainable attention queue (Module A).
 export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
@@ -37,7 +37,7 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
             <div className="card">
               <table>
                 <thead>
-                  <tr><th style={{ width: 3, padding: 0 }}></th><th>What needs you</th><th style={{ width: 160 }}>Account</th><th style={{ width: 76 }}>Age</th><th style={{ width: 150 }}></th></tr>
+                  <tr><th style={{ width: 2, padding: 0 }}></th><th>What needs you</th><th style={{ width: 160 }}>Account</th><th style={{ width: 76 }}>Age</th><th style={{ width: 150 }}></th></tr>
                 </thead>
                 <tbody>
                   {b.items.map((it) => <QueueRow key={it.key} it={it} band={b.band} onOpenAccount={onOpenAccount} onSnooze={() => setSnoozing(it)} onResolve={() => setResolving(it)} />)}
@@ -97,7 +97,7 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
         <a onClick={() => onOpenAccount(it.account_id)} style={{ cursor: "pointer" }}>{it.account_name}</a>
         {it.program_name ? <div className="rowmeta">{it.program_name}</div> : null}
       </td>
-      <td className="mono rowmeta">{it.age_days}d{it.due_date ? <div>due {it.due_date}</div> : null}</td>
+      <td><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>
       <td>
         <div className="actions">
           <button className="btn small" onClick={onSnooze}>Snooze</button>

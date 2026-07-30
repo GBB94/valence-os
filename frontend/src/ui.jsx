@@ -139,29 +139,46 @@ export function fmtDate(d) {
 
 // --- Freshness language (DESIGN-GUIDE §7). The signature motif: every dated record shows
 //     its age in one monospaced form, and the decay ramp makes an aging screen look aging. ---
-export function ageDays(dateStr) {
+// Parse a date-only (YYYY-MM-DD) or full ISO timestamp; keep the time so the hours form works.
+function ageParts(dateStr) {
   if (!dateStr) return null;
-  const d = new Date(dateStr.slice(0, 10) + "T00:00:00");
+  const hasTime = dateStr.length > 10;
+  const d = new Date(hasTime ? dateStr : dateStr.slice(0, 10) + "T00:00:00");
   if (isNaN(d)) return null;
-  return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
+  return { ms: Math.max(0, Date.now() - d.getTime()), hasTime };
 }
-export function ageLabel(n) {
-  if (n == null) return "—";
-  if (n < 1) return "today";
-  if (n < 21) return `${n}d`;
-  if (n < 84) return `${Math.round(n / 7)}w`;
-  return `${Math.round(n / 30)}mo`;
+export function ageDays(dateStr) {
+  const p = ageParts(dateStr);
+  return p ? Math.floor(p.ms / 86400000) : null;
+}
+// Shortest honest form: now / Nm / Nh (only when a time is known) → today / Nd / Nw / Nmo.
+export function ageLabel(dateStr) {
+  const p = ageParts(dateStr);
+  if (!p) return "—";
+  const days = Math.floor(p.ms / 86400000);
+  const hours = Math.floor(p.ms / 3600000);
+  if (p.hasTime && hours < 1) { const m = Math.floor(p.ms / 60000); return m < 1 ? "now" : `${m}m`; }
+  if (p.hasTime && hours < 24) return `${hours}h`;
+  if (days < 1) return "today";
+  if (days < 21) return `${days}d`;
+  if (days < 84) return `${Math.round(days / 7)}w`;
+  return `${Math.round(days / 30)}mo`;
 }
 // bucket: fresh 0–7 · aging 8–21 · stale 22+  (§7 decay ramp)
-export function ageBucket(n) {
-  if (n == null) return "none";
-  if (n <= 7) return "fresh";
-  if (n <= 21) return "aging";
+export function bucketFor(days) {
+  if (days == null) return "none";
+  if (days <= 7) return "fresh";
+  if (days <= 21) return "aging";
   return "stale";
 }
-export function AgeChip({ date }) {
-  const n = ageDays(date);
-  return <span className={"age age-" + ageBucket(n)} title={date ? `as of ${fmtDate(date)}` : undefined}>{ageLabel(n)}</span>;
+// AgeChip renders from a date string, or from a pre-computed integer day count (`days`) for
+// surfaces like the attention queue that only expose an age, not the underlying timestamp.
+export function AgeChip({ date, days }) {
+  if (date == null && days != null) {
+    const label = days < 1 ? "today" : days < 21 ? `${days}d` : days < 84 ? `${Math.round(days / 7)}w` : `${Math.round(days / 30)}mo`;
+    return <span className={"age age-" + bucketFor(days)}>{label}</span>;
+  }
+  return <span className={"age age-" + bucketFor(ageDays(date))} title={date ? `as of ${fmtDate(date)}` : undefined}>{ageLabel(date)}</span>;
 }
 
 // The unknown treatment: cross-hatched tint + "Unknown" + the age chip that explains why.
@@ -171,7 +188,7 @@ export function Unknown({ since }) {
   return (
     <span className="unknown-chip" title="Inputs are stale — value unknown, not carried forward">
       <span className="unknown-hatch" aria-hidden="true" />
-      Unknown{since && <span className="age age-stale" style={{ marginLeft: 6 }}>{ageLabel(ageDays(since))}</span>}
+      Unknown{since && <span className="age age-stale" style={{ marginLeft: 6 }}>{ageLabel(since)}</span>}
     </span>
   );
 }

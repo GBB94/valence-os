@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { api } from "../api";
-import { SlideOver, useToast, fmtDate, Unknown } from "../ui";
+import { SlideOver, useToast, fmtDate, Unknown, AgeChip } from "../ui";
 
 // Metrics scoreboard (Section 6b): 5-second read, number/target/delta, freshness stamp,
 // stale = unknown (enforced server-side). Plus benchmarks and the CSV import adapter.
@@ -65,7 +65,7 @@ export default function Metrics({ reloadKey }) {
               <div className="rowmeta" style={{ marginTop: 6 }}>
                 {c.stale
                   ? <span style={{ color: "var(--status-warn)" }}>⚠ stale — current through {fmtDate(o?.current_through)}</span>
-                  : o ? `current through ${fmtDate(o.current_through)} · v${c.definition.version}` : "no observation"}
+                  : o ? <>current through {fmtDate(o.current_through)} · <AgeChip date={o.current_through} /> · v{c.definition.version}</> : "no observation"}
               </div>
             </div>
           );

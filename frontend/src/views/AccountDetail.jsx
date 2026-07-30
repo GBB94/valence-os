@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, Empty, SlideOver, useToast, fmtDate } from "../ui";
+import { PhaseBadge, Empty, SlideOver, useToast, fmtDate, AgeChip } from "../ui";
 
 const STATUS_LABEL = { on_track: "on track", at_risk: "at risk", off_track: "off track", unknown: "unknown" };
 const STATUS_DOT = { on_track: "ok", at_risk: "warn", off_track: "risk", unknown: "" };
@@ -132,7 +132,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
                 <tbody>
                   {acct.interactions.map((it) => (
                     <tr key={it.id}>
-                      <td className="rowmeta">{fmtDate(it.occurred_on)}</td>
+                      <td><AgeChip date={it.occurred_on} /></td>
                       <td><span className="badge">{it.type}</span></td>
                       <td>{it.summary || <span className="rowmeta">—</span>}
                         {it.program_id ? null : <span className="tag-internal" style={{borderColor:'var(--ink-tertiary)',color:'var(--ink-tertiary)'}}>account-level</span>}
