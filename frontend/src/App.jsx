@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider } from "./ui";
+import { ToastProvider, fmtDate } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
@@ -50,25 +50,44 @@ function resolveTheme(choice) {
   return choice;
 }
 
+// The account workspace tabs (DESIGN-GUIDE §2.2). Phase C builds the shell + tab strip and
+// slots today's views into each tab as an interim; Phase D merges them (Ledger, etc.).
+const WORKSPACE_TABS = [
+  ["overview", "Overview"], ["ledger", "Ledger"], ["people", "People"],
+  ["plan", "Plan"], ["commercial", "Commercial"], ["evidence", "Evidence"], ["outputs", "Outputs"],
+];
+
+// Short "what is this" help text, keyed by destination or account-tab (topbar ⓘ).
+const INFO = {
+  today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
+  library: "Link-first, tagged, searchable source references and files, with the records that cite each. Points to originals, never copies.",
+  operations: "System health for this single-editor tool: imports, data freshness, backups, search-index health, and the plays engine.",
+  overview: "Where this account stands right now: both statuses with rationale, the phase, and the top risks. Depth is one click away.",
+  ledger: "One chronological record of everything on this account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture.",
+  people: "The stakeholder network — stance, influence, relationships, and who has not been touched. Every assessment carries a date and evidence.",
+  plan: "What is scheduled and what is gating: timeline, deployment moments, phase gates, and compliance lanes.",
+  commercial: "Where the money is — expansion opportunities (staged budget), contract versions with your overlay, and the budget waterfall.",
+  evidence: "What we can prove and how fresh the proof is: ingested metrics (stale renders unknown), benchmarks, and the value-story library.",
+  outputs: "What we hand to someone else — QBR, weekly team update, and the client-facing mutual action plan. Client outputs include only promoted records.",
+};
+
 function Shell() {
   const [accounts, setAccounts] = useState([]);
-  const [view, setView] = useState({ name: "home" });
-  const [quick, setQuick] = useState(null); // {accountId, programId} | null
+  // nav: { dest: 'today'|'account'|'library'|'operations', accountId?, tab?, programId? }
+  const [nav, setNav] = useState({ dest: "today" });
+  const [quick, setQuick] = useState(null);
   const [palette, setPalette] = useState(false);
   const [inboxCount, setInboxCount] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [execAccount, setExecAccount] = useState(null);
-  const [histAccount, setHistAccount] = useState(null);
-  const [commAccount, setCommAccount] = useState(null);
-  const [tlAccount, setTlAccount] = useState(null);
-  const [valAccount, setValAccount] = useState(null);
-  const [qbrAccount, setQbrAccount] = useState(null);
-  const [mapAccount, setMapAccount] = useState(null);
-  const [graphAccount, setGraphAccount] = useState(null);
-  const [exAccount, setExAccount] = useState(null);
   const [notifs, setNotifs] = useState({ notifications: [], unread: 0 });
   const [showNotifs, setShowNotifs] = useState(false);
   const [theme, setTheme] = useState(getStoredThemeChoice);
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try { return localStorage.getItem("valence-rail") === "1"; } catch { return false; }
+  });
+  const [density, setDensity] = useState(() => {
+    try { return localStorage.getItem("valence-density") || "compact"; } catch { return "compact"; }
+  });
 
   useEffect(() => {
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
@@ -81,6 +100,14 @@ function Shell() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.dataset.density = density;
+    try { localStorage.setItem("valence-density", density); } catch { /* ignore */ }
+  }, [density]);
+  useEffect(() => {
+    try { localStorage.setItem("valence-rail", railCollapsed ? "1" : "0"); } catch { /* ignore */ }
+  }, [railCollapsed]);
+
   const refreshNotifs = useCallback(async () => {
     try { setNotifs(await api.notifications()); } catch { /* ignore */ }
   }, []);
@@ -88,7 +115,6 @@ function Shell() {
 
   const loadAccounts = useCallback(async () => {
     const rows = await api.accounts();
-    // decorate with program counts for the list (one call each is fine at this scale)
     const withCounts = await Promise.all(
       rows.map(async (a) => {
         try { const d = await api.account(a.id); return { ...a, program_count: d.programs.length }; }
@@ -104,94 +130,74 @@ function Shell() {
 
   useEffect(() => { loadAccounts(); refreshInbox(); }, [loadAccounts, refreshInbox]);
 
-  // cmd-K / ctrl-K opens the command palette (Section 6: keyboard-first).
+  const capturePrefill = useCallback(() => {
+    if (nav.dest === "account") return { accountId: nav.accountId, programId: nav.programId };
+    return {};
+  }, [nav]);
+
+  // Keyboard: cmd/ctrl-K opens the palette; "c" opens capture from anywhere (Section 2.4).
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); }
+      const t = e.target;
+      const typing = ["input", "textarea", "select"].includes((t.tagName || "").toLowerCase()) || t.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); return; }
+      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c") {
+        e.preventDefault(); setQuick(capturePrefill());
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [capturePrefill]);
 
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
 
-  // Navigate to a global-search result: open its program if it has one, else its account.
+  const openAccount = (id, tab = "overview") => setNav({ dest: "account", accountId: id, tab, programId: undefined });
+  const setTab = (tab) => setNav((n) => ({ ...n, tab }));
+  const setProgramFilter = (programId) => setNav((n) => ({ ...n, programId: programId || undefined }));
+
   function navigateToResult(r) {
-    if (r.object_type === "program" && r.object_id) setView({ name: "program", programId: r.object_id, accountId: r.account_id });
-    else if (r.program_id) setView({ name: "program", programId: r.program_id, accountId: r.account_id });
-    else if (r.account_id) setView({ name: "account", accountId: r.account_id });
+    const acct = r.account_id || (r.object_type === "account" ? r.object_id : null);
+    if (!acct) return;
+    // route search hits into the most relevant workspace tab
+    const tabByType = {
+      person: "people", stakeholder_role: "people",
+      commitment: "ledger", task: "ledger", decision: "ledger", risk: "ledger", issue: "ledger",
+      interaction: "ledger", capture_inbox_item: "ledger",
+      value_story: "evidence", expansion_opportunity: "commercial", scope_change: "plan",
+      program: "overview", account: "overview",
+    };
+    openAccount(acct, tabByType[r.object_type] || "overview");
   }
 
-  const filtered = accounts;
-
   return (
-    <div className="shell">
-      <nav className="sidebar">
-        <div className="brand">Valence OS <small>v0.1</small></div>
-        <div className="nav">
-          <div className="nav-label">Portfolio</div>
-          <button className={"nav-item" + (view.name === "home" ? " active" : "")} onClick={() => setView({ name: "home" })}>
-            Portfolio home
-          </button>
-          <button className={"nav-item" + (view.name === "inbox" ? " active" : "")} onClick={() => setView({ name: "inbox" })}>
-            Capture inbox {inboxCount != null && <span className="muted">{inboxCount}</span>}
-          </button>
-
-          <div className="nav-label">Accounts</div>
-          <button className={"nav-item" + (view.name === "accounts" ? " active" : "")} onClick={() => setView({ name: "accounts" })}>
-            All accounts <span className="muted">{accounts.length}</span>
-          </button>
-          {filtered.map((a) => (
-            <button
-              key={a.id}
-              className={"nav-item" + (view.name === "account" && view.accountId === a.id ? " active" : "")}
-              onClick={() => setView({ name: "account", accountId: a.id })}
-              title={a.name}
-            >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
-            </button>
-          ))}
-
-          <div className="nav-label">Work</div>
-          <button className={"nav-item" + (view.name === "execution" ? " active" : "")} onClick={() => setView({ name: "execution" })}>Execution</button>
-          <button className={"nav-item" + (view.name === "commercial" ? " active" : "")} onClick={() => setView({ name: "commercial" })}>Commercial</button>
-          <button className={"nav-item" + (view.name === "timeline" ? " active" : "")} onClick={() => setView({ name: "timeline" })}>Timeline</button>
-          <button className={"nav-item" + (view.name === "graph" ? " active" : "")} onClick={() => setView({ name: "graph" })}>Stakeholder map</button>
-          <button className={"nav-item" + (view.name === "history" ? " active" : "")} onClick={() => setView({ name: "history" })}>History</button>
-          <button className={"nav-item" + (view.name === "library" ? " active" : "")} onClick={() => setView({ name: "library" })}>Files &amp; context</button>
-
-          <div className="nav-label">Data &amp; evidence</div>
-          <button className={"nav-item" + (view.name === "metrics" ? " active" : "")} onClick={() => setView({ name: "metrics" })}>Metrics</button>
-          <button className={"nav-item" + (view.name === "value" ? " active" : "")} onClick={() => setView({ name: "value" })}>Value library</button>
-
-          <div className="nav-label">AI &amp; automation</div>
-          <button className={"nav-item" + (view.name === "extraction" ? " active" : "")} onClick={() => setView({ name: "extraction" })}>Transcript extraction</button>
-          <button className={"nav-item" + (view.name === "plays" ? " active" : "")} onClick={() => setView({ name: "plays" })}>Plays</button>
-
-          <div className="nav-label">Output</div>
-          <button className={"nav-item" + (view.name === "map" ? " active" : "")} onClick={() => setView({ name: "map" })}>Mutual action plan</button>
-          <button className={"nav-item" + (view.name === "team-update" ? " active" : "")} onClick={() => setView({ name: "team-update" })}>Weekly team update</button>
-          <button className={"nav-item" + (view.name === "qbr" ? " active" : "")} onClick={() => setView({ name: "qbr" })}>QBR generator</button>
-          <button className={"nav-item" + (view.name === "operations" ? " active" : "")} onClick={() => setView({ name: "operations" })}>Operations</button>
-        </div>
-      </nav>
+    <div className={"shell" + (railCollapsed ? " rail-collapsed" : "")}>
+      <Rail
+        accounts={accounts}
+        nav={nav}
+        collapsed={railCollapsed}
+        onToggleCollapse={() => setRailCollapsed((v) => !v)}
+        inboxCount={inboxCount}
+        go={setNav}
+        openAccount={openAccount}
+      />
 
       <div className="main">
         <div className="topbar">
+          <Breadcrumb nav={nav} accounts={accounts} go={setNav} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
-          <button className="btn primary" onClick={() => setQuick({})}>Log interaction</button>
+          <button className="btn primary small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
           <div style={{ position: "relative" }}>
-            <button className="btn" onClick={() => setShowNotifs((v) => !v)} title="Notifications">
-              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--risk)", fontWeight: 700 }}>{notifs.unread}</span>}
+            <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">
+              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--status-risk)", fontWeight: 600 }}>{notifs.unread}</span>}
             </button>
             {showNotifs && (
-              <div className="card" style={{ position: "absolute", right: 0, top: 36, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto" }}>
+              <div className="card" style={{ position: "absolute", right: 0, top: 34, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
                 <div className="card-h"><h3>Notifications</h3></div>
                 {notifs.notifications.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>Nothing yet.</div> :
                   notifs.notifications.map((n) => (
-                    <div key={n.id} style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", opacity: n.read ? 0.5 : 1 }}>
-                      <div style={{ fontSize: 12 }}>{n.message}</div>
+                    <div key={n.id} style={{ padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)", opacity: n.read ? 0.5 : 1 }}>
+                      <div style={{ fontSize: "var(--t-small)" }}>{n.message}</div>
                       <div className="actions"><span className="rowmeta">{n.created_at?.slice(0, 16).replace("T", " ")}</span><div className="spacer" />
                         {!n.read && <button className="btn small ghost" onClick={async () => { await api.readNotification(n.id); refreshNotifs(); }}>Mark read</button>}</div>
                     </div>
@@ -199,91 +205,49 @@ function Shell() {
               </div>
             )}
           </div>
-          <PageHelp name={view.name} />
+          <DensityToggle density={density} setDensity={setDensity} />
+          <PageHelp info={INFO[nav.dest === "account" ? nav.tab : nav.dest]} />
+          <button className="btn small" onClick={() => setPalette(true)} title="Command palette (⌘K)" aria-label="Command palette">⌘K</button>
           <button className="btn small" onClick={() => setTheme((t) => THEME_CYCLE[t])}
             title={`Theme: ${THEME_LABEL[theme]} — click to change`} aria-label={`Theme: ${THEME_LABEL[theme]}. Click to change.`}>
             {THEME_ICON[theme]}
           </button>
-          <button className="btn small" onClick={() => setPalette(true)} title="Command palette">⌘K</button>
-          <div className="who">Sam Rivera · single editor</div>
         </div>
 
-        <div className="content">
-          {view.name === "accounts" && (
-            <Accounts accounts={filtered} onOpen={(id) => setView({ name: "account", accountId: id })} onChanged={loadAccounts} />
-          )}
-          {view.name === "account" && (
-            <>
-              <div className="crumb"><button onClick={() => setView({ name: "accounts" })}>Accounts</button> ›</div>
-              <AccountDetail
-                accountId={view.accountId}
-                reloadKey={reloadKey}
-                onOpenProgram={(pid) => setView({ name: "program", programId: pid, accountId: view.accountId })}
-                onQuickEntry={(accountId) => setQuick({ accountId })}
-              />
-            </>
-          )}
-          {view.name === "program" && (
-            <>
-              <div className="crumb">
-                <button onClick={() => setView({ name: "accounts" })}>Accounts</button> ›{" "}
-                <button onClick={() => setView({ name: "account", accountId: view.accountId })}>Account</button> ›
-              </div>
-              <ProgramDetail
-                programId={view.programId}
-                reloadKey={reloadKey}
-                onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
-              />
-            </>
-          )}
-          {view.name === "inbox" && <Inbox reloadKey={reloadKey} onCountChange={setInboxCount} onConverted={onSaved} />}
-          {view.name === "execution" && (
-            <ExecutionBoard
-              accounts={accounts}
-              accountId={execAccount || accounts[0]?.id}
-              setAccountId={setExecAccount}
-              reloadKey={reloadKey}
-              onChanged={onSaved}
-            />
-          )}
-          {view.name === "home" && (
-            <Queue
-              reloadKey={reloadKey}
-              onOpenAccount={(id) => setView({ name: "account", accountId: id })}
-              onChanged={onSaved}
-            />
-          )}
-          {view.name === "history" && (
-            <History accounts={accounts} accountId={histAccount || accounts[0]?.id} setAccountId={setHistAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "commercial" && (
-            <Commercial accounts={accounts} accountId={commAccount || accounts[0]?.id} setAccountId={setCommAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "timeline" && (
-            <Timeline accounts={accounts} accountId={tlAccount || accounts[0]?.id} setAccountId={setTlAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "graph" && (
-            <StakeholderGraph accounts={accounts} accountId={graphAccount || accounts[0]?.id} setAccountId={setGraphAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "metrics" && <Metrics reloadKey={reloadKey} />}
-          {view.name === "value" && (
-            <ValueLibrary accounts={accounts} accountId={valAccount || accounts[0]?.id} setAccountId={setValAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "qbr" && (
-            <QBR accounts={accounts} accountId={qbrAccount || accounts[0]?.id} setAccountId={setQbrAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "operations" && <Operations reloadKey={reloadKey} />}
-          {view.name === "extraction" && (
-            <Extraction accounts={accounts} accountId={exAccount || accounts[0]?.id} setAccountId={setExAccount} reloadKey={reloadKey} onApplied={onSaved} />
-          )}
-          {view.name === "plays" && <Plays reloadKey={reloadKey} onChanged={() => { bump(); refreshNotifs(); }} />}
-          {view.name === "map" && (
-            <MutualActionPlan accounts={accounts} accountId={mapAccount || accounts[0]?.id} setAccountId={setMapAccount} reloadKey={reloadKey} />
-          )}
-          {view.name === "library" && <Library reloadKey={reloadKey} />}
-          {view.name === "team-update" && <TeamUpdate reloadKey={reloadKey} />}
-          {view.name === "later" && <Placeholder which={view.which} slice={view.slice} />}
-        </div>
+        {nav.dest === "today" && (
+          <div className="content">
+            <Queue reloadKey={reloadKey} onOpenAccount={(id) => openAccount(id)} onChanged={onSaved} />
+          </div>
+        )}
+        {nav.dest === "accounts" && (
+          <div className="content">
+            <Accounts accounts={accounts} onOpen={(id) => openAccount(id)} onChanged={loadAccounts} />
+          </div>
+        )}
+        {nav.dest === "library" && <div className="content"><Library reloadKey={reloadKey} /></div>}
+        {nav.dest === "operations" && (
+          <div className="content">
+            <Operations reloadKey={reloadKey} />
+            <Plays reloadKey={reloadKey} onChanged={() => { bump(); refreshNotifs(); }} />
+          </div>
+        )}
+        {nav.dest === "account" && (
+          <AccountWorkspace
+            key={nav.accountId}
+            accounts={accounts}
+            accountId={nav.accountId}
+            tab={nav.tab}
+            programId={nav.programId}
+            reloadKey={reloadKey}
+            setTab={setTab}
+            setProgramFilter={setProgramFilter}
+            openAccount={openAccount}
+            onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
+            onSaved={onSaved}
+            setInboxCount={setInboxCount}
+            refreshNotifs={refreshNotifs}
+          />
+        )}
       </div>
 
       {quick && (
@@ -301,49 +265,208 @@ function Shell() {
           accounts={accounts}
           onClose={() => setPalette(false)}
           onNavigate={navigateToResult}
-          setView={setView}
-          openQuick={() => setQuick({})}
+          go={setNav}
+          openAccount={openAccount}
+          openQuick={() => setQuick(capturePrefill())}
         />
       )}
     </div>
   );
 }
 
-// One-line "what is this page for" help text per view, shown as a topbar ⓘ tooltip.
-// Grounded in the scoping doc; keep trust boundaries visible (promoted-only, stale=unknown, etc.).
-const PAGE_INFO = {
-  home: { title: "Portfolio home", body: "Your attention queue: a rules-based, explainable ranking of what needs you across every account — and why each item surfaced. Start your day here." },
-  inbox: { title: "Capture inbox", body: "Untriaged notes from quick capture wait here. Convert each into a commitment, risk, issue, decision, task, or milestone — no retyping." },
-  accounts: { title: "All accounts", body: "Every account you run. Open one to see its programs, stakeholders, execution, and commercial picture." },
-  account: { title: "Account", body: "One account end to end: its programs, stakeholders, and delivery + commercial status (each with rationale), plus recent interactions." },
-  program: { title: "Program", body: "One bounded deployment or commercial motion — its phase, scope, success criteria, stakeholders, and execution items." },
-  execution: { title: "Execution", body: "Commitments, tasks, risks, issues, decisions, and milestones across a program, with owners and due dates. ★ promotes an item onto the client-facing Mutual Action Plan." },
-  commercial: { title: "Commercial", body: "Expansion opportunities (staged budget) and contract versions — the canonical copy plus your operational overlay. Renewal and notice dates live here." },
-  timeline: { title: "Timeline", body: "A swimlane view of interactions, commitments, milestones, and deployment moments over time for one account." },
-  graph: { title: "Stakeholder map", body: "The stakeholder network for an account — stance, influence, and relationships. Every assessment carries a date and an evidence note." },
-  history: { title: "History", body: "The full interaction and change history for an account, filterable by person or program. Last-touch dates are derived here, never hand-edited." },
-  library: { title: "Files & context", body: "Link-first, tagged, searchable pointers to source material (decks, transcripts, CRM records), plus which records cite each one. Points to originals, never copies." },
-  metrics: { title: "Metrics", body: "Metrics ingested from the Data team — never recomputed. Freshness is tracked; stale figures render as unknown, not carried-forward good state." },
-  value: { title: "Value library", body: "Documented wins and negative evidence for an account, each tied to a source. Feeds the QBR and team update." },
-  extraction: { title: "Transcript extraction", body: "Paste a transcript to get proposed structured updates for per-item accept or reject. The backend is pluggable — currently the offline mock; no external LLM is wired." },
-  plays: { title: "Plays", body: "Predefined trigger-and-response rules, each with an owner and due date. Evaluate to surface the plays whose conditions are now met." },
-  map: { title: "Mutual action plan", body: "The client-facing joint plan for an account, assembled only from items you've promoted (★). Internal-only material never appears here." },
-  "team-update": { title: "Weekly team update", body: "A one-click weekly internal status roll-up for the Valence team, generated from your captured work." },
-  qbr: { title: "QBR generator", body: "Generates a client-facing quarterly business review for an account — built by construction from only client-safe, promoted material, with provenance on claims." },
-  operations: { title: "Operations", body: "System health for this single-editor tool: failed imports, data freshness, backup/restore status, storage, and search-index health — so you know when something's broken without reading logs." },
-};
+// ---- Rail (240px, collapsible; three destinations + account list + Operations at the foot) ----
+function Rail({ accounts, nav, collapsed, onToggleCollapse, inboxCount, go, openAccount }) {
+  const item = (active, label, icon, onClick, badge) => (
+    <button className={"rail-item" + (active ? " active" : "")} onClick={onClick} title={label}>
+      <span className="rail-icon" aria-hidden="true">{icon}</span>
+      {!collapsed && <span className="rail-label">{label}</span>}
+      {!collapsed && badge != null && <span className="muted">{badge}</span>}
+    </button>
+  );
+  return (
+    <nav className="sidebar">
+      <div className="brand">
+        {!collapsed && <span>Valence OS</span>}
+        <button className="rail-collapse" onClick={onToggleCollapse} title={collapsed ? "Expand" : "Collapse"} aria-label="Toggle sidebar">
+          {collapsed ? "»" : "«"}
+        </button>
+      </div>
+      <div className="nav">
+        {item(nav.dest === "today", "Today", "◎", () => go({ dest: "today" }))}
 
-function PageHelp({ name }) {
-  const info = PAGE_INFO[name];
+        <button className={"rail-item" + (nav.dest === "accounts" ? " active" : "")} onClick={() => go({ dest: "accounts" })} title="All accounts">
+          <span className="rail-icon" aria-hidden="true">▤</span>
+          {!collapsed && <span className="rail-label">Accounts</span>}
+          {!collapsed && <span className="muted">{accounts.length}</span>}
+        </button>
+        {accounts.map((a) => (
+          <button
+            key={a.id}
+            className={"rail-item indent" + (nav.dest === "account" && nav.accountId === a.id ? " active" : "")}
+            onClick={() => openAccount(a.id)}
+            title={a.name}
+          >
+            <span className="rail-icon" aria-hidden="true">▪</span>
+            {!collapsed && <span className="rail-label">{a.name}</span>}
+          </button>
+        ))}
+
+        {item(nav.dest === "library", "Library", "❏", () => go({ dest: "library" }))}
+      </div>
+      <div className="rail-foot">
+        {item(nav.dest === "operations", "Operations", "⚙", () => go({ dest: "operations" }))}
+      </div>
+    </nav>
+  );
+}
+
+function Breadcrumb({ nav, accounts, go }) {
+  const acct = accounts.find((a) => a.id === nav.accountId);
+  const tabLabel = WORKSPACE_TABS.find(([k]) => k === nav.tab)?.[1];
+  if (nav.dest === "today") return <div className="crumb-bar">Today</div>;
+  if (nav.dest === "library") return <div className="crumb-bar">Library</div>;
+  if (nav.dest === "operations") return <div className="crumb-bar">Operations</div>;
+  return (
+    <div className="crumb-bar">
+      <button onClick={() => go({ dest: "accounts" })}>Accounts</button>
+      <span className="crumb-sep">›</span>
+      <span className="crumb-cur">{acct?.name || "Account"}</span>
+      {tabLabel && <><span className="crumb-sep">·</span><span className="crumb-cur">{tabLabel}</span></>}
+    </div>
+  );
+}
+
+function DensityToggle({ density, setDensity }) {
+  const next = density === "compact" ? "default" : "compact";
+  return (
+    <button className="btn small" onClick={() => setDensity(next)}
+      title={`Row density: ${density} — click for ${next}`} aria-label={`Row density: ${density}. Click to change.`}>
+      {density === "compact" ? "▤" : "▦"}
+    </button>
+  );
+}
+
+function PageHelp({ info }) {
   if (!info) return null;
   return (
-    <span className="pagehelp" tabIndex={0} role="note" aria-label={`About this page — ${info.title}: ${info.body}`}>
+    <span className="pagehelp" tabIndex={0} role="note" aria-label={`About this screen: ${info}`}>
       <span className="pagehelp-icon" aria-hidden="true">i</span>
-      <span className="pagehelp-tip" role="tooltip">
-        <strong>{info.title}</strong>
-        <span>{info.body}</span>
-      </span>
+      <span className="pagehelp-tip" role="tooltip"><span>{info}</span></span>
     </span>
+  );
+}
+
+// ---- Account workspace: sticky context header + tab strip + tab content ----
+function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs }) {
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let live = true;
+    api.account(accountId).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [accountId, reloadKey]);
+
+  const programs = detail?.programs ?? [];
+  const selProgram = programs.find((p) => p.id === programId) || null;
+  const setAcct = (id) => openAccount(id, tab);
+
+  return (
+    <>
+      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram} setProgramFilter={setProgramFilter} />
+      <div className="tabstrip" role="tablist">
+        {WORKSPACE_TABS.map(([key, label]) => (
+          <button key={key} role="tab" aria-selected={tab === key}
+            className={"tab" + (tab === key ? " active" : "")} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="content">
+        {tab === "overview" && (
+          <AccountDetail accountId={accountId} reloadKey={reloadKey}
+            onOpenProgram={() => setTab("plan")} onQuickEntry={(aid) => onQuickEntry(aid, programId)} />
+        )}
+        {tab === "ledger" && (
+          <div className="stack">
+            <Inbox reloadKey={reloadKey} onCountChange={setInboxCount} onConverted={onSaved} />
+            <ExecutionBoard accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onChanged={onSaved} />
+            <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
+            <History accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          </div>
+        )}
+        {tab === "people" && (
+          <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+        )}
+        {tab === "plan" && (
+          <div className="stack">
+            {selProgram
+              ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
+              : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
+          </div>
+        )}
+        {tab === "commercial" && (
+          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+        )}
+        {tab === "evidence" && (
+          <div className="stack">
+            <ValueLibrary accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+            <Metrics reloadKey={reloadKey} />
+          </div>
+        )}
+        {tab === "outputs" && (
+          <OutputsTab accounts={accounts} accountId={accountId} setAcct={setAcct} reloadKey={reloadKey} />
+        )}
+      </div>
+    </>
+  );
+}
+
+function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter }) {
+  if (!detail) return <div className="ctx-header"><div className="ctx-name subtle">Loading…</div></div>;
+  const phase = selProgram?.phase;
+  return (
+    <div className="ctx-header">
+      <div className="ctx-name">{detail.name}</div>
+      <select className="ctx-prog" value={programId || ""} onChange={(e) => setProgramFilter(e.target.value)}>
+        <option value="">All programs</option>
+        {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <div className="ctx-stat">
+        <span className="ctx-k">Delivery</span>
+        <span className="ctx-v">{(detail.delivery_status || "—").replace(/_/g, " ")}</span>
+        <span className="rowmeta">{fmtDate(detail.delivery_status_assessed_on)}</span>
+      </div>
+      <div className="ctx-stat">
+        <span className="ctx-k">Commercial</span>
+        <span className="ctx-v">{(detail.commercial_status || "—").replace(/_/g, " ")}</span>
+        <span className="rowmeta">{fmtDate(detail.commercial_status_assessed_on)}</span>
+      </div>
+      {phase && (
+        <div className="ctx-stat">
+          <span className="ctx-k">Phase</span>
+          <span className="ctx-v badge phase">{phase}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Outputs tab: an inner selector across the three generators (interim; Phase D refines).
+function OutputsTab({ accounts, accountId, setAcct, reloadKey }) {
+  const [which, setWhich] = useState("qbr");
+  const OPTS = [["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]];
+  return (
+    <div>
+      <div className="tabstrip inner" role="tablist" style={{ marginBottom: 12 }}>
+        {OPTS.map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={which === k} className={"tab" + (which === k ? " active" : "")} onClick={() => setWhich(k)}>{l}</button>
+        ))}
+      </div>
+      {which === "qbr" && <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
+      {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
+      {which === "map" && <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
+    </div>
   );
 }
 
@@ -354,31 +477,22 @@ const TYPE_LABEL = {
   capture_inbox_item: "inbox note", scope_change: "scope change",
 };
 
-// Command palette (Section 6: keyboard-first, cmd-K). Fuzzy commands + live search,
-// arrow-key navigation, Enter to run, Esc to close.
+// Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.
 const NAV_COMMANDS = [
-  ["Portfolio home", { name: "home" }], ["Capture inbox", { name: "inbox" }],
-  ["All accounts", { name: "accounts" }], ["Execution board", { name: "execution" }],
-  ["Commercial", { name: "commercial" }], ["Timeline", { name: "timeline" }],
-  ["Stakeholder map", { name: "graph" }], ["History", { name: "history" }],
-  ["Metrics", { name: "metrics" }], ["Value library", { name: "value" }],
-  ["Transcript extraction", { name: "extraction" }], ["Plays", { name: "plays" }],
-  ["Weekly team update", { name: "team-update" }], ["QBR generator", { name: "qbr" }],
-  ["Operations", { name: "operations" }],
+  ["Today", { dest: "today" }], ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
 ];
 
-function CommandPalette({ accounts, onClose, onNavigate, setView, openQuick }) {
+function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [sel, setSel] = useState(0);
   const timer = useRef(null);
 
-  // Build the item list: an action, nav commands + account jumps (fuzzy filtered), then search hits.
   const ql = q.trim().toLowerCase();
   const commands = [
     { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
-    ...NAV_COMMANDS.map(([label, view]) => ({ kind: "nav", label, hint: "go to", run: () => { setView(view); onClose(); } })),
-    ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { setView({ name: "account", accountId: a.id }); onClose(); } })),
+    ...NAV_COMMANDS.map(([label, dest]) => ({ kind: "nav", label, hint: "go to", run: () => { go(dest); onClose(); } })),
+    ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { openAccount(a.id); onClose(); } })),
   ].filter((c) => !ql || c.label.toLowerCase().includes(ql));
   const items = [...commands, ...results.map((r) => ({ kind: "result", label: r.title, hint: (TYPE_LABEL[r.object_type] || r.object_type) + " · " + (r.account_name || ""), run: () => { onNavigate(r); onClose(); } }))];
 
@@ -402,23 +516,23 @@ function CommandPalette({ accounts, onClose, onNavigate, setView, openQuick }) {
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <div style={{ position: "fixed", top: "12vh", left: "50%", transform: "translateX(-50%)", width: 560, maxWidth: "92vw", zIndex: 60 }}>
-        <div className="card" style={{ boxShadow: "0 12px 40px rgba(0,0,0,.28)", overflow: "hidden" }}>
+      <div className="palette">
+        <div className="card" style={{ boxShadow: "var(--shadow-panel)", overflow: "hidden" }}>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
             placeholder="Type a command or search…"
-            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--border)", padding: "12px 14px", fontSize: 15, outline: "none" }} />
+            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 14px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
           <div style={{ maxHeight: 360, overflowY: "auto" }}>
             {items.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No matches.</div> :
               items.map((it, i) => (
                 <div key={it.kind + it.label + i} onMouseEnter={() => setSel(i)} onClick={it.run}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", cursor: "pointer",
-                    background: i === sel ? "var(--accent-weak)" : "transparent" }}>
-                  <span style={{ flex: 1, fontSize: 13, color: i === sel ? "var(--accent)" : "var(--text)" }}>{(it.label || "").slice(0, 64)}</span>
+                    background: i === sel ? "var(--accent-tint)" : "transparent" }}>
+                  <span style={{ flex: 1, fontSize: "var(--t-body)", color: i === sel ? "var(--accent)" : "var(--ink-primary)" }}>{(it.label || "").slice(0, 64)}</span>
                   <span className="rowmeta">{it.hint}</span>
                 </div>
               ))}
           </div>
-          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--border)" }}>↑↓ move · ↵ open · esc close</div>
+          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
         </div>
       </div>
     </>
@@ -461,15 +575,15 @@ function GlobalSearch({ onNavigate, reloadKey }) {
         style={{ width: "100%" }}
       />
       {open && q.trim() && (
-        <div className="card" style={{ position: "absolute", top: 34, left: 0, right: 0, zIndex: 40, maxHeight: 420, overflowY: "auto", boxShadow: "0 6px 20px rgba(0,0,0,.12)" }}>
+        <div className="card" style={{ position: "absolute", top: 34, left: 0, right: 0, zIndex: 40, maxHeight: 420, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
           {results.length === 0 ? (
             <div className="rowmeta" style={{ padding: 12 }}>No matches for “{q}”.</div>
           ) : (
             results.map((r) => (
               <button key={r.object_type + r.object_id} onClick={() => go(r)}
-                style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", background: "none", padding: "8px 12px", cursor: "pointer" }}
+                style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--line-hairline)", background: "none", padding: "8px 12px", cursor: "pointer" }}
                 onMouseDown={(e) => e.preventDefault()}>
-                <div style={{ fontSize: 13 }}>
+                <div style={{ fontSize: "var(--t-body)" }}>
                   <span className="badge" style={{ marginRight: 6 }}>{TYPE_LABEL[r.object_type] || r.object_type}</span>
                   {(r.title || "").slice(0, 70)}
                 </div>
@@ -479,17 +593,6 @@ function GlobalSearch({ onNavigate, reloadKey }) {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function Placeholder({ which, slice }) {
-  return (
-    <div>
-      <h1>{which}</h1>
-      <div className="placeholder">
-        <p style={{ marginBottom: 0 }}>{which} arrives in <strong>{slice}</strong>. Not scaffolded ahead of its slice, per the build order.</p>
-      </div>
     </div>
   );
 }
