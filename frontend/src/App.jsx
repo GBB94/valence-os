@@ -30,6 +30,15 @@ export default function App() {
   );
 }
 
+// Light/dark: default to the OS preference, override with the topbar toggle (persisted).
+function getInitialTheme() {
+  try {
+    const stored = localStorage.getItem("valence-theme");
+    if (stored === "light" || stored === "dark") return stored;
+  } catch { /* ignore */ }
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function Shell() {
   const [accounts, setAccounts] = useState([]);
   const [view, setView] = useState({ name: "home" });
@@ -48,6 +57,12 @@ function Shell() {
   const [exAccount, setExAccount] = useState(null);
   const [notifs, setNotifs] = useState({ notifications: [], unread: 0 });
   const [showNotifs, setShowNotifs] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
+  }, [theme]);
 
   const refreshNotifs = useCallback(async () => {
     try { setNotifs(await api.notifications()); } catch { /* ignore */ }
@@ -167,6 +182,11 @@ function Shell() {
               </div>
             )}
           </div>
+          <PageHelp name={view.name} />
+          <button className="btn small" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle dark mode">
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
           <button className="btn small" onClick={() => setPalette(true)} title="Command palette">⌘K</button>
           <div className="who">Sam Rivera · single editor</div>
         </div>
@@ -269,6 +289,44 @@ function Shell() {
         />
       )}
     </div>
+  );
+}
+
+// One-line "what is this page for" help text per view, shown as a topbar ⓘ tooltip.
+// Grounded in the scoping doc; keep trust boundaries visible (promoted-only, stale=unknown, etc.).
+const PAGE_INFO = {
+  home: { title: "Portfolio home", body: "Your attention queue: a rules-based, explainable ranking of what needs you across every account — and why each item surfaced. Start your day here." },
+  inbox: { title: "Capture inbox", body: "Untriaged notes from quick capture wait here. Convert each into a commitment, risk, issue, decision, task, or milestone — no retyping." },
+  accounts: { title: "All accounts", body: "Every account you run. Open one to see its programs, stakeholders, execution, and commercial picture." },
+  account: { title: "Account", body: "One account end to end: its programs, stakeholders, and delivery + commercial status (each with rationale), plus recent interactions." },
+  program: { title: "Program", body: "One bounded deployment or commercial motion — its phase, scope, success criteria, stakeholders, and execution items." },
+  execution: { title: "Execution", body: "Commitments, tasks, risks, issues, decisions, and milestones across a program, with owners and due dates. ★ promotes an item onto the client-facing Mutual Action Plan." },
+  commercial: { title: "Commercial", body: "Expansion opportunities (staged budget) and contract versions — the canonical copy plus your operational overlay. Renewal and notice dates live here." },
+  timeline: { title: "Timeline", body: "A swimlane view of interactions, commitments, milestones, and deployment moments over time for one account." },
+  graph: { title: "Stakeholder map", body: "The stakeholder network for an account — stance, influence, and relationships. Every assessment carries a date and an evidence note." },
+  history: { title: "History", body: "The full interaction and change history for an account, filterable by person or program. Last-touch dates are derived here, never hand-edited." },
+  library: { title: "Files & context", body: "Link-first, tagged, searchable pointers to source material (decks, transcripts, CRM records), plus which records cite each one. Points to originals, never copies." },
+  metrics: { title: "Metrics", body: "Metrics ingested from the Data team — never recomputed. Freshness is tracked; stale figures render as unknown, not carried-forward good state." },
+  value: { title: "Value library", body: "Documented wins and negative evidence for an account, each tied to a source. Feeds the QBR and team update." },
+  extraction: { title: "Transcript extraction", body: "Paste a transcript to get proposed structured updates for per-item accept or reject. The backend is pluggable — currently the offline mock; no external LLM is wired." },
+  plays: { title: "Plays", body: "Predefined trigger-and-response rules, each with an owner and due date. Evaluate to surface the plays whose conditions are now met." },
+  map: { title: "Mutual action plan", body: "The client-facing joint plan for an account, assembled only from items you've promoted (★). Internal-only material never appears here." },
+  "team-update": { title: "Weekly team update", body: "A one-click weekly internal status roll-up for the Valence team, generated from your captured work." },
+  qbr: { title: "QBR generator", body: "Generates a client-facing quarterly business review for an account — built by construction from only client-safe, promoted material, with provenance on claims." },
+  operations: { title: "Operations", body: "System health for this single-editor tool: failed imports, data freshness, backup/restore status, storage, and search-index health — so you know when something's broken without reading logs." },
+};
+
+function PageHelp({ name }) {
+  const info = PAGE_INFO[name];
+  if (!info) return null;
+  return (
+    <span className="pagehelp" tabIndex={0} role="note" aria-label={`About this page — ${info.title}: ${info.body}`}>
+      <span className="pagehelp-icon" aria-hidden="true">i</span>
+      <span className="pagehelp-tip" role="tooltip">
+        <strong>{info.title}</strong>
+        <span>{info.body}</span>
+      </span>
+    </span>
   );
 }
 

@@ -3,6 +3,7 @@
    Utility face with tabular figures for data; dense with hierarchy. One color mode done well. */
 
 :root {
+  color-scheme: light;
   --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-2: #f0f2f5;
@@ -20,10 +21,40 @@
   --ok-bg: #ebfbee;
   --warn-bg: #fff4e6;
   --risk-bg: #fff0f0;
+  /* surface roles that aren't a plain neutral */
+  --toast-bg: #1a1d23;
+  --toast-fg: #ffffff;
+  --scrim: rgba(20,22,28,.28);
 
   --radius: 6px;
   --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Dark mode — same one-accent, semantic-status-only system, retuned for a dark surface.
+   Applied when the app sets data-theme="dark" on <html> (see App.jsx: follows the OS
+   preference by default, overridable with the topbar toggle). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1f242d;
+  --border: #262b34;
+  --border-strong: #3a4150;
+  --text: #e6e8ec;
+  --text-2: #a2a8b4;
+  --text-3: #6d7480;
+  --accent: #7f9cff;         /* brightened so the single accent holds contrast on dark */
+  --accent-weak: #1d2740;
+  --ok: #51cf66;
+  --warn: #ffa94d;
+  --risk: #ff6b6b;
+  --ok-bg: #12321c;
+  --warn-bg: #33260f;
+  --risk-bg: #331717;
+  --toast-bg: #2b313c;
+  --toast-fg: #e6e8ec;
+  --scrim: rgba(0,0,0,.5);
 }
 
 * { box-sizing: border-box; }
@@ -38,6 +69,9 @@ body {
 }
 a { color: var(--accent); text-decoration: none; }
 button { font-family: inherit; font-size: inherit; }
+/* Form controls default to the theme surface + text so inline-styled inputs stay legible on dark */
+input, select, textarea { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+::placeholder { color: var(--text-3); }
 
 /* App shell */
 .shell { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
@@ -69,6 +103,28 @@ button { font-family: inherit; font-size: inherit; }
 }
 .topbar .who { margin-left: auto; color: var(--text-2); font-size: 12px; }
 .content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+/* Per-page help tooltip (topbar ⓘ) — hover or keyboard-focus to see what a page is for */
+.pagehelp { position: relative; display: inline-flex; align-items: center; cursor: help; }
+.pagehelp-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-2);
+  font-size: 12px; font-weight: 600; line-height: 1; background: var(--surface-2);
+}
+.pagehelp:hover .pagehelp-icon, .pagehelp:focus-visible .pagehelp-icon {
+  color: var(--accent); border-color: var(--accent); background: var(--accent-weak);
+}
+.pagehelp-tip {
+  position: absolute; top: 28px; right: 0; width: 300px; z-index: 55;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 10px 12px;
+  opacity: 0; visibility: hidden; transform: translateY(-3px); transition: opacity .12s, transform .12s;
+}
+.pagehelp:hover .pagehelp-tip, .pagehelp:focus-within .pagehelp-tip {
+  opacity: 1; visibility: visible; transform: translateY(0);
+}
+.pagehelp-tip strong { display: block; font-size: 12px; margin-bottom: 3px; color: var(--text); }
+.pagehelp-tip span { display: block; font-size: 12px; line-height: 1.45; color: var(--text-2); }
 
 /* Typography */
 h1 { font-size: 18px; margin: 0 0 2px; }
@@ -110,7 +166,7 @@ tbody tr.clickable:hover { background: var(--surface-2); }
 .spacer { flex: 1; }
 
 /* Slide-over */
-.scrim { position: fixed; inset: 0; background: rgba(20,22,28,.28); z-index: 40; }
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; }
 .slideover { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 92vw; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -8px 0 24px rgba(0,0,0,.08); z-index: 50; display: flex; flex-direction: column; }
 .slideover header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 .slideover header h1 { font-size: 15px; }
@@ -134,7 +190,7 @@ tbody tr.clickable:hover { background: var(--surface-2); }
 .checkline input { width: auto; }
 
 /* Toast */
-.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; padding: 9px 16px; border-radius: var(--radius); font-size: 13px; z-index: 60; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-fg); padding: 9px 16px; border-radius: var(--radius); font-size: 13px; z-index: 60; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
 .toast.err { background: var(--risk); }
 
 /* Empty / placeholder */

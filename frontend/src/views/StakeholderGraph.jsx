@@ -18,6 +18,13 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   const [coverage, setCoverage] = useState(null);
   const elRef = useRef(null);
   const cyRef = useRef(null);
+  // Re-init the canvas graph when the light/dark theme changes (it reads colors from CSS vars).
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setThemeTick((t) => t + 1));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!accountId) return;
@@ -36,6 +43,15 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
 
   useEffect(() => {
     if (mode !== "network" || !graph || !elRef.current) return;
+    // Canvas can't use CSS var() — resolve the theme's colors from the computed root vars.
+    const css = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+    const labelColor = v("--text", "#1a1d23");
+    const nodeBorder = v("--surface", "#fff");
+    const edgeColor = v("--border-strong", "#ccd1d9");
+    const edgeLabel = v("--text-3", "#8a909c");
+    const reportsColor = v("--text-2", "#5b616e");
+    const accentColor = v("--accent", "#3b5bdb");
     const cy = cytoscape({
       container: elRef.current,
       elements: [
@@ -45,14 +61,14 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
       style: [
         { selector: "node", style: {
           "background-color": "data(color)", width: "data(size)", height: "data(size)",
-          label: "data(label)", "font-size": 10, color: "#1a1d23", "text-valign": "bottom",
-          "text-margin-y": 3, "border-width": 1, "border-color": "#fff" } },
+          label: "data(label)", "font-size": 10, color: labelColor, "text-valign": "bottom",
+          "text-margin-y": 3, "border-width": 1, "border-color": nodeBorder } },
         { selector: "edge", style: {
           "curve-style": "bezier", "target-arrow-shape": "triangle", width: 2,
-          "line-color": "#ccd1d9", "target-arrow-color": "#ccd1d9", "font-size": 8,
-          label: "data(type)", color: "#8a909c" } },
-        { selector: 'edge[type="reports_to"]', style: { "line-style": "solid", width: 3, "line-color": "#5b616e", "target-arrow-color": "#5b616e" } },
-        { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": "#3b5bdb", "target-arrow-color": "#3b5bdb" } },
+          "line-color": edgeColor, "target-arrow-color": edgeColor, "font-size": 8,
+          label: "data(type)", color: edgeLabel } },
+        { selector: 'edge[type="reports_to"]', style: { "line-style": "solid", width: 3, "line-color": reportsColor, "target-arrow-color": reportsColor } },
+        { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": accentColor, "target-arrow-color": accentColor } },
         { selector: 'edge[type="sponsors"]', style: { "line-style": "dotted" } },
       ],
       layout: { name: "breadthfirst", directed: true, spacingFactor: 1.3, padding: 20 },
@@ -63,7 +79,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
     });
     cyRef.current = cy;
     return () => cy.destroy();
-  }, [graph, mode]);
+  }, [graph, mode, themeTick]);
 
   if (!accounts.length) return <div className="subtle">Create an account first.</div>;
   const programs = detail?.programs ?? [];
