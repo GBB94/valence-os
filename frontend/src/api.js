@@ -147,4 +147,11 @@ export const api = {
   patchChecklistItem: (id, b) => req("PATCH", `/api/checklist-items/${id}`, b),
   createPlaceholder: (b) => req("POST", "/api/placeholders", b),
   convertPlaceholder: (personId, b) => req("POST", `/api/placeholders/${personId}/convert`, b),
+
+  // Phase 3 Stage 2 — People module core (layers, taxonomy, person card)
+  peopleTaxonomy: () => req("GET", "/api/people/taxonomy"),
+  personCard: (personId) => req("GET", `/api/persons/${personId}/card`),
+  patchPerson: (personId, b) => req("PATCH", `/api/persons/${personId}`, b),
+  patchStakeholderRole: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}`, b),
+  createAdvocacyEvent: (b) => req("POST", "/api/advocacy-events", b),
 };

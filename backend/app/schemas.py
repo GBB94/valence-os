@@ -11,10 +11,18 @@ from pydantic import BaseModel, Field
 Phase = Literal["foundation", "launch", "programmatic", "expansion", "renewal", "closed"]
 Affiliation = Literal["client", "valence"]
 Role = Literal[
+    # original set (kept for back-compat)
     "champion", "budget_owner", "program_owner", "it", "legal_dpo",
     "works_council_contact", "other",
+    # §3.2 full buying committee
+    "executive_sponsor", "financial_gatekeeper", "procurement", "technical_evaluator",
+    "legal_compliance", "end_user_voice", "coach", "detractor",
 ]
+Layer = Literal["executive", "economic", "operational", "technical_gating", "user_advocate"]
 Stance = Literal["supporter", "skeptic", "unconverted"]
+AdvocacyKind = Literal[
+    "advocacy_without_us", "secured_meeting", "defended_us", "presented_internally", "other",
+]
 InteractionType = Literal["call", "meeting", "email", "workshop", "message", "other"]
 SourceType = Literal[
     "file", "transcript_span", "meeting", "crm_record", "data_report", "manual_entry",
@@ -79,17 +87,39 @@ class PersonPatch(BaseModel):
     title: Optional[str] = None
     email: Optional[str] = None
     account_id: Optional[str] = None
+    comms_preference: Optional[str] = None   # professional observation only (D-76)
+    metric_judged_on: Optional[str] = None
 
 
 class StakeholderRoleCreate(BaseModel):
     program_id: str
     person_id: str
     role: Role = "other"
+    layer: Optional[Layer] = None
     stance: Optional[Stance] = None
     stance_assessed_on: Optional[str] = None
     stance_evidence_note: Optional[str] = None
     cares_about: Optional[str] = None
     value_for_them: Optional[str] = None
+
+
+class StakeholderRolePatch(BaseModel):
+    role: Optional[Role] = None
+    layer: Optional[Layer] = None
+    stance: Optional[Stance] = None
+    stance_assessed_on: Optional[str] = None
+    stance_evidence_note: Optional[str] = None
+    cares_about: Optional[str] = None
+    value_for_them: Optional[str] = None
+
+
+class AdvocacyEventCreate(BaseModel):
+    person_id: str
+    program_id: Optional[str] = None
+    kind: AdvocacyKind
+    occurred_on: Optional[str] = None
+    note: Optional[str] = None
+    source_reference_id: Optional[str] = None
 
 
 class InteractionCreate(BaseModel):

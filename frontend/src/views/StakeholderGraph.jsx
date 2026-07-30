@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { api } from "../api";
 import { useToast, AgeChip } from "../ui";
+import PersonCard from "./PersonCard";
+
+// §3.1 the five horizontal bands, top (most senior) to bottom.
+const LAYER_ORDER = ["executive", "economic", "operational", "technical_gating", "user_advocate"];
+const LAYER_LABEL = { executive: "Executive", economic: "Economic", operational: "Operational", technical_gating: "Technical & gating", user_advocate: "User & advocate" };
 
 // The signature element (Section 6b / DESIGN-GUIDE §8): node size = influence, fill + shape =
 // stance (categorical → the data family, paired with a shape so it reads without color; stance
@@ -19,8 +24,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   const [detail, setDetail] = useState(null);
   const [programId, setProgramId] = useState("");
   const [graph, setGraph] = useState(null);
-  const [mode, setMode] = useState("network"); // 'network' | 'power_interest'
+  const [mode, setMode] = useState("network"); // 'network' | 'power_interest' | 'layers'
   const [selected, setSelected] = useState(null);
+  const [cardPerson, setCardPerson] = useState(null);
   const [coverage, setCoverage] = useState(null);
   const elRef = useRef(null);
   const cyRef = useRef(null);
@@ -111,6 +117,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         </select>
         <div className="spacer" />
         <button className={"btn small" + (mode === "network" ? " primary" : "")} onClick={() => setMode("network")}>Network</button>
+        <button className={"btn small" + (mode === "layers" ? " primary" : "")} onClick={() => setMode("layers")}>Layers</button>
         <button className={"btn small" + (mode === "power_interest" ? " primary" : "")} onClick={() => setMode("power_interest")}>Power–interest</button>
       </div>
 
@@ -120,7 +127,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             graph.nodes.length === 0 ? <div className="empty"><h3>No stakeholders</h3>Add people with roles and set their influence.</div> :
             mode === "network"
               ? <div ref={elRef} style={{ height: 460 }} />
-              : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
+              : mode === "layers"
+                ? <LayerLanes nodes={graph.nodes} onSelect={setSelected} />
+                : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
           <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
             Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · ⬡ dashed = unidentified position · solid = reports-to, dashed = influences, dotted = sponsors.
           </div>
@@ -172,17 +181,51 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 <h3 style={{ marginTop: 0 }}>{selected.name}</h3>
                 <div className="rowmeta">{selected.title}</div>
                 <div className="kv" style={{ marginTop: 10 }}>
-                  <dt>Role</dt><dd>{selected.role}</dd>
+                  <dt>Role</dt><dd>{(selected.effective_role || selected.role || "—").replace(/_/g, " ")}
+                    {selected.effective_role && selected.effective_role !== selected.role
+                      ? <span className="rowmeta"> (tagged {selected.role.replace(/_/g, " ")})</span> : null}</dd>
+                  <dt>Layer</dt><dd>{LAYER_LABEL[selected.layer] || "—"}</dd>
                   <dt>Stance</dt><dd>{selected.stance || "—"}</dd>
                   <dt>Influence</dt><dd>{selected.influence || "—"}</dd>
-                  <dt>Relationship</dt><dd>{selected.relationship_strength || "—"}</dd>
                 </div>
+                <button className="btn small primary" style={{ marginTop: 10 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
               </>
             )
           ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
         </div>
         </div>
       </div>
+      {cardPerson && <PersonCard personId={cardPerson} onClose={() => setCardPerson(null)} onChanged={() => setThemeTick((t) => t + 1)} />}
+    </div>
+  );
+}
+
+// §3.1 layer-lane view — horizontal bands by layer; placeholders in their expected band; an
+// empty band is still drawn as a band so the gap is visible. Nodes carry a resolved `layer`.
+function LayerLanes({ nodes, onSelect }) {
+  const byLayer = Object.fromEntries(LAYER_ORDER.map((l) => [l, []]));
+  nodes.forEach((n) => { (byLayer[n.layer] || byLayer.operational).push(n); });
+  return (
+    <div style={{ padding: 12 }}>
+      {LAYER_ORDER.map((l) => (
+        <div key={l} style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--line-hairline)", minHeight: 76 }}>
+          <div style={{ width: 120, flex: "none", fontSize: 11, color: "var(--ink-tertiary)", textTransform: "uppercase", letterSpacing: ".04em" }}>{LAYER_LABEL[l]}</div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "10px 0" }}>
+            {byLayer[l].length === 0
+              ? <span className="rowmeta" style={{ fontStyle: "italic" }}>— empty band —</span>
+              : byLayer[l].map((n) => (
+                <div key={n.id} onClick={() => onSelect(n)} title={n.name} style={{ cursor: "pointer", textAlign: "center", width: 84 }}>
+                  <div className={n.is_placeholder ? "unknown-hatch" : ""} style={{
+                    width: Math.max(20, n.size * 0.7), height: Math.max(20, n.size * 0.7), margin: "0 auto",
+                    borderRadius: n.is_placeholder ? 3 : "50%",
+                    background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`,
+                    border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
+                  <div style={{ fontSize: 10, color: "var(--ink-secondary)", marginTop: 2 }}>{(n.is_placeholder ? (n.title || n.name) : n.name).split(" ").slice(0, 2).join(" ")}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

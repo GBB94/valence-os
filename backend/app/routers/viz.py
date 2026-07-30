@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import repo
+from .. import people_core, repo
 from ..deps import get_conn
 from ..schemas import EdgeCreate, GraphAssessment, RecoveredSpendCreate
 
@@ -50,11 +50,17 @@ def stakeholder_graph(account_id: str, program_id: str | None = None, conn: sqli
         person = people.get(pid)
         if not person:
             continue
+        is_ph = bool(person.get("is_placeholder"))
+        # §3.1 layer (resolved: stored else role-default); §3.2 effective role (coach-vs-champion)
+        layer = r.get("layer") or people_core.default_layer(
+            person.get("expected_role") if is_ph else r["role"])
+        eff, coach_reason = (r["role"], None) if is_ph else people_core.effective_role(conn, pid, r["role"])
         n = nodes.setdefault(pid, {"id": pid, "name": person["name"], "title": person["title"],
-                                   "role": r["role"], "stance": r["stance"], "influence": r["influence"],
+                                   "role": r["role"], "effective_role": eff, "coach_reason": coach_reason,
+                                   "layer": layer, "stance": r["stance"], "influence": r["influence"],
                                    "relationship_strength": r["relationship_strength"],
                                    # §3 placeholder: a position known to exist but not yet identified
-                                   "is_placeholder": bool(person.get("is_placeholder")),
+                                   "is_placeholder": is_ph,
                                    "expected_influence": person.get("expected_influence"),
                                    "find_by_date": person.get("find_by_date")})
         # prefer a set influence/stance over null

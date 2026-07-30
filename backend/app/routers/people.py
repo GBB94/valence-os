@@ -1,12 +1,51 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from .. import repo
+from .. import people_core, repo
 from ..deps import get_conn
-from ..schemas import PersonCreate, PersonPatch, SourceReferenceCreate, SourceReferencePatch
+from ..schemas import (
+    AdvocacyEventCreate, PersonCreate, PersonPatch, SourceReferenceCreate,
+    SourceReferencePatch, StakeholderRolePatch,
+)
 
 router = APIRouter(prefix="/api", tags=["people"])
+
+
+# --- §3.1/§3.2 taxonomy metadata (drives the frontend selects + layer-lane view) ---
+@router.get("/people/taxonomy")
+def taxonomy():
+    return {
+        "roles": people_core.ROLES,
+        "layers": people_core.LAYERS,
+        "layer_labels": people_core.LAYER_LABELS,
+        "default_layer_by_role": people_core.DEFAULT_LAYER_BY_ROLE,
+    }
+
+
+# --- §3.10 person profile card ---
+@router.get("/persons/{person_id}/card")
+def person_card(person_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    card = people_core.person_card(conn, person_id)
+    if not card:
+        raise HTTPException(404, f"person not found: {person_id}")
+    return card
+
+
+# --- §3.1/§3.2 edit a stakeholder role (role, layer, stance) ---
+@router.patch("/stakeholder-roles/{role_id}")
+def patch_stakeholder_role(role_id: str, body: StakeholderRolePatch,
+                           conn: sqlite3.Connection = Depends(get_conn)):
+    if body.stance is not None and not (body.stance_assessed_on and body.stance_evidence_note):
+        raise HTTPException(422, "Setting a stance requires an assessed-on date and an evidence note.")
+    return repo.patch(conn, "stakeholder_roles", role_id, body.model_dump(),
+                      object_type="stakeholder_role")
+
+
+# --- §3.2 advocacy evidence (the coach-vs-champion gate; reused by the champion pipeline) ---
+@router.post("/advocacy-events", status_code=201)
+def create_advocacy_event(body: AdvocacyEventCreate, conn: sqlite3.Connection = Depends(get_conn)):
+    return repo.insert(conn, "advocacy_events", body.model_dump(), object_type="advocacy_event")
 
 
 @router.get("/persons")
