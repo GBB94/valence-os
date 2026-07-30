@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast } from "../ui";
+import { Empty, SlideOver, useToast, PageHeader } from "../ui";
 
 // Portfolio home — the ranked, explainable attention queue (Module A).
 export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
@@ -23,11 +23,7 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
 
   return (
     <div>
-      <div className="actions" style={{ marginBottom: 4 }}>
-        <h1>Today</h1>
-        <div className="spacer" />
-        <span className="rowmeta">{q.items.length} to act · as of {q.as_of}</span>
-      </div>
+      <PageHeader title="Today" meta={`${q.items.length} to act · as of ${q.as_of}`} />
       <div className="rowmeta" style={{ marginBottom: 14 }}>
         Ranked by rule, grouped by urgency, and every item explains itself. This screen exists to be emptied.
       </div>

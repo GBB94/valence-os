@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate } from "../ui";
+import { Empty, SlideOver, useToast, fmtDate, SegTabs } from "../ui";
 import ConvertPanel from "./ConvertPanel";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
@@ -127,14 +127,9 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
 
   return (
     <div>
-      <div className="chiprow" role="tablist" aria-label="Ledger filters">
-        {CHIPS.map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={filter === k}
-            className={"filter-chip" + (filter === k ? " active" : "")} onClick={() => setFilter(k)}>
-            {label}<span className="chip-count">{counts[k] || 0}</span>
-          </button>
-        ))}
-      </div>
+      <SegTabs kind="chip" value={filter} onChange={setFilter}
+        tabs={CHIPS.map(([k, label]) => [k, label, counts[k] || 0])} />
+      <div style={{ height: 12 }} />
 
       <div className="ledger">
         <div className="card ledger-list">

@@ -18,8 +18,62 @@ export function ToastProvider({ children }) {
   );
 }
 
+// --- Shared primitives (DESIGN-GUIDE §6). Thin wrappers over the tokenized classes so
+//     screens compose from one vocabulary instead of ad hoc markup. ---
+export function Btn({ variant = "secondary", size = "default", className = "", children, ...rest }) {
+  const v = variant === "primary" ? " primary" : variant === "ghost" ? " ghost" : variant === "danger" ? " danger" : "";
+  const s = size === "small" ? " small" : "";
+  return <button className={"btn" + v + s + (className ? " " + className : "")} {...rest}>{children}</button>;
+}
+
+export function Badge({ children, className = "" }) {
+  return <span className={"badge" + (className ? " " + className : "")}>{children}</span>;
+}
+
+export function Card({ className = "", children, ...rest }) {
+  return <div className={"card" + (className ? " " + className : "")} {...rest}>{children}</div>;
+}
+
 export function PhaseBadge({ phase }) {
   return <span className="badge phase">{phase}</span>;
+}
+
+// Screen header: title, optional right-aligned meta, optional action cluster.
+export function PageHeader({ title, meta, children }) {
+  return (
+    <div className="actions" style={{ marginBottom: 12 }}>
+      <h1>{title}</h1>
+      <div className="spacer" />
+      {meta && <span className="rowmeta">{meta}</span>}
+      {children}
+    </div>
+  );
+}
+
+// Segmented tabs (inner selectors, filter groups). tabs: [[key, label, count?], …]
+export function SegTabs({ tabs, value, onChange, kind = "tab" }) {
+  const cls = kind === "chip" ? "filter-chip" : "tab";
+  return (
+    <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist">
+      {tabs.map(([key, label, count]) => (
+        <button key={key} role="tab" aria-selected={value === key}
+          className={cls + (value === key ? " active" : "")} onClick={() => onChange(key)}>
+          {label}{count != null && <span className="chip-count">{count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Hover/focus tooltip (the ⓘ affordance, reusable).
+export function Tooltip({ text, children, label = "i" }) {
+  if (!text) return children || null;
+  return (
+    <span className="pagehelp" tabIndex={0} role="note" aria-label={typeof text === "string" ? text : undefined}>
+      {children || <span className="pagehelp-icon" aria-hidden="true">{label}</span>}
+      <span className="pagehelp-tip" role="tooltip"><span>{text}</span></span>
+    </span>
+  );
 }
 
 export function StanceLabel({ stance }) {

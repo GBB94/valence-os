@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider, fmtDate } from "./ui";
+import { ToastProvider, fmtDate, Tooltip, SegTabs } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountDetail from "./views/AccountDetail";
 import ProgramDetail from "./views/ProgramDetail";
@@ -204,7 +204,7 @@ function Shell() {
             )}
           </div>
           <DensityToggle density={density} setDensity={setDensity} />
-          <PageHelp info={INFO[nav.dest === "account" ? nav.tab : nav.dest]} />
+          <Tooltip text={INFO[nav.dest === "account" ? nav.tab : nav.dest]} />
           <button className="btn small" onClick={() => setPalette(true)} title="Command palette (⌘K)" aria-label="Command palette">⌘K</button>
           <button className="btn small" onClick={() => setTheme((t) => THEME_CYCLE[t])}
             title={`Theme: ${THEME_LABEL[theme]} — click to change`} aria-label={`Theme: ${THEME_LABEL[theme]}. Click to change.`}>
@@ -356,16 +356,6 @@ function Collapsible({ title, children, defaultOpen = false }) {
   );
 }
 
-function PageHelp({ info }) {
-  if (!info) return null;
-  return (
-    <span className="pagehelp" tabIndex={0} role="note" aria-label={`About this screen: ${info}`}>
-      <span className="pagehelp-icon" aria-hidden="true">i</span>
-      <span className="pagehelp-tip" role="tooltip"><span>{info}</span></span>
-    </span>
-  );
-}
-
 // ---- Account workspace: sticky context header + tab strip + tab content ----
 function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs }) {
   const [detail, setDetail] = useState(null);
@@ -465,13 +455,10 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
 // Outputs tab: an inner selector across the three generators (interim; Phase D refines).
 function OutputsTab({ accounts, accountId, setAcct, reloadKey }) {
   const [which, setWhich] = useState("qbr");
-  const OPTS = [["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]];
   return (
     <div>
-      <div className="tabstrip inner" role="tablist" style={{ marginBottom: 12 }}>
-        {OPTS.map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={which === k} className={"tab" + (which === k ? " active" : "")} onClick={() => setWhich(k)}>{l}</button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <SegTabs tabs={[["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
       </div>
       {which === "qbr" && <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
       {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
