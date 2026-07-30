@@ -19,7 +19,8 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
 
   if (!accounts.length) return <div className="subtle">Create an account first.</div>;
 
-  const Type = ({ t }) => <span className="badge" style={{ borderColor: TYPE_COLOR[t], color: TYPE_COLOR[t], marginLeft: 6 }}>{TYPE_LABEL[t]}</span>;
+  // Category rides on the label + a colored left border; text stays ink so it always clears contrast.
+  const Type = ({ t }) => <span className="badge" style={{ borderLeft: `3px solid ${TYPE_COLOR[t]}`, marginLeft: 6 }}>{TYPE_LABEL[t]}</span>;
 
   return (
     <div>

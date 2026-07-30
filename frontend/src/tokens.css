@@ -43,7 +43,7 @@
   /* Ink */
   --ink-primary:   #14161C;
   --ink-secondary: #565D6B;
-  --ink-tertiary:  #868D9B;
+  --ink-tertiary:  #6B717C;   /* darkened for 4.5:1 as 11px meta text (was #868D9B, 3.33) */
   --ink-inverse:   #FFFFFF;
 
   /* Accent (interaction only, never state) */
@@ -53,9 +53,9 @@
   --accent-ring:   rgba(58, 52, 196, 0.35);
 
   /* Status (state only, never decoration) */
-  --status-ok:           #1F8A54;
+  --status-ok:           #167544;   /* darkened for 4.5:1 as text on surface + tint (was #1F8A54) */
   --status-ok-tint:      #E6F4EC;
-  --status-warn:         #B26B00;
+  --status-warn:         #8A5500;   /* darkened for 4.5:1 as text on surface + tint (was #B26B00) */
   --status-warn-tint:    #FBF0DF;
   --status-risk:         #C0392F;
   --status-risk-tint:    #FBEAE8;
@@ -119,19 +119,19 @@
   --bg-surface:    #16191E;
   --bg-sunken:     #101317;
   --bg-hover:      #1D2127;
-  --bg-selected:   #1E1F3D;
+  --bg-selected:   #191A33;   /* matches accent-tint so active-nav accent text clears 4.5:1 */
 
   --line-hairline: #262B33;
   --line-strong:   #363C46;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
-  --ink-tertiary:  #6F7784;
+  --ink-tertiary:  #838A98;   /* lightened for 4.5:1 as 11px meta text (was #6F7784, 3.90) */
   --ink-inverse:   #0E1013;
 
   --accent:        #7C74F0;
   --accent-hover:  #948DF5;
-  --accent-tint:   #1E1F3D;
+  --accent-tint:   #191A33;   /* darkened so accent text on it clears 4.5:1 (was #1E1F3D, 4.26) */
   --accent-ring:   rgba(124, 116, 240, 0.40);
 
   --status-ok:           #3FB37F;

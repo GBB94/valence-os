@@ -198,15 +198,13 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .badge.phase { text-transform: capitalize; }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--ink-tertiary); }
 .dot.ok { background: var(--status-ok); } .dot.warn { background: var(--status-warn); } .dot.risk { background: var(--status-risk); }
-/* Stance is categorical (D-67): data family + shape, matching the graph — never a status hue. */
-.stance { display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; }
+/* Stance is categorical (D-67): the shaped, data-colored MARK carries stance; the label text
+   stays ink so it always clears contrast (a light data hue as text would not). */
+.stance { display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; color: var(--ink-primary); }
 .stance-mark { width: 8px; height: 8px; display: inline-block; flex: none; }
-.stance-supporter { color: var(--data-1); }
 .stance-supporter .stance-mark { background: var(--data-1); border-radius: 50%; }
-.stance-skeptic { color: var(--data-3); }
 .stance-skeptic .stance-mark { background: var(--data-3); width: 7px; height: 7px; transform: rotate(45deg); }
-.stance-unconverted { color: var(--ink-secondary); }
-.stance-unconverted .stance-mark { background: var(--ink-secondary); border-radius: 1px; }
+.stance-unconverted .stance-mark { background: var(--ink-tertiary); border-radius: 1px; }
 .tag-internal { font-size: 10px; color: var(--status-warn); border: 1px solid var(--status-warn); border-radius: var(--r-sm); padding: 0 4px; margin-left: 6px; vertical-align: middle; }
 
 /* Buttons */
