@@ -63,7 +63,7 @@ export default function Plays({ reloadKey, onChanged }) {
           <div className="card-h"><h3>Completed — effectiveness</h3></div>
           <table><tbody>{completed.map((r) => (
             <tr key={r.id}><td>{r.action_text}<div className="rowmeta">{r.play_name}</div></td>
-              <td style={{ width: 150 }}><span className="badge" style={r.effectiveness === "effective" ? { borderColor: "var(--ok)", color: "var(--ok)" } : r.effectiveness === "ineffective" ? { borderColor: "var(--risk)", color: "var(--risk)" } : {}}>{r.effectiveness}</span></td></tr>
+              <td style={{ width: 150 }}><span className="badge" style={r.effectiveness === "effective" ? { borderColor: "var(--status-ok)", color: "var(--status-ok)" } : r.effectiveness === "ineffective" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{r.effectiveness}</span></td></tr>
           ))}</tbody></table>
         </div>
       )}

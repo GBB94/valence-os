@@ -44,7 +44,7 @@ export default function ValueLibrary({ accounts, accountId, setAccountId, reload
                 <tr key={s.id}>
                   <td>{s.outcome}{s.tags ? <div className="rowmeta">{s.tags}</div> : null}</td>
                   <td className="rowmeta">{s.evidence_tier.replace(/_/g, " ")}</td>
-                  <td><span className="badge" style={["qbr_exec", "externally_referenceable"].includes(s.visibility_class) ? { borderColor: "var(--ok)", color: "var(--ok)" } : {}}>{VIS_LABEL[s.visibility_class]}</span></td>
+                  <td><span className="badge" style={["qbr_exec", "externally_referenceable"].includes(s.visibility_class) ? { borderColor: "var(--status-ok)", color: "var(--status-ok)" } : {}}>{VIS_LABEL[s.visibility_class]}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -97,4 +97,4 @@ function AddStory({ accountId, onClose, onSaved }) {
   );
 }
 
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

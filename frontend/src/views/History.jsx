@@ -82,4 +82,4 @@ export default function History({ accounts, accountId, setAccountId, reloadKey }
   );
 }
 
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

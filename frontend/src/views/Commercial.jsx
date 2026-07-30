@@ -120,7 +120,7 @@ function BudgetStepper({ state, closed }) {
     <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
       {BUDGET_STATES.map((s, j) => (
         <span key={s} title={s.replace(/_/g, " ")}
-          style={{ width: 22, height: 6, borderRadius: 3, background: j <= i ? (closed ? "var(--text-3)" : "var(--accent)") : "var(--surface-2)", border: "1px solid var(--border)" }} />
+          style={{ width: 22, height: 6, borderRadius: 3, background: j <= i ? (closed ? "var(--ink-tertiary)" : "var(--accent)") : "var(--bg-sunken)", border: "1px solid var(--line-hairline)" }} />
       ))}
       <span className="rowmeta" style={{ marginLeft: 6 }}>{state.replace(/_/g, " ")}</span>
     </div>
@@ -237,4 +237,4 @@ function OverlayForm({ contract, onClose, onSaved }) {
   );
 }
 
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

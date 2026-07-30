@@ -49,7 +49,7 @@ export default function Metrics({ reloadKey }) {
               </div>
               {o && !c.stale && (
                 <div className="rowmeta">
-                  target {fmtNum(o.target, o.unit)}{delta != null && <span style={{ color: delta >= 0 ? "var(--ok)" : "var(--risk)", marginLeft: 6 }}>{delta >= 0 ? "▲" : "▼"} {fmtNum(Math.abs(delta), o.unit)}</span>}
+                  target {fmtNum(o.target, o.unit)}{delta != null && <span style={{ color: delta >= 0 ? "var(--status-ok)" : "var(--status-risk)", marginLeft: 6 }}>{delta >= 0 ? "▲" : "▼"} {fmtNum(Math.abs(delta), o.unit)}</span>}
                 </div>
               )}
               {o && !c.stale && o.target != null && <Bullet value={o.value} target={o.target} />}
@@ -64,7 +64,7 @@ export default function Metrics({ reloadKey }) {
               )}
               <div className="rowmeta" style={{ marginTop: 6 }}>
                 {c.stale
-                  ? <span style={{ color: "var(--warn)" }}>⚠ stale — current through {fmtDate(o?.current_through)}</span>
+                  ? <span style={{ color: "var(--status-warn)" }}>⚠ stale — current through {fmtDate(o?.current_through)}</span>
                   : o ? `current through ${fmtDate(o.current_through)} · v${c.definition.version}` : "no observation"}
               </div>
             </div>
@@ -100,7 +100,7 @@ export default function Metrics({ reloadKey }) {
                   <tr key={b.id}>
                     <td>{b.adapter}<div className="rowmeta">{b.source_label || ""}</div></td>
                     <td className="rowmeta">{b.row_count}</td>
-                    <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--risk)", color: "var(--risk)" } : {}}>{b.status}</span></td>
+                    <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{b.status}</span></td>
                     <td className="rowmeta">{fmtDate(b.current_through)}</td>
                     <td>{b.status === "committed" && <button className="btn small ghost" onClick={() => rollback(b.id)}>Roll back</button>}</td>
                   </tr>
@@ -140,12 +140,12 @@ function ImportPanel({ onClose, onDone }) {
         <div className="rowmeta">{defs.map((d) => <div key={d.id}>{d.id} — {d.name}</div>)}</div>
       </div>
       <div className="field"><label>Current through</label><input type="date" value={through} onChange={(e) => setThrough(e.target.value)} /></div>
-      <div className="field"><label>CSV</label><textarea value={csv} onChange={(e) => { setCsv(e.target.value); setPreview(null); }} rows={7} style={{ fontFamily: "var(--mono)" }} /></div>
+      <div className="field"><label>CSV</label><textarea value={csv} onChange={(e) => { setCsv(e.target.value); setPreview(null); }} rows={7} style={{ fontFamily: "var(--font-mono)" }} /></div>
       {preview && (
         <div className="card" style={{ padding: 10 }}>
           <div className="rowmeta">valid {preview.valid} · invalid {preview.invalid} · duplicates (will supersede) {preview.duplicates}</div>
           {preview.rows.filter((r) => r.errors.length).map((r) => (
-            <div key={r.line} style={{ color: "var(--risk)", fontSize: 12 }}>line {r.line}: {r.errors.join(", ")}</div>
+            <div key={r.line} style={{ color: "var(--status-risk)", fontSize: 12 }}>line {r.line}: {r.errors.join(", ")}</div>
           ))}
         </div>
       )}

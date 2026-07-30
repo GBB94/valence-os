@@ -2,6 +2,20 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Frontend redesign (2026-07-30) — DESIGN-GUIDE.md, Phases A–H
+
+Full presentation-layer redesign to `DESIGN-GUIDE.md` (which supersedes scoping-doc §6). One PR per phase, stacked (#1–#8), tests green throughout. Behavior, backend, and the §2 trust boundaries unchanged; re-verified 67/67 at the close.
+
+- **D-60 — Design tokens are the single source of truth (`tokens.css`).** Both theme palettes, 4px spacing scale, radii/elevation, type scale, motion — nothing outside this file uses a raw hex. Fonts self-hosted (vendored IBM Plex woff2, no CDN, no npm runtime dep). *Exception:* canvas/SVG charts (Cytoscape, Recharts) resolve tokens via `getComputedStyle` with a hard-coded fallback string, because `var()` can't be used in SVG/canvas attributes; the fallbacks mirror the token values and re-resolve on theme change.
+- **D-61 — Three-state theme (System/Light/Dark).** `data-theme` on `<html>`, pre-paint inline script (no flash), `color-scheme` per theme; "System" tracks the OS live.
+- **D-62 — Navigation collapses ~16 destinations to four** (Today, Accounts, Library, Operations) + an account **workspace** with seven tabs (Overview, Ledger, People, Plan, Commercial, Evidence, Outputs). Program is a filter in the sticky context header, not a nav branch. Capture is global (top-bar + `c` shortcut), not a destination.
+- **D-63 — The Ledger merge.** One chronological, chip-filtered master-detail table replaces the separate inbox / execution-board / history surfaces; untriaged capture pins to the top with the unknown treatment; the detail pane keeps every action (close/resolve honoring each type's closure rule; convert reuses ConvertPanel).
+- **D-64 — Today grouped by urgency band** with a 2px attention-rail leading edge and an account column; state badges pair colour with shape (filled/hollow/hatched) so state never rides on colour alone.
+- **D-65 — Freshness language as shared components** (`AgeChip` + decay ramp, `Unknown` cross-hatch). Manually-assessed statuses gain a dotted outline + age chip past the 30-day reassessment interval; stale metrics render Unknown, never carried-forward.
+- **D-66 — Legacy alias bridge, then removed.** Phases B–G kept old token names aliased so the 23 legacy views kept theming; Phase H mechanically renamed every `var(--old)` → `var(--new)` (each a 1:1 indirection, so visually identical) and deleted the alias block.
+- **No schema changes were needed** for the redesign — the batched-proposals slot (guide §0) came back empty.
+- **Deferred (honest):** (a) no automated visual/contrast verification — the Claude Chrome extension wouldn't connect this session, so phases were validated by build + prop/data-shape review + one user click-through at Phase C; a light contrast/keyboard spot-check in both themes is the one open audit item. (b) Legacy views still carry on-scale inline spacing literals (visually identical to the `--sp` scale); converting them to `--sp` and to the React primitives is optional polish. Neither affects theming correctness or the trust boundaries.
+
 ## Files-library tags slice (2026-07-29) — completes Module O (§5O)
 
 Zach approved exactly one schema change — `tags` on source_references — to finish §5O ("tagged, searchable"). Everything else in that turn was declined (see HANDOFF.md).

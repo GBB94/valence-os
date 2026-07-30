@@ -60,7 +60,7 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
         {mode === "auto" && (
           <>
             <span className="rowmeta">backend:</span>
-            <select value={backend} onChange={(e) => setBackend(e.target.value)} style={{ height: 26, borderRadius: 6, border: "1px solid var(--border)", padding: "0 6px" }}>
+            <select value={backend} onChange={(e) => setBackend(e.target.value)} style={{ height: 26, borderRadius: 6, border: "1px solid var(--line-hairline)", padding: "0 6px" }}>
               <option value="">default{config ? ` (${config.backend})` : ""}</option>
               <option value="mock">mock (offline)</option>
               <option value="api">api ({config?.api_model || "Claude API"})</option>
@@ -75,7 +75,7 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
       </div>
 
       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
-        <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={6} placeholder="Paste the call transcript…" style={{ width: "100%", fontFamily: "var(--mono)", fontSize: 12, border: "1px solid var(--border-strong)", borderRadius: 6, padding: 8 }} />
+        <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={6} placeholder="Paste the call transcript…" style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, border: "1px solid var(--line-strong)", borderRadius: 6, padding: 8 }} />
         {mode === "auto" ? (
           <div className="actions" style={{ marginTop: 8 }}>
             <button className="btn primary" onClick={doRun} disabled={busy}>{busy ? "Extracting…" : "Extract proposals"}</button>
@@ -85,7 +85,7 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
           <div style={{ marginTop: 8 }}>
             <button className="btn small" onClick={copyPrompt} disabled={!config}>Copy prompt + transcript</button>
             <div className="rowmeta" style={{ margin: "8px 0 4px" }}>Paste the model's JSON output:</div>
-            <textarea value={pasteJson} onChange={(e) => setPasteJson(e.target.value)} rows={5} placeholder='{"proposals":[…]}' style={{ width: "100%", fontFamily: "var(--mono)", fontSize: 12, border: "1px solid var(--border-strong)", borderRadius: 6, padding: 8 }} />
+            <textarea value={pasteJson} onChange={(e) => setPasteJson(e.target.value)} rows={5} placeholder='{"proposals":[…]}' style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, border: "1px solid var(--line-strong)", borderRadius: 6, padding: 8 }} />
             <div className="actions" style={{ marginTop: 8 }}>
               <button className="btn primary" onClick={doManual} disabled={busy}>{busy ? "Ingesting…" : "Validate & ingest"}</button>
               {run && <span className="rowmeta">{run.model_version} · {run.proposals.length} proposals</span>}
@@ -140,7 +140,7 @@ function ProposalRow({ p, programId, people, onDone }) {
   }
 
   return (
-    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", opacity: done ? 0.55 : 1 }}>
+    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--line-hairline)", opacity: done ? 0.55 : 1 }}>
       <div className="actions">
         <span className="badge">{p.mutation_type.replace("create_", "")}</span>
         <strong style={{ fontWeight: 500 }}>{p.payload.description}</strong>
@@ -163,4 +163,4 @@ function ProposalRow({ p, programId, people, onDone }) {
   );
 }
 
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

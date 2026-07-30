@@ -74,16 +74,16 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
           </div>
           {/* one swimlane per workstream */}
           {LANES.map((lane) => (
-            <div key={lane} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--border)", minHeight: 46 }}>
+            <div key={lane} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--line-hairline)", minHeight: 46 }}>
               <div className="rowmeta" style={{ width: 140, flex: "none", textTransform: "uppercase", letterSpacing: ".04em" }}>{lane}</div>
               <div style={{ position: "relative", flex: 1, height: 46 }}>
                 {/* lane baseline + today marker */}
-                <div style={{ position: "absolute", top: 23, left: 0, right: 0, height: 1, background: "var(--border)" }} />
+                <div style={{ position: "absolute", top: 23, left: 0, right: 0, height: 1, background: "var(--line-hairline)" }} />
                 <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--accent)", opacity: 0.5 }} title="today" />
                 {markers.filter((m) => m.lane === lane).sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
                   <div key={i} style={{ position: "absolute", left: pct(m.date), top: 23, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
                     <Marker kind={m.kind} status={m.status} />
-                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10, color: "var(--text-2)" }}>
+                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10, color: "var(--ink-secondary)" }}>
                       {(m.label || "").slice(0, 22)}
                     </div>
                   </div>
@@ -106,12 +106,12 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
 
 function Marker({ kind, status }) {
   if (kind === "milestone") {
-    const c = status === "complete" ? "var(--ok)" : "var(--warn)";
+    const c = status === "complete" ? "var(--status-ok)" : "var(--status-warn)";
     return <span style={{ display: "inline-block", width: 12, height: 12, background: c, transform: "rotate(45deg)", verticalAlign: "middle" }} />;
   }
   if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--accent)", verticalAlign: "middle" }} />;
-  if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--warn)", verticalAlign: "middle" }} />;
-  return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--text-2)", verticalAlign: "middle" }} />;
+  if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--status-warn)", verticalAlign: "middle" }} />;
+  return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--ink-secondary)", verticalAlign: "middle" }} />;
 }
 
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

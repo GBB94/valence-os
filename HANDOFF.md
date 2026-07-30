@@ -55,6 +55,21 @@ Backend routers in `backend/app/routers/`, frontend views in `frontend/src/views
 
 The pluggable extractor (`app/extractor.py`): `get_extractor(backend)` returns a **mock** or an `api` backend; manual paste has its own endpoint. All three funnel through `validate_proposals()`, a strict predefined mutation set. **The mock extractor is the only one wired.** The `api` backend code exists but is dormant — see gated items.
 
+## Design system & information architecture (2026-07-30 redesign)
+
+The frontend was fully redesigned to **`DESIGN-GUIDE.md`** (repo root), which is now the standing design authority and **supersedes scoping-doc §6**. Read it before any frontend change. Highlights a future session must respect:
+
+- **Tokens are law.** `frontend/src/tokens.css` is the single source of raw values (both theme palettes, `--sp-*` spacing, radii, type, motion). No raw hex or arbitrary pixels outside it. The one exception: canvas/SVG charts resolve tokens via `getComputedStyle` with a mirror-value fallback (SVG/canvas attributes can't take `var()`).
+- **Fonts are self-hosted** (vendored IBM Plex woff2 under `frontend/src/assets/fonts`) — no CDN, no font npm dependency.
+- **Three-state theme** (System/Light/Dark) via `data-theme` on `<html>` + a pre-paint script in `index.html`. Both themes are first-class; a change that only works in one is not done.
+- **Navigation is four destinations** — Today, Accounts, Library, Operations — plus the **account workspace** (sticky context header + seven tabs: Overview, Ledger, People, Plan, Commercial, Evidence, Outputs). Program is a filter, not a nav branch. Capture is global (`c` shortcut / top bar), never a destination. Don't add a top-level destination without asking.
+- **The Ledger** (`frontend/src/views/Ledger.jsx`) is one merged chronological master-detail table (interactions + execution objects + untriaged capture). **Today** is grouped by urgency band with the attention rail.
+- **Freshness language** (`AgeChip`, `Unknown` in `ui.jsx`) appears on dated records; stale metric-derived values render Unknown, never carried-forward — this is a trust boundary, not decoration.
+- **Colour carries meaning only:** status hues (green/amber/red) for state, the indigo accent for interaction, financial tokens for the waterfall (the single exception; it never shares a screen with status). State never rides on colour alone — badges pair colour with a shape.
+- Shared primitives live in `frontend/src/ui.jsx` (`Btn`, `Badge`, `Card`, `PageHeader`, `SegTabs`, `Tooltip`, `AgeChip`, `Unknown`, `SlideOver`, `Empty`).
+
+The redesign shipped as eight stacked PRs (`redesign-a-foundation` … `redesign-h-close`, PRs #1–#8). It changed **no backend, no behavior, and no schema**, and the §2 trust boundaries were re-verified (67/67) after the restructure. Open audit item: an automated contrast/keyboard pass in both themes (the browser extension wouldn't connect during the build, so verification was by build + review + a manual click-through).
+
 ## What's deferred, and why
 
 - **Job table + in-process worker (§7/8).** Deliberately not built. At this scale (a few thousand rows) all work is synchronous and instant; a queue would be speculative infrastructure the doc's "keep it boring" rule forbids. Do **not** build the job table or any §7/8 production-mode machinery.

@@ -40,7 +40,7 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
         <div className="card-h"><h3>Phase gates</h3><div className="spacer" /><button className="btn small" onClick={() => setAdding("gate")}>Add gate</button></div>
         {d.phase_gates.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No gates.</div> :
           d.phase_gates.map((g) => (
-            <div key={g.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+            <div key={g.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--line-hairline)" }}>
               <div className="actions">
                 <strong>{g.name}</strong>
                 <span className={"badge"} style={badge(g.status)}>{g.status}</span>
@@ -53,7 +53,7 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
                 {g.items.map((it) => (
                   <label key={it.id} className="checkline" style={{ marginBottom: 3 }}>
                     <input type="checkbox" checked={it.complete} disabled={g.status !== "open"} onChange={(e) => toggleItem(it.id, e.target.checked)} />
-                    <span style={{ textDecoration: it.complete ? "line-through" : "none", color: it.complete ? "var(--text-3)" : "inherit" }}>{it.description}</span>
+                    <span style={{ textDecoration: it.complete ? "line-through" : "none", color: it.complete ? "var(--ink-tertiary)" : "inherit" }}>{it.description}</span>
                   </label>
                 ))}
               </div>
@@ -71,7 +71,7 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
                   <td>{LANE_LABEL[c.lane] || c.lane}{c.region ? <span className="rowmeta"> · {c.region}</span> : ""}{c.notes ? <div className="rowmeta">{c.notes}</div> : null}</td>
                   <td style={{ width: 150 }}>
                     <span className={"dot " + C_DOT[c.status]} />{" "}
-                    <select value={c.status} onChange={(e) => setCompliance(c, e.target.value)} style={{ border: "1px solid var(--border)", borderRadius: 4, padding: "1px 4px" }}>
+                    <select value={c.status} onChange={(e) => setCompliance(c, e.target.value)} style={{ border: "1px solid var(--line-hairline)", borderRadius: 4, padding: "1px 4px" }}>
                       {C_STATUS.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
                     </select>
                   </td>
@@ -111,8 +111,8 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
 }
 
 function badge(status) {
-  if (status === "passed") return { borderColor: "var(--ok)", color: "var(--ok)" };
-  if (status === "waived") return { borderColor: "var(--warn)", color: "var(--warn)" };
+  if (status === "passed") return { borderColor: "var(--status-ok)", color: "var(--status-ok)" };
+  if (status === "waived") return { borderColor: "var(--status-warn)", color: "var(--status-warn)" };
   return {};
 }
 

@@ -126,7 +126,7 @@ function SnoozePanel({ item, onClose, onDone }) {
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save} disabled={saving}>Snooze</button></>}>
       <div className="subtle" style={{ marginBottom: 12 }}>{item.title}</div>
       <div className="field"><label>Return date</label><input type="date" value={until} onChange={(e) => setUntil(e.target.value)} /></div>
-      <div style={{ textAlign: "center", color: "var(--text-3)", margin: "6px 0" }}>or</div>
+      <div style={{ textAlign: "center", color: "var(--ink-tertiary)", margin: "6px 0" }}>or</div>
       <div className="field"><label>Resurfacing condition</label>
         <input value={cond} onChange={(e) => setCond(e.target.value)} placeholder="e.g. if works-council review isn't scheduled by next week" />
         <div className="hint">The item also resurfaces automatically if its underlying facts change.</div>

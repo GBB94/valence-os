@@ -108,7 +108,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             mode === "network"
               ? <div ref={elRef} style={{ height: 460 }} />
               : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
-          <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--border)" }}>
+          <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
             Size = influence · color = stance (green supporter, red skeptic, grey unconverted) · solid = reports-to, blue dashed = influences, dotted = sponsors.
           </div>
         </div>
@@ -122,13 +122,13 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             </div>
             <div style={{ fontSize: 13, marginBottom: 8 }}>
               Business case: {coverage.multithreaded
-                ? <span style={{ color: "var(--ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
-                : <span style={{ color: "var(--warn)" }}>single-threaded — add a 2nd owner</span>}
+                ? <span style={{ color: "var(--status-ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
+                : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a 2nd owner</span>}
             </div>
             {coverage.senior_stakeholders.map((s, i) => (
               <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{s.name} · {s.role.replace(/_/g, " ")}</span>
-                <span style={{ color: s.stale ? "var(--warn)" : "var(--text-3)" }}>
+                <span style={{ color: s.stale ? "var(--status-warn)" : "var(--ink-tertiary)" }}>
                   {s.days_since_touch == null ? "no touch" : `${s.days_since_touch}d`}
                 </span>
               </div>
@@ -159,13 +159,13 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
 function PowerInterest({ nodes, onSelect }) {
   return (
     <div style={{ position: "relative", height: 460, margin: 20 }}>
-      <div style={{ position: "absolute", inset: 0, border: "1px solid var(--border-strong)" }} />
-      <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 1, background: "var(--border)" }} />
-      <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, background: "var(--border)" }} />
+      <div style={{ position: "absolute", inset: 0, border: "1px solid var(--line-strong)" }} />
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 1, background: "var(--line-hairline)" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, background: "var(--line-hairline)" }} />
       <Label t="Keep satisfied" x="2%" y="2%" /><Label t="Manage closely" x="70%" y="2%" />
       <Label t="Monitor" x="2%" y="94%" /><Label t="Keep informed" x="70%" y="94%" />
-      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: 10, color: "var(--text-3)" }}>power (influence) →</div>
-      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: 10, color: "var(--text-3)" }}>interest (stance) →</div>
+      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: 10, color: "var(--ink-tertiary)" }}>power (influence) →</div>
+      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: 10, color: "var(--ink-tertiary)" }}>interest (stance) →</div>
       {nodes.map((n) => {
         const x = ((n.interest - 1) / 2) * 84 + 8;      // 1..3 -> 8..92%
         const y = 92 - ((n.power - 1) / 2) * 84;         // higher power = higher up
@@ -173,12 +173,12 @@ function PowerInterest({ nodes, onSelect }) {
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
             <div style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: "50%", background: `var(${STANCE_VAR[n.stance] || "--status-unknown"})`, border: "1px solid var(--bg-surface)" }} />
-            <div style={{ fontSize: 10, color: "var(--text-2)" }}>{n.name.split(" ")[0]}</div>
+            <div style={{ fontSize: 10, color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );
       })}
     </div>
   );
 }
-const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: 10, color: "var(--text-3)" }}>{t}</div>;
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: 10, color: "var(--ink-tertiary)" }}>{t}</div>;
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

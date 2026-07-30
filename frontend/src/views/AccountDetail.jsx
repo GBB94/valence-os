@@ -83,7 +83,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
               <button className="btn small" onClick={() => setAddingProgram((v) => !v)}>New program</button>
             </div>
             {addingProgram && (
-              <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ padding: 12, borderBottom: "1px solid var(--line-hairline)" }}>
                 <div className="grid2">
                   <div className="field">
                     <label>Name <span className="req">*</span></label>
@@ -135,7 +135,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
                       <td className="rowmeta">{fmtDate(it.occurred_on)}</td>
                       <td><span className="badge">{it.type}</span></td>
                       <td>{it.summary || <span className="rowmeta">—</span>}
-                        {it.program_id ? null : <span className="tag-internal" style={{borderColor:'var(--text-3)',color:'var(--text-3)'}}>account-level</span>}
+                        {it.program_id ? null : <span className="tag-internal" style={{borderColor:'var(--ink-tertiary)',color:'var(--ink-tertiary)'}}>account-level</span>}
                       </td>
                     </tr>
                   ))}
@@ -197,7 +197,7 @@ function StatusCard({ dim, label, acct, onEdit }) {
       {rationale && <div className="rowmeta">{rationale}</div>}
       <div className="rowmeta" style={{ marginTop: 4 }}>
         {assessedOn ? `assessed ${assessedOn}` : "not assessed"}
-        {stale && <span className="badge" style={{ marginLeft: 6, borderColor: "var(--warn)", color: "var(--warn)" }}>reassess ({age}d)</span>}
+        {stale && <span className="badge" style={{ marginLeft: 6, borderColor: "var(--status-warn)", color: "var(--status-warn)" }}>reassess ({age}d)</span>}
       </div>
     </div>
   );

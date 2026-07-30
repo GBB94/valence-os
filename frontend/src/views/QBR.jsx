@@ -3,7 +3,7 @@ import { api } from "../api";
 import { useToast, fmtDate } from "../ui";
 
 const TYPE_LABEL = { confirmed_fact: "fact", internal_interpretation: "interpretation", open_hypothesis: "hypothesis", recommended_action: "recommendation" };
-const TYPE_COLOR = { confirmed_fact: "var(--ok)", internal_interpretation: "var(--warn)", open_hypothesis: "var(--text-3)", recommended_action: "var(--accent)" };
+const TYPE_COLOR = { confirmed_fact: "var(--status-ok)", internal_interpretation: "var(--status-warn)", open_hypothesis: "var(--ink-tertiary)", recommended_action: "var(--accent)" };
 
 export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
@@ -34,16 +34,16 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
         <>
           <div className="rowmeta" style={{ marginBottom: 4 }}>
             Generated {q.stamp.generated_at} · data current through {q.stamp.data_current_through}.
-            {q.stamp.missing_or_stale_sources.length > 0 && <span style={{ color: "var(--warn)" }}> ⚠ stale/missing: {q.stamp.missing_or_stale_sources.join(", ")}</span>}
+            {q.stamp.missing_or_stale_sources.length > 0 && <span style={{ color: "var(--status-warn)" }}> ⚠ stale/missing: {q.stamp.missing_or_stale_sources.join(", ")}</span>}
           </div>
-          <div className="rowmeta" style={{ marginBottom: 14, color: "var(--text-3)" }}>{q.excluded_note}</div>
+          <div className="rowmeta" style={{ marginBottom: 14, color: "var(--ink-tertiary)" }}>{q.excluded_note}</div>
 
           <div className="card"><div className="card-h"><h3>Metrics vs targets</h3></div>
             <table><thead><tr><th>Metric</th><th style={{ width: 120 }}>Value</th><th style={{ width: 100 }}>Target</th><th>Population · through</th></tr></thead>
               <tbody>
                 {q.metrics.map((m, i) => (
                   <tr key={i}><td>{m.name} <Type t={m.type} /></td>
-                    <td>{m.value === "unknown" ? <span style={{ color: "var(--text-3)" }}>unknown</span> : fmtNum(m.value)}</td>
+                    <td>{m.value === "unknown" ? <span style={{ color: "var(--ink-tertiary)" }}>unknown</span> : fmtNum(m.value)}</td>
                     <td className="rowmeta">{fmtNum(m.target)}</td>
                     <td className="rowmeta">{m.population || "—"}{m.current_through ? ` · ${fmtDate(m.current_through)}` : ""}</td></tr>
                 ))}
@@ -85,4 +85,4 @@ function fmtNum(v) {
   if (v == null || v === "unknown") return v === "unknown" ? "unknown" : "—";
   return typeof v === "number" ? (v <= 1 && v > 0 ? (v * 100).toFixed(0) + "%" : v.toLocaleString()) : v;
 }
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px", background: "var(--surface)" };
+const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

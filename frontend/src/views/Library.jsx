@@ -38,12 +38,12 @@ export default function Library({ reloadKey }) {
         <button className="btn primary" onClick={() => setAdding(true)}>Add link</button>
       </div>
       <div className="actions" style={{ marginBottom: 12 }}>
-        <input placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, maxWidth: 360, height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 10px" }} />
-        <select value={type} onChange={(e) => setType(e.target.value)} style={{ height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px" }}>
+        <input placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, maxWidth: 360, height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 10px" }} />
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px" }}>
           <option value="">all types</option>
           {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
         </select>
-        <select value={tag} onChange={(e) => setTag(e.target.value)} disabled={allTags.length === 0} style={{ height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px" }}>
+        <select value={tag} onChange={(e) => setTag(e.target.value)} disabled={allTags.length === 0} style={{ height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px" }}>
           <option value="">all tags</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>

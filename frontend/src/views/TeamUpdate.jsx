@@ -66,7 +66,7 @@ export default function TeamUpdate({ reloadKey }) {
 
 function Block({ title, items, render, tone }) {
   if (!items?.length) return null;
-  const color = tone === "risk" ? "var(--risk)" : tone === "warn" ? "var(--warn)" : "var(--text-3)";
+  const color = tone === "risk" ? "var(--status-risk)" : tone === "warn" ? "var(--status-warn)" : "var(--ink-tertiary)";
   return (
     <div style={{ marginBottom: 10 }}>
       <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", color }}>{title}</div>

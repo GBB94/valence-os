@@ -34,7 +34,7 @@ export default function Operations({ reloadKey }) {
           <table><thead><tr><th>Metric</th><th style={{ width: 150 }}>Current through</th><th style={{ width: 100 }}>State</th></tr></thead>
             <tbody>{ops.source_freshness.map((f, i) => (
               <tr key={i}><td>{f.metric}</td><td className="rowmeta">{fmtDate(f.current_through)}</td>
-                <td>{f.stale ? <span style={{ color: "var(--warn)" }}>⚠ stale</span> : <span style={{ color: "var(--ok)" }}>fresh</span>}</td></tr>
+                <td>{f.stale ? <span style={{ color: "var(--status-warn)" }}>⚠ stale</span> : <span style={{ color: "var(--status-ok)" }}>fresh</span>}</td></tr>
             ))}</tbody></table>
         )}
       </div>
@@ -45,11 +45,11 @@ export default function Operations({ reloadKey }) {
           <table><thead><tr><th>Adapter</th><th style={{ width: 70 }}>Rows</th><th style={{ width: 120 }}>Status</th><th style={{ width: 140 }}>Created</th></tr></thead>
             <tbody>{ops.import_batches.map((b) => (
               <tr key={b.id}><td>{b.adapter}</td><td className="rowmeta">{b.row_count}</td>
-                <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--risk)", color: "var(--risk)" } : {}}>{b.status}</span></td>
+                <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{b.status}</span></td>
                 <td className="rowmeta">{b.created_at?.slice(0, 10)}</td></tr>
             ))}</tbody></table>
         )}
-        {ops.failed_or_rolled_back > 0 && <div className="rowmeta" style={{ padding: "8px 12px", color: "var(--risk)" }}>{ops.failed_or_rolled_back} rolled-back batch(es).</div>}
+        {ops.failed_or_rolled_back > 0 && <div className="rowmeta" style={{ padding: "8px 12px", color: "var(--status-risk)" }}>{ops.failed_or_rolled_back} rolled-back batch(es).</div>}
       </div>
     </div>
   );

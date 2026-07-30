@@ -156,30 +156,8 @@
   --shadow-panel: 0 1px 2px rgba(0,0,0,.40), 0 12px 32px rgba(0,0,0,.50);
 }
 
-/* ---- Legacy aliases (TEMPORARY) ----------------------------------------------------
-   Old token names still referenced by inline styles across the view files. They resolve
-   to the new tokens (no raw hex here, so they theme correctly). These are removed in
-   Phase H once every view is rewritten onto the new tokens / shared primitives.
-   Do not add new usages of these names. */
+/* ---- Surface-role tokens (roles that aren't a plain neutral) ---- */
 :root {
-  --bg: var(--bg-app);
-  --surface: var(--bg-surface);
-  --surface-2: var(--bg-sunken);
-  --border: var(--line-hairline);
-  --border-strong: var(--line-strong);
-  --text: var(--ink-primary);
-  --text-2: var(--ink-secondary);
-  --text-3: var(--ink-tertiary);
-  --accent-weak: var(--accent-tint);
-  --ok: var(--status-ok);
-  --warn: var(--status-warn);
-  --risk: var(--status-risk);
-  --ok-bg: var(--status-ok-tint);
-  --warn-bg: var(--status-warn-tint);
-  --risk-bg: var(--status-risk-tint);
-  --radius: var(--r-md);
-  --sans: var(--font-ui);
-  --mono: var(--font-mono);
   --toast-bg: var(--ink-primary);
   --toast-fg: var(--ink-inverse);
   --scrim: rgba(20, 22, 28, 0.28);

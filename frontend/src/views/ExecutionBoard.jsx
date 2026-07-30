@@ -29,7 +29,7 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
   }
   const PlanStar = ({ kind, item }) => (
     <button className="btn small ghost" title={item.client_visible ? "On the mutual action plan — click to remove" : "Add to mutual action plan"}
-      onClick={() => togglePlan(kind, item)} style={{ color: item.client_visible ? "var(--accent)" : "var(--text-3)" }}>
+      onClick={() => togglePlan(kind, item)} style={{ color: item.client_visible ? "var(--accent)" : "var(--ink-tertiary)" }}>
       {item.client_visible ? "★" : "☆"}
     </button>
   );
@@ -40,7 +40,7 @@ export default function ExecutionBoard({ accounts, accountId, setAccountId, relo
     <div>
       <div className="actions" style={{ marginBottom: 14 }}>
         <h1>Execution</h1>
-        <select value={accountId || ""} onChange={(e) => setAccountId(e.target.value)} style={{ height: 30, borderRadius: 6, border: "1px solid var(--border-strong)", padding: "0 8px" }}>
+        <select value={accountId || ""} onChange={(e) => setAccountId(e.target.value)} style={{ height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px" }}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
         <div className="spacer" />
@@ -145,7 +145,7 @@ function statusCell(status, flag) {
   return (
     <span>
       <span className={"dot " + cls} /> {status}
-      {flag && <span className={"badge"} style={{ marginLeft: 6, borderColor: cls === "risk" ? "var(--risk)" : "var(--warn)", color: cls === "risk" ? "var(--risk)" : "var(--warn)" }}>{flag}</span>}
+      {flag && <span className={"badge"} style={{ marginLeft: 6, borderColor: cls === "risk" ? "var(--status-risk)" : "var(--status-warn)", color: cls === "risk" ? "var(--status-risk)" : "var(--status-warn)" }}>{flag}</span>}
     </span>
   );
 }
