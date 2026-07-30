@@ -13,7 +13,7 @@ Valence OS is an internal, single-editor web app for one Valence Engagement Mana
 **Phase 3 progress (build order in `PHASE-3-SPEC.md §10`):**
 - **Task Zero — done.** Docs regime change; job table (migration 0011) + single in-process worker (`app/jobs.py`, env-gated `VALENCE_OS_WORKER`, default off) + jobs API. D-73/D-74.
 - **Stage 1 — done.** Guided onboarding, launch checklists, org-chart placeholders (migration 0012). New backend: `app/onboarding.py`, `app/intake.py`, `app/routers/onboarding.py`, editable templates under `app/templates/`. Two new queue triggers (`checklist_overdue`, `unidentified_placeholder`). Frontend: onboarding wizard (`Onboarding.jsx`, fires on account create), checklists panel in the Plan tab (`Checklists.jsx`), placeholder nodes + coverage on the graph. Screenshots in `design-screenshots/stage-1/` (both themes). D-75. **86 tests pass.**
-- **Stages 2-6 — pending.** Association engine + ingestion, extraction extensions + review UI, finished-artifact generators, new triggers + calendar, CONNECTIONS.md + e2e demo.
+- **Build order reordered by the Comprehensive Spec (Part 7), D-76.** Stage 1 (onboarding/checklists/placeholders) satisfied Parts 1-2 + 3.3 and stands. Remaining: **Stage 2 People module core** (layers, role taxonomy, layer-lane view, person card — next), Stage 3 cadence+health+coverage, Stage 4 association+ingestion+extraction, Stage 5 champion/influence/exec/messaging/dynamics, Stage 6 generators, Stage 7 triggers+calendar+change-detection, Stage 8 CONNECTIONS.md + e2e demo. New trust boundary in force: professional observations only, no sensitive personal data (D-76).
 
 **Running Phase 3 test count: 86** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
 

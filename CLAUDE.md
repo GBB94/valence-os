@@ -4,7 +4,7 @@ These rules apply to every session on this repository. They restate the binding 
 
 ## Scope
 
-**Current authority: `PHASE-3-SPEC.md`** (Zach, July 2026), a deliberate override of the frozen-scope regime below. Read it first. It retires the Phase 2 evidence gates and directs a feature-complete build in the order of its Section 10. The trust boundaries, the design rules, tests-green, decisions-logged, and **mock-only data** are all explicitly *unchanged and still binding*. What changes is only the scope/slice discipline: object types, fields, screens, and background infrastructure named in the Phase 3 spec are in-scope to build now. New objects/fields **outside** what that spec calls for still require asking first.
+**Current authority: `PHASE-3-SPEC.md`** (Zach, July 2026 — the consolidated *Comprehensive Spec*, which folds in the People module), a deliberate override of the frozen-scope regime below. Read it first. It retires the Phase 2 evidence gates and directs a feature-complete build in the order of its **Part 7**. The trust boundaries, the design rules, tests-green, decisions-logged, and **mock-only data** are all explicitly *unchanged and still binding*. What changes is only the scope/slice discipline: object types, fields, screens, and background infrastructure named in the Phase 3 spec are in-scope to build now. New objects/fields **outside** what that spec calls for still require asking first.
 
 - The one remaining gate is **data governance, not scope**: build everything, connect nothing real. Every external touchpoint (email, recordings, calendar, transcription, LLM endpoint, notification channel, file storage, hosting) is an adapter with a mock implementation. Flipping any adapter to a real source requires the hosting/data-handling conversation at Valence to have happened and is recorded in `decisions.md`. `CONNECTIONS.md` is the registry.
 - Follow the Phase 3 build order (spec §10); each stage lands with tests, both-theme screenshots, and a HANDOFF.md update before the next begins.
@@ -16,6 +16,7 @@ _Superseded by the above, retained for history:_ ~~The scope is frozen; new obje
 - No table, column, or field may exist anywhere for a named individual's usage of the Nadia product. Champion engagement means deployment engagement (meetings, comms, advocacy), never product usage. Cohort usage data is aggregate only.
 - Visibility works by inherited safe defaults: raw notes, stakeholder judgments, commercial strategy, and AI-generated interpretations default to internal-only. Generated client-facing outputs include only affirmatively promoted records, enforced in the generator code, not by convention.
 - Stakeholder assessments (stance, influence, relationship strength) always carry a date and an evidence note.
+- No sensitive personal data on people, ever: nothing on health, family, politics, or anything a works council would object to. People notes are professional observations only; rapport notes stay professional. Relationship-health signals (reciprocity, attendance, response time) are counts and distributions derived from our own correspondence — never sentiment inference, never product usage.
 
 ## Data rules
 
