@@ -49,6 +49,36 @@ _SOURCES = [
                            "WHERE ci.archived=0 AND ci.status='untriaged'"),
     ("scope_change", "SELECT s.id, p.account_id, s.program_id, s.description AS title, s.description AS body "
                      "FROM scope_changes s JOIN programs p ON p.id=s.program_id WHERE s.archived=0"),
+    # --- Stage 4-5 records that were built but never indexed -------------------------------
+    ("comm_message", "SELECT id, account_id, program_id, COALESCE(subject,'(message)') AS title, "
+                     "COALESCE(subject,'')||' '||COALESCE(summary,'') AS body "
+                     "FROM comm_messages WHERE archived=0"),
+    ("pull_signal", "SELECT id, account_id, program_id, description AS title, description AS body "
+                    "FROM pull_signals WHERE archived=0"),
+    ("checklist_item", "SELECT id, account_id, program_id, label AS title, "
+                       "COALESCE(label,'')||' '||COALESCE(detail,'')||' '||COALESCE(answer_note,'') AS body "
+                       "FROM checklist_items WHERE archived=0"),
+    # --- Stage 5.5 -------------------------------------------------------------------------
+    # A whitespace cell's searchable text is its population and use case, so "DACH change
+    # management" finds the cell rather than only the records hanging off it.
+    ("whitespace_cell", "SELECT wc.id, wc.account_id, NULL, "
+                        "COALESCE(ps.name, pv.name,'')||' — '||uc.name AS title, "
+                        "COALESCE(ps.name,'')||' '||COALESCE(pv.name,'')||' '||uc.name||' '||"
+                        "COALESCE(wc.next_action,'')||' '||COALESCE(wc.notes,'')||' '||"
+                        "COALESCE(wc.blocker_note,'')||' '||COALESCE(wc.declined_reason,'') AS body "
+                        "FROM whitespace_cells wc JOIN use_cases uc ON uc.id=wc.use_case_id "
+                        "LEFT JOIN population_segments ps ON ps.id=wc.segment_id "
+                        "LEFT JOIN population_views pv ON pv.id=wc.view_id WHERE wc.archived=0"),
+    ("value_target", "SELECT vt.id, vt.account_id, NULL, md.name AS title, "
+                     "md.name||' '||COALESCE(vt.notes,'')||' '||COALESCE(vt.not_accepted_reason,'') AS body "
+                     "FROM value_targets vt JOIN metric_definitions md ON md.id=vt.definition_id "
+                     "WHERE vt.archived=0 AND vt.status='active'"),
+    ("funding_pool", "SELECT id, account_id, NULL, name AS title, "
+                     "COALESCE(name,'')||' '||COALESCE(kind,'')||' '||COALESCE(notes,'') AS body "
+                     "FROM funding_pools WHERE archived=0"),
+    ("population_segment", "SELECT id, account_id, NULL, name AS title, "
+                           "COALESCE(name,'')||' '||COALESCE(business_unit,'')||' '||COALESCE(region,'') AS body "
+                           "FROM population_segments WHERE archived=0"),
 ]
 
 

@@ -46,8 +46,20 @@ def seed_onboarding(
     re-onboarding an already-onboarded program is a 409, not a duplicate seed."""
     repo.get_row(conn, "accounts", account_id)  # 404s on a bad account
 
+    # Validate the kickoff date BEFORE writing anything. _offset() throws deep inside the
+    # milestone loop, which used to surface as a 500 with a half-created program already
+    # committed — a bad date should cost nothing.
+    try:
+        date.fromisoformat(kickoff_date)
+    except (TypeError, ValueError):
+        raise HTTPException(422, f"kickoff_date must be an ISO date (YYYY-MM-DD), got {kickoff_date!r}")
+
     if program_id:
         prog = repo.get_row(conn, "programs", program_id)
+        # A program belongs to exactly one account. Seeding account A's launch pack onto
+        # account B's program silently mixes two customers' data.
+        if prog["account_id"] != account_id:
+            raise HTTPException(422, f"program {program_id} belongs to a different account")
         if prog.get("onboarded_at"):
             raise HTTPException(409, f"program already onboarded: {program_id}")
     else:

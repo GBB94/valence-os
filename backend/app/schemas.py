@@ -456,6 +456,11 @@ class MetricObservationCreate(BaseModel):
     target: Optional[float] = None
     current_through: Optional[str] = None
     source_reference_id: Optional[str] = None
+    # Stable population identity (Stage 5.5, §2). cohort_label is free text and cannot be
+    # joined to a value target; these are what make the ledger computable. Optional, so
+    # existing callers are unaffected — an observation without one simply isn't in the ledger.
+    population_segment_id: Optional[str] = None
+    population_view_id: Optional[str] = None
 
 
 class BenchmarkCreate(BaseModel):
@@ -624,4 +629,251 @@ class PullSignalCreate(BaseModel):
     description: str = Field(min_length=1)
     occurred_on: Optional[str] = None
     source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+
+
+# --- Stage 5.5: whitespace map, value ledger, funding intelligence -------------------------
+# (EXPANSION-ENGINE-SPEC.md §§1, 2, 4, 10)
+
+Penetration = Literal["none", "pilot", "paid"]
+EvidenceState = Literal["none", "anecdotal", "measured"]
+BlockerState = Literal["clear", "gated"]
+PursuitOutcome = Literal["none", "declined", "won", "deferred"]
+BlockerLane = Literal["works_council", "it", "legal", "localization", "other"]
+CellFact = Literal["penetration", "evidence_state", "blocker_state", "pursuit_outcome"]
+TargetDirection = Literal["at_least", "at_most"]
+TargetOrigin = Literal["scorecard", "business_case", "renewal", "expansion", "other"]
+FundingPoolKind = Literal[
+    "recovered_vendor_spend", "central_ld_budget", "chro_discretionary",
+    "bu_cross_charge", "transformation_program", "other",
+]
+FundingPoolStatus = Literal["potential", "confirmed", "committed", "exhausted", "unavailable"]
+PriceBasis = Literal["arr", "tcv", "one_time", "monthly"]
+RevenueEventKind = Literal["expansion", "contraction", "churn", "renewal_flat", "price_change"]
+HeadcountSourceKind = Literal["manual_entry", "hris_adapter", "client_stated", "estimate"]
+AskStepKind = Literal[
+    "business_case_delivered", "budget_owner_sponsorship", "budget_window",
+    "procurement", "works_council", "signature", "other",
+]
+
+
+class AccountSettingsPut(BaseModel):
+    min_cohort_size: int = Field(default=25, ge=1)
+
+
+class AudienceTagCreate(BaseModel):
+    name: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+    description: Optional[str] = None
+
+
+class UseCaseCreate(BaseModel):
+    name: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+    description: Optional[str] = None
+    account_id: Optional[str] = None      # None = portfolio-global and cross-account comparable
+    display_order: int = 0
+
+
+class PartitionCreate(BaseModel):
+    """The base partition is versioned: re-cutting it re-bases every historical number."""
+    account_id: str
+    basis: Optional[str] = None
+    total_fte: Optional[int] = None
+    fte_source: Optional[str] = None
+    fte_as_of: Optional[str] = None
+    reason: Optional[str] = None          # required by the API when superseding
+
+
+class SegmentCreate(BaseModel):
+    partition_id: str
+    name: str = Field(min_length=1)
+    business_unit: Optional[str] = None
+    region: Optional[str] = None
+    headcount: Optional[int] = Field(default=None, ge=0)
+    headcount_source: Optional[str] = None
+    headcount_as_of: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    is_unallocated: bool = False
+    display_order: int = 0
+
+
+class SegmentPatch(BaseModel):
+    name: Optional[str] = None
+    headcount: Optional[int] = Field(default=None, ge=0)
+    headcount_source: Optional[str] = None
+    headcount_as_of: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+class HeadcountObservationCreate(BaseModel):
+    segment_id: str
+    period_label: str = Field(min_length=1)
+    headcount: int = Field(ge=0)
+    source_kind: HeadcountSourceKind = "manual_entry"
+    source_note: Optional[str] = None
+    observed_on: str
+    source_reference_id: Optional[str] = None
+
+
+class PopulationViewCreate(BaseModel):
+    """A composite ("DACH frontline managers"). Non-additive by construction."""
+    account_id: str
+    name: str = Field(min_length=1)
+    segment_ids: list[str] = Field(default_factory=list)
+    tag_ids: list[str] = Field(default_factory=list)
+    estimated_headcount: Optional[int] = Field(default=None, ge=0)
+    headcount_source: Optional[str] = None
+    headcount_as_of: Optional[str] = None
+
+
+class CellCreate(BaseModel):
+    account_id: str
+    use_case_id: str
+    segment_id: Optional[str] = None      # exactly one of segment_id / view_id
+    view_id: Optional[str] = None
+    estimated_seats: Optional[int] = Field(default=None, ge=0)
+    paid_seats: int = Field(default=0, ge=0)
+    sponsor_person_id: Optional[str] = None
+    next_action: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CellPatch(BaseModel):
+    """Non-state fields only. The four facts move through /set-fact, which requires a reason."""
+    estimated_seats: Optional[int] = Field(default=None, ge=0)
+    paid_seats: Optional[int] = Field(default=None, ge=0)
+    sponsor_person_id: Optional[str] = None
+    next_action: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CellSetFact(BaseModel):
+    """Cell states change only with a reason logged (§1.3)."""
+    fact: CellFact
+    value: str
+    reason: str = Field(min_length=1)
+    # pursuit_outcome=declined needs both; blocker_state=gated needs a lane.
+    declined_on: Optional[str] = None
+    blocker_lane: Optional[BlockerLane] = None
+    blocker_owner_person_id: Optional[str] = None
+    deferred_until: Optional[str] = None
+
+
+class CellReopen(BaseModel):
+    """A Declined cell reopens by an explicit event, not an edit (§1.3)."""
+    reason: str = Field(min_length=1)
+    reopened_on: Optional[str] = None
+
+
+class CellEvidenceLink(BaseModel):
+    object_type: Literal["value_story", "metric_observation"]
+    object_id: str
+    note: Optional[str] = None
+
+
+class ValueTargetCreate(BaseModel):
+    account_id: str
+    definition_id: str
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+    target_value: float
+    unit: Optional[str] = None
+    direction: TargetDirection = "at_least"
+    timeframe_start: Optional[str] = None
+    timeframe_end: str
+    accepted_by_person_id: Optional[str] = None
+    accepted_on: Optional[str] = None
+    client_accepted: bool = False
+    not_accepted_reason: Optional[str] = None
+    origin: TargetOrigin = "scorecard"
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ValueTargetSupersede(BaseModel):
+    """A renegotiated bar supersedes; both stay readable."""
+    target_value: float
+    timeframe_end: str
+    reason: str = Field(min_length=1)
+    accepted_by_person_id: Optional[str] = None
+    accepted_on: Optional[str] = None
+    client_accepted: bool = False
+
+
+class ValueTargetEvidenceLink(BaseModel):
+    object_type: Literal["value_story", "metric_observation"]
+    object_id: str
+    note: Optional[str] = None
+
+
+class FundingPoolCreate(BaseModel):
+    account_id: str
+    name: str = Field(min_length=1)
+    kind: FundingPoolKind = "other"
+    owner_person_id: Optional[str] = None
+    status: FundingPoolStatus = "potential"
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    available_from: Optional[str] = None
+    available_until: Optional[str] = None
+    recovered_spend_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class FundingPoolPatch(BaseModel):
+    name: Optional[str] = None
+    status: Optional[FundingPoolStatus] = None
+    owner_person_id: Optional[str] = None
+    amount: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class FiscalMapPut(BaseModel):
+    fiscal_year_end: Optional[str] = None
+    planning_window_start: Optional[str] = None
+    planning_window_end: Optional[str] = None
+    budget_request_deadline: Optional[str] = None
+    procurement_lead_contract_id: Optional[str] = None
+    works_council_lead_days: Optional[int] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+    confirmed_on: Optional[str] = None
+    confirmed_by: Optional[str] = None
+
+
+class AskCalendarCreate(BaseModel):
+    """Back-schedules the whole dependency chain from the target close date."""
+    account_id: str
+    name: str = Field(min_length=1)
+    target_close_date: str
+    opportunity_id: Optional[str] = None
+    include_works_council: bool = True
+
+
+class AskStepPatch(BaseModel):
+    status: Optional[Literal["pending", "done", "late", "skipped"]] = None
+    completed_on: Optional[str] = None
+    owner_person_id: Optional[str] = None
+    linked_type: Optional[Literal["task", "milestone", "compliance_item"]] = None
+    linked_id: Optional[str] = None
+
+
+class ContractRevenuePatch(BaseModel):
+    """Revenue semantics on the contract. Describes what the canonical price MEANS; it does
+    not overwrite the canonical copy."""
+    currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
+    term_months: Optional[int] = Field(default=None, ge=1)
+
+
+class RevenueEventCreate(BaseModel):
+    account_id: str
+    kind: RevenueEventKind
+    effective_on: str
+    contract_version_id: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    seats_delta: Optional[int] = None
+    reason: Optional[str] = None
     source_reference_id: Optional[str] = None

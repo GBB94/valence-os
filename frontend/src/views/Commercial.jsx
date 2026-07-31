@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate } from "../ui";
+import { Empty, SegTabs, SlideOver, useToast, fmtDate } from "../ui";
 import Waterfall from "./Waterfall";
+import Whitespace from "./Whitespace";
+import ValueLedger from "./ValueLedger";
+import Funding from "./Funding";
+
+// The whitespace map is the tab's signature surface (EXPANSION-ENGINE-SPEC.md §1), so it is
+// the default view: the first question on this tab is where the next seats live.
+const SUBTABS = [
+  ["whitespace", "Whitespace"],
+  ["ledger", "Value ledger"],
+  ["funding", "Funding"],
+  ["pipeline", "Pipeline & contracts"],
+];
 
 const BUDGET_STATES = ["conceptually_supported", "in_planning", "formally_allocated",
                        "requisition_created", "procurement_approved", "executed"];
@@ -15,15 +27,16 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
   const [people, setPeople] = useState([]);
   const [panel, setPanel] = useState(null); // {kind:'expansion'|'contract'|'close'|'overlay', ...}
   const [tick, setTick] = useState(0);
+  const [sub, setSub] = useState("whitespace");
 
   async function load() {
-    if (!accountId) return;
+    if (!accountId || sub !== "pipeline") return;
     try {
       const [x, c, acct] = await Promise.all([api.expansions(accountId), api.contracts(accountId), api.account(accountId)]);
       setExpansions(x); setContracts(c); setPeople(acct.people);
     } catch (e) { toast(e.message, "err"); }
   }
-  useEffect(() => { load(); }, [accountId, reloadKey, tick]);
+  useEffect(() => { load(); }, [accountId, reloadKey, tick, sub]);
   const after = () => { setPanel(null); setTick((t) => t + 1); };
 
   async function advance(xo) {
@@ -45,6 +58,15 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
         <div className="spacer" />
       </div>
 
+      <div style={{ marginBottom: 14 }}>
+        <SegTabs tabs={SUBTABS} value={sub} onChange={setSub} />
+      </div>
+
+      {sub === "whitespace" && <Whitespace accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "ledger" && <ValueLedger accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "funding" && <Funding accountId={accountId} reloadKey={reloadKey} />}
+
+      {sub === "pipeline" && <>
       <div className="card">
         <div className="card-h"><h3>Expansion opportunities</h3><div className="spacer" />
           <button className="btn small" onClick={() => setPanel({ kind: "expansion" })}>New expansion</button></div>
@@ -105,6 +127,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       </div>
 
       <Waterfall accountId={accountId} />
+      </>}
 
       {panel?.kind === "expansion" && <ExpansionForm accountId={accountId} people={people} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "close" && <CloseExpansion xo={panel.xo} onClose={() => setPanel(null)} onSaved={after} />}

@@ -60,8 +60,9 @@ def test_qbr_excludes_internal_and_negative_by_construction(client):
     client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "PROMOTED win", "visibility_class": "qbr_exec", "evidence_tier": "measured_operational"})
     client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "INTERNAL only note", "visibility_class": "internal"})
     client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "NEGATIVE objection", "visibility_class": "internal", "is_negative": True})
-    client.post("/api/commitments", json={"program_id": p["id"], "description": "client commitment",
-                                          "responsible_party_id": _person(client, a), "internal_owner_id": _person(client, a, "v"), "due_date": _days(10)})
+    promoted_c = client.post("/api/commitments", json={"program_id": p["id"], "description": "PROMOTED commitment",
+                                                       "responsible_party_id": _person(client, a), "internal_owner_id": _person(client, a, "v"), "due_date": _days(10)}).json()
+    client.post("/api/map/promote", json={"object_type": "commitment", "object_id": promoted_c["id"], "client_visible": True})
     qbr = client.get(f"/api/accounts/{a['id']}/qbr").json()
     outcomes = [v["outcome"] for v in qbr["value_stories"]]
     assert "PROMOTED win" in outcomes
@@ -70,14 +71,54 @@ def test_qbr_excludes_internal_and_negative_by_construction(client):
     assert qbr["open_commitments"] and qbr["stamp"]["data_current_through"]
 
 
+def test_qbr_commitments_require_promotion(client):
+    """A QBR is client-facing, so it carries only affirmatively-promoted commitments —
+    the same rule the mutual action plan enforces. An un-promoted commitment is internal."""
+    a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
+    rp, io = _person(client, a), _person(client, a, "v")
+    shared = client.post("/api/commitments", json={"program_id": p["id"], "description": "SHARED commitment",
+                                                   "responsible_party_id": rp, "internal_owner_id": io, "due_date": _days(10)}).json()
+    client.post("/api/commitments", json={"program_id": p["id"], "description": "INTERNAL commitment",
+                                          "responsible_party_id": rp, "internal_owner_id": io, "due_date": _days(10)})
+    client.post("/api/map/promote", json={"object_type": "commitment", "object_id": shared["id"], "client_visible": True})
+
+    descriptions = [c["description"] for c in client.get(f"/api/accounts/{a['id']}/qbr").json()["open_commitments"]]
+    assert "SHARED commitment" in descriptions
+    assert "INTERNAL commitment" not in descriptions
+
+
 def test_qbr_metrics_stale_shows_unknown(client):
     a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
     d = client.post("/api/metric-definitions", json={"name": "Activation", "stale_after_days": 30}).json()
-    client.post("/api/metric-observations", json={"definition_id": d["id"], "value": 0.9, "current_through": _days(-120)})
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p["id"], "value": 0.9, "current_through": _days(-120)})
     qbr = client.get(f"/api/accounts/{a['id']}/qbr").json()
     m = next(m for m in qbr["metrics"] if m["name"] == "Activation")
     assert m["value"] == "unknown"
     assert "Activation" in qbr["stamp"]["missing_or_stale_sources"]
+
+
+def test_qbr_metrics_are_account_scoped(client):
+    """Metric definitions are global; observations are not. One account's client-facing QBR
+    must never render another account's numbers, and an observation with no program is
+    unattributable and never reaches a client artifact."""
+    a1 = client.post("/api/accounts", json={"name": "Acme"}).json()
+    a2 = client.post("/api/accounts", json={"name": "Globex"}).json()
+    p1 = client.post("/api/programs", json={"account_id": a1["id"], "name": "P1"}).json()
+    p2 = client.post("/api/programs", json={"account_id": a2["id"], "name": "P2"}).json()
+    d = client.post("/api/metric-definitions", json={"name": "Activation", "stale_after_days": 30}).json()
+    other = client.post("/api/metric-definitions", json={"name": "Adoption", "stale_after_days": 30}).json()
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p1["id"], "value": 0.40, "current_through": _days(-2)})
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p2["id"], "value": 0.95, "current_through": _days(-1)})
+    # unattributable: no program, and more recent than either of the above
+    client.post("/api/metric-observations", json={"definition_id": other["id"], "value": 0.99, "current_through": _today()})
+
+    m1 = {m["name"]: m["value"] for m in client.get(f"/api/accounts/{a1['id']}/qbr").json()["metrics"]}
+    m2 = {m["name"]: m["value"] for m in client.get(f"/api/accounts/{a2['id']}/qbr").json()["metrics"]}
+    assert m1["Activation"] == 0.40          # not 0.95 — the newer observation belongs to Globex
+    assert m2["Activation"] == 0.95
+    assert "Adoption" not in m1 and "Adoption" not in m2
 
 
 def test_csv_import_preview_commit_supersede_rollback(client):

@@ -9,3 +9,5 @@ Requires-Dist: pydantic>=2.7
 Requires-Dist: pyyaml>=6.0
 Requires-Dist: httpx>=0.27
 Requires-Dist: anthropic>=0.40
+Requires-Dist: python-pptx>=1.0
+Requires-Dist: ics>=0.7

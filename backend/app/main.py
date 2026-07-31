@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import ingestion, jobs  # noqa: F401 — importing ingestion registers its job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, ai, attention, commercial, data, delivery, execution, inbox,
+    accounts, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, viz,
@@ -70,6 +70,7 @@ app.include_router(jobs_router.router)
 app.include_router(onboarding_router.router)
 app.include_router(ingestion_router.router)
 app.include_router(relationships.router)
+app.include_router(expansion.router)
 
 
 @app.get("/api/health")

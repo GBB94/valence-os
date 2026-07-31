@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -116,6 +117,46 @@ def _finalize_proposal(conn, proposal_id, source_span, created_type, created_id)
                      after={"created": created_type, "id": created_id, "source_span": source_span})
 
 
+# Generic seniority ranks. They appear in almost every position title, so matching on them
+# would make everything look like everything else.
+_PH_RANKS = {"vp", "head", "lead", "leader", "director", "manager", "chief", "officer",
+             "senior", "global", "regional", "deputy", "interim"}
+_PH_STOP = _PH_RANKS | {"of", "the", "and", "for", "our", "new", "will", "our", "their"}
+
+
+def _role_tokens(text: str) -> set[str]:
+    """The words in a position description that actually identify WHICH position.
+
+    Two kinds carry signal: domain words ("security", "legal", "procurement") and uppercase
+    acronyms ("IT", "HR", "DPO", "CHRO"). The acronyms have to be picked out case-sensitively
+    before lowercasing — a >3-char filter drops "IT" and "HR", which are often the only
+    identifying token in the sentence, and a >1-char filter on lowercased text would pull in
+    "is", "of", and the pronoun "it".
+    """
+    acronyms = {a.lower() for a in re.findall(r"\b[A-Z]{2,6}\b", text or "")}
+    words = {w for w in re.findall(r"[a-z]{4,}", (text or "").lower())}
+    return (acronyms | words) - _PH_STOP
+
+
+def _match_placeholder(conn, account_id: str, payload: dict, source_span: str | None) -> str | None:
+    """Find the one unfilled placeholder this fill resolves, or None.
+
+    Deliberately conservative: returns a match ONLY when exactly one placeholder shares a role
+    token. Silently filling the wrong position is worse than leaving it open, and the spec's
+    association rule is explicit that low-confidence items are assigned by a human, never
+    guessed. The operator can always name the target with `placeholder_person_id`.
+    """
+    if not account_id:
+        return None
+    tokens = _role_tokens(" ".join(filter(None, [payload.get("title"), source_span])))
+    if not tokens:
+        return None
+    hits = [ph["id"] for ph in repo.list_rows(
+        conn, "persons", where="account_id=? AND is_placeholder=1", params=(account_id,))
+        if tokens & _role_tokens(f"{ph['title'] or ''} {ph['placeholder_why'] or ''} {ph['name'] or ''}")]
+    return hits[0] if len(hits) == 1 else None
+
+
 def _accept_stage5(conn, prop, run, payload):
     """Apply a §4.4 relationship/commercial proposal (placeholder-fill, pull signal, deployment
     moment, value-story candidate). Same per-item human acceptance as execution proposals."""
@@ -129,9 +170,30 @@ def _accept_stage5(conn, prop, run, payload):
         name = (payload.get("name") or desc or "").strip()
         if not name:
             raise HTTPException(422, "This placeholder-fill needs a name (supply it in overrides).")
-        created = repo.insert(conn, "persons", {
-            "name": name, "affiliation": "client", "account_id": account_id,
-            "title": payload.get("title")}, object_type="person")
+        # A placeholder-fill must FILL a placeholder. It used to always insert a new person,
+        # leaving the placeholder unidentified and putting two rows in the org chart for one
+        # position — the opposite of what the mutation is named for, and it kept the
+        # `unidentified_placeholder` queue trigger firing forever.
+        target_id = payload.get("placeholder_person_id")
+        if target_id:
+            ph = repo.get_row(conn, "persons", target_id)
+            if not ph["is_placeholder"]:
+                raise HTTPException(422, f"person {target_id} is not a placeholder")
+            if ph["account_id"] != account_id:
+                raise HTTPException(422, "that placeholder belongs to a different account")
+        else:
+            target_id = _match_placeholder(conn, account_id, payload, prop["source_span"])
+        if target_id:
+            created = repo.patch(conn, "persons", target_id, {
+                "name": name, "title": payload.get("title") or None, "is_placeholder": 0,
+            }, object_type="person")
+        else:
+            # No placeholder matched: fall back to creating the person, so a newly-named
+            # stakeholder is never dropped. The operator can still fill a placeholder
+            # explicitly by passing placeholder_person_id in overrides.
+            created = repo.insert(conn, "persons", {
+                "name": name, "affiliation": "client", "account_id": account_id,
+                "title": payload.get("title")}, object_type="person")
         target = "person"
 
     elif mt == "log_pull_signal":
@@ -200,6 +262,12 @@ def reject_proposal(proposal_id: str, conn: sqlite3.Connection = Depends(get_con
     prop = conn.execute("SELECT * FROM extraction_proposals WHERE id=?", (proposal_id,)).fetchone()
     if not prop:
         raise HTTPException(404, "proposal not found")
+    # An accepted proposal already wrote a domain record. Flipping it to 'rejected' leaves the
+    # record in place and makes the audit trail say the operator declined something they
+    # actually accepted — archive the created object instead.
+    if prop["status"] == "accepted":
+        raise HTTPException(409, "proposal was already accepted; archive the created "
+                                 f"{prop['created_object_type'] or 'record'} instead of rejecting it")
     with conn:
         conn.execute("UPDATE extraction_proposals SET status='rejected', updated_at=? WHERE id=?",
                      (now_utc(), proposal_id))

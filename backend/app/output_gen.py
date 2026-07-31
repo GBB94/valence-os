@@ -156,7 +156,10 @@ def qbr(conn, account_id: str) -> dict:
 
     - value stories only where visibility_class in {qbr_exec, externally_referenceable}
       AND is_negative = 0. Internal-only and negative evidence are never queried.
-    - metrics vs targets, with stale rendered as unknown (never carried-forward good state).
+    - metrics vs targets, scoped to this account's own programs, with stale rendered as
+      unknown (never carried-forward good state). Metric definitions are global, so the
+      observation lookup — not the definition list — is what binds a number to an account.
+    - open commitments only where client_visible = 1, exactly like the mutual action plan.
     - benchmarks shown only as versioned/sourced claims (population + period attached).
     - content is typed: confirmed_fact / internal_interpretation / open_hypothesis / recommended_action.
     Stamped with generation time, data-current-through, and missing/stale sources.
@@ -166,26 +169,32 @@ def qbr(conn, account_id: str) -> dict:
     programs = {p["id"]: p for p in repo.list_rows(conn, "programs", where="account_id=?", params=(account_id,))}
     pids = list(programs)
 
-    # metrics vs targets (stale -> unknown)
+    # metrics vs targets, this account's programs only (stale -> unknown). An observation
+    # with no program cannot be attributed to an account and never reaches a client artifact;
+    # a definition this account has never reported is simply absent rather than unknown.
     from datetime import date
     metrics = []
     missing_or_stale = []
-    for d in repo.list_rows(conn, "metric_definitions", where="1=1 ORDER BY name"):
+    oq = ",".join("?" * len(pids))
+    for d in (repo.list_rows(conn, "metric_definitions", where="1=1 ORDER BY name") if pids else []):
         obs = conn.execute(
-            "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
-            "ORDER BY current_through DESC LIMIT 1", (d["id"],)).fetchone()
+            f"SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
+            f"AND program_id IN ({oq}) ORDER BY current_through DESC LIMIT 1",
+            (d["id"], *pids)).fetchone()
+        if not obs:
+            continue
         stale = True
-        if obs and obs["current_through"]:
+        if obs["current_through"]:
             try:
                 stale = (date.fromisoformat(today) - date.fromisoformat(obs["current_through"])).days > d["stale_after_days"]
             except ValueError:
                 stale = True
-        if not obs or stale:
+        if stale:
             missing_or_stale.append(d["name"])
         metrics.append({"name": d["name"], "type": "confirmed_fact",
-                        "value": ("unknown" if (not obs or stale) else obs["value"]),
-                        "target": (obs["target"] if obs else None),
-                        "current_through": (obs["current_through"] if obs else None),
+                        "value": ("unknown" if stale else obs["value"]),
+                        "target": obs["target"],
+                        "current_through": obs["current_through"],
                         "population": d["population"], "definition_version": d["version"]})
 
     benchmarks = [{"name": b["name"], "type": "confirmed_fact", "value": b["value"], "unit": b["unit"],
@@ -205,7 +214,8 @@ def qbr(conn, account_id: str) -> dict:
     risk_open = 0
     if pids:
         qmarks = ",".join("?" * len(pids))
-        for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND status='open' AND program_id IN ({qmarks})", pids):
+        for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND status='open' "
+                              f"AND client_visible=1 AND program_id IN ({qmarks})", pids):
             open_commitments.append({"description": r["description"], "due_date": r["due_date"], "type": "confirmed_fact"})
         risk_open = conn.execute(f"SELECT COUNT(*) c FROM risks WHERE archived=0 AND status='open' AND program_id IN ({qmarks})", pids).fetchone()["c"]
 

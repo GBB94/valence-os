@@ -55,14 +55,21 @@ def parse_intake(text: str) -> list[dict]:
             add("stakeholder", ("stk", name.lower()),
                 {"name": name, "title": title}, m.group(0))
 
+    labelled_dates: set[str] = set()
     for m in _DATE_LABEL.finditer(text):
         label, iso = m.group(1).strip(" -"), m.group(2)
         if label.lower() in _TITLE_STOP or len(label) < 3:
             continue
+        labelled_dates.add(iso)
         add("key_date", ("date", iso, label.lower()),
             {"label": label.title(), "date": iso}, m.group(0))
-    # bare dates with no label still surface as a generic key date
+    # Bare dates with no label still surface as a generic key date — but only if the same date
+    # did not already produce a labelled one. "Go live is 2026-10-01" used to yield both
+    # "Go Live" and a second unlabelled "Key date", so the operator triaged the same fact
+    # twice; the 30-second capture rule loses every time that happens.
     for m in _ISO_DATE.finditer(text):
+        if m.group(1) in labelled_dates:
+            continue
         add("key_date", ("date", m.group(1), ""),
             {"label": "Key date", "date": m.group(1)}, m.group(0))
 

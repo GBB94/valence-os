@@ -95,15 +95,24 @@ def list_jobs(conn: sqlite3.Connection, *, status: str | None = None,
 
 # --- execution --------------------------------------------------------------
 
-def _claim_next(conn: sqlite3.Connection) -> dict | None:
-    """Atomically claim the oldest due, queued job and mark it running. None if none due."""
+def _claim_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict | None:
+    """Atomically claim the oldest due, queued job and mark it running. None if none due.
+
+    `skip_ids` excludes jobs already attempted in this drain, so a job that fails and returns
+    to 'queued' is not immediately re-claimed. The exclusion has to happen HERE rather than
+    after run_next returns: checking afterwards means the handler has already run again, which
+    is exactly how one drain used to burn two attempts.
+    """
     ts = now_utc()
+    skip = tuple(skip_ids or ())
+    not_in = f" AND id NOT IN ({','.join('?' * len(skip))})" if skip else ""
     with conn:  # transaction: select-then-update as one unit
         r = conn.execute(
             "SELECT * FROM jobs WHERE status = 'queued' "
-            "AND (scheduled_for IS NULL OR scheduled_for <= ?) "
-            "ORDER BY created_at LIMIT 1",
-            (ts,),
+            "AND (scheduled_for IS NULL OR scheduled_for <= ?)"
+            + not_in +
+            " ORDER BY created_at LIMIT 1",
+            (ts, *skip),
         ).fetchone()
         if r is None:
             return None
@@ -115,9 +124,9 @@ def _claim_next(conn: sqlite3.Connection) -> dict | None:
     return _row(conn, r["id"])
 
 
-def run_next(conn: sqlite3.Connection) -> dict | None:
+def run_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict | None:
     """Claim and run one due job. Returns the finished job row, or None if nothing was due."""
-    job = _claim_next(conn)
+    job = _claim_next(conn, skip_ids)
     if job is None:
         return None
     handler = HANDLERS.get(job["kind"])
@@ -164,8 +173,8 @@ def run_pending(conn: sqlite3.Connection, max_jobs: int = 100) -> list[dict]:
     done: list[dict] = []
     seen: set[str] = set()
     while len(done) < max_jobs:
-        job = run_next(conn)
-        if job is None or job["id"] in seen:
+        job = run_next(conn, skip_ids=seen)
+        if job is None:
             break
         seen.add(job["id"])
         done.append(job)

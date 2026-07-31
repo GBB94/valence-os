@@ -359,6 +359,16 @@ All inherit the tokens; none introduce a palette.
 
 **Sparklines and bullet charts.** `--data-1` for the measure, `--data-muted` for qualitative bands, a 1px `--ink-primary` target marker. One baseline, no gridlines, no axis labels on sparklines.
 
+**Whitespace heatmap** (Commercial tab's signature surface, Stage 5.5). The obvious way to build this would introduce a second non-status color system alongside the waterfall exception. It doesn't: **the cell states are statuses**, so the grid is drawn from the existing status palette and the "waterfall is the single documented exception" rule above stands unamended.
+
+- **Hue reuses the status family.** Penetrated → `--status-ok`; Penetrated-unevidenced and Proven → `--status-warn`; Blocked and Declined → `--status-risk`; Target and White → `--status-unknown`. No new color enters the system.
+- **Seven states over four hues, so hue never distinguishes a state on its own.** Every cell carries a **glyph and a text label** (`● ◐ ◑ ○ · ▲ ✕`). This is the standing no-color-alone rule doing real work: it is what keeps Penetrated and Penetrated-unevidenced legible side by side.
+- **The two neutral states draw their glyph in `--ink-secondary`, not `--status-unknown`.** Measured on the unknown tint, `--status-unknown` gives 3.74:1 — under the floor. "No status" has no hue to carry anyway, so neutral ink is both more legible and more honest.
+- **Fill intensity encodes paid density only**, as a `color-mix` ramp of the state's own hue into its tint. Intensity is never the difference between two states. Audited: worst contrast 4.66:1 (light) and 4.93:1 (dark) across every state's label, glyph, and meta text.
+- **Suppressed cells** (cohort below the account's minimum size) use the standard cross-hatched unknown treatment with the reason, never a zero.
+- **Semantic table**, `scope`-associated row and column headers, arrow-key cell navigation, and a per-cell accessible name reading population, use case, state, paid seats, and density — the map is usable without seeing it.
+- **D-70 extends here:** the heatmap is a status surface, so the budget waterfall never shares its card or panel.
+
 ---
 
 ## 9. Motion
