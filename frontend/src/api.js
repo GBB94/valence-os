@@ -154,4 +154,14 @@ export const api = {
   patchPerson: (personId, b) => req("PATCH", `/api/persons/${personId}`, b),
   patchStakeholderRole: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}`, b),
   createAdvocacyEvent: (b) => req("POST", "/api/advocacy-events", b),
+
+  // Phase 3 Stage 4 — communications ingestion + association
+  ingestFixtures: () => req("GET", "/api/ingest/fixtures"),
+  syncInbox: () => req("POST", "/api/ingest/emails/sync"),
+  ingestRecording: (b) => req("POST", "/api/ingest/recording", b),
+  accountComms: (accountId) => req("GET", `/api/accounts/${accountId}/comms`),
+  flaggedComms: () => req("GET", "/api/comms/flagged"),
+  unresolvedComms: () => req("GET", "/api/comms/unresolved"),
+  associateComm: (id, b) => req("POST", `/api/comms/${id}/associate`, b),
+  commResponded: (id) => req("POST", `/api/comms/${id}/responded`),
 };

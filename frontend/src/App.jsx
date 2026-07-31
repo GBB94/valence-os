@@ -18,6 +18,7 @@ import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import StakeholderGraph from "./views/StakeholderGraph";
 import Checklists from "./views/Checklists";
+import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
 
@@ -397,6 +398,9 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
         {tab === "ledger" && (
           <div className="stack">
             <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved} />
+            <Collapsible title="Communications (email + recordings)">
+              <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
+            </Collapsible>
             <Collapsible title="Extract from a transcript">
               <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
             </Collapsible>

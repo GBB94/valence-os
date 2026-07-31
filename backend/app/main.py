@@ -8,12 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import jobs
+from . import ingestion, jobs  # noqa: F401 — importing ingestion registers its job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, ai, attention, commercial, data, delivery, execution, inbox, interactions,
-    jobs as jobs_router, library, mutual_action_plan, onboarding as onboarding_router,
-    output, people, programs, search as search_router, viz,
+    accounts, ai, attention, commercial, data, delivery, execution, inbox,
+    ingestion as ingestion_router, interactions, jobs as jobs_router, library,
+    mutual_action_plan, onboarding as onboarding_router, output, people, programs,
+    search as search_router, viz,
 )
 
 
@@ -67,6 +68,7 @@ app.include_router(mutual_action_plan.router)
 app.include_router(inbox.router)
 app.include_router(jobs_router.router)
 app.include_router(onboarding_router.router)
+app.include_router(ingestion_router.router)
 
 
 @app.get("/api/health")

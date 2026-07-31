@@ -11,7 +11,7 @@ windows (v1), stale imports (v2), and fired plays (v4) are intentionally absent.
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import HTTPException
 
@@ -25,6 +25,7 @@ STALE_DAYS = 21  # matches the morning-check scenario ("untouched for three week
 PRIORITY = {
     "overdue_commitment": 1,
     "active_blocker": 2,
+    "unanswered_email": 2,         # Phase 3 §4.3 — flagged email past the response threshold
     "checklist_overdue": 3,        # Phase 3 §2 — baseline; escalates to 2 when >1wk past due
     "unidentified_placeholder": 3, # Phase 3 §3 — baseline; escalates to 2 when >1wk past find-by
     "renewal_window": 3,       # enabled by v1 contracts
@@ -289,6 +290,30 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3
         items.append(it)
 
+    # 9. Flagged emails needing a response (Phase 3 §4.3). Age in hours when recent.
+    for r in conn.execute(
+        "SELECT cm.*, a.id aid, a.name aname, p.id pid, p.name pname "
+        "FROM comm_messages cm JOIN accounts a ON a.id = cm.account_id "
+        "LEFT JOIN programs p ON p.id = cm.program_id "
+        "WHERE cm.archived=0 AND cm.needs_response=1 AND cm.responded=0",
+    ):
+        p = {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]}
+        hours = None
+        if r["occurred_at"]:
+            try:
+                hours = int((datetime.fromisoformat(now_utc()) - datetime.fromisoformat(r["occurred_at"])).total_seconds() // 3600)
+            except ValueError:
+                hours = None
+        age_days = _days_since(r["occurred_on"], today)
+        unanswered = f"unanswered {hours}h" if (hours is not None and hours < 72) else f"unanswered {age_days}d"
+        items.append(_item(
+            "unanswered_email", "comm_message", r["id"], r["updated_at"], p,
+            title=r["subject"] or "(no subject)",
+            because=f"{r['flag_reason'] or 'Flagged email'} — {unanswered}.",
+            age_days=age_days, due_date=None,
+            next_action="Reply, or mark handled.",
+        ))
+
     # 6. Open tasks (overdue ones sort to the top of this band)
     for r in conn.execute("SELECT * FROM tasks WHERE archived=0 AND status='open'"):
         p = progs.get(r["program_id"], {})
@@ -352,6 +377,7 @@ def _object_table(object_type: str) -> str:
         "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
         "metric_definition": "metric_definitions", "play_run": "play_runs",
         "checklist_item": "checklist_items", "person": "persons",
+        "comm_message": "comm_messages",
     }[object_type]
 
 
