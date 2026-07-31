@@ -164,4 +164,24 @@ export const api = {
   unresolvedComms: () => req("GET", "/api/comms/unresolved"),
   associateComm: (id, b) => req("POST", `/api/comms/${id}/associate`, b),
   commResponded: (id) => req("POST", `/api/comms/${id}/responded`),
+
+  // Phase 3 Stage 5 — relationship intelligence
+  championPipeline: (accountId) => req("GET", `/api/accounts/${accountId}/champion-pipeline`),
+  createChampion: (b) => req("POST", "/api/champion-candidates", b),
+  patchChampion: (id, b) => req("PATCH", `/api/champion-candidates/${id}`, b),
+  influencePaths: (accountId, target) => req("GET", `/api/accounts/${accountId}/influence-paths?target=${target}`),
+  execAlignment: (accountId) => req("GET", `/api/accounts/${accountId}/exec-alignment`),
+  createExecPairing: (b) => req("POST", "/api/exec-pairings", b),
+  patchExecPairing: (id, b) => req("PATCH", `/api/exec-pairings/${id}`, b),
+  messagingLibrary: ({ layer = "", role = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (layer) p.set("layer", layer); if (role) p.set("role", role);
+    const qs = p.toString();
+    return req("GET", `/api/messaging-library${qs ? "?" + qs : ""}`);
+  },
+  createMessaging: (b) => req("POST", "/api/messaging-library", b),
+  patchMessaging: (id, b) => req("PATCH", `/api/messaging-library/${id}`, b),
+  meetingDynamics: (programId) => req("GET", `/api/programs/${programId}/meeting-dynamics`),
+  pullSignals: (accountId) => req("GET", `/api/accounts/${accountId}/pull-signals`),
+  createPullSignal: (b) => req("POST", "/api/pull-signals", b),
 };

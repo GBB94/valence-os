@@ -17,9 +17,10 @@ from pathlib import Path
 
 import yaml
 
-from .db import connect, db_path, now_utc, run_migrations
+from .db import connect, db_path, new_id, now_utc, run_migrations
 
 SEED_DIR = Path(__file__).resolve().parent.parent.parent / "stage-0" / "seed-data"
+TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 # v0.1 columns per table (YAML keys outside these are ignored for now).
 COLUMNS = {
@@ -199,6 +200,61 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
             _insert(conn, "phase_gate_items", gi)
 
 
+def _seed_messaging_library(conn):
+    """§3.12 — load the role-based messaging library from the playbook template (global)."""
+    tmpl = TEMPLATE_DIR / "messaging_library.yaml"
+    if not tmpl.exists():
+        return 0
+    data = yaml.safe_load(tmpl.read_text()) or {}
+    ts = now_utc()
+    n = 0
+    for e in data.get("entries", []):
+        conn.execute(
+            "INSERT INTO messaging_entries (id, layer, role, value_prop, proof_points, objections, "
+            "artifacts_note, visibility_class, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (new_id(), e["layer"], e.get("role"), e.get("value_prop"), e.get("proof_points"),
+             e.get("objections"), e.get("artifacts_note"), e.get("visibility_class", "internal"), ts, ts))
+        n += 1
+    return n
+
+
+def _seed_stage5_demo(conn):
+    """Stage-5 demo rows on Terravance so the champion pipeline, influence paths, exec alignment
+    and pull signals render against seeded data. Mock only. No-ops if the account isn't present."""
+    if not conn.execute("SELECT 1 FROM accounts WHERE id='acc-terravance'").fetchone():
+        return
+    ts = now_utc()
+    # An extra influence edge so the IT lead is reachable via a warm intro (§3.5).
+    conn.execute("INSERT OR IGNORE INTO relationship_edges (id, account_id, from_person_id, to_person_id, type, note, created_at, updated_at) "
+                 "VALUES ('re-tv-4','acc-terravance','p-tv-budget','p-tv-it','influences','Budget owner leans on IT for the security review.',?,?)", (ts, ts))
+    # Dana advocated for us without us in the room -> validates her as a champion (§3.2/§3.4).
+    conn.execute("INSERT INTO advocacy_events (id, person_id, program_id, kind, occurred_on, note, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?)",
+                 (new_id(), "p-tv-champion", "prog-tv-global", "advocacy_without_us", "2026-06-28",
+                  "Opened the June steering forum pushing regional GMs to nominate managers.", ts, ts))
+    # Champion pipeline: Dana at maintain (validated), Lucia in develop (not yet validated).
+    conn.execute("INSERT INTO champion_candidates (id, person_id, program_id, account_id, stage, developed_note, developed_on, armed_note, armed_on, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                 (new_id(), "p-tv-champion", "prog-tv-global", "acc-terravance", "maintain",
+                  "Gave her the board-ready manager-quality narrative.", "2026-06-10",
+                  "Champion enablement kit v2 shared.", "2026-06-20", ts, ts))
+    conn.execute("INSERT INTO champion_candidates (id, person_id, program_id, account_id, stage, developed_note, developed_on, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?,?)",
+                 (new_id(), "p-tv-progowner", "prog-tv-global", "acc-terravance", "develop",
+                  "Making her rollout run smoothly so she looks good upward.", "2026-07-10", ts, ts))
+    # Exec alignment: Sam owns Dana; Henrik (high-influence economic exec) left unpaired = exposure.
+    conn.execute("INSERT INTO exec_pairings (id, account_id, valence_person_id, client_person_id, next_touch_planned, notes, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?)",
+                 (new_id(), "acc-terravance", "p-val-operator", "p-tv-champion", "2026-08-15",
+                  "Monthly CHRO check-in.", ts, ts))
+    # A logged pull signal (expansion demand) — feeds the Stage-7 expansion play.
+    conn.execute("INSERT INTO pull_signals (id, account_id, program_id, description, occurred_on, status, source_interaction_id, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?,?)",
+                 (new_id(), "acc-terravance", "prog-tv-expansion",
+                  "Two additional regional GMs asked to be included in the next rollout wave.",
+                  "2026-07-18", "open", "int-tv-jul-call", ts, ts))
+
+
 def main():
     reset = "--reset" in sys.argv
     if reset:
@@ -232,6 +288,10 @@ def main():
                 _insert(conn, "benchmarks", bm)
             for pl in mdata.get("play_definitions", []):
                 _insert(conn, "play_definitions", pl)
+        # Stage 5 — role-based messaging library (§3.12) + relationship-intelligence demo rows.
+        msg_n = _seed_messaging_library(conn)
+        _seed_stage5_demo(conn)
+        print(f"[seed] messaging library entries: {msg_n}")
 
     counts = {
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]

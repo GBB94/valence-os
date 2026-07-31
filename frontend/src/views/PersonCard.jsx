@@ -46,6 +46,7 @@ export default function PersonCard({ personId, onClose, onChanged }) {
           <div className="rowmeta">{card.title || "—"}{card.email ? ` · ${card.email}` : ""}</div>
           <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
             {card.layers.map((l) => <span key={l} className="badge">{layerLabel(l)}</span>)}
+            {card.champion_stage && <span className="badge" style={{ borderColor: "var(--accent)", color: "var(--accent)" }}>champion · {card.champion_stage}</span>}
           </div>
         </div>
 
@@ -96,6 +97,25 @@ export default function PersonCard({ personId, onClose, onChanged }) {
                   <span title={card.health.reciprocity.reason} style={{ fontStyle: "italic" }}>awaiting comms/calendar</span>
                 </div>
               </>
+            )}
+          </Section>
+        )}
+
+        {/* §3.13 meeting dynamics — observable attendance facts, no sentiment inference */}
+        {card.attendance && (
+          <Section title="Meeting dynamics">
+            <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Meetings attended</span><span>{card.attendance.attended}</span>
+            </div>
+            <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Commitments made</span><span>{card.attendance.committed_count}</span>
+            </div>
+            <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Last attended</span>
+              <span>{card.attendance.last_attended ? <AgeChip date={card.attendance.last_attended} /> : "none"}</span>
+            </div>
+            {card.attendance.went_quiet && (
+              <div className="rowmeta" style={{ color: "var(--status-warn)", marginTop: 2 }}>◐ Went quiet — attended before, absent recently.</div>
             )}
           </Section>
         )}

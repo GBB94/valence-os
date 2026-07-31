@@ -147,6 +147,13 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
     cadence_block = cadence.cadence_state(conn, primary) if primary else None
     health = cadence.person_health(conn, person_id, primary) if not p.get("is_placeholder") else None
 
+    # §3.13 attendance strip + §3.4 champion pipeline stage (local import: analytics -> people_core)
+    from . import people_analytics
+    attendance = people_analytics.person_attendance(conn, person_id) if not p.get("is_placeholder") else None
+    champ = conn.execute(
+        "SELECT id, stage, program_id FROM champion_candidates WHERE person_id=? AND archived=0 LIMIT 1",
+        (person_id,)).fetchone()
+
     return {
         "id": p["id"], "name": p["name"], "title": p["title"], "email": p["email"],
         "affiliation": p["affiliation"], "account_id": p["account_id"],
@@ -163,4 +170,6 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "advocacy": advocacy,
         "cadence": cadence_block,
         "health": health,
+        "attendance": attendance,
+        "champion_stage": champ["stage"] if champ else None,
     }

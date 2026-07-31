@@ -16,7 +16,7 @@ import Metrics from "./views/Metrics";
 import ValueLibrary from "./views/ValueLibrary";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
-import StakeholderGraph from "./views/StakeholderGraph";
+import People from "./views/People";
 import Checklists from "./views/Checklists";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
@@ -407,7 +407,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
           </div>
         )}
         {tab === "people" && (
-          <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          <People accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
         )}
         {tab === "plan" && (
           <div className="stack">

@@ -10,3 +10,5 @@ venv/
 data/
 dist/
 .vite/
+.nimbalyst/
+nimbalyst-local/

@@ -563,3 +563,65 @@ class PlayDefinitionCreate(BaseModel):
 class PlayEffectiveness(BaseModel):
     effectiveness: Literal["effective", "unclear", "ineffective"]
     effectiveness_note: Optional[str] = None
+
+
+# --- Phase 3 Stage 5 — relationship intelligence -------------------------------
+
+ChampionStage = Literal["identify", "develop", "validate", "arm", "maintain"]
+
+
+class ChampionCandidateCreate(BaseModel):
+    person_id: str
+    program_id: Optional[str] = None
+    stage: ChampionStage = "identify"
+    notes: Optional[str] = None
+
+
+class ChampionCandidatePatch(BaseModel):
+    stage: Optional[ChampionStage] = None       # validate/arm/maintain gated by advocacy evidence
+    developed_note: Optional[str] = None
+    developed_on: Optional[str] = None
+    armed_note: Optional[str] = None
+    armed_on: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ExecPairingCreate(BaseModel):
+    account_id: str
+    valence_person_id: str
+    client_person_id: str
+    next_touch_planned: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ExecPairingPatch(BaseModel):
+    valence_person_id: Optional[str] = None
+    next_touch_planned: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MessagingEntryCreate(BaseModel):
+    layer: Layer
+    role: Optional[Role] = None
+    value_prop: Optional[str] = None
+    proof_points: Optional[str] = None
+    objections: Optional[str] = None
+    artifacts_note: Optional[str] = None
+    visibility_class: VisibilityClass = "internal"
+
+
+class MessagingEntryPatch(BaseModel):
+    value_prop: Optional[str] = None
+    proof_points: Optional[str] = None
+    objections: Optional[str] = None
+    artifacts_note: Optional[str] = None
+    visibility_class: Optional[VisibilityClass] = None
+
+
+class PullSignalCreate(BaseModel):
+    account_id: str
+    program_id: Optional[str] = None
+    description: str = Field(min_length=1)
+    occurred_on: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None

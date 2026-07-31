@@ -1,0 +1,64 @@
+# Role-based messaging library (Comprehensive Spec §3.12) — seeded from the Valence playbook.
+# Per layer (and optional narrower role): the value proposition in their terms, proof points that
+# land, known objections and responses, and the current approved artifacts (link-first, by note).
+# Mock/synthetic content only. Visibility-classified; edit in-app without a code change.
+#
+# Layers: executive | economic | operational | technical_gating | user_advocate
+entries:
+  - layer: executive
+    value_prop: >-
+      Move the business metric of record at scale — frame Nadia against the outcome the exec is
+      accountable for (retention, internal mobility, manager effectiveness), not features.
+    proof_points: >-
+      Board-ready trend on the agreed metric; peer-scale deployments; the 30/60/90 that gets there.
+    objections: >-
+      "Is this another point tool?" → position as an operating capability tied to the strategy, with
+      a governance rhythm and a single metric of record. "Will it stick?" → show the adoption ramp.
+    artifacts_note: Exec one-pager; QBR narrative deck.
+    visibility_class: qbr_exec
+  - layer: economic
+    role: budget_owner
+    value_prop: >-
+      A defensible ROI with a funding path — seat economics, retention math, and recovered incumbent
+      spend, with a clear procurement timeline.
+    proof_points: >-
+      The funding waterfall (current → recovered vendor spend → expansion increments); unit crossing
+      the agreed bar; contract mechanics that de-risk renewal.
+    objections: >-
+      "The budget's committed elsewhere." → recovered-spend and phased requisition options.
+      "Prove the value first." → the value-story tiers and the day-75 business case.
+    artifacts_note: ROI model with current inputs; expansion business case.
+    visibility_class: client_working
+  - layer: operational
+    role: program_owner
+    value_prop: >-
+      Execution reliability that makes them look good — responsive delivery, a plan they can defend
+      upward, and momentum they can point to.
+    proof_points: >-
+      On-cadence governance; commitments closed on time; a mutual action plan they co-own.
+    objections: >-
+      "My team has no bandwidth." → the deployment does the heavy lifting; their lift is decisions.
+    artifacts_note: Mutual action plan; weekly team update.
+    visibility_class: client_working
+  - layer: technical_gating
+    value_prop: >-
+      Clean answers and no surprises — engage IT security, legal/DPO, and works-council contacts
+      early with the data-handling story already prepared.
+    proof_points: >-
+      Certifications and data-flow diagrams; the compliance lanes tracked to closure; regional
+      data-residency handling.
+    objections: >-
+      "We haven't reviewed the data handling." → the pre-assembled security packet and a named lane.
+    artifacts_note: Security & data-handling packet; DPA template.
+    visibility_class: client_working
+  - layer: user_advocate
+    role: end_user_voice
+    value_prop: >-
+      Value in their own work and a voice upward — what Nadia does for an HRBP or a front-line
+      manager on a normal Tuesday.
+    proof_points: >-
+      Time saved on a recurring task; a manager story in their own words; recognition to their leader.
+    objections: >-
+      "One more thing to learn." → it fits an existing moment, not a new workflow.
+    artifacts_note: Manager quick-start; champion enablement kit.
+    visibility_class: internal

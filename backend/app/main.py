@@ -14,7 +14,7 @@ from .routers import (
     accounts, ai, attention, commercial, data, delivery, execution, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
-    search as search_router, viz,
+    relationships, search as search_router, viz,
 )
 
 
@@ -69,6 +69,7 @@ app.include_router(inbox.router)
 app.include_router(jobs_router.router)
 app.include_router(onboarding_router.router)
 app.include_router(ingestion_router.router)
+app.include_router(relationships.router)
 
 
 @app.get("/api/health")

@@ -10,13 +10,17 @@ from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
     CommitmentCreate, DecisionCreate, ExtractionRequest, IssueCreate, ManualExtractionRequest,
-    PlayDefinitionCreate, PlayEffectiveness, ProposalAccept, RiskCreate, TaskCreate,
+    MomentCreate, PlayDefinitionCreate, PlayEffectiveness, ProposalAccept, PullSignalCreate,
+    RiskCreate, TaskCreate, ValueStoryCreate,
 )
 
 _TARGET_SCHEMA = {
     "task": TaskCreate, "commitment": CommitmentCreate, "decision": DecisionCreate,
     "risk": RiskCreate, "issue": IssueCreate,
 }
+
+# §4.4 targets that create relationship / commercial records (not program-scoped execution objects).
+_STAGE5_MUTATIONS = ("fill_placeholder", "log_pull_signal", "create_deployment_moment", "create_value_story")
 
 router = APIRouter(prefix="/api", tags=["ai"])
 
@@ -103,6 +107,60 @@ def get_run(run_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     return run
 
 
+def _finalize_proposal(conn, proposal_id, source_span, created_type, created_id):
+    with conn:
+        conn.execute(
+            "UPDATE extraction_proposals SET status='accepted', created_object_type=?, created_object_id=?, updated_at=? WHERE id=?",
+            (created_type, created_id, now_utc(), proposal_id))
+        audit.record(conn, object_type="extraction_proposal", object_id=proposal_id, action="convert",
+                     after={"created": created_type, "id": created_id, "source_span": source_span})
+
+
+def _accept_stage5(conn, prop, run, payload):
+    """Apply a §4.4 relationship/commercial proposal (placeholder-fill, pull signal, deployment
+    moment, value-story candidate). Same per-item human acceptance as execution proposals."""
+    mt = prop["mutation_type"]
+    account_id = payload.get("account_id") or run.get("account_id")
+    program_id = payload.get("program_id") or run.get("program_id")
+    desc = payload.get("description") or ""
+    interaction_id = run.get("interaction_id")
+
+    if mt == "fill_placeholder":
+        name = (payload.get("name") or desc or "").strip()
+        if not name:
+            raise HTTPException(422, "This placeholder-fill needs a name (supply it in overrides).")
+        created = repo.insert(conn, "persons", {
+            "name": name, "affiliation": "client", "account_id": account_id,
+            "title": payload.get("title")}, object_type="person")
+        target = "person"
+
+    elif mt == "log_pull_signal":
+        body = PullSignalCreate(account_id=account_id, program_id=program_id, description=desc or "expansion signal",
+                               occurred_on=now_utc()[:10], source_interaction_id=interaction_id)
+        created = repo.insert(conn, "pull_signals", body.model_dump(), object_type="pull_signal")
+        target = "pull_signal"
+
+    elif mt == "create_deployment_moment":
+        if not program_id:
+            raise HTTPException(422, "A deployment moment needs a program_id (supply it in overrides).")
+        body = MomentCreate(program_id=program_id, name=desc or "deployment moment",
+                            type=payload.get("moment_type") or "business_event")
+        created = repo.insert(conn, "deployment_moments", body.model_dump(), object_type="deployment_moment")
+        target = "deployment_moment"
+
+    elif mt == "create_value_story":
+        # defaults to internal visibility — safe by construction; the operator promotes later.
+        body = ValueStoryCreate(outcome=desc or "value story", account_id=account_id, program_id=program_id,
+                                source_reference_id=payload.get("source_reference_id"))
+        created = repo.insert(conn, "value_stories", body.model_dump(), object_type="value_story")
+        target = "value_story"
+    else:  # pragma: no cover — guarded by the caller's membership check
+        raise HTTPException(422, f"unhandled stage-5 mutation {mt}")
+
+    _finalize_proposal(conn, prop["id"], prop["source_span"], target, created["id"])
+    return {"proposal_id": prop["id"], "created_type": target, "created": created}
+
+
 @router.post("/extraction/proposals/{proposal_id}/accept")
 def accept_proposal(proposal_id: str, b: ProposalAccept, conn: sqlite3.Connection = Depends(get_conn)):
     """Apply ONE proposal, creating the real object. Requires a program (execution objects
@@ -114,6 +172,11 @@ def accept_proposal(proposal_id: str, b: ProposalAccept, conn: sqlite3.Connectio
         raise HTTPException(409, f"proposal already {prop['status']}")
     run = repo.get_row(conn, "extraction_runs", prop["run_id"])
     payload = {**json.loads(prop["payload_json"]), **(b.overrides or {})}
+
+    # §4.4 relationship/commercial targets take a different (non-execution) write path.
+    if prop["mutation_type"] in _STAGE5_MUTATIONS:
+        return _accept_stage5(conn, prop, run, payload)
+
     program_id = payload.get("program_id") or run.get("program_id")
     if not program_id:
         raise HTTPException(422, "This proposal needs a program_id (supply it in overrides).")
@@ -128,12 +191,7 @@ def accept_proposal(proposal_id: str, b: ProposalAccept, conn: sqlite3.Connectio
     except ValidationError as e:
         raise HTTPException(422, f"{target} needs more before it can be created: {e.errors()[0].get('loc')} — supply it in overrides.")
     created = execution_ops.create(conn, target, validated)
-    with conn:
-        conn.execute(
-            "UPDATE extraction_proposals SET status='accepted', created_object_type=?, created_object_id=?, updated_at=? WHERE id=?",
-            (target, created["id"], now_utc(), proposal_id))
-        audit.record(conn, object_type="extraction_proposal", object_id=proposal_id, action="convert",
-                     after={"created": target, "id": created["id"], "source_span": prop["source_span"]})
+    _finalize_proposal(conn, proposal_id, prop["source_span"], target, created["id"])
     return {"proposal_id": proposal_id, "created_type": target, "created": created}
 
 
