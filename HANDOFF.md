@@ -123,3 +123,4 @@ These are enforced in code and in tests. If you touch nearby code, keep them tru
 - `decisions.md` — decision log, newest first (D-80 is Stage 5; Phase 3 runs D-73→D-80).
 - `README.md` — living project tour + run instructions + build-status table.
 - `stage-0/field-dictionary.md` — the allowed object/field set; the fence for anything outside the Phase 3 spec (invariant #6).
+- `docs/archive/` — superseded briefs (BUILD-BRIEF, PEOPLE-BRIEF, REDESIGN-PUNCHLIST), history only.

@@ -47,7 +47,9 @@ CLAUDE.md                   standing rules (trust boundaries, data rules, design
 DESIGN-GUIDE.md             standing design authority (supersedes scoping-doc §6)
 HANDOFF.md                  fresh-session onboarding + current build status
 decisions.md                decision log, newest first (D-01…D-80)
+design-audit.md             redesign value inventory + contrast audit
 stage-0/                    paper model + mock seed data (seed-data/*.yaml)
+docs/archive/               superseded point-in-time briefs (history only)
 backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py,
                             jobs.py, onboarding.py, people_core.py, cadence.py, ingestion.py,
