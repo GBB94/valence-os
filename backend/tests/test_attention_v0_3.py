@@ -61,7 +61,7 @@ def test_queue_fires_every_trigger_with_because(seeded):
     q = seeded["client"].get("/api/queue").json()
     by = _keys_by_trigger(q["items"])
     for trig in ("overdue_commitment", "active_blocker", "at_risk_milestone",
-                 "untriaged_inbox", "stale_stakeholder", "open_task"):
+                 "untriaged_inbox", "cadence_overdue", "open_task"):
         assert trig in by, f"missing {trig}"
     assert all(it["because"] for it in q["items"]), "every item must explain itself"
     assert all("next_action" in it and it["next_action"] for it in q["items"])

@@ -96,9 +96,9 @@ def test_placeholder_find_by_escalates_and_is_not_a_stale_relationship(onboarded
     q = c.get("/api/queue").json()
     ph = [i for i in q["items"] if i["trigger_type"] == "unidentified_placeholder"]
     assert ph, "placeholders past find-by should surface in Today"
-    # placeholders must NOT masquerade as stale senior relationships
-    stale = [i for i in q["items"] if i["trigger_type"] == "stale_stakeholder"]
-    assert not stale
+    # placeholders must NOT masquerade as overdue relationships (cadence excludes them)
+    cadence = [i for i in q["items"] if i["trigger_type"] == "cadence_overdue"]
+    assert not cadence
 
 
 def test_coverage_counts_placeholders_as_exposure_not_relationships(onboarded):

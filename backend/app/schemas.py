@@ -111,6 +111,7 @@ class StakeholderRolePatch(BaseModel):
     stance_evidence_note: Optional[str] = None
     cares_about: Optional[str] = None
     value_for_them: Optional[str] = None
+    cadence_target_days: Optional[int] = None   # §3.6 per-role cadence override
 
 
 class AdvocacyEventCreate(BaseModel):

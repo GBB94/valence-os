@@ -153,6 +153,46 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 <strong>{coverage.placeholder_count}</strong>&nbsp;critical position{coverage.placeholder_count === 1 ? "" : "s"} unidentified
               </div>
             )}
+            {coverage.cadence_compliance != null && (
+              <div style={{ fontSize: 13, marginBottom: 8 }}>
+                Cadence compliance: <strong>{coverage.cadence_compliance}%</strong>
+                <span className="rowmeta"> ({coverage.cadence_overdue_count} overdue)</span>
+              </div>
+            )}
+            {coverage.layer_heat && (
+              <div style={{ marginBottom: 8 }}>
+                <div className="rowmeta" style={{ marginBottom: 4 }}>Layer heat (active · stale · placeholder)</div>
+                {LAYER_ORDER.map((l) => {
+                  const h = coverage.layer_heat[l] || {};
+                  const a = h.active || 0, s = h.stale || 0, ph = h.placeholder || 0;
+                  if (!a && !s && !ph) return null;
+                  return (
+                    <div key={l} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{LAYER_LABEL[l]}</span>
+                      <span>
+                        <span style={{ color: "var(--status-ok)" }}>{a}</span> ·{" "}
+                        <span style={{ color: "var(--status-warn)" }}>{s}</span> ·{" "}
+                        <span style={{ color: "var(--status-unknown)" }}>{ph}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {coverage.detractors?.length > 0 && (
+              <div style={{ marginBottom: 4 }}>
+                <div className="rowmeta" style={{ marginBottom: 4 }}>Detractor watch</div>
+                {coverage.detractors.map((d, i) => (
+                  <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{d.name}{d.high_influence ? " (high influence)" : ""}</span>
+                    {!d.has_plan && <span style={{ color: "var(--status-warn)" }}>no plan</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {coverage.senior_stakeholders.length > 0 && (
+              <div className="rowmeta" style={{ marginBottom: 4, marginTop: 4 }}>Senior stakeholders · last touch</div>
+            )}
             {coverage.senior_stakeholders.map((s, i) => (
               <div key={i} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{s.name} · {s.role.replace(/_/g, " ")}</span>

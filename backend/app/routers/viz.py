@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import people_core, repo
+from .. import cadence, people_core, repo
 from ..deps import get_conn
 from ..schemas import EdgeCreate, GraphAssessment, RecoveredSpendCreate
 
@@ -131,6 +131,35 @@ def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get
         "SELECT id, title, expected_role, expected_influence, find_by_date FROM persons "
         "WHERE account_id=? AND is_placeholder=1 AND archived=0", (account_id,)).fetchall()
 
+    # §3.11 — cadence compliance, layer heat, and detractor watch over real stakeholder roles.
+    real_roles = [dict(r) for r in conn.execute(
+        "SELECT sr.*, pe.name pname, pe.expected_role FROM stakeholder_roles sr "
+        "JOIN programs pr ON pr.id=sr.program_id JOIN persons pe ON pe.id=sr.person_id "
+        "WHERE pr.account_id=? AND sr.archived=0 AND pe.is_placeholder=0 AND pe.affiliation='client'",
+        (account_id,)).fetchall()]
+    layer_heat = {L: {"active": 0, "stale": 0} for L in people_core.LAYERS}
+    in_cadence = overdue_cnt = 0
+    detractors = []
+    for r in real_roles:
+        cad = cadence.cadence_state(conn, r)
+        L = people_core.resolved_layer(r)
+        bucket = "stale" if cad["overdue"] else "active"
+        layer_heat.setdefault(L, {"active": 0, "stale": 0})[bucket] += 1
+        if cad["overdue"]:
+            overdue_cnt += 1
+        else:
+            in_cadence += 1
+        if r["role"] == "detractor":
+            detractors.append({"name": r["pname"], "influence": r["influence"],
+                               "high_influence": r["influence"] == "high", "has_plan": False})
+    # placeholders add to their expected band's heat as exposure
+    for ph in placeholders:
+        L = people_core.default_layer(ph["expected_role"] or "other")
+        layer_heat.setdefault(L, {"active": 0, "stale": 0}).setdefault("placeholder", 0)
+        layer_heat[L]["placeholder"] = layer_heat[L].get("placeholder", 0) + 1
+    total_tracked = in_cadence + overdue_cnt
+    cadence_compliance = round(100 * in_cadence / total_tracked) if total_tracked else None
+
     return {
         "senior_stakeholders": sorted(people, key=lambda x: (x["days_since_touch"] is None, -(x["days_since_touch"] or 0))),
         "vp_plus_total": len(people),
@@ -139,6 +168,11 @@ def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get
         "multithreaded": len(owners) >= 2,
         "placeholder_count": len(placeholders),
         "placeholders": [dict(p) for p in placeholders],
+        # §3.11 white-space analytics
+        "cadence_compliance": cadence_compliance,
+        "cadence_in_count": in_cadence, "cadence_overdue_count": overdue_cnt,
+        "layer_heat": layer_heat,
+        "detractors": sorted(detractors, key=lambda d: not d["high_influence"]),
     }
 
 

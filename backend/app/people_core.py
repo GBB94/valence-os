@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from . import cadence
+
 # §3.1 — the five horizontal bands an F100 account is managed in.
 LAYERS = ["executive", "economic", "operational", "technical_gating", "user_advocate"]
 LAYER_LABELS = {
@@ -101,9 +103,9 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "SELECT sr.*, pr.name pname, pr.account_id FROM stakeholder_roles sr "
         "JOIN programs pr ON pr.id=sr.program_id WHERE sr.person_id=? AND sr.archived=0",
         (person_id,)).fetchall()
-    roles, role_ids = [], []
+    roles, role_ids, raw_roles = [], [], []
     for r in role_rows:
-        r = dict(r); role_ids.append(r["id"])
+        r = dict(r); role_ids.append(r["id"]); raw_roles.append(r)
         eff, reason = effective_role(conn, person_id, r["role"])
         roles.append({
             "role_id": r["id"],
@@ -140,6 +142,11 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "SELECT id, kind, occurred_on, note FROM advocacy_events "
         "WHERE person_id=? AND archived=0 ORDER BY occurred_on DESC", (person_id,)).fetchall()]
 
+    # §3.6/§3.7 — cadence state + health panel keyed off the person's primary (first) role
+    primary = raw_roles[0] if raw_roles else None
+    cadence_block = cadence.cadence_state(conn, primary) if primary else None
+    health = cadence.person_health(conn, person_id, primary) if not p.get("is_placeholder") else None
+
     return {
         "id": p["id"], "name": p["name"], "title": p["title"], "email": p["email"],
         "affiliation": p["affiliation"], "account_id": p["account_id"],
@@ -154,4 +161,6 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "interaction_history": history,
         "last_touch": last_touch,
         "advocacy": advocacy,
+        "cadence": cadence_block,
+        "health": health,
     }

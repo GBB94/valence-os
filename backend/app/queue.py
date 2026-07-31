@@ -15,7 +15,7 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from . import audit, repo
+from . import audit, cadence, repo
 from .db import new_id, now_utc
 
 SENIOR_ROLES = ("champion", "budget_owner", "program_owner")
@@ -32,7 +32,7 @@ PRIORITY = {
     "fired_play": 5,           # enabled by v4 plays
     "at_risk_milestone": 6,
     "untriaged_inbox": 7,
-    "stale_stakeholder": 8,
+    "cadence_overdue": 8,      # Phase 3 §3.6 — supersedes the fixed-21d stale_stakeholder trigger
     "open_task": 9,
 }
 
@@ -220,32 +220,29 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             age_days=age, due_date=None, next_action="Convert or dismiss.",
         ))
 
-    # 5. Stale stakeholder relationships (senior roles, no meaningful touch in STALE_DAYS)
+    # 5. Cadence-overdue relationships (Phase 3 §3.6 — every tracked stakeholder has a target
+    #    touch cadence; overdue ones fire with a suggested next touch that carries content).
     for r in conn.execute(
-        "SELECT sr.*, pr.account_id acct FROM stakeholder_roles sr "
-        "JOIN programs pr ON pr.id = sr.program_id "
+        "SELECT sr.*, pe.name pname FROM stakeholder_roles sr "
         "JOIN persons pe ON pe.id = sr.person_id "
-        # placeholders are unidentified positions, not stale relationships (their own trigger)
-        "WHERE sr.archived=0 AND pe.is_placeholder=0 AND sr.role IN (%s)" % ",".join("?" * len(SENIOR_ROLES)),
-        SENIOR_ROLES,
+        # placeholders are unidentified positions, not overdue relationships (their own trigger)
+        "WHERE sr.archived=0 AND pe.is_placeholder=0 AND pe.affiliation='client'",
     ):
-        last = conn.execute(
-            "SELECT MAX(i.occurred_on) m FROM interaction_participants ip "
-            "JOIN interactions i ON i.id = ip.interaction_id "
-            "WHERE ip.person_id = ? AND i.meaningful_touch = 1 AND i.archived = 0",
-            (r["person_id"],),
-        ).fetchone()["m"]
-        baseline = last or r["created_at"][:10]
-        days = _days_since(baseline, today)
-        if days <= STALE_DAYS:
+        r = dict(r)
+        cad = cadence.cadence_state(conn, r, today)
+        if not cad["overdue"]:
             continue
         p = progs.get(r["program_id"], {})
-        person = conn.execute("SELECT name FROM persons WHERE id=?", (r["person_id"],)).fetchone()
+        since = cad["days_since"]
+        touch = f"last touch {since}d ago" if since is not None else "no logged touch"
         items.append(_item(
-            "stale_stakeholder", "stakeholder_role", r["id"], r["updated_at"], p,
-            title=f"{person['name'] if person else 'stakeholder'} ({r['role']})",
-            because=f"No meaningful touch in {days}d.",
-            age_days=days, due_date=None, next_action="Reach out or schedule.",
+            "cadence_overdue", "stakeholder_role", r["id"], r["updated_at"], p,
+            title=f"{r['pname']} ({r['role'].replace('_', ' ')})",
+            because=f"Cadence overdue — {cadence.QUADRANT_LABEL[cad['quadrant']]} "
+                    f"(target every {cad['target_days']}d, {touch}).",
+            age_days=(cad["overdue_by"] or since or 999),
+            due_date=None,
+            next_action=cadence.suggested_touch(conn, r["person_id"], r["pname"], r.get("cares_about")),
         ))
 
     # 7. Launch-checklist items past their due window (Phase 3 §2 escalation)

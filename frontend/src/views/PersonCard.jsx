@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { SlideOver, useToast, AgeChip, fmtDate } from "../ui";
 
+const CAD_LABEL = { manage_closely: "Manage closely", keep_satisfied: "Keep satisfied", keep_informed: "Keep informed", monitor: "Monitor" };
+
 // §3.10 person profile card — the unit the pre-call brief assembles from. Professional
 // observations only (trust boundary D-76): no sensitive personal data anywhere here.
 export default function PersonCard({ personId, onClose, onChanged }) {
@@ -70,6 +72,33 @@ export default function PersonCard({ personId, onClose, onChanged }) {
             </div>
           ))}
         </Section>
+
+        {/* §3.6 cadence + §3.7 health */}
+        {card.cadence && (
+          <Section title="Cadence & health">
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+              <span>{CAD_LABEL[card.cadence.quadrant] || card.cadence.quadrant} · every {card.cadence.target_days}d</span>
+              {card.cadence.overdue
+                ? <span style={{ color: "var(--status-warn)" }}>● overdue{card.cadence.overdue_by != null ? ` by ${card.cadence.overdue_by}d` : ""}</span>
+                : <span style={{ color: "var(--status-ok)" }}>● in cadence</span>}
+            </div>
+            <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Last meaningful touch</span>
+              <span>{card.cadence.last_touch ? <AgeChip date={card.cadence.last_touch} /> : "none logged"}</span>
+            </div>
+            {card.health && (
+              <>
+                <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Frequency (90d)</span><span>{card.health.frequency.count_90d} touches</span>
+                </div>
+                <div className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Reciprocity · attendance</span>
+                  <span title={card.health.reciprocity.reason} style={{ fontStyle: "italic" }}>awaiting comms/calendar</span>
+                </div>
+              </>
+            )}
+          </Section>
+        )}
 
         {/* Professional-observation fields */}
         <Section title="Working profile">
