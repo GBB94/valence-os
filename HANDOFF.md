@@ -36,7 +36,7 @@ Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`
 .venv/bin/python -m app.seed --reset      # wipe DB, apply migrations, load mock accounts
 .venv/bin/python -m app.seed              # load into existing DB
 
-# Tests (from backend/) — 67 tests, all green
+# Tests (from backend/) — 118 tests, all green
 .venv/bin/python -m pytest
 
 # Frontend dev (from frontend/) — Vite on :5173, proxies API to :8000
@@ -50,7 +50,7 @@ npm run build                             # emits frontend/dist, served by the A
 
 ## What's built (by module → doc section)
 
-Backend routers in `backend/app/routers/`, frontend views in `frontend/src/views/`. Migrations 0001–0010.
+Backend routers in `backend/app/routers/`, frontend views in `frontend/src/views/`. The table below is the **pre-Phase-3 foundation** (migrations 0001–0010); the Phase 3 additions (migrations 0011–0016: jobs, onboarding/checklists/placeholders, People module, cadence/health, ingestion/association, relationship intelligence) are in the **Phase 3 progress** list above.
 
 | Area | Doc | Built |
 |---|---|---|
@@ -86,9 +86,9 @@ The redesign shipped as eight stacked PRs (`redesign-a-foundation` … `redesign
 
 ## What's deferred, and why
 
-- **Job table + in-process worker (§7/8).** Deliberately not built. At this scale (a few thousand rows) all work is synchronous and instant; a queue would be speculative infrastructure the doc's "keep it boring" rule forbids. Do **not** build the job table or any §7/8 production-mode machinery.
-- **Real Claude-API extractor.** The `api` backend in `app/extractor.py` is dormant on purpose. The build order puts AI *after* enough real manual capture to know the true extraction schema, and §12 decision #3 (may AI call an external LLM?) is still open. **Do not wire any external API or key. The mock extractor stays mock** until Zach re-opens this after real capture.
-- **Polish pass.** Explicitly declined for now — don't spend a session on cosmetic refinement unasked.
+- **Job table + in-process worker (§7/8).** ~~Deliberately not built.~~ **Built in Phase 3 Task Zero** (migration 0011, `app/jobs.py`; env-gated auto-worker `VALENCE_OS_WORKER`, default off — tests drive jobs synchronously). The Phase 3 spec made it a prerequisite because transcription/email-sync/association/scheduled generation are background work. This deferral is retired.
+- **Real external connections stay mock.** Every external touchpoint is a mock adapter — the **real Claude-API extractor** (`api` backend in `app/extractor.py`) is present but dormant, and the email/transcription/calendar/enrichment/notification adapters return fixtures. Flipping any switch to real requires the Valence hosting/data-handling conversation and is recorded in `decisions.md` + the `CONNECTIONS.md` registry (Stage 8). §12 decision #3 (may AI call an external LLM?) is still open. **Do not wire any external API, key, or real source.**
+- **Stages 6–8 not yet built.** Generators to finished artifacts (Part 5), new triggers + calendar + change detection (6.1/6.2/3.9), and `CONNECTIONS.md` + the e2e demo. See the Phase 3 progress list for what's done through Stage 5.
 - **§11 "declined" items.** Stay declined. Do not reintroduce them as "improvements."
 
 ## Gated on the five open decisions (§12)
@@ -112,13 +112,14 @@ These are enforced in code and in tests. If you touch nearby code, keep them tru
 3. **Stakeholder assessments carry a date + evidence.** Stance, influence, relationship strength always require an assessed-on date and an evidence note.
 4. **Mock/synthetic data only.** No real client names, people, transcripts, or figures anywhere — including tests, seeds, comments, commit messages.
 5. **No hard-coded benchmarks.** Benchmarks are data: versioned, sourced, with population and period. Stale metric-derived indicators render **unknown**, never carried-forward good state. Metrics are ingested, never recomputed.
-6. **Frozen scope.** New object types or fields outside `stage-0/field-dictionary.md` require asking Zach first (the bar: retire an existing object or show evidence from real use). The `tags` field added 2026-07-29 was individually approved; that approval does not generalize.
-7. **Slice discipline.** Build one self-contained slice, then stop for review. An earlier session was corrected for "building ahead" without per-slice approval — do not repeat it. Right now the correct move is to **not build** absent a new instruction.
+6. **Scope = the Phase 3 spec.** The frozen-scope regime is **retired** (D-73): object types, fields, screens, and background infrastructure named in `PHASE-3-SPEC.md` are in-scope to build now, in its Part 7 order. New objects/fields **outside** what that spec calls for still require asking Zach first; the `stage-0/field-dictionary.md` fence still applies to anything the spec doesn't address.
+7. **Stage discipline.** Build one Phase 3 stage at a time; each stage lands with tests, both-theme screenshots, a `decisions.md` entry, and a HANDOFF update before the next begins. (The old "do not build absent a new instruction" rule is superseded — the standing instruction is to build to feature-complete in the spec's order.)
 
 ## Where to look
 
-- `Valence-OS-Scoping-Doc.md` — source of truth (frozen, v3.2).
+- `PHASE-3-SPEC.md` — **current scope authority** (the consolidated Comprehensive Spec; build order in Part 7).
+- `Valence-OS-Scoping-Doc.md` — the original source of truth (v3.2); still governs anything the Phase 3 spec doesn't address.
 - `CLAUDE.md` — standing rules (restates the binding constraints).
-- `decisions.md` — decision log, newest first (D-59 is the tags slice).
+- `decisions.md` — decision log, newest first (D-80 is Stage 5; Phase 3 runs D-73→D-80).
 - `README.md` — living project tour + run instructions + build-status table.
-- `stage-0/field-dictionary.md` — the allowed object/field set; the fence for invariant #6.
+- `stage-0/field-dictionary.md` — the allowed object/field set; the fence for anything outside the Phase 3 spec (invariant #6).

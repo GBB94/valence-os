@@ -2,6 +2,8 @@
 ### Closing the gap between built and applied
 *July 2026 · Companion to `DESIGN-GUIDE.md` · Supersedes `REDESIGN-CORRECTIONS.md`*
 
+> **Closed / historical (2026-07).** This punch list was completed in decisions D-69→D-72, and `REDESIGN-CORRECTIONS.md` was deleted as instructed. `DESIGN-GUIDE.md` remains the design authority. Kept for history.
+
 ---
 
 ## 0. What this is, and what it replaces

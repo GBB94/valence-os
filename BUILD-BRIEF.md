@@ -1,5 +1,7 @@
 # Valence OS — Build Brief for Claude Code
 
+> **Historical / superseded (2026-07).** This is the original kickoff brief and its "do Stage 0 only, no application code yet" instruction is long executed. The foundation (Stage 0 → v0–v4 + extras) and the frontend redesign are complete, and the project is now in the **Phase 3 feature-complete build** — current authority is `PHASE-3-SPEC.md`, current status is `HANDOFF.md`. Kept for history; do not follow its step-by-step instructions.
+
 You are building Valence OS, an internal single-editor web app for managing Fortune 100 enterprise accounts. The full specification is in `Valence-OS-Scoping-Doc.md` in this repo. Read it in full before doing anything. It is the source of truth, and three sections of it are binding constraints, not background: Section 9 (build order), Section 11 (declined items and the frozen-scope rule), and Section 2 (trust boundaries).
 
 Also read `CLAUDE.md`, which contains the standing rules that apply to every session on this project.
