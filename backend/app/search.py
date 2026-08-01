@@ -76,6 +76,19 @@ _SOURCES = [
     ("funding_pool", "SELECT id, account_id, NULL, name AS title, "
                      "COALESCE(name,'')||' '||COALESCE(kind,'')||' '||COALESCE(notes,'') AS body "
                      "FROM funding_pools WHERE archived=0"),
+    # --- Stage 11: adoption campaigns ---------------------------------------------------------
+    # The searchable text is the behaviour and hypothesis, because that is how an operator
+    # remembers a campaign ("the one about manager 1:1s"), not by its name.
+    ("adoption_campaign", "SELECT id, account_id, program_id, name AS title, "
+                          "COALESCE(name,'')||' '||COALESCE(target_behavior,'')||' '||"
+                          "COALESCE(hypothesis,'') AS body "
+                          "FROM adoption_campaigns WHERE archived=0"),
+    ("adoption_campaign_barrier", "SELECT b.id, c.account_id, c.program_id, "
+                                  "b.description AS title, "
+                                  "b.category||' '||COALESCE(b.description,'') AS body "
+                                  "FROM adoption_campaign_barriers b "
+                                  "JOIN adoption_campaigns c ON c.id=b.campaign_id "
+                                  "WHERE b.archived=0"),
     ("population_segment", "SELECT id, account_id, NULL, name AS title, "
                            "COALESCE(name,'')||' '||COALESCE(business_unit,'')||' '||COALESCE(region,'') AS body "
                            "FROM population_segments WHERE archived=0"),

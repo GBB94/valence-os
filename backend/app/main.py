@@ -1,17 +1,19 @@
 """Valence OS backend — v0.1 capture slice."""
 from __future__ import annotations
 
+import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import ingestion, jobs, stage7, internal_reporting as internal_reporting_service  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, ai, attention, commercial, data, delivery, execution, expansion, inbox,
+    accounts, campaigns, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
@@ -45,6 +47,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Valence OS", version="0.1.0", lifespan=lifespan)
 
+
+@app.exception_handler(sqlite3.IntegrityError)
+def _integrity_error(request, exc: sqlite3.IntegrityError):
+    """Database invariants are client errors, not server errors.
+
+    The schema now carries ~95 triggers that `RAISE(ABORT, '<readable message>')` to enforce
+    relationships single-column foreign keys cannot express — account scope, promotion
+    provenance, comparator disjointness. Those fire correctly and protect the data, but an
+    uncaught IntegrityError surfaces as a bare 500 with no message, which is indistinguishable
+    from a crash and tells the operator nothing. The trigger already wrote a good sentence;
+    this returns it.
+
+    UNIQUE violations are a conflict rather than a validation failure, so they keep 409.
+    """
+    detail = str(exc)
+    status = 409 if detail.startswith("UNIQUE constraint failed") else 422
+    return JSONResponse(status_code=status, content={"detail": detail})
+
 # Frontend runs on the Vite dev server in development.
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +74,7 @@ app.add_middleware(
 )
 
 app.include_router(accounts.router)
+app.include_router(campaigns.router)
 app.include_router(programs.router)
 app.include_router(people.router)
 app.include_router(interactions.router)

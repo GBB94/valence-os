@@ -48,7 +48,11 @@ _INSERT_ORDER = [
     "value_targets", "value_target_evidence",
     "funding_pools", "fiscal_maps", "ask_calendars", "ask_calendar_steps", "revenue_events",
     # 0020 — generated artifacts and the ROI assumptions behind the champion kit
-    "roi_models", "generated_documents", "generated_document_people",
+    "roi_models", "generated_documents",
+    # 0031 — adoption campaigns. Campaign first: barriers, targets, plan links and checkpoints
+    # all reference it, and plan links reference barriers.
+    "adoption_campaigns", "adoption_campaign_state_history", "adoption_campaign_barriers",
+    "adoption_campaign_targets", "adoption_campaign_plan_links", "adoption_campaign_checkpoints", "generated_document_people",
     # 0022 — recurring signals, mock calendar, and confirmed org change
     "calendar_events", "calendar_event_attendees", "org_change_flags", "succession_records",
     "signal_episodes",
@@ -120,6 +124,17 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
     t["fiscal_maps"] = _all(conn, "SELECT * FROM fiscal_maps WHERE account_id=?", (account_id,))
     t["roi_models"] = _all(conn, "SELECT * FROM roi_models WHERE account_id=?", (account_id,))
+
+    # --- 0031: adoption campaigns ---
+    t["adoption_campaigns"] = _all(
+        conn, "SELECT * FROM adoption_campaigns WHERE account_id=?", (account_id,))
+    campaign_ids = [r["id"] for r in t["adoption_campaigns"]]
+    cmq = ",".join("?" * len(campaign_ids)) or "''"
+    for tbl in ("adoption_campaign_state_history", "adoption_campaign_barriers",
+                "adoption_campaign_targets", "adoption_campaign_plan_links",
+                "adoption_campaign_checkpoints"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE campaign_id IN ({cmq})",
+                      campaign_ids) if campaign_ids else []
     # Portfolio-wide documents (the team update) have no account_id and belong to no single
     # account, so they stay out of an account bundle by design.
     t["generated_documents"] = _all(
@@ -266,6 +281,8 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         ("value_targets", ["accepted_by_person_id"]),
         ("funding_pools", ["owner_person_id"]),
         ("ask_calendar_steps", ["owner_person_id"]),
+        ("adoption_campaigns", ["internal_owner_person_id", "client_sponsor_person_id",
+                                "lead_champion_person_id"]),
         ("generated_document_people", ["person_id"]),
         ("calendar_event_attendees", ["person_id"]),
         ("org_change_flags", ["person_id"]),

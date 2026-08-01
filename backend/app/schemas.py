@@ -1392,3 +1392,153 @@ class FeedbackTouchCreate(BaseModel):
 class FeedbackOccurrenceMove(BaseModel):
     feedback_item_id: str
     reason: str = Field(min_length=1)
+
+
+# --- Stage 11: adoption campaigns (ADOPTION-CAMPAIGN-SPEC.md) --------------------------------
+
+EvaluationDesign = Literal["descriptive", "pre_post", "comparator"]
+BarrierCategory = Literal["capability", "opportunity", "motivation", "unknown"]
+BarrierConfidence = Literal["observed", "reported", "hypothesis"]
+InterventionKind = Literal[
+    "enablement", "workflow_embed", "champion_action", "communication",
+    "reinforcement", "discovery",
+]
+CampaignTargetRole = Literal["primary", "secondary", "guardrail"]
+CompletionOutcome = Literal[
+    "target_met", "improved_not_met", "no_demonstrated_change", "regressed", "inconclusive",
+]
+
+
+class CampaignCreate(BaseModel):
+    account_id: str
+    program_id: str
+    use_case_id: str
+    name: str = Field(min_length=1)
+    target_behavior: str = Field(min_length=1)
+    hypothesis: str = Field(min_length=1)
+    planned_start_on: str
+    planned_end_on: str
+    internal_owner_person_id: str
+    # Exactly one cohort; the model enforces it so the DB CHECK is a backstop, not the message.
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+    cell_id: Optional[str] = None
+    evaluation_on: Optional[str] = None
+    evaluation_design: EvaluationDesign = "descriptive"
+    client_sponsor_person_id: Optional[str] = None
+    lead_champion_person_id: Optional[str] = None
+    created_from_signal_episode_id: Optional[str] = None
+    diagnosis_source_reference_id: Optional[str] = None
+    diagnosis_source_interaction_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_cohort(self):
+        if bool(self.segment_id) == bool(self.view_id):
+            raise ValueError("a campaign targets exactly one population: segment_id or view_id")
+        return self
+
+
+class CampaignPatch(BaseModel):
+    """Draft content only. Status moves through the dedicated transition endpoints."""
+    name: Optional[str] = None
+    target_behavior: Optional[str] = None
+    hypothesis: Optional[str] = None
+    planned_start_on: Optional[str] = None
+    planned_end_on: Optional[str] = None
+    evaluation_on: Optional[str] = None
+    evaluation_design: Optional[EvaluationDesign] = None
+    client_sponsor_person_id: Optional[str] = None
+    lead_champion_person_id: Optional[str] = None
+    baseline_gap_reason: Optional[str] = None
+    sponsor_gap_reason: Optional[str] = None
+    concurrent_intervention_reason: Optional[str] = None
+    already_met_reason: Optional[str] = None
+
+
+class CampaignTransition(BaseModel):
+    reason: str = Field(min_length=1)
+    actor: Optional[str] = None
+    # pause/cancel/complete carry their own required detail
+    pause_reason: Optional[str] = None
+    resume_condition: Optional[str] = None
+    cancel_reason: Optional[str] = None
+    completion_outcome: Optional[CompletionOutcome] = None
+    completion_reviewed_on: Optional[str] = None
+    completion_note: Optional[str] = None
+
+
+class CampaignBarrierCreate(BaseModel):
+    category: BarrierCategory
+    description: str = Field(min_length=1)
+    observed_on: str
+    confidence: BarrierConfidence = "hypothesis"
+    is_primary: bool = False
+    source_reference_id: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _needs_source(self):
+        if not (self.source_reference_id or self.source_interaction_id):
+            raise ValueError("a barrier needs a dated source: reference or interaction")
+        return self
+
+
+class CampaignBarrierPatch(BaseModel):
+    state: Optional[Literal["open", "addressed", "ruled_out"]] = None
+    resolution_note: Optional[str] = None
+    is_primary: Optional[bool] = None
+
+
+class CampaignTargetCreate(BaseModel):
+    value_target_id: str
+    role: CampaignTargetRole = "primary"
+    comparator_segment_id: Optional[str] = None
+    comparator_view_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_comparator(self):
+        if self.comparator_segment_id and self.comparator_view_id:
+            raise ValueError("a comparator is one population: segment or view, not both")
+        return self
+
+
+class CampaignPlanLinkCreate(BaseModel):
+    intervention_kind: InterventionKind
+    sequence: int = 0
+    purpose: Optional[str] = None
+    cue: Optional[str] = None
+    is_reinforcement: bool = False
+    intended_barrier_id: Optional[str] = None
+    task_id: Optional[str] = None
+    commitment_id: Optional[str] = None
+    milestone_id: Optional[str] = None
+    comms_entry_id: Optional[str] = None
+    deployment_moment_id: Optional[str] = None
+    calendar_event_id: Optional[str] = None
+    generated_document_id: Optional[str] = None
+    messaging_entry_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _exactly_one_link(self):
+        links = [self.task_id, self.commitment_id, self.milestone_id, self.comms_entry_id,
+                 self.deployment_moment_id, self.calendar_event_id,
+                 self.generated_document_id, self.messaging_entry_id]
+        if sum(1 for x in links if x) != 1:
+            raise ValueError("a plan item links exactly one existing record")
+        return self
+
+
+class CampaignCheckpointCreate(BaseModel):
+    scheduled_on: str
+    next_evidence_on: Optional[str] = None
+
+
+class CampaignCheckpointHold(BaseModel):
+    held_on: str
+    assessment: Literal["on_track", "at_risk", "unknown"]
+    decision: Literal["continue", "adjust", "pause", "complete"]
+    reason: str = Field(min_length=1)
+    observations_reviewed: list[str] = Field(default_factory=list)
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    next_evidence_on: Optional[str] = None
