@@ -10,6 +10,7 @@ windows (v1), stale imports (v2), and fired plays (v4) are intentionally absent.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -36,6 +37,13 @@ PRIORITY = {
     "untriaged_inbox": 7,
     "cadence_overdue": 8,      # Phase 3 §3.6 — supersedes the fixed-21d stale_stakeholder trigger
     "open_task": 9,
+    "aging_internal_ask": 1,
+    "unacknowledged_internal_ask": 2,
+    "commit_ask_warning": 2,
+    "delivered_ask_evidence_gap": 2,
+    "escalation_overdue": 1,
+    "feedback_acknowledgment": 3,
+    "feedback_resolution": 2,
     # Stage 7 episodes. Customer pull and confirmed org facts outrank vendor-push timing.
     "expansion_signal": 2,
     "org_change_confirmed": 2,
@@ -71,6 +79,7 @@ def _business_hours_between(
     timezone_name: str = "America/New_York",
     start_hour: int = 9,
     end_hour: int = 17,
+    working_weekdays: set[int] | None = None,
 ) -> float:
     """Count weekday hours inside an account's configured local working window."""
     try:
@@ -90,7 +99,9 @@ def _business_hours_between(
     seconds = 0.0
     cursor = start.date()
     while cursor <= end.date():
-        if cursor.weekday() < 5:
+        # Settings store ISO weekday numbers (1=Monday … 7=Sunday).
+        active_days = working_weekdays or {1, 2, 3, 4, 5}
+        if cursor.isoweekday() in active_days:
             window_start = datetime.combine(cursor, time(start_hour), tzinfo=local_tz)
             window_end = datetime.combine(cursor, time.min, tzinfo=local_tz) + timedelta(hours=end_hour)
             overlap_start, overlap_end = max(start, window_start), min(end, window_end)
@@ -143,12 +154,14 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         )
 
     progs = {r["pid"]: dict(r) for r in conn.execute(prog_ctx()).fetchall()}
+    accounts = {r["aid"]: dict(r) for r in conn.execute(
+        "SELECT id aid,name aname,NULL pid,NULL pname FROM accounts WHERE archived=0").fetchall()}
 
     # 1. Overdue commitments (any open commitment past due; none may be hidden)
     for r in conn.execute(
         "SELECT * FROM commitments WHERE archived=0 AND status='open' AND due_date < ?", (today,)
     ):
-        p = progs.get(r["program_id"], {})
+        p = progs.get(r["program_id"], accounts.get(r["account_id"], {}))
         overdue = _days_since(r["due_date"], today)
         items.append(_item(
             "overdue_commitment", "commitment", r["id"], r["updated_at"], p,
@@ -243,7 +256,6 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         ctx = {}
         if r["context_json"]:
             try:
-                import json
                 ctx = json.loads(r["context_json"])
             except (TypeError, ValueError):
                 ctx = {}
@@ -429,6 +441,130 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             age_days=age, due_date=r["due_date"], next_action="Do, reassign, or close.",
         ))
 
+    # Internal asks are derived into Today; resolving a queue overlay never mutates the ask.
+    for r in conn.execute(
+        "SELECT * FROM internal_asks WHERE archived=0 AND status NOT IN ('delivered','declined') AND needed_by<?",
+        (today,)):
+        p = accounts.get(r["account_id"], {})
+        age = _days_since(r["needed_by"], today)
+        items.append(_item("aging_internal_ask", "internal_ask", r["id"], r["updated_at"], p,
+            title=r["need"], because=f"Internal ask is {age}d past needed-by {r['needed_by']}.",
+            age_days=age, due_date=r["needed_by"], next_action="Advance, escalate, deliver, or decline with reason."))
+
+    internal_cfg = conn.execute("SELECT * FROM internal_operations_settings WHERE id='singleton'").fetchone()
+    internal_weekdays = set(json.loads(internal_cfg["working_weekdays_json"]))
+    for r in conn.execute("SELECT * FROM internal_asks WHERE archived=0 AND status='raised'"):
+        default = conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type=? "
+            "ORDER BY threshold_business_hours,severity LIMIT 1", (r["ask_type"],)
+        ).fetchone()
+        if not default:
+            default = conn.execute(
+                "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type='general' "
+                "ORDER BY threshold_business_hours,severity LIMIT 1"
+            ).fetchone()
+        if not default:
+            continue
+        elapsed = _business_hours_between(
+            r["created_at"], now_utc(), internal_cfg["business_timezone"],
+            internal_cfg["business_day_start_hour"], internal_cfg["business_day_end_hour"],
+            internal_weekdays,
+        )
+        if elapsed >= default["threshold_business_hours"]:
+            p = accounts.get(r["account_id"], {})
+            items.append(_item(
+                "unacknowledged_internal_ask", "internal_ask", r["id"], r["updated_at"], p,
+                title=r["need"],
+                because=f"Ask remains unacknowledged after {int(elapsed)} internal business hours; policy threshold is {default['threshold_business_hours']}.",
+                age_days=_days_since(r["created_at"], today), due_date=r["needed_by"],
+                next_action="Record acknowledgment or apply the configured escalation path.",
+            ))
+
+    for r in conn.execute(
+        "SELECT a.*,e.category forecast_category FROM internal_asks a "
+        "JOIN forecast_entries e ON e.id=a.forecast_entry_id "
+        "WHERE a.archived=0 AND a.status NOT IN ('delivered','declined') "
+        "AND e.archived=0 AND e.category='commit' AND a.needed_by>=date('now')"
+    ):
+        default = conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type=? "
+            "ORDER BY threshold_business_hours,severity LIMIT 1", (r["ask_type"],)
+        ).fetchone() or conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type='general' "
+            "ORDER BY threshold_business_hours,severity LIMIT 1"
+        ).fetchone()
+        if not default:
+            continue
+        local_tz = ZoneInfo(internal_cfg["business_timezone"])
+        due_at = datetime.combine(date.fromisoformat(r["needed_by"]),
+                                  time(internal_cfg["business_day_end_hour"]), tzinfo=local_tz).isoformat()
+        remaining = _business_hours_between(
+            now_utc(), due_at, internal_cfg["business_timezone"],
+            internal_cfg["business_day_start_hour"], internal_cfg["business_day_end_hour"],
+            internal_weekdays,
+        )
+        if remaining <= default["threshold_business_hours"]:
+            p = accounts.get(r["account_id"], {})
+            items.append(_item(
+                "commit_ask_warning", "internal_ask", r["id"], r["updated_at"], p,
+                title=r["need"],
+                because=f"Commit-linked ask is inside its {default['threshold_business_hours']}-business-hour warning window.",
+                age_days=0, due_date=r["needed_by"],
+                next_action="Confirm delivery or escalate before the Commit call is exposed.",
+            ))
+
+    from .internal_forecast import evidence as forecast_evidence
+    for r in conn.execute(
+        "SELECT a.*,e.updated_at forecast_updated_at FROM internal_asks a "
+        "LEFT JOIN forecast_entries e ON e.id=a.forecast_entry_id "
+        "WHERE a.archived=0 AND a.status='delivered' "
+        "AND (a.forecast_entry_id IS NOT NULL OR a.generated_document_id IS NOT NULL)"
+    ):
+        reasons = []
+        if r["forecast_entry_id"] and not forecast_evidence(conn, r["forecast_entry_id"])["supported"]:
+            reasons.append("linked forecast evidence remains incomplete")
+        if r["generated_document_id"] and not conn.execute(
+            "SELECT 1 FROM generated_document_sources WHERE document_id=?", (r["generated_document_id"],)
+        ).fetchone():
+            reasons.append("dependent artifact has no frozen source evidence")
+        if reasons:
+            p = accounts.get(r["account_id"], {})
+            source_version = max(r["updated_at"], r["forecast_updated_at"] or r["updated_at"])
+            items.append(_item(
+                "delivered_ask_evidence_gap", "internal_ask", r["id"], source_version, p,
+                title=r["need"], because="; ".join(reasons).capitalize() + ".",
+                age_days=_days_since(r["delivered_on"], today), due_date=None,
+                next_action="Complete the dependent evidence or reopen the ask with a reason.",
+            ))
+
+    for r in conn.execute(
+        "SELECT e.*,a.account_id,a.need FROM escalation_instances e JOIN internal_asks a ON a.id=e.ask_id "
+        "WHERE e.archived=0 AND e.status='open'"):
+        elapsed = _business_hours_between(r["opened_at"], now_utc(),
+            internal_cfg["business_timezone"], internal_cfg["business_day_start_hour"],
+            internal_cfg["business_day_end_hour"], set(json.loads(internal_cfg["working_weekdays_json"])))
+        if elapsed < r["expected_response_hours"]:
+            continue
+        p = accounts.get(r["account_id"], {})
+        items.append(_item("escalation_overdue", "escalation", r["id"], r["updated_at"], p,
+            title=r["need"], because=f"Escalation has no recorded response after {int(elapsed)} internal business hours.",
+            age_days=_days_since(r["opened_at"], today), due_date=None, next_action=r["next_step"]))
+
+    for r in conn.execute(
+        "SELECT o.id,o.account_id,o.updated_at,i.title FROM product_feedback_occurrences o "
+        "JOIN product_feedback_items i ON i.id=o.feedback_item_id WHERE o.archived=0 AND o.active=1 "
+        "AND NOT EXISTS (SELECT 1 FROM product_feedback_touches t WHERE t.occurrence_id=o.id AND t.touch_type='acknowledgment')"):
+        items.append(_item("feedback_acknowledgment", "product_feedback_occurrence", r["id"], r["updated_at"], accounts.get(r["account_id"], {}),
+            title=r["title"], because="Client feedback is logged but not yet acknowledged.", age_days=0,
+            due_date=None, next_action="Record the acknowledgment interaction; do not auto-send."))
+    for r in conn.execute(
+        "SELECT o.id,o.account_id,o.updated_at,i.title,i.status FROM product_feedback_occurrences o "
+        "JOIN product_feedback_items i ON i.id=o.feedback_item_id WHERE o.archived=0 AND o.active=1 "
+        "AND i.status IN ('shipped','declined') AND NOT EXISTS (SELECT 1 FROM product_feedback_touches t WHERE t.occurrence_id=o.id AND t.touch_type='resolution')"):
+        items.append(_item("feedback_resolution", "product_feedback_occurrence", r["id"], r["updated_at"], accounts.get(r["account_id"], {}),
+            title=r["title"], because=f"Feedback is {r['status']} but this account has not received the resolution loop.", age_days=0,
+            due_date=None, next_action="Record the resolution interaction; do not auto-send."))
+
     return items
 
 
@@ -483,6 +619,8 @@ def _object_table(object_type: str) -> str:
         "operational_agreement_event": "operational_agreement_events",
         "checklist_item": "checklist_items", "person": "persons",
         "comm_message": "comm_messages",
+        "internal_ask": "internal_asks", "escalation": "escalation_instances",
+        "product_feedback_occurrence": "product_feedback_occurrences",
     }[object_type]
 
 

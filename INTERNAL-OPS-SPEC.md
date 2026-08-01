@@ -1,7 +1,7 @@
 # Valence OS — Internal Operating Layer Spec
 ### Forecasts, internal reviews, asks, coordination, and upward reporting
 
-*Zach McCall · July 2026 · v2 · Codebase-aware successor to the original Internal Ops addendum*
+*Zach McCall · August 2026 · v2.1 · Codebase-aware successor to the original Internal Ops addendum*
 
 ---
 
@@ -68,14 +68,26 @@ All existing standing rules remain binding:
 Every forecast amount carries:
 
 - currency;
-- revenue basis (`annual_recurring`, `term_total`, or `one_time`);
+- price basis using the existing vocabulary (`arr`, `tcv`, `one_time`, or `monthly`);
 - source or rationale;
 - author; and
 - assessment date.
 
-The rollup groups by currency and basis. It never sums unlike bases, converts currencies, or uses `expansion_opportunities.expected_value` as a defensible forecast amount: that legacy field is an untyped illustrative number. Where an amount can be derived from a current contract or a priced growth-plan line with compatible units, the derived source is named. Otherwise the operator supplies a dated forecast assertion.
+The rollup groups by currency and exact price basis. It never sums unlike bases, converts currencies, annualizes `monthly`, or uses `expansion_opportunities.expected_value` as a defensible forecast amount: that legacy field is an untyped illustrative number. Where an amount can be derived from a current contract or a priced growth-plan line with compatible units, the inherited currency/basis and source are named. Otherwise the operator supplies a dated forecast assertion.
+
+`contract_versions.price_basis`, forecast entries, and revenue events use the same four values. Existing growth-plan lines retain their already-shipped `seat_price_basis` vocabulary and map into forecast basis explicitly:
+
+```text
+annual_recurring → arr
+term_total       → tcv
+one_time         → one_time
+```
+
+There is no growth-line mapping to `monthly`. The original growth-line value remains stored and visible; the compatibility mapper supplies the forecast view and is covered by exact tests. Stage 10.0 adds nullable `price_basis` to `revenue_events`; existing events backfill to unknown rather than receiving an invented basis. New revenue events with an amount require currency and price basis. Amount calibration compares only exact currency/basis matches and reports unknown-basis events as explicit exclusions.
 
 Weighted pipeline uses an explicit, dated probability on the forecast entry. There is no stage-to-probability table. Entries without a probability remain visibly excluded from the weighted subtotal rather than receiving a default.
+
+`Closed` is not a fifth forecast category. It is derived for the selected period from one dated won source outcome per forecast target: a won expansion with an in-period expansion revenue event, or an in-period renewed outcome event. Closed actuals with missing or incompatible units remain record-level exclusions. An amount lacking either currency or price basis is never placed into an “unknown” additive bucket; it is withheld from every monetary subtotal with its entry ID and reason.
 
 ### 1.3 Status honesty
 
@@ -95,15 +107,18 @@ A generated internal report may contain a red-treated claim only when that claim
 - an active attention item;
 - an `off_track` status assessment event;
 - a severe escalation event; or
-- a declined or overdue internal ask whose policy maps it to red treatment.
+- a declined or overdue internal ask whose configured escalation default maps it to red treatment.
 
-The rule runs both ways: report-eligible red origins must appear in the relevant report unless the generator records a typed exclusion and reason.
+The rule runs both ways: report-eligible red origins must appear in the relevant report unless the generator records a typed exclusion and reason. For the monthly portfolio brief, “report-eligible” means: high or blocker open risks, blocker open issues, the latest governed `off_track` assessment per dimension, open high/critical escalations, declined or overdue asks with a high/critical configured path, and active priority-1/2 attention items whose underlying source is durable and allow-listed. Lower-severity register entries may still render in their normal sections without receiving red treatment.
+
+Reverse-direction exclusions are append-only, typed to the origin, named, and time-boxed. An active exclusion remains visible in the report's data-gaps section and frozen source manifest. Expiry restores the origin automatically; there is no permanent hide switch. A mutable account status projection that disagrees with the latest assessment event is a generation blocker, never a report source.
 
 Generation is deterministic:
 
 - preview returns `generation_blockers[]` with the offending claim and accepted origin types;
 - saving a draft returns HTTP `409` while blockers exist;
-- the UI offers links to create or open the missing record; and
+- the blocker card supports explicit inline creation or linking of the missing record, then re-validates without discarding the draft;
+- navigation to the full record remains available when inline creation is insufficient; and
 - the generator never silently creates a risk, changes a status, or downgrades a red claim to make itself pass.
 
 ### 1.5 Scope integrity
@@ -117,7 +132,7 @@ Every account-scoped relationship is checked at the API and database layers. A f
 - audit coverage; and
 - mock seed teardown/reset behavior.
 
-Operational links do not use unchecked `linked_type` + `linked_id` pairs. Load-bearing relationships use real nullable foreign-key columns with XOR/at-least-one checks, or a join table whose allowed targets are explicit foreign-key columns. Where a generic typed reference is unavoidable for a frozen provenance manifest, the type is allow-listed, existence is verified at generation time, and the reference is immutable afterward.
+New operational links introduced by this scope do not use unchecked `linked_type` + `linked_id` pairs. Load-bearing relationships use real nullable foreign-key columns with XOR/at-least-one checks, or a join table whose allowed targets are explicit foreign-key columns. Where a generic typed reference is unavoidable for a frozen provenance manifest, the type is allow-listed, existence is verified at generation time, and the reference is immutable afterward. This is a forward-looking rule: existing typed links in ask-calendar steps and attention overlays remain governed by their current validated service paths unless implementation exposes a concrete integrity defect.
 
 ---
 
@@ -134,7 +149,7 @@ This is an extension, not a greenfield subsystem.
 | `persons.affiliation='valence'` | internal owners, requesters, roster members | roster joins existing Valence people; no parallel employee table |
 | interaction participants | contribution and executive-touch history | capture UI includes active roster members as participants |
 | `attention_state` and derived queue | ask aging, overdue leadership commitments, feedback follow-up | add derived trigger families; do not persist duplicate queue objects |
-| `generated_documents` draft → reviewed → sent/discarded | every internal artifact | widen document kinds and preserve frozen source manifests |
+| `generated_documents` draft → reviewed → sent/discarded | every internal artifact | register all scope kinds in one Stage 10.0 rebuild and preserve frozen source manifests |
 | jobs and scheduled weekly generation | forecast/report schedules | new handlers create drafts only; never transmit |
 | `exec_pairings` and cadence analytics | executive coverage | portfolio view composes existing derived touch facts |
 | audit log | status trajectory and material history | purpose-built event tables are added only where the current snapshot is insufficient for period math or chain reconstruction |
@@ -148,7 +163,7 @@ These changes make the original scope implementable without changing its goals:
 2. **Renewal is not forced into an expansion-opportunity record.** A forecast entry targets either an opportunity or a current contract version, exactly one. Contract truth remains canonical and read-only.
 3. **Review commitments generalize the existing ledger.** They do not create an `internal_tasks` island. Commitments and decisions gain account-level context and explicit review provenance.
 4. **Product feedback separates theme from occurrence.** One portfolio feedback item can have several sourced account occurrences. Aggregation is therefore relational and explainable, not fuzzy matching over Slack-like text.
-5. **Escalation is a policy-driven state of an ask.** The ask remains the work record; escalation instances and events capture severity and chain without duplicating the request.
+5. **Escalation is a configured state of an ask.** The ask remains the work record; editable defaults establish the path, and each instance snapshots the applied values while events capture the chain without duplicating the request.
 6. **Status history becomes first-class.** Audit remains the forensic log, but reporting and trajectory should not parse generic before/after JSON to understand governance state.
 
 ---
@@ -173,7 +188,9 @@ Its category is one of:
 
 Category remains independent of commercial stage, budget state, qualification completeness, and growth-plan status.
 
-Each entry also records forecast amount, currency, revenue basis, optional probability, amount/probability rationale, author, assessment date, expected decision date, and operator help-needed note. Source links point to the target, priced line/contract evidence, and any interaction supporting the call.
+Each entry also records forecast amount, currency, price basis, optional probability, amount/probability rationale, author, assessment date, expected decision date, and operator help-needed note. Source links point to the target, priced line/contract evidence, and any interaction supporting the call.
+
+Currency and price basis inherit from a compatible target contract or priced growth-plan line when available and render as confirmable chips, not blank required selects. Author is populated from the configured installation operator identity and stored for provenance; it is not a routine form field. The operator always confirms or supplies the assessment date.
 
 `forecast_entry_sources` uses explicit nullable foreign keys for the supported evidence families (interaction, source reference, growth-plan line, revenue event, and ask calendar), with exactly one populated per row and database-enforced account scope. It is not a free-form polymorphic link table.
 
@@ -187,7 +204,7 @@ Evidence rules are soft: they never block the operator from choosing a category.
 2. a named budget owner belonging to the same account;
 3. a meaningful interaction containing that budget owner within the prior 30 days;
 4. a linked ask calendar with a target or required step inside the forecast period; and
-5. a defensible amount with currency and basis.
+5. a defensible amount with currency and price basis.
 
 **Renewal Commit requires:**
 
@@ -195,7 +212,7 @@ Evidence rules are soft: they never block the operator from choosing a category.
 2. a named renewal budget owner on the forecast entry;
 3. engagement with that owner within the prior 30 days;
 4. a sourced renewal-position assertion (`confirmed_intent`, `commercial_review`, or `procurement_in_progress`); and
-5. a defensible amount with currency and basis.
+5. a defensible amount with currency and price basis.
 
 The renewal-position assertion is an operational forecast fact on the entry, not a canonical contract edit.
 
@@ -222,10 +239,14 @@ Every category change appends a **forecast change event** containing before, aft
 A **forecast submission** freezes the current entry set and source manifest at a timestamp. The generated artifact leads with:
 
 1. movement since the previous submission in the same period;
-2. current totals grouped by currency and revenue basis: closed, commit, best case, pipeline, weighted pipeline, and excluded-from-weighting count;
+2. current totals grouped by currency and price basis: closed, commit, best case, pipeline, weighted open forecast, and excluded-from-weighting count;
 3. every unsupported Commit/Best Case call and its named evidence gaps;
 4. help-needed items linked to internal asks; and
 5. entry-level record links.
+
+**Weighted open forecast** is an independent view, not an additive peer subtotal: it sums `amount × explicit probability` across open Commit, Best Case, and Pipeline entries. Closed and Omitted entries are excluded. An entry without explicit probability contributes nothing and appears in the excluded count; no category or stage supplies a default probability.
+
+Movement compares to the immediately previous frozen submission in the same period. For the first submission, the baseline is the opening snapshot when the period is already locked; otherwise the artifact states `first submission — no prior baseline`. Creation time is never used as a movement baseline.
 
 Submission artifacts use the existing generated-document review workflow. Creating one never changes entry categories.
 
@@ -239,19 +260,23 @@ Closing a period computes actuals from dated source facts:
 - renewal completion from the superseding/current contract or a typed renewal outcome event;
 - no close inferred merely from a changed forecast category.
 
+An opening entry with no won/renewed outcome at period close remains in its category denominator and not in the closed numerator. It renders as `unresolved at close`; it is not silently dropped. If a compatible actual amount is unavailable, category calibration still counts the outcome while amount calibration records an exclusion.
+
 Calibration reports counts and denominators per period:
 
 - Commit closed / Commit at opening;
 - Best Case closed / Best Case at opening;
 - Pipeline closed / Pipeline at opening;
-- forecast amount vs. compatible actual amount by currency and revenue basis; and
+- forecast amount vs. compatible actual amount by currency and price basis; and
 - entries excluded because actual amount units were unavailable or incompatible.
 
-Rates may be displayed per period because the denominator is explicit. There is no composite forecaster score and no benchmark unless a versioned, sourced benchmark record is later approved.
+Fractions are the primary calibration display (`3 of 4 Commit entries closed`). Percentages are not shown in this five-account version; they imply precision the sample does not support. There is no composite forecaster score and no benchmark unless a versioned, sourced benchmark record is later approved.
 
 ### 3.5 Forecast schema
 
-Use the next available migration number (currently expected to be `0026`) for:
+Use the next available migration number assigned when Stage 10.1 begins. Stage 10.0 owns the first migration after the current schema; this section does not reserve a literal number.
+
+Add:
 
 - `forecast_periods`
 - `forecast_entries`
@@ -267,7 +292,7 @@ Key constraints:
 
 - exactly one target FK on each forecast entry;
 - target, source, owner, and ask-calendar account scope enforced by triggers;
-- one live entry per target per period;
+- one live entry per target per period, enforced by partial unique indexes qualified `WHERE archived=0`;
 - omitted reason required for `omitted`;
 - amount fields non-negative and currency three-letter uppercase;
 - probability requires author and assessment date;
@@ -287,7 +312,7 @@ An **internal ask** is a first-class account record containing:
 - requested-by Valence person;
 - requested-from Valence person and/or internal function;
 - needed-by date;
-- linked revenue amount with currency/basis or a link to the forecast entry that supplies it;
+- linked revenue amount with currency/price basis or a link to the forecast entry that supplies it;
 - type (`general`, `data_request`, `product`, `legal`, `deal_desk`, `executive`, `pricing`);
 - status (`raised`, `acknowledged`, `in_progress`, `delivered`, `declined`);
 - current owner; and
@@ -299,11 +324,11 @@ At least one requested-from target is required. Opportunity, forecast-entry, rev
 
 An ask linked to a Commit entry displays inherited urgency but does not copy or persist the forecast category. If the forecast entry changes, the treatment changes on read.
 
-### 4.2 Functions and policies
+### 4.2 Functions, defaults, and the internal clock
 
 Internal functions are portfolio-global, editable seed data: Data, Product, Legal, Deal Desk, Finance/Pricing, Executive Sponsor, Support, and Other. They are not people and do not receive logins.
 
-An **escalation policy** is versioned and defines, per ask type and severity:
+An **escalation default** defines, per ask type and severity:
 
 - functional or hierarchical path;
 - elapsed business-time threshold;
@@ -311,23 +336,27 @@ An **escalation policy** is versioned and defines, per ask type and severity:
 - expected response window; and
 - next step if unresolved.
 
-Policy edits never rewrite the policy version attached to an existing escalation.
+Defaults are portfolio-global seeded rows and editable by the operator. Opening an escalation copies the applied threshold, path, destination, expected response window, and next step onto the escalation instance. Later default edits affect new instances only; no policy-version tables or policy-authoring workflow are introduced.
 
-Elapsed business time reuses the account's existing timezone and business-hours settings. This module does not introduce a second calendar-hours implementation.
+An explicitly requested severity may use an exact ask-type rule or a same-severity `general` fallback; it may never snapshot a different severity's ladder while retaining the requested severity label. For derived acknowledgment and Commit warning behavior, the earliest active threshold for the ask type applies, with the general rule used only when the type has no rule.
+
+`internal_operations_settings` holds one portfolio-level Valence business calendar—timezone, business-day start/end, and working weekdays—plus the configured operator identity used for provenance defaults. Internal elapsed time does **not** use the client account's timezone or response window. The existing business-hours calculation is reused with the internal calendar as input; this module does not introduce a second calendar-hours implementation. Author/actor values remain stored, but routine single-editor forms default them from this setting instead of asking Zach to type his own name repeatedly.
 
 ### 4.3 Escalation chain
 
-Escalation does not create another ask. An **escalation instance** links to the ask and records severity, policy version, path type, opened-at, resolved-at, and resolution. Every step appends an **escalation event**: raised to whom/function, when, why the threshold fired, what response occurred, and who recorded it.
+Escalation does not create another ask. An **escalation instance** links to the ask and records severity, the copied default values, path type, opened-at, resolved-at, and resolution. Every step appends an **escalation event**: raised to whom/function, when, why the threshold fired, what response occurred, and who recorded it.
 
 No event sends a message. The UI produces a suggested, factual escalation note; the operator records that they escalated externally.
 
 Derived Today behavior:
 
 - ask past needed-by and not terminal;
-- ask unacknowledged past its policy threshold;
+- ask unacknowledged past its configured default threshold;
 - active escalation whose current ladder step is overdue;
 - Commit-linked ask entering its warning window; and
 - delivered ask whose dependent artifact/forecast evidence still reads incomplete.
+
+The Commit warning window begins when remaining Valence business hours through the ask's needed-by business-day close are less than or equal to that derived threshold. Delivered-evidence treatment is recomputed from the linked forecast evidence and/or frozen artifact manifest; it is not cleared merely because the ask status says delivered.
 
 Queue dedupe keys use the ask/escalation ID and condition episode. Resolving a queue item does not close the underlying ask.
 
@@ -350,11 +379,11 @@ They render as a filtered lane of the same ask ledger, not a separate workflow.
 Add:
 
 - `internal_functions`
+- `internal_operations_settings`
 - `internal_asks`
 - `internal_ask_events`
 - `internal_ask_documents`
-- `escalation_policies`
-- `escalation_policy_steps`
+- `escalation_defaults`
 - `escalation_instances`
 - `escalation_events`
 
@@ -426,6 +455,19 @@ The main ledger is generalized rather than duplicated:
 
 Today resolves account context directly when no program exists. Ledger, person cards, account history, generators, search, and export all include account-level commitments and decisions.
 
+This is a SQLite table rebuild, not an in-place constraint edit. The migration preserves IDs, audit history, visibility flags, source links, and `decisions.supersedes_id` self-references; foreign-key checks are deferred only for the transaction and verified before commit. Stage 10.0 must update and regression-test every existing program-derived account path:
+
+1. search indexing;
+2. portfolio export and restore;
+3. Library source-reference citers;
+4. person-card commitments;
+5. visualization/coverage owner queries;
+6. Today queue context;
+7. Ledger, account history, and weekly/internal generators; and
+8. create/close/supersede services and schemas.
+
+The export registry's table-membership heuristic is insufficient because `commitments` and `decisions` are already registered. Add a row-level guard that creates an account-level commitment and decision with no program, exports and restores them, then proves they remain searchable, source-addressable, visible in Ledger/person context, and correctly attributed in Today.
+
 Review-completion analytics report counts and denominators by commitment class. They do not infer direction from names or affiliations after migration.
 
 ### 5.5 Review schema
@@ -441,7 +483,7 @@ Generalize:
 - `commitments`
 - `decisions`
 
-Widen generated-document kinds with:
+Review/reporting uses these kinds, all registered by the single Stage 10.0 rebuild:
 
 - `internal_account_brief`
 - `internal_review_packet`
@@ -495,7 +537,7 @@ Report format is editable without code changes, but field selection and safety r
 
 Add versioned `report_templates` seeded from repository YAML files. A template controls headings, labels, ordering, and optional sections. It cannot introduce an unapproved query or bypass audience/no-surprises checks.
 
-Each template declares one audience profile: `operator`, `team`, `leader`, or `skip_level`. Code owns the field allow-list for each profile. A higher-level profile removes detail from the same selected records; it cannot query a different truth set or override a record's visibility. Raw notes and source-span text are excluded from recurring reports unless a named generator section explicitly requires and labels them.
+Each template declares `audience_profile`: `working` or `leadership`. This is distinct from the existing generated-document `audience` safety axis (`internal` or `client_facing`). Code owns the field allow-list for both working and leadership profiles. Leadership removes detail from the same selected records; it cannot query a different truth set or override a record's visibility. Raw notes and source-span text are excluded from recurring reports unless a named generator section explicitly requires and labels them.
 
 Every internal generated document stores an immutable source manifest:
 
@@ -510,11 +552,11 @@ Add:
 - `report_templates`
 - `generated_document_sources`
 
-Widen generated-document kinds with:
+Reporting uses these kinds, registered by the single Stage 10.0 rebuild:
 
 - `forecast_submission`
 - `monthly_portfolio_brief`
-- revised `team_update`
+- existing `team_update`, whose generator is revised in Stage 10.0
 
 ---
 
@@ -543,12 +585,12 @@ Add:
 Existing interaction participation remains the source of truth. Capture and ingestion association must permit active roster members as Valence participants. Derived views answer:
 
 - last touch by any Valence executive;
-- last participation by each roster member;
 - accounts with no executive touch inside the configured cadence;
-- account activity concentrated in one internal person; and
+- whether every recent account interaction depends on one internal participant (account bus-factor exposure);
+- whether the primary and backup roles have both participated inside the coverage window; and
 - upcoming meetings with missing expected internal coverage.
 
-No contribution score or leaderboard is introduced.
+These are account-exposure measures, not colleague-activity measures. No contribution score, throughput measure, or leaderboard is introduced.
 
 ### 7.3 Briefing packs
 
@@ -560,7 +602,7 @@ Generated internal artifacts:
 
 The “three things” are deterministic: highest-severity unresolved item, nearest contractual/forecast date, and highest-value unsupported or blocked forecast item, with tie-breaking documented. Operator edits remain possible in draft.
 
-Widen generated-document kinds with:
+Briefing uses these kinds, registered by the single Stage 10.0 rebuild:
 
 - `colleague_call_brief`
 - `coverage_brief`
@@ -608,22 +650,24 @@ Add:
 
 An internal ask of type `product` may link a theme/occurrence, but the records remain distinct: the ask tracks Valence's internal dependency; feedback tracks the client's need and loop closure.
 
+Feedback is portfolio-primary because its value is cross-account aggregation. Its main surface lives at Accounts → Internal → Feedback with account filtering and links back to each occurrence. Account Internal views show an occurrence summary and deep link rather than a dedicated Feedback sub-tab.
+
 ---
 
 ## 9. Portfolio internal analytics
 
-The Accounts destination gains a `Book / Internal` segmented view. This is not a fifth top-level navigation item.
+The Accounts destination retains the shipped portfolio-commercial analytics and gains an Internal segment. This is not a fifth top-level navigation item.
 
 The Internal portfolio view contains small, drillable measures with explicit denominators and exclusions:
 
 - forecast calibration by period and category;
-- forecast movement count and amount by compatible currency/basis;
+- forecast movement count and amount by compatible currency/price basis;
 - ask acknowledgment and resolution time by internal function;
 - open asks past needed-by by function;
 - escalation age and resolution time by severity/path;
 - review commitment completion by commitment class;
 - executive-touch coverage across active accounts;
-- roster concentration/exposure counts;
+- internal-coverage exposure counts (for example, accounts whose recent interactions all depend on one Valence participant);
 - product-feedback themes by status and account count; and
 - acknowledgment/resolution-loop completion for feedback occurrences.
 
@@ -632,6 +676,7 @@ Rules:
 - no composite score;
 - no ranking people by performance;
 - medians plus raw counts for turnaround where sample sizes support them;
+- percentages remain suppressed below three observations; fractions and raw counts still render;
 - “insufficient data” distinct from zero;
 - record IDs supplied for every drill-down;
 - no cross-currency sum or implied benchmark; and
@@ -654,14 +699,16 @@ Overview · Ledger · People · Plan · Commercial · Evidence · Internal · Ou
 The Internal tab contains sub-tabs:
 
 ```text
-Forecast · Asks · Reviews · Team · Feedback
+Forecast · Asks · Reviews · Coverage
 ```
 
 The Accounts destination contains:
 
 ```text
-Book · Internal
+Book · Portfolio analytics · Internal
 ```
+
+The portfolio Internal segment contains Overview, Forecast, Coverage, and Feedback views. Coverage holds the roster and briefing controls; Feedback is portfolio-primary with an account-filtered lane. This keeps thin roster and feedback screens from becoming permanent account tabs.
 
 Outputs remains the place for generated artifacts and review-state workflow. Internal views link to their current generated drafts rather than duplicating an artifact library.
 
@@ -686,7 +733,7 @@ Global capture gains proposed conversion targets for:
 - product-feedback occurrence; and
 - forecast change event.
 
-As with existing extraction, these are strict predefined proposals, source spans remain visible, and nothing writes until accepted. Manual creation remains available from the relevant Internal sub-tab.
+As with existing extraction, these are strict predefined proposals, source spans remain visible, and nothing writes until accepted. Manual creation remains available from the relevant account or portfolio Internal view.
 
 ---
 
@@ -743,6 +790,7 @@ POST       /api/product-feedback-occurrences/{id}/touches
 GET        /api/portfolio/internal-analytics
 GET        /api/internal-reports/{kind}/preview
 POST       /api/internal-reports/{kind}/documents
+POST       /api/internal-reports/red-origin-exclusions
 ```
 
 Transition endpoints enforce lifecycles; generic patch endpoints cannot change category, period state, ask status, escalation state, review held state, feedback status, or generated-document review state.
@@ -755,12 +803,18 @@ Each stage is a complete vertical slice: migration, schema models, services, rou
 
 ### Stage 10.0 — Integrity foundations
 
-- reserve and document the next migration sequence;
+- take the next available migration number; later stages take numbers only when they begin;
+- rebuild `generated_documents.kind` once, before adding new referencing tables, to register all scope kinds: `internal_account_brief`, `internal_review_packet`, `internal_challenge_sheet`, `forecast_submission`, `monthly_portfolio_brief`, `colleague_call_brief`, `coverage_brief`, and `coverage_return_brief` (plus the existing revised `team_update`);
+- preserve and verify `generated_document_people` references across that rebuild; future kinds remain code-owned schema values, not arbitrary data;
+- add `price_basis` to `revenue_events`, align forecast financial fields to `arr|tcv|one_time|monthly`, implement the explicit growth-line compatibility mapping from §1.2, and forbid every other implicit basis conversion;
+- add `internal_operations_settings` with the Valence business calendar and operator-identity provenance default;
 - add versioned status criteria and assessment history;
 - backfill existing status snapshots;
-- generalize account-level commitments and decisions;
+- rebuild commitments and decisions for direct account context while preserving self/source/visibility references;
+- update search, export/restore, Library citers, person cards, visualization/coverage, Today, Ledger/history/generators, and mutation services for nullable `program_id`;
+- add row-level account-only commitment/decision export → restore → search/Today/Ledger tests and extend export protection beyond table-membership heuristics;
 - fix the weekly update to include account-level records and adopt the operator format;
-- add report-template/source-manifest primitives; and
+- add report-template/source-manifest primitives with `working|leadership` audience profiles; and
 - add reusable no-surprises validation.
 
 This stage lands first because later generators and review commitments otherwise build on known-invalid primitives.
@@ -769,18 +823,18 @@ This stage lands first because later generators and review commitments otherwise
 
 - periods, entries, sources, evidence checks, change events;
 - submission snapshots and generated forecast artifact;
-- opening lock, close, and two-period mock calibration;
+- opening snapshot lock that leaves live calls mutable until close, close, and two-period mock calibration;
 - account Internal → Forecast UI;
 - portfolio forecast slice; and
-- exact evidence/account-scope/currency tests.
+- exact evidence/account-scope/currency/price-basis tests.
 
 ### Stage 10.2 — Asks and escalation
 
-- internal functions, asks, events, policies, ladders, escalation chain;
+- internal functions, asks, events, editable escalation defaults, snapshotted instance rules, and escalation chain;
 - Data-request lane;
 - Today triggers and help-needed forecast links;
 - account Internal → Asks UI; and
-- policy-version, chain-integrity, and no-auto-send tests.
+- default-edit isolation, chain-integrity, internal-business-clock, and no-auto-send tests.
 
 ### Stage 10.3 — Reviews and reporting
 
@@ -797,13 +851,13 @@ This stage lands first because later generators and review commitments otherwise
 - Valence participants in capture flows;
 - contribution/exec-touch queries;
 - call, coverage, and return briefs; and
-- Accounts → Internal portfolio coverage view.
+- account Internal → Coverage and Accounts → Internal → Coverage views.
 
 ### Stage 10.5 — Product feedback and final analytics
 
 - feedback themes, occurrences, transitions, loop-closing touches;
 - acknowledgment/resolution Today triggers;
-- cross-account aggregation;
+- Accounts → Internal → Feedback with account filtering and cross-account aggregation;
 - full internal analytics;
 - end-to-end five-account demo; and
 - final adversarial review against Section 13.
@@ -824,10 +878,14 @@ The module is not done because screens render or unit tests pass. The following 
 - changing category without a driver is rejected;
 - opening snapshot does not change when live entries later change;
 - period close uses source outcomes, not final forecast category;
-- cross-currency/basis totals remain separated;
-- weighted totals exclude entries without explicit probability and disclose the exclusion;
-- two periods render Commit and Best Case counts/denominators; and
-- forecast submission movement is relative to the previous submission, not creation time.
+- an unresolved opening entry remains in the category denominator and outside the closed numerator;
+- cross-currency/price-basis totals remain separated and `monthly` is never silently annualized;
+- growth-line `annual_recurring|term_total|one_time` values map only to `arr|tcv|one_time` as documented;
+- weighted open forecast includes only open Commit, Best Case, and Pipeline entries with explicit probability, excludes Closed/Omitted, and discloses missing-probability exclusions;
+- first submission uses the locked opening snapshot or states that no prior baseline exists;
+- later submission movement is relative to the prior frozen submission, never creation time;
+- two periods render Commit and Best Case fractions with denominators and no percentage; and
+- unknown/incompatible actual price basis is an explicit amount-calibration exclusion, not a zero.
 
 ### 13.2 Asks and escalation
 
@@ -835,7 +893,8 @@ The module is not done because screens render or unit tests pass. The following 
 - declined requires a reason; delivered requires completion evidence;
 - Commit-linked urgency changes when the forecast category changes without copying category;
 - aging ask surfaces once in Today with a stable episode key;
-- escalation follows the policy version attached at opening even after policy edits;
+- an escalation retains its snapshotted threshold/path/destination after the editable default changes;
+- internal elapsed time uses the Valence calendar and is unchanged by the client account's timezone;
 - the complete functional/hierarchical chain survives export/restore; and
 - no code path transmits a message.
 
@@ -844,12 +903,14 @@ The module is not done because screens render or unit tests pass. The following 
 - a held review requires an interaction and preserves participants;
 - leadership-to-operator and operator-to-internal commitments both render in Ledger and Today;
 - account-level commitments need no fake program and never leak into another account;
+- an account-level commitment and decision survive export/restore and remain searchable, source-addressable, visible in person/Ledger context, and correctly attributed in Today;
 - amber without recovery owner/action/date is rejected;
 - red without leadership-decision handling is rejected;
 - status trajectory survives later criteria edits;
 - one-page brief contains only the latest dated operator-authored point of view;
 - challenge questions are reproducible from source records;
 - a red claim without a valid origin blocks document creation with HTTP `409`;
+- explicitly creating/linking the origin from the blocker card preserves the draft and clears the blocker after revalidation;
 - every eligible red origin appears or carries a typed exclusion reason; and
 - saved document body and source manifest do not change when live data changes.
 

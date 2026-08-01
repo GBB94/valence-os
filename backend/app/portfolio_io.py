@@ -28,9 +28,11 @@ FORMAT = "valence-os-account-export/1"
 _INSERT_ORDER = [
     # globals first (FK targets)
     "source_references", "metric_definitions", "audience_tags", "use_cases",
-    "messaging_entries", "play_definitions",
+    "messaging_entries", "play_definitions", "internal_functions", "status_criteria_versions",
+    "escalation_defaults", "report_templates",
     "accounts", "account_settings", "persons", "programs",
     "stakeholder_roles", "interactions", "interaction_participants", "capture_inbox_items",
+    "account_reviews", "account_review_participants", "operator_views",
     "tasks", "commitments", "decisions", "risks", "issues", "milestones",
     "expansion_opportunities", "contract_versions", "phase_gates", "phase_gate_items",
     "deployment_moments", "comms_entries", "compliance_items", "scope_changes",
@@ -53,6 +55,14 @@ _INSERT_ORDER = [
     # 0023 — Stage 7.5 qualification links, operational triggers, and growth plans
     "operational_agreements", "operational_agreement_events",
     "account_growth_plans", "growth_plan_lines",
+    # 0027-0028 — internal operating layer
+    "forecast_periods", "forecast_entries", "forecast_entry_sources", "forecast_change_events",
+    "forecast_opening_snapshots", "forecast_opening_lines", "renewal_outcome_events",
+    "product_feedback_items", "product_feedback_occurrences", "product_feedback_events",
+    "product_feedback_touches", "account_internal_roster",
+    "internal_asks", "internal_ask_events", "internal_ask_documents", "account_status_assessments",
+    "escalation_instances", "escalation_events",
+    "generated_document_sources", "forecast_submissions", "forecast_submission_lines",
     # 0025 — Stage 9 learning records (after cells/history, before tag joins)
     "playbook_entries", "playbook_entry_tags",
 ]
@@ -79,9 +89,13 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     t["interactions"] = _all(conn, "SELECT * FROM interactions WHERE account_id=?", (account_id,))
     t["interaction_participants"] = _all(conn, f"SELECT * FROM interaction_participants WHERE interaction_id IN ({iq})", iids) if iids else []
     t["capture_inbox_items"] = _all(conn, f"SELECT * FROM capture_inbox_items WHERE interaction_id IN ({iq})", iids) if iids else []
-    for tbl in ("stakeholder_roles", "tasks", "commitments", "decisions", "risks", "issues",
+    for tbl in ("stakeholder_roles", "tasks", "risks", "issues",
                 "milestones", "deployment_moments", "comms_entries", "compliance_items", "scope_changes"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE program_id IN ({pq})", pids) if pids else []
+    # Direct account scope is authoritative for these generalized ledgers; program-only
+    # filtering silently dropped internal review commitments and decisions.
+    for tbl in ("commitments", "decisions"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
     for tbl in ("expansion_opportunities", "contract_versions", "value_stories", "relationship_edges", "recovered_spend"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
     t["phase_gates"] = _all(conn, f"SELECT * FROM phase_gates WHERE program_id IN ({pq})", pids) if pids else []
@@ -115,6 +129,55 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     t["generated_document_people"] = _all(
         conn, f"SELECT * FROM generated_document_people WHERE document_id IN ({dgq})", doc_ids
     ) if doc_ids else []
+
+    # --- 0026-0028: internal operating layer ---------------------------------
+    for tbl in ("account_reviews", "operator_views", "account_status_assessments",
+                "account_internal_roster", "renewal_outcome_events"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+    review_ids = [r["id"] for r in t["account_reviews"]]
+    rq = ",".join("?" * len(review_ids)) or "''"
+    t["account_review_participants"] = _all(conn, f"SELECT * FROM account_review_participants WHERE review_id IN ({rq})", review_ids) if review_ids else []
+    t["forecast_entries"] = _all(conn, "SELECT * FROM forecast_entries WHERE account_id=?", (account_id,))
+    forecast_ids = [r["id"] for r in t["forecast_entries"]]
+    fq = ",".join("?" * len(forecast_ids)) or "''"
+    period_ids = {r["period_id"] for r in t["forecast_entries"]}
+    fpq = ",".join("?" * len(period_ids)) or "''"
+    t["forecast_periods"] = _all(conn, f"SELECT * FROM forecast_periods WHERE id IN ({fpq})", tuple(period_ids)) if period_ids else []
+    t["forecast_entry_sources"] = _all(conn, f"SELECT * FROM forecast_entry_sources WHERE entry_id IN ({fq})", forecast_ids) if forecast_ids else []
+    t["forecast_change_events"] = _all(conn, f"SELECT * FROM forecast_change_events WHERE entry_id IN ({fq})", forecast_ids) if forecast_ids else []
+    t["forecast_opening_snapshots"] = _all(conn, f"SELECT * FROM forecast_opening_snapshots WHERE period_id IN ({fpq})", tuple(period_ids)) if period_ids else []
+    snapshot_ids = [r["id"] for r in t["forecast_opening_snapshots"]]
+    fsq = ",".join("?" * len(snapshot_ids)) or "''"
+    t["forecast_opening_lines"] = _all(conn, f"SELECT * FROM forecast_opening_lines WHERE snapshot_id IN ({fsq}) AND account_id=?", (*snapshot_ids, account_id)) if snapshot_ids else []
+    occurrence_rows = _all(conn, "SELECT * FROM product_feedback_occurrences WHERE account_id=?", (account_id,))
+    t["product_feedback_occurrences"] = occurrence_rows
+    occurrence_ids = [r["id"] for r in occurrence_rows]; oq = ",".join("?" * len(occurrence_ids)) or "''"
+    item_ids = {r["feedback_item_id"] for r in occurrence_rows}; fiq = ",".join("?" * len(item_ids)) or "''"
+    t["product_feedback_items"] = _all(conn, f"SELECT * FROM product_feedback_items WHERE id IN ({fiq})", tuple(item_ids)) if item_ids else []
+    # Themes are portfolio-global but occurrence movement is account-scoped. Export shared
+    # theme status events plus only this account's occurrence events, otherwise a valid
+    # single-account bundle can contain a dangling occurrence_id from another account.
+    t["product_feedback_events"] = _all(
+        conn,
+        f"SELECT * FROM product_feedback_events WHERE feedback_item_id IN ({fiq}) "
+        f"AND (occurrence_id IS NULL OR occurrence_id IN ({oq}))",
+        (*item_ids, *occurrence_ids),
+    ) if item_ids else []
+    t["product_feedback_touches"] = _all(conn, f"SELECT * FROM product_feedback_touches WHERE occurrence_id IN ({oq})", occurrence_ids) if occurrence_ids else []
+    t["internal_asks"] = _all(conn, "SELECT * FROM internal_asks WHERE account_id=?", (account_id,))
+    ask_ids = [r["id"] for r in t["internal_asks"]]; iaq = ",".join("?" * len(ask_ids)) or "''"
+    t["internal_ask_events"] = _all(conn, f"SELECT * FROM internal_ask_events WHERE ask_id IN ({iaq})", ask_ids) if ask_ids else []
+    t["internal_ask_documents"] = _all(conn, f"SELECT * FROM internal_ask_documents WHERE ask_id IN ({iaq})", ask_ids) if ask_ids else []
+    t["escalation_instances"] = _all(conn, f"SELECT * FROM escalation_instances WHERE ask_id IN ({iaq})", ask_ids) if ask_ids else []
+    escalation_ids = [r["id"] for r in t["escalation_instances"]]; esq = ",".join("?" * len(escalation_ids)) or "''"
+    t["escalation_events"] = _all(conn, f"SELECT * FROM escalation_events WHERE escalation_id IN ({esq})", escalation_ids) if escalation_ids else []
+    t["generated_document_sources"] = _all(conn, f"SELECT * FROM generated_document_sources WHERE document_id IN ({dgq})", doc_ids) if doc_ids else []
+    t["forecast_submissions"] = _all(conn, f"SELECT * FROM forecast_submissions WHERE period_id IN ({fpq}) AND document_id IN ({dgq})", (*period_ids, *doc_ids)) if period_ids and doc_ids else []
+    submission_ids = [r["id"] for r in t["forecast_submissions"]]; subq = ",".join("?" * len(submission_ids)) or "''"
+    t["forecast_submission_lines"] = _all(conn, f"SELECT * FROM forecast_submission_lines WHERE submission_id IN ({subq}) AND account_id=?", (*submission_ids, account_id)) if submission_ids else []
+    # Portfolio vocabularies are safe to include because restore skips existing rows.
+    for tbl in ("internal_functions", "status_criteria_versions", "escalation_defaults", "report_templates"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl}")
 
     # --- 0022: Stage 7 --------------------------------------------------------
     t["calendar_events"] = _all(conn, "SELECT * FROM calendar_events WHERE account_id=?", (account_id,))
@@ -210,6 +273,15 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
                                 "successor_placeholder_id"]),
         ("operational_agreements", ["budget_owner_person_id"]),
         ("growth_plan_lines", ["budget_owner_person_id"]),
+        ("account_reviews", ["chair_person_id"]),
+        ("account_review_participants", ["person_id"]),
+        ("account_status_assessments", ["recovery_owner_person_id"]),
+        ("account_internal_roster", ["person_id"]),
+        ("forecast_entries", ["renewal_budget_owner_person_id"]),
+        ("internal_asks", ["requested_by_person_id", "requested_from_person_id", "current_owner_person_id"]),
+        ("product_feedback_occurrences", ["stakeholder_person_id"]),
+        ("product_feedback_items", ["owner_person_id"]),
+        ("escalation_events", ["destination_person_id"]),
     ]:
         for row in t.get(tbl, []):
             for c in cols:
@@ -229,6 +301,7 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         "funding_pools",
         "population_headcount_observations", "value_targets", "revenue_events",
         "calendar_events", "org_change_flags", "operational_agreements", "growth_plan_lines",
+        "internal_asks", "product_feedback_occurrences", "renewal_outcome_events",
     ) for row in t.get(tbl, []) if row.get("source_reference_id")}
     sq = ",".join("?" * len(srcs)) or "''"
     t["source_references"] = _all(conn, f"SELECT * FROM source_references WHERE id IN ({sq})", tuple(srcs)) if srcs else []
@@ -276,7 +349,9 @@ def import_account(conn: sqlite3.Connection, bundle: dict) -> dict:
             for row in rows:
                 # Global/shared tables — skip if already present rather than colliding.
                 if tbl in ("metric_definitions", "source_references", "audience_tags", "use_cases",
-                           "messaging_entries", "play_definitions") and \
+                           "messaging_entries", "play_definitions", "internal_functions",
+                           "status_criteria_versions", "escalation_defaults",
+                           "report_templates") and \
                         conn.execute(f"SELECT 1 FROM {tbl} WHERE id=?", (row["id"],)).fetchone():
                     continue
                 row = dict(row)

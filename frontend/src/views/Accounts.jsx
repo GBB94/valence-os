@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Empty, SegTabs, useToast } from "../ui";
 import Onboarding from "./Onboarding";
 import PortfolioAnalytics from "./PortfolioAnalytics";
+import PortfolioInternal from "./PortfolioInternal";
 
 export default function Accounts({ accounts, onOpen, onChanged }) {
   const toast = useToast();
@@ -52,9 +53,9 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
         <button className="btn primary" onClick={() => setAdding((v) => !v)}>New account</button>
       </div>
 
-      <div style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Accounts"], ["analytics", "Portfolio analytics"]]} value={view} onChange={setView} /></div>
+      <div style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Book"], ["analytics", "Portfolio analytics"], ["internal", "Internal"]]} value={view} onChange={setView} /></div>
 
-      {view === "analytics" ? <PortfolioAnalytics /> : <>
+      {view === "internal" ? <PortfolioInternal onOpen={onOpen} /> : view === "analytics" ? <PortfolioAnalytics /> : <>
 
       {adding && (
         <div className="card" style={{ padding: 14, marginBottom: 14 }}>

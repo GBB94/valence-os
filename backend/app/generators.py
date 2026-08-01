@@ -25,7 +25,7 @@ import sqlite3
 from fastapi import HTTPException
 
 from . import cadence, expansion, jobs, onboarding, people_core, repo
-from .db import now_utc
+from .db import new_id, now_utc
 
 # Content types, per the Section 3 security model / Module K rules.
 FACT = "confirmed_fact"
@@ -768,8 +768,44 @@ def _weekly_team_update(conn, payload):
         "body_markdown": upd["markdown"], "status": "draft",
         "generated_at": upd["stamp"]["generated_at"],
         "data_current_through": upd["stamp"]["data_current_through"],
-        "audience": "internal", "source_job_id": payload.get("_job_id"),
+        "audience": "internal", "audience_profile": "working",
+        "source_job_id": payload.get("_job_id"),
     }, object_type="generated_document")
+    # A scheduled draft is still an auditable output. Snapshot every row the renderer
+    # selected so a later reader can distinguish the original evidence from live data.
+    source_groups = (
+        ("new_interactions", "interaction"), ("new_commitments", "commitment"),
+        ("open_blockers", None), ("overdue_commitments", "commitment"),
+        ("at_risk_milestones", "milestone"), ("decisions", "decision"),
+        ("what_i_need", "internal_ask"),
+    )
+    with conn:
+        for section in upd["sections"]:
+            account = repo.get_row(conn, "accounts", section["account_id"])
+            conn.execute(
+                "INSERT INTO generated_document_sources(id,document_id,record_type,record_id,record_version,inclusion_reason,visibility_class,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (new_id(), doc["id"], "account", account["id"], account["updated_at"],
+                 "weekly account section", "internal", now_utc()),
+            )
+            seen = set()
+            for key, fixed_type in source_groups:
+                for row in section[key]:
+                    record_type = fixed_type or row["kind"]
+                    identity = (record_type, row["id"])
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    conn.execute(
+                        "INSERT INTO generated_document_sources(id,document_id,record_type,record_id,record_version,inclusion_reason,visibility_class,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                        (new_id(), doc["id"], record_type, row["id"], row.get("updated_at"),
+                         key.replace("_", " "), "internal", now_utc()),
+                    )
+            for row in section["what_moved"]["forecast_changes"]:
+                conn.execute(
+                    "INSERT INTO generated_document_sources(id,document_id,record_type,record_id,record_version,inclusion_reason,visibility_class,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (new_id(), doc["id"], "forecast_change_event", row["id"], row["changed_at"],
+                     "forecast movement", "internal", now_utc()),
+                )
     if payload.get("recurring"):
         from datetime import datetime, timedelta, timezone
         next_run = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(timespec="seconds")

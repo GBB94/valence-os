@@ -314,6 +314,17 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
             except ValueError:
                 stale = True
         fresh.append({"metric": d["name"], "current_through": obs, "stale": stale})
+    internal_tables = ("forecast_entries", "forecast_change_events", "internal_asks",
+                       "escalation_instances", "account_reviews", "account_status_assessments",
+                       "account_internal_roster", "product_feedback_items",
+                       "product_feedback_occurrences", "generated_document_sources")
+    internal_counts = []
+    for table in internal_tables:
+        try:
+            count = conn.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()["n"]
+        except sqlite3.OperationalError:
+            count = None
+        internal_counts.append({"record_type": table, "count": count})
     return {
         "as_of": today,
         "job_worker": "in-process queue; background polling is env-gated, API sync drains synchronously",
@@ -321,6 +332,7 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
         "failed_or_rolled_back": sum(1 for b in batches if b["status"] == "rolled_back"),
         "audit_events": audit_count,
         "source_freshness": fresh,
+        "internal_record_counts": internal_counts,
         "mock_adapters": [
             {"name": "calendar", "mode": "mock", "fixtures": len(adapters.list_calendar_fixtures()),
              "records": conn.execute("SELECT COUNT(*) n FROM calendar_events WHERE archived=0").fetchone()["n"]},

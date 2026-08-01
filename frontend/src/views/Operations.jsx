@@ -52,6 +52,14 @@ export default function Operations({ reloadKey }) {
         {ops.failed_or_rolled_back > 0 && <div className="rowmeta" style={{ padding: "8px 12px", color: "var(--status-risk)" }}>{ops.failed_or_rolled_back} rolled-back batch(es).</div>}
       </div>
 
+      <h2>Internal operating records</h2>
+      <div className="card">
+        <table><thead><tr><th>Record type</th><th style={{ width: 120 }}>Rows</th></tr></thead>
+          <tbody>{(ops.internal_record_counts || []).map((r) => <tr key={r.record_type}>
+            <td>{r.record_type.replaceAll("_", " ")}</td><td>{r.count ?? "migration missing"}</td>
+          </tr>)}</tbody></table>
+      </div>
+
       <h2>Connection registry</h2>
       <div className="card">
         <table><thead><tr><th scope="col">Boundary</th><th scope="col">Current mode</th><th scope="col">Gate</th><th scope="col">Mock fixtures</th></tr></thead>

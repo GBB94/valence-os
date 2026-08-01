@@ -10,8 +10,8 @@ router = APIRouter(prefix="/api", tags=["library"])
 # Tables that cite a source reference, with how to derive the citing record's account + label.
 _CITERS = [
     ("interaction", "SELECT id, source_reference_id, account_id, COALESCE(summary,'(interaction)') label FROM interactions WHERE archived=0 AND source_reference_id IS NOT NULL"),
-    ("commitment", "SELECT c.id, c.source_reference_id, p.account_id, c.description label FROM commitments c JOIN programs p ON p.id=c.program_id WHERE c.archived=0 AND c.source_reference_id IS NOT NULL"),
-    ("decision", "SELECT d.id, d.source_reference_id, p.account_id, d.description label FROM decisions d JOIN programs p ON p.id=d.program_id WHERE d.archived=0 AND d.source_reference_id IS NOT NULL"),
+    ("commitment", "SELECT c.id, c.source_reference_id, c.account_id, c.description label FROM commitments c WHERE c.archived=0 AND c.source_reference_id IS NOT NULL"),
+    ("decision", "SELECT d.id, d.source_reference_id, d.account_id, d.description label FROM decisions d WHERE d.archived=0 AND d.source_reference_id IS NOT NULL"),
     ("task", "SELECT t.id, t.source_reference_id, p.account_id, t.description label FROM tasks t JOIN programs p ON p.id=t.program_id WHERE t.archived=0 AND t.source_reference_id IS NOT NULL"),
     ("risk", "SELECT r.id, r.source_reference_id, p.account_id, r.description label FROM risks r JOIN programs p ON p.id=r.program_id WHERE r.archived=0 AND r.source_reference_id IS NOT NULL"),
     ("issue", "SELECT i.id, i.source_reference_id, p.account_id, i.description label FROM issues i JOIN programs p ON p.id=i.program_id WHERE i.archived=0 AND i.source_reference_id IS NOT NULL"),
@@ -46,6 +46,25 @@ _CITERS = [
                               "FROM operational_agreements WHERE archived=0 AND source_reference_id IS NOT NULL"),
     ("growth_plan_line", "SELECT id,source_reference_id,account_id,name label FROM growth_plan_lines "
                          "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("forecast_entry_source", "SELECT s.id,s.source_reference_id,e.account_id,"
+                              "COALESCE(o.name,c.version_label,'Forecast evidence') label "
+                              "FROM forecast_entry_sources s JOIN forecast_entries e ON e.id=s.entry_id "
+                              "LEFT JOIN expansion_opportunities o ON o.id=e.opportunity_id "
+                              "LEFT JOIN contract_versions c ON c.id=e.contract_version_id "
+                              "WHERE s.source_reference_id IS NOT NULL AND e.archived=0"),
+    ("forecast_change", "SELECT ce.id,ce.source_reference_id,fe.account_id,ce.driver label "
+                        "FROM forecast_change_events ce JOIN forecast_entries fe ON fe.id=ce.entry_id "
+                        "WHERE ce.source_reference_id IS NOT NULL AND fe.archived=0"),
+    ("renewal_outcome", "SELECT id,source_reference_id,account_id,"
+                        "'Renewal outcome — '||outcome label FROM renewal_outcome_events "
+                        "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("internal_ask", "SELECT id,source_reference_id,account_id,need label FROM internal_asks "
+                     "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("internal_ask_result", "SELECT id,result_source_reference_id source_reference_id,account_id,need label "
+                            "FROM internal_asks WHERE archived=0 AND result_source_reference_id IS NOT NULL"),
+    ("product_feedback_occurrence", "SELECT o.id,o.source_reference_id,o.account_id,i.title label "
+                                    "FROM product_feedback_occurrences o JOIN product_feedback_items i ON i.id=o.feedback_item_id "
+                                    "WHERE o.archived=0 AND o.source_reference_id IS NOT NULL"),
 ]
 
 

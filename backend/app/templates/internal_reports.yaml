@@ -1,0 +1,22 @@
+templates:
+  - id: report-forecast-submission-v1
+    kind: forecast_submission
+    name: Forecast submission
+    audience_profile: leadership
+    effective_on: 2026-07-31
+    author: operator
+    headings: [Movement, Totals, Unsupported calls, Leadership help needed]
+  - id: report-monthly-portfolio-v1
+    kind: monthly_portfolio_brief
+    name: Monthly portfolio brief
+    audience_profile: leadership
+    effective_on: 2026-07-31
+    author: operator
+    headings: [Forecast, Account status, Top risks, What leadership can unblock]
+  - id: report-account-brief-v1
+    kind: internal_account_brief
+    name: Internal account brief
+    audience_profile: working
+    effective_on: 2026-07-31
+    author: operator
+    headings: [Status, Operator point of view, Top risks, Forecast, Internal asks]

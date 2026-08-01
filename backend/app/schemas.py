@@ -171,7 +171,10 @@ class TaskCreate(BaseModel):
 
 
 class CommitmentCreate(BaseModel):
-    program_id: str
+    account_id: Optional[str] = None
+    program_id: Optional[str] = None
+    account_review_id: Optional[str] = None
+    commitment_class: Literal["client", "leadership_to_operator", "operator_to_internal", "internal_peer"] = "client"
     description: str = Field(min_length=1)
     responsible_party_id: str            # required — who performs it
     internal_owner_id: str               # required — Valence follow-up owner
@@ -179,9 +182,17 @@ class CommitmentCreate(BaseModel):
     source_interaction_id: Optional[str] = None
     source_reference_id: Optional[str] = None
 
+    @model_validator(mode="after")
+    def commitment_context(self):
+        if not self.account_id and not self.program_id:
+            raise ValueError("account_id or program_id is required")
+        return self
+
 
 class DecisionCreate(BaseModel):
-    program_id: str
+    account_id: Optional[str] = None
+    program_id: Optional[str] = None
+    account_review_id: Optional[str] = None
     description: str = Field(min_length=1)
     decided_on: Optional[str] = None
     decided_by_id: Optional[str] = None
@@ -189,6 +200,12 @@ class DecisionCreate(BaseModel):
     supersedes_id: Optional[str] = None
     source_interaction_id: Optional[str] = None
     source_reference_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def decision_context(self):
+        if not self.account_id and not self.program_id:
+            raise ValueError("account_id or program_id is required")
+        return self
 
 
 class RiskCreate(BaseModel):
@@ -948,8 +965,10 @@ class RevenueEventCreate(BaseModel):
     kind: RevenueEventKind
     effective_on: str
     contract_version_id: Optional[str] = None
+    opportunity_id: Optional[str] = None
     amount: Optional[float] = None
     currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
     seats_delta: Optional[int] = None
     reason: Optional[str] = None
     source_reference_id: Optional[str] = None
@@ -1088,3 +1107,288 @@ class PlaybookMessagePromotion(BaseModel):
     proof_points: Optional[str] = None
     objections: Optional[str] = None
     artifacts_note: Optional[str] = None
+
+
+# --- Internal operating layer -------------------------------------------------
+
+class ForecastPeriodCreate(BaseModel):
+    name: str = Field(min_length=1)
+    starts_on: str
+    ends_on: str
+    cadence: Literal["weekly", "monthly", "quarterly", "annual", "custom"]
+    scenario_type: str = "operating"
+    timezone: str = "America/New_York"
+
+
+class ForecastEntryCreate(BaseModel):
+    account_id: str
+    opportunity_id: Optional[str] = None
+    contract_version_id: Optional[str] = None
+    category: Literal["commit", "best_case", "pipeline", "omitted"] = "pipeline"
+    amount: Optional[float] = Field(default=None, ge=0)
+    currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
+    probability: Optional[float] = Field(default=None, ge=0, le=1)
+    probability_rationale: Optional[str] = None
+    amount_rationale: Optional[str] = None
+    assessed_on: str
+    expected_decision_date: Optional[str] = None
+    help_needed_note: Optional[str] = None
+    renewal_budget_owner_person_id: Optional[str] = None
+    renewal_position: Optional[Literal["confirmed_intent", "commercial_review", "procurement_in_progress", "unknown"]] = None
+    unresolved_conditions: Optional[str] = None
+    omitted_reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def one_target_and_units(self):
+        if bool(self.opportunity_id) == bool(self.contract_version_id):
+            raise ValueError("exactly one forecast target is required")
+        if self.currency and (len(self.currency) != 3 or self.currency != self.currency.upper()):
+            raise ValueError("currency must be a three-letter uppercase code")
+        if self.probability is not None and not self.probability_rationale:
+            raise ValueError("probability_rationale is required with probability")
+        return self
+
+
+class ForecastEntryPatch(BaseModel):
+    amount: Optional[float] = Field(default=None, ge=0)
+    currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
+    probability: Optional[float] = Field(default=None, ge=0, le=1)
+    probability_rationale: Optional[str] = None
+    amount_rationale: Optional[str] = None
+    assessed_on: Optional[str] = None
+    expected_decision_date: Optional[str] = None
+    help_needed_note: Optional[str] = None
+    renewal_budget_owner_person_id: Optional[str] = None
+    renewal_position: Optional[Literal["confirmed_intent", "commercial_review", "procurement_in_progress", "unknown"]] = None
+    unresolved_conditions: Optional[str] = None
+
+
+class ForecastCategoryChange(BaseModel):
+    category: Literal["commit", "best_case", "pipeline", "omitted"]
+    driver: str = Field(min_length=1)
+    omitted_reason: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    corrects_event_id: Optional[str] = None
+
+
+class ForecastSourceCreate(BaseModel):
+    interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    growth_plan_line_id: Optional[str] = None
+    revenue_event_id: Optional[str] = None
+    ask_calendar_id: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def one_source(self):
+        if sum(bool(x) for x in (self.interaction_id, self.source_reference_id,
+                                 self.growth_plan_line_id, self.revenue_event_id,
+                                 self.ask_calendar_id)) != 1:
+            raise ValueError("exactly one typed source is required")
+        return self
+
+
+class RenewalOutcomeCreate(BaseModel):
+    account_id: str
+    contract_version_id: str
+    outcome: Literal["renewed", "churned", "deferred", "unresolved"]
+    occurred_on: str
+    actual_amount: Optional[float] = Field(default=None, ge=0)
+    currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
+    source_reference_id: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ReportRedOriginExclusionCreate(BaseModel):
+    report_kind: Literal["monthly_portfolio_brief"] = "monthly_portfolio_brief"
+    origin_type: Literal["risk", "issue", "status_assessment", "escalation", "internal_ask", "attention_item"]
+    origin_id: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    expires_on: str
+
+
+class InternalAskCreate(BaseModel):
+    need: str = Field(min_length=1)
+    success_condition: str = Field(min_length=1)
+    ask_type: Literal["general", "data_request", "product", "legal", "deal_desk", "executive", "pricing"] = "general"
+    requested_by_person_id: str
+    requested_from_person_id: Optional[str] = None
+    requested_from_function_id: Optional[str] = None
+    current_owner_person_id: Optional[str] = None
+    needed_by: str
+    opportunity_id: Optional[str] = None
+    forecast_entry_id: Optional[str] = None
+    account_review_id: Optional[str] = None
+    generated_document_id: Optional[str] = None
+    feedback_occurrence_id: Optional[str] = None
+    revenue_amount: Optional[float] = Field(default=None, ge=0)
+    currency: Optional[str] = None
+    price_basis: Optional[PriceBasis] = None
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    metric_definition: Optional[str] = None
+    population_context: Optional[str] = None
+    requested_cohort_or_period: Optional[str] = None
+    requested_current_through: Optional[str] = None
+    expected_delivery_format: Optional[str] = None
+
+    @model_validator(mode="after")
+    def requested_from_target(self):
+        if not self.requested_from_person_id and not self.requested_from_function_id:
+            raise ValueError("a requested-from person or function is required")
+        return self
+
+
+class InternalAskStatus(BaseModel):
+    status: Literal["acknowledged", "in_progress", "delivered", "declined", "raised"]
+    reason: Optional[str] = None
+    delivered_on: Optional[str] = None
+    completion_note: Optional[str] = None
+    result_source_reference_id: Optional[str] = None
+
+
+class EscalationCreate(BaseModel):
+    severity: Literal["low", "medium", "high", "critical"]
+    default_id: Optional[str] = None
+
+
+class EscalationEventCreate(BaseModel):
+    event_type: Literal["raised", "response", "advanced", "resolved", "note"]
+    destination_person_id: Optional[str] = None
+    destination_function_id: Optional[str] = None
+    threshold_reason: Optional[str] = None
+    response: Optional[str] = None
+
+
+class EscalationDefaultPatch(BaseModel):
+    path_type: Optional[Literal["functional", "hierarchical"]] = None
+    threshold_business_hours: Optional[int] = Field(default=None, ge=0)
+    destination_function_id: Optional[str] = None
+    destination_role: Optional[str] = None
+    expected_response_hours: Optional[int] = Field(default=None, gt=0)
+    next_step: Optional[str] = None
+
+
+class InternalSettingsPatch(BaseModel):
+    operator_identity: Optional[str] = Field(default=None, min_length=1)
+    business_timezone: Optional[str] = None
+    business_day_start_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    business_day_end_hour: Optional[int] = Field(default=None, ge=1, le=24)
+    working_weekdays_json: Optional[str] = None
+
+    @field_validator("business_timezone")
+    @classmethod
+    def internal_timezone_exists(cls, value):
+        if value:
+            try:
+                ZoneInfo(value)
+            except ZoneInfoNotFoundError as exc:
+                raise ValueError("unknown IANA timezone") from exc
+        return value
+
+    @field_validator("working_weekdays_json")
+    @classmethod
+    def weekdays_are_iso_numbers(cls, value):
+        if value is not None:
+            import json
+            try:
+                days = json.loads(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("working_weekdays_json must be a JSON array") from exc
+            if not isinstance(days, list) or not days or any(not isinstance(x, int) or x < 1 or x > 7 for x in days):
+                raise ValueError("working weekdays must be ISO weekday numbers 1 through 7")
+        return value
+
+
+class AccountReviewCreate(BaseModel):
+    review_type: Literal["weekly", "monthly", "quarterly", "ad_hoc"] = "quarterly"
+    scheduled_on: Optional[str] = None
+    chair_person_id: Optional[str] = None
+    participant_ids: list[str] = Field(default_factory=list)
+
+
+class AccountReviewHold(BaseModel):
+    held_on: str
+    source_interaction_id: str
+
+
+class OperatorViewCreate(BaseModel):
+    body: str = Field(min_length=1)
+    assessed_on: str
+
+
+class StatusAssessmentCreate(BaseModel):
+    dimension: Literal["delivery", "commercial"]
+    value: Literal["on_track", "at_risk", "off_track", "unknown"]
+    rationale: Optional[str] = None
+    criteria_version_id: Optional[str] = None
+    recovery_owner_person_id: Optional[str] = None
+    recovery_action: Optional[str] = None
+    recovery_due_on: Optional[str] = None
+    leadership_ask_id: Optional[str] = None
+    leadership_not_applicable_reason: Optional[str] = None
+    assessed_on: str
+
+
+class StatusCriteriaCreate(BaseModel):
+    account_id: Optional[str] = None
+    dimension: Literal["delivery", "commercial"]
+    green_criteria: str = Field(min_length=1)
+    amber_criteria: str = Field(min_length=1)
+    red_criteria: str = Field(min_length=1)
+    unknown_criteria: str = Field(min_length=1)
+    effective_on: str
+    source_note: Optional[str] = None
+
+
+class RosterCreate(BaseModel):
+    person_id: str
+    role: Literal["account_lead", "supporting_em", "advisor", "executive_sponsor", "data_partner", "product_partner", "legal_partner", "support_partner", "other"]
+    standing_responsibilities: str = Field(min_length=1)
+    coverage_type: Literal["primary", "backup"] = "primary"
+    active_from: str
+    active_through: Optional[str] = None
+    expected_touch_cadence_days: Optional[int] = Field(default=None, gt=0)
+    briefing_scope: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class FeedbackItemCreate(BaseModel):
+    title: str = Field(min_length=1)
+    problem_statement: str = Field(min_length=1)
+    feedback_type: Literal["feature", "workflow", "integration", "localization", "reporting", "other"] = "feature"
+    owner_function_id: Optional[str] = None
+    owner_person_id: Optional[str] = None
+
+
+class FeedbackOccurrenceCreate(BaseModel):
+    account_id: str
+    stakeholder_person_id: str
+    source_interaction_id: Optional[str] = None
+    source_reference_id: Optional[str] = None
+    source_span: Optional[str] = None
+    forecast_entry_id: Optional[str] = None
+    growth_plan_line_id: Optional[str] = None
+    workaround: Optional[str] = None
+    impact: Optional[str] = None
+    captured_on: str
+
+
+class FeedbackStatus(BaseModel):
+    status: Literal["logged", "submitted", "roadmapped", "shipped", "declined"]
+    reason: str = Field(min_length=1)
+    product_reference: Optional[str] = None
+
+
+class FeedbackTouchCreate(BaseModel):
+    touch_type: Literal["acknowledgment", "resolution"]
+    interaction_id: str
+
+
+class FeedbackOccurrenceMove(BaseModel):
+    feedback_item_id: str
+    reason: str = Field(min_length=1)

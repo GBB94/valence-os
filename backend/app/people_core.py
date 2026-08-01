@@ -120,7 +120,7 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
     commitments = [dict(x) for x in conn.execute(
         "SELECT c.id, c.program_id, pr.name program_name, c.description, c.due_date, c.status, "
         "CASE WHEN c.responsible_party_id=? THEN 'theirs' ELSE 'ours' END direction "
-        "FROM commitments c JOIN programs pr ON pr.id=c.program_id "
+        "FROM commitments c LEFT JOIN programs pr ON pr.id=c.program_id "
         "WHERE c.archived=0 AND c.status='open' "
         "AND (c.responsible_party_id=? OR c.acknowledged_by_id=?)",
         (person_id, person_id, person_id)).fetchall()]

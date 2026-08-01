@@ -24,16 +24,16 @@ _SOURCES = [
     ("interaction", "SELECT id, account_id, program_id, COALESCE(summary,'(interaction)') AS title, "
                     "COALESCE(summary,'')||' '||COALESCE(raw_notes,'')||' '||COALESCE(follow_up,'') AS body "
                     "FROM interactions WHERE archived=0"),
-    ("commitment", "SELECT c.id, p.account_id, c.program_id, c.description AS title, c.description AS body "
-                   "FROM commitments c JOIN programs p ON p.id=c.program_id WHERE c.archived=0"),
+    ("commitment", "SELECT c.id, c.account_id, c.program_id, c.description AS title, c.description AS body "
+                   "FROM commitments c WHERE c.archived=0"),
     ("risk", "SELECT r.id, p.account_id, r.program_id, r.description AS title, "
              "COALESCE(r.description,'')||' '||COALESCE(r.mitigation,'') AS body "
              "FROM risks r JOIN programs p ON p.id=r.program_id WHERE r.archived=0"),
     ("issue", "SELECT i.id, p.account_id, i.program_id, i.description AS title, i.description AS body "
               "FROM issues i JOIN programs p ON p.id=i.program_id WHERE i.archived=0"),
-    ("decision", "SELECT d.id, p.account_id, d.program_id, d.description AS title, "
+    ("decision", "SELECT d.id, d.account_id, d.program_id, d.description AS title, "
                  "COALESCE(d.description,'')||' '||COALESCE(d.rationale,'') AS body "
-                 "FROM decisions d JOIN programs p ON p.id=d.program_id WHERE d.archived=0"),
+                 "FROM decisions d WHERE d.archived=0"),
     ("task", "SELECT t.id, p.account_id, t.program_id, t.description AS title, t.description AS body "
              "FROM tasks t JOIN programs p ON p.id=t.program_id WHERE t.archived=0"),
     ("milestone", "SELECT m.id, p.account_id, m.program_id, m.name AS title, "
@@ -102,6 +102,36 @@ _SOURCES = [
                        "COALESCE(pe.message_summary,'')||' '||COALESCE(pe.what_worked,'')||' '||"
                        "COALESCE(pe.what_differently,'') AS body FROM playbook_entries pe "
                        "JOIN use_cases uc ON uc.id=pe.use_case_id WHERE pe.archived=0"),
+    ("internal_ask", "SELECT id,account_id,NULL,need AS title,COALESCE(need,'')||' '||COALESCE(success_condition,'') AS body FROM internal_asks WHERE archived=0"),
+    ("product_feedback", "SELECT i.id,NULL,NULL,i.title,COALESCE(i.title,'')||' '||COALESCE(i.problem_statement,'') AS body FROM product_feedback_items i WHERE i.archived=0"),
+    # --- Stage 10 internal operating layer -----------------------------------------------
+    ("forecast_entry", "SELECT fe.id,fe.account_id,NULL,"
+                       "COALESCE(o.name,c.version_label,'Forecast call') AS title,"
+                       "fe.category||' '||COALESCE(fe.amount_rationale,'')||' '||"
+                       "COALESCE(fe.probability_rationale,'')||' '||COALESCE(fe.unresolved_conditions,'')||' '||"
+                       "COALESCE(fe.help_needed_note,'') AS body FROM forecast_entries fe "
+                       "LEFT JOIN expansion_opportunities o ON o.id=fe.opportunity_id "
+                       "LEFT JOIN contract_versions c ON c.id=fe.contract_version_id WHERE fe.archived=0"),
+    ("account_review", "SELECT id,account_id,NULL,review_type||' review' AS title,"
+                       "review_type||' '||status||' '||COALESCE(scheduled_on,'')||' '||COALESCE(held_on,'') AS body "
+                       "FROM account_reviews WHERE archived=0"),
+    ("operator_view", "SELECT id,account_id,NULL,'Operator point of view' AS title,body "
+                      "FROM operator_views WHERE archived=0"),
+    ("status_assessment", "SELECT id,account_id,NULL,dimension||' — '||value AS title,"
+                          "COALESCE(rationale,'')||' '||COALESCE(recovery_action,'')||' '||"
+                          "COALESCE(leadership_not_applicable_reason,'') AS body "
+                          "FROM account_status_assessments WHERE archived=0"),
+    ("internal_roster", "SELECT r.id,r.account_id,NULL,p.name||' — '||r.role AS title,"
+                        "p.name||' '||r.role||' '||r.standing_responsibilities||' '||COALESCE(r.briefing_scope,'') AS body "
+                        "FROM account_internal_roster r JOIN persons p ON p.id=r.person_id WHERE r.archived=0"),
+    ("product_feedback_occurrence", "SELECT o.id,o.account_id,NULL,i.title AS title,"
+                                    "i.title||' '||COALESCE(o.source_span,'')||' '||COALESCE(o.workaround,'')||' '||COALESCE(o.impact,'') AS body "
+                                    "FROM product_feedback_occurrences o JOIN product_feedback_items i ON i.id=o.feedback_item_id WHERE o.archived=0"),
+    ("escalation", "SELECT e.id,a.account_id,NULL,'Escalation — '||a.need AS title,"
+                   "a.need||' '||e.severity||' '||e.path_type||' '||e.next_step||' '||COALESCE(e.resolution,'') AS body "
+                   "FROM escalation_instances e JOIN internal_asks a ON a.id=e.ask_id WHERE e.archived=0"),
+    ("generated_document", "SELECT id,account_id,program_id,title,COALESCE(title,'')||' '||COALESCE(body_markdown,'') AS body "
+                           "FROM generated_documents WHERE status<>'discarded'"),
 ]
 
 

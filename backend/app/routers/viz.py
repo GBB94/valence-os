@@ -133,8 +133,8 @@ def stakeholder_coverage(account_id: str, conn: sqlite3.Connection = Depends(get
         for c in ("sponsor_person_id", "budget_owner_person_id"):
             if x.get(c): owners.add(x[c])
     for c in conn.execute(
-        "SELECT DISTINCT internal_owner_id FROM commitments cm JOIN programs p ON p.id=cm.program_id "
-        "WHERE p.account_id=? AND cm.internal_owner_id IS NOT NULL", (account_id,)):
+        "SELECT DISTINCT internal_owner_id FROM commitments cm "
+        "WHERE cm.account_id=? AND cm.internal_owner_id IS NOT NULL", (account_id,)):
         owners.add(c["internal_owner_id"])
 
     # §3 — unidentified critical positions count as exposure, not as active relationships.

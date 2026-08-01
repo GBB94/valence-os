@@ -758,6 +758,10 @@ def create_revenue_event(b: RevenueEventCreate, conn: sqlite3.Connection = Depen
         contract = repo.get_row(conn, "contract_versions", b.contract_version_id)
         if contract["account_id"] != b.account_id:
             raise HTTPException(422, "contract belongs to a different account")
+    if b.opportunity_id:
+        opportunity = repo.get_row(conn, "expansion_opportunities", b.opportunity_id)
+        if opportunity["account_id"] != b.account_id:
+            raise HTTPException(422, "opportunity belongs to a different account")
     _require_source(conn, b.source_reference_id)
     if b.kind == "expansion" and b.amount is not None and b.amount < 0:
         raise HTTPException(422, "expansion revenue must be positive")

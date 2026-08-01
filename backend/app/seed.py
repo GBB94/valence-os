@@ -58,12 +58,13 @@ COLUMNS = {
         "client_visible",
     },
     "commitments": {
-        "id", "program_id", "description", "responsible_party_id", "internal_owner_id",
+        "id", "account_id", "program_id", "account_review_id", "commitment_class",
+        "description", "responsible_party_id", "internal_owner_id",
         "due_date", "status", "acknowledged_by_id", "closed_on", "closed_by", "close_note",
         "source_interaction_id", "source_reference_id", "client_visible",
     },
     "decisions": {
-        "id", "program_id", "description", "decided_on", "decided_by_id", "rationale",
+        "id", "account_id", "program_id", "account_review_id", "description", "decided_on", "decided_by_id", "rationale",
         "supersedes_id", "status", "source_interaction_id", "source_reference_id",
     },
     "risks": {
@@ -181,6 +182,10 @@ def load_file(conn, path: Path, skipped: dict[str, int]):
     # v0.2 execution objects (tables now exist).
     for key, table in EXEC_SECTIONS.items():
         for rec in data.get(key) or []:
+            if table in ("commitments", "decisions"):
+                rec.setdefault("account_id", acct_id)
+            if table == "commitments":
+                rec.setdefault("commitment_class", "client")
             _insert(conn, table, rec)
     # v1 + v2 + v3 account-scoped objects.
     for key, table in {**V1_ACCOUNT_SECTIONS, **V2_ACCOUNT_SECTIONS, **V3_ACCOUNT_SECTIONS}.items():
@@ -551,6 +556,73 @@ def _seed_stage75_demo(conn):
             (line[0], line[1], line[2], line[3], line[4], line[5], line[7], line[6], line[8], ts, ts))
 
 
+def _seed_internal_ops_demo(conn):
+    """Five-account Stage 10 proof: periods, chain, coverage, and feedback aggregation."""
+    ts = now_utc()
+    # Complete the intentionally small book with two synthetic accounts.
+    for aid, name, pid, person in (
+        ("acc-harbor", "Harborline Manufacturing", "p-harbor-sponsor", "Morgan Hale"),
+        ("acc-summit", "Summit Retail Group", "p-summit-sponsor", "Avery Chen"),
+    ):
+        conn.execute("INSERT OR IGNORE INTO accounts(id,name,created_at,updated_at) VALUES (?,?,?,?)", (aid, name, ts, ts))
+        conn.execute("INSERT OR IGNORE INTO persons(id,name,affiliation,account_id,title,created_at,updated_at) VALUES (?,?, 'client',?,'Executive sponsor',?,?)", (pid, person, aid, ts, ts))
+        conn.execute("INSERT OR IGNORE INTO programs(id,account_id,name,phase,created_at,updated_at) VALUES (?,?,?,'foundation',?,?)", (f"prog-{aid[4:]}", aid, "Enterprise rollout", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO interactions(id,account_id,program_id,occurred_on,type,summary,meaningful_touch,created_at,updated_at) VALUES (?,?,?,?, 'meeting','Internal Ops synthetic review touch',1,?,?)", (f"int-{aid[4:]}", aid, f"prog-{aid[4:]}", "2026-07-25", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO interaction_participants(interaction_id,person_id) VALUES (?,?)", (f"int-{aid[4:]}", pid))
+        conn.execute("INSERT OR IGNORE INTO interaction_participants(interaction_id,person_id) VALUES (?,?)", (f"int-{aid[4:]}", "p-val-operator"))
+
+    # Roster coverage across all five accounts; interaction participation remains touch truth.
+    for aid in ("acc-terravance", "acc-northwind", "acc-bluepeak", "acc-harbor", "acc-summit"):
+        conn.execute("INSERT OR IGNORE INTO account_internal_roster(id,account_id,person_id,role,standing_responsibilities,coverage_type,active_from,expected_touch_cadence_days,created_at,updated_at) VALUES (?,?,?,'account_lead','Own account operating rhythm','primary','2026-07-01',21,?,?)", (f"roster-{aid}-lead", aid, "p-val-operator", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO account_internal_roster(id,account_id,person_id,role,standing_responsibilities,coverage_type,active_from,created_at,updated_at) VALUES (?,?,?,'supporting_em','Provide two-week backup coverage','backup','2026-07-01',?,?)", (f"roster-{aid}-backup", aid, "p-val-cs", ts, ts))
+
+    interaction = conn.execute("SELECT id FROM interactions WHERE account_id='acc-terravance' ORDER BY occurred_on DESC LIMIT 1").fetchone()
+    northwind_interaction = conn.execute("SELECT id FROM interactions WHERE account_id='acc-northwind' ORDER BY occurred_on DESC LIMIT 1").fetchone()
+    if interaction:
+        conn.execute("INSERT OR IGNORE INTO account_reviews(id,account_id,review_type,scheduled_on,held_on,chair_person_id,source_interaction_id,status,created_at,updated_at) VALUES ('review-tv-q3','acc-terravance','quarterly','2026-07-24','2026-07-24','p-val-operator',?,'held',?,?)", (interaction["id"], ts, ts))
+        conn.execute("INSERT OR IGNORE INTO account_review_participants(review_id,person_id,role) VALUES ('review-tv-q3','p-val-operator','chair')")
+        conn.execute("INSERT OR IGNORE INTO operator_views(id,account_id,body,author,assessed_on,created_at,updated_at) VALUES ('pov-tv-1','acc-terravance','Expansion is defensible only if the evidence gap and Data dependency close before the budget window.','operator','2026-07-31',?,?)", (ts, ts))
+        conn.execute("INSERT OR IGNORE INTO commitments(id,account_id,account_review_id,commitment_class,description,responsible_party_id,internal_owner_id,due_date,status,source_interaction_id,client_visible,created_at,updated_at) VALUES ('commit-leadership-tv','acc-terravance','review-tv-q3','leadership_to_operator','Fund the executive sponsor touch','p-val-cs','p-val-operator','2026-07-20','open',?,0,?,?)", (interaction["id"], ts, ts))
+
+    # Two closed periods provide small-sample calibration without manufactured percentages.
+    for period_id, name, start, end in (
+        ("forecast-fy26-q1", "FY26 Q1", "2026-01-01", "2026-03-31"),
+        ("forecast-fy26-q2", "FY26 Q2", "2026-04-01", "2026-06-30"),
+    ):
+        conn.execute("INSERT OR IGNORE INTO forecast_periods(id,name,starts_on,ends_on,cadence,scenario_type,timezone,status,locked_at,locked_by,closed_at,closed_by,created_at,updated_at) VALUES (?,?,?,?,'quarterly','operating','America/New_York','closed',?,'operator',?,'operator',?,?)", (period_id, name, start, end, f"{start}T14:00:00+00:00", f"{end}T21:00:00+00:00", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO forecast_opening_snapshots(id,period_id,locked_at,locked_by,created_at) VALUES (?,?,?,?,?)", (f"snapshot-{period_id}", period_id, f"{start}T14:00:00+00:00", "operator", ts))
+
+    for idx, (period_id, aid, category, amount, won) in enumerate((
+        ("forecast-fy26-q1", "acc-harbor", "commit", 80000, True),
+        ("forecast-fy26-q1", "acc-summit", "best_case", 50000, False),
+        ("forecast-fy26-q2", "acc-harbor", "best_case", 90000, True),
+        ("forecast-fy26-q2", "acc-summit", "commit", 60000, False),
+    ), 1):
+        opp_id, entry_id = f"internal-opp-{idx}", f"forecast-entry-{idx}"
+        outcome = "won" if won else "deferred"
+        conn.execute("INSERT OR IGNORE INTO expansion_opportunities(id,account_id,name,budget_state,status,outcome,outcome_reason,created_at,updated_at) VALUES (?,?,?,'formally_allocated','closed',?,?,?,?)", (opp_id, aid, f"Internal Ops motion {idx}", outcome, "Synthetic calibration outcome", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO forecast_entries(id,period_id,account_id,opportunity_id,category,amount,currency,price_basis,probability,probability_rationale,author,assessed_on,created_at,updated_at) VALUES (?,?,?,?,?,?,'USD','arr',0.6,'Synthetic operator assumption','operator',?,?,?)", (entry_id, period_id, aid, opp_id, category, amount, "2026-01-01" if "q1" in period_id else "2026-04-01", ts, ts))
+        conn.execute("INSERT OR IGNORE INTO forecast_opening_lines(id,snapshot_id,entry_id,account_id,target_type,target_id,category,amount,currency,price_basis,probability,source_manifest_json,created_at) VALUES (?,?,?,?, 'opportunity',?,?,?,'USD','arr',0.6,'[]',?)", (f"opening-line-{idx}", f"snapshot-{period_id}", entry_id, aid, opp_id, category, amount, ts))
+        if won:
+            effective = "2026-03-15" if "q1" in period_id else "2026-06-15"
+            conn.execute("INSERT OR IGNORE INTO revenue_events(id,account_id,opportunity_id,kind,amount,currency,price_basis,effective_on,reason,created_at,updated_at) VALUES (?,?,?,'expansion',?,'USD','arr',?,'Synthetic dated actual',?,?)", (f"rev-internal-{idx}", aid, opp_id, amount, effective, ts, ts))
+
+    if interaction:
+        conn.execute("INSERT OR IGNORE INTO internal_asks(id,account_id,need,success_condition,ask_type,requested_by_person_id,requested_from_function_id,current_owner_person_id,needed_by,status,source_interaction_id,created_at,updated_at) VALUES ('ask-tv-data','acc-terravance','Produce QBR cohort cut','Attach the sourced cohort table','data_request','p-val-operator','function-data','p-val-data','2026-07-20','in_progress',?,?,?)", (interaction["id"], ts, ts))
+        conn.execute("INSERT OR IGNORE INTO internal_ask_events(id,ask_id,event_type,status_after,reason,actor,occurred_at,created_at) VALUES ('ask-tv-created','ask-tv-data','created','raised','Ask raised','operator','2026-07-15T14:00:00+00:00',?)", (ts,))
+        conn.execute("INSERT OR IGNORE INTO internal_ask_events(id,ask_id,event_type,status_before,status_after,reason,actor,occurred_at,created_at) VALUES ('ask-tv-started','ask-tv-data','started','raised','in_progress','Data acknowledged','operator','2026-07-16T14:00:00+00:00',?)", (ts,))
+        conn.execute("INSERT OR IGNORE INTO escalation_instances(id,ask_id,default_id,severity,path_type,threshold_business_hours,destination_function_id,expected_response_hours,next_step,opened_at,opened_by,status,created_at,updated_at) VALUES ('esc-tv-data','ask-tv-data','esc-data-high','high','functional',8,'function-data',4,'Escalate to Data leadership and restate the blocked deliverable.','2026-07-21T14:00:00+00:00','operator','open',?,?)", (ts, ts))
+        conn.execute("INSERT OR IGNORE INTO escalation_events(id,escalation_id,event_type,destination_function_id,threshold_reason,actor,occurred_at,created_at) VALUES ('esc-tv-raised','esc-tv-data','raised','function-data','Past snapshotted business-time threshold','operator','2026-07-21T14:00:00+00:00',?)", (ts,))
+
+    if interaction and northwind_interaction:
+        tv_person = conn.execute("SELECT id FROM persons WHERE account_id='acc-terravance' ORDER BY created_at LIMIT 1").fetchone()
+        nw_person = conn.execute("SELECT id FROM persons WHERE account_id='acc-northwind' ORDER BY created_at LIMIT 1").fetchone()
+        if tv_person and nw_person:
+            conn.execute("INSERT OR IGNORE INTO product_feedback_items(id,title,problem_statement,feedback_type,owner_function_id,status,status_rationale,created_at,updated_at) VALUES ('feedback-localized-nudges','Localized manager nudges','Managers need nudges in local languages','localization','function-product','roadmapped','Accepted for roadmap',?,?)", (ts, ts))
+            for oid, aid, person_id, iid, span in (("feedback-tv","acc-terravance",tv_person["id"],interaction["id"],"German manager nudges"),("feedback-nw","acc-northwind",nw_person["id"],northwind_interaction["id"],"French manager nudges")):
+                conn.execute("INSERT OR IGNORE INTO product_feedback_occurrences(id,feedback_item_id,account_id,stakeholder_person_id,source_interaction_id,source_span,impact,captured_by,captured_on,created_at,updated_at) VALUES (?,'feedback-localized-nudges',?,?,?,?,?,'operator','2026-07-25',?,?)", (oid, aid, person_id, iid, span, "Adoption risk", ts, ts))
+
+
 def main():
     reset = "--reset" in sys.argv
     if reset:
@@ -593,6 +665,8 @@ def main():
         _seed_stage6_demo(conn)
         # Stage 7.5 — qualification, operational agreement, renewal, and growth thesis.
         _seed_stage75_demo(conn)
+        # Stage 10 — five-account internal operating proof.
+        _seed_internal_ops_demo(conn)
         print(f"[seed] messaging library entries: {msg_n}")
 
     counts = {

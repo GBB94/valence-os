@@ -100,9 +100,7 @@ def team_update(conn, *, since: str | None = None) -> dict:
     sections = []
     for a in accounts:
         pids = [pid for pid, p in programs.items() if p["account_id"] == a["id"]]
-        if not pids:
-            continue
-        qmarks = ",".join("?" * len(pids))
+        qmarks = ",".join("?" * len(pids)) or "''"
 
         def rows(table, extra=""):
             return [dict(r) for r in conn.execute(
@@ -111,33 +109,33 @@ def team_update(conn, *, since: str | None = None) -> dict:
 
         # NOTE: interaction SELECT deliberately takes summary only — never raw_notes.
         new_interactions = [
-            {"occurred_on": r["occurred_on"], "type": r["type"], "summary": r["summary"], "program": prog(r["program_id"])}
-            for r in rows("interactions", "ORDER BY occurred_on DESC")
+            {"id": r["id"], "updated_at": r["updated_at"], "occurred_on": r["occurred_on"], "type": r["type"], "summary": r["summary"], "program": prog(r["program_id"])}
+            for r in [dict(x) for x in conn.execute("SELECT * FROM interactions WHERE archived=0 AND account_id=? ORDER BY occurred_on DESC", (a["id"],))]
             if _in_window(r["occurred_on"], since)
         ]
         new_commitments = [
-            {"description": r["description"], "due_date": r["due_date"], "program": prog(r["program_id"]),
+            {"id": r["id"], "updated_at": r["updated_at"], "description": r["description"], "due_date": r["due_date"], "program": prog(r["program_id"]),
              "responsible": r["responsible_party_id"], "owner": r["internal_owner_id"]}
-            for r in rows("commitments") if _in_window(r["created_at"], since)
+            for r in [dict(x) for x in conn.execute("SELECT * FROM commitments WHERE archived=0 AND account_id=?", (a["id"],))] if _in_window(r["created_at"], since)
         ]
         open_blockers = (
-            [{"kind": "risk", "description": r["description"], "program": prog(r["program_id"])}
+            [{"id": r["id"], "updated_at": r["updated_at"], "kind": "risk", "description": r["description"], "program": prog(r["program_id"])}
              for r in rows("risks", "AND status='open' AND is_blocker=1")]
-            + [{"kind": "issue", "description": r["description"], "program": prog(r["program_id"])}
+            + [{"id": r["id"], "updated_at": r["updated_at"], "kind": "issue", "description": r["description"], "program": prog(r["program_id"])}
                for r in rows("issues", "AND status='open' AND is_blocker=1")]
         )
         overdue = [
-            {"description": r["description"], "due_date": r["due_date"], "program": prog(r["program_id"])}
-            for r in rows("commitments", "AND status='open'") if r["due_date"] and r["due_date"] < today
+            {"id": r["id"], "updated_at": r["updated_at"], "description": r["description"], "due_date": r["due_date"], "program": prog(r["program_id"])}
+            for r in [dict(x) for x in conn.execute("SELECT * FROM commitments WHERE archived=0 AND account_id=? AND status='open'", (a["id"],))] if r["due_date"] and r["due_date"] < today
         ]
         at_risk_ms = [
-            {"name": r["name"], "target_date": r["target_date"], "program": prog(r["program_id"])}
+            {"id": r["id"], "updated_at": r["updated_at"], "name": r["name"], "target_date": r["target_date"], "program": prog(r["program_id"])}
             for r in rows("milestones", "AND status='upcoming'")
             if r["at_risk"] or (r["target_date"] and r["target_date"] < today)
         ]
         decisions = [
-            {"description": r["description"], "program": prog(r["program_id"])}
-            for r in rows("decisions") if _in_window(r["created_at"], since)
+            {"id": r["id"], "updated_at": r["updated_at"], "description": r["description"], "program": prog(r["program_id"])}
+            for r in [dict(x) for x in conn.execute("SELECT * FROM decisions WHERE archived=0 AND account_id=?", (a["id"],))] if _in_window(r["created_at"], since)
         ]
         # person names for commitment owners
         names = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
@@ -145,13 +143,27 @@ def team_update(conn, *, since: str | None = None) -> dict:
             c["responsible"] = names.get(c["responsible"], c["responsible"])
             c["owner"] = names.get(c["owner"], c["owner"])
 
-        if any([new_interactions, new_commitments, open_blockers, overdue, at_risk_ms, decisions]):
-            sections.append({
+        open_asks = [dict(r) for r in conn.execute(
+            "SELECT id,need,needed_by,status,ask_type FROM internal_asks WHERE account_id=? AND archived=0 AND status NOT IN ('delivered','declined') ORDER BY needed_by", (a["id"],))]
+        forecast_moves = [dict(r) for r in conn.execute(
+            "SELECT ce.id,ce.entry_id,ce.category_before,ce.category_after,ce.driver,ce.changed_at FROM forecast_change_events ce JOIN forecast_entries fe ON fe.id=ce.entry_id WHERE fe.account_id=? AND ce.changed_at>=? ORDER BY ce.changed_at DESC", (a["id"], since))]
+        if not any([new_interactions, new_commitments, open_blockers, overdue, at_risk_ms,
+                    decisions, open_asks, forecast_moves]):
+            continue
+        sections.append({
                 "account_id": a["id"], "account_name": a["name"],
                 "delivery_status": a["delivery_status"], "commercial_status": a["commercial_status"],
                 "new_interactions": new_interactions, "new_commitments": new_commitments,
                 "open_blockers": open_blockers, "overdue_commitments": overdue,
                 "at_risk_milestones": at_risk_ms, "decisions": decisions,
+                "what_moved": {"forecast_changes": forecast_moves, "interactions": new_interactions,
+                               "commitments_added": new_commitments, "decisions": decisions},
+                "what_is_stuck": {"blockers": open_blockers, "overdue_commitments": overdue,
+                                  "at_risk_milestones": at_risk_ms,
+                                  "overdue_asks": [x for x in open_asks if x["needed_by"] < today]},
+                "what_i_need": open_asks,
+                "next_seven_days": [x for x in open_asks if today <= x["needed_by"] <= (date.fromisoformat(today)+timedelta(days=7)).isoformat()],
+                "no_material_movement": not any([new_interactions,new_commitments,open_blockers,overdue,at_risk_ms,decisions,open_asks,forecast_moves]),
             })
 
     stamp = {"generated_at": now_utc(), "data_current_through": today, "window_since": since, "window_until": today}
@@ -381,10 +393,19 @@ def _render_markdown(stamp, sections) -> str:
                 for it in items:
                     L.append(f"- {fmt(it)}")
                 L.append("")
-        block("New interactions", s["new_interactions"], lambda i: f"{i['occurred_on']} · {i['type']} · {i['program'] or 'account-level'} — {i['summary'] or '(no summary)'}")
-        block("New commitments", s["new_commitments"], lambda c: f"{c['description']} — {c['responsible']} → {c['owner']}, due {c['due_date']} ({c['program']})")
+        L.append("**What moved**")
+        block("Interactions", s["new_interactions"], lambda i: f"{i['occurred_on']} · {i['type']} · {i['program'] or 'account-level'} — {i['summary'] or '(no summary)'}")
+        block("Commitments added", s["new_commitments"], lambda c: f"{c['description']} — {c['responsible']} → {c['owner']}, due {c['due_date']} ({c['program'] or 'account-level'})")
+        block("Decisions", s["decisions"], lambda d: f"{d['description']} ({d['program'] or 'account-level'})")
+        block("Forecast movement", s["what_moved"]["forecast_changes"], lambda f: f"{f['category_before']} → {f['category_after']}: {f['driver']}")
+        L.append("**What is stuck**")
         block("Open blockers", s["open_blockers"], lambda b: f"[{b['kind']}] {b['description']} ({b['program']})")
-        block("Overdue commitments", s["overdue_commitments"], lambda o: f"{o['description']} — was due {o['due_date']} ({o['program']})")
+        block("Overdue commitments", s["overdue_commitments"], lambda o: f"{o['description']} — was due {o['due_date']} ({o['program'] or 'account-level'})")
         block("At-risk milestones", s["at_risk_milestones"], lambda m: f"{m['name']} — target {m['target_date'] or 'unset'} ({m['program']})")
-        block("Decisions", s["decisions"], lambda d: f"{d['description']} ({d['program']})")
+        block("Overdue asks", s["what_is_stuck"]["overdue_asks"], lambda a: f"{a['need']} — needed {a['needed_by']}")
+        block("What I need", s["what_i_need"], lambda a: f"{a['need']} — {a['ask_type']}, needed {a['needed_by']}")
+        block("Next seven days", s["next_seven_days"], lambda a: f"{a['need']} — {a['needed_by']}")
+        if s["no_material_movement"]:
+            L.append("_No material movement; continue monitoring current assumptions._")
+            L.append("")
     return "\n".join(L)

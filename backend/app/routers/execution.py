@@ -84,6 +84,15 @@ def account_execution(account_id: str, conn: sqlite3.Connection = Depends(get_co
     programs = {p["id"]: p for p in repo.list_rows(conn, "programs", where="account_id = ?", params=(account_id,))}
     people = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
     merged = {t: [] for t in ("tasks", "commitments", "decisions", "risks", "issues", "milestones")}
+    direct = ops.account_level_execution(conn, account_id)
+    for table, rows in direct.items():
+        for r in rows:
+            r["program_name"] = None
+            for fk, label in (("internal_owner_id", "internal_owner_name"),
+                              ("responsible_party_id", "responsible_party_name")):
+                if r.get(fk):
+                    r[label] = people.get(r[fk])
+            merged[table].append(r)
     for pid, prog in programs.items():
         for table, rows in ops.program_execution(conn, pid).items():
             for r in rows:

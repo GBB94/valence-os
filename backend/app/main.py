@@ -8,14 +8,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import ingestion, jobs, stage7  # noqa: F401 — imports register job handlers
+from . import ingestion, jobs, stage7, internal_reporting as internal_reporting_service  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
     accounts, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
-    stage9 as stage9_router, viz,
+    stage9 as stage9_router, viz, internal_forecast, internal_asks, internal_reviews,
+    internal_reporting, internal_roster, product_feedback,
 )
 
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     applied = run_migrations(conn)
     if applied:
         print(f"[migrations] applied: {applied}")
+    internal_reporting_service.sync_templates(conn)
     app.state.conn = conn
     worker = jobs.start_worker()  # env-gated (VALENCE_OS_WORKER); None when off
     if worker:
@@ -75,6 +77,12 @@ app.include_router(expansion.router)
 app.include_router(stage7_router.router)
 app.include_router(stage75_router.router)
 app.include_router(stage9_router.router)
+app.include_router(internal_forecast.router)
+app.include_router(internal_asks.router)
+app.include_router(internal_reviews.router)
+app.include_router(internal_reporting.router)
+app.include_router(internal_roster.router)
+app.include_router(product_feedback.router)
 
 
 @app.get("/api/health")

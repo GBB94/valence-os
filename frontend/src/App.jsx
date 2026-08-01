@@ -23,6 +23,7 @@ import CalendarPanel from "./views/CalendarPanel";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
+import Internal from "./views/Internal";
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ function resolveTheme(choice) {
 const WORKSPACE_TABS = [
   ["overview", "Overview"], ["ledger", "Ledger"], ["people", "People"],
   ["plan", "Plan"], ["commercial", "Commercial"], ["evidence", "Evidence"], ["outputs", "Outputs"],
+  ["internal", "Internal"],
 ];
 
 // Short "what is this" help text, keyed by destination or account-tab (topbar ⓘ).
@@ -71,6 +73,7 @@ const INFO = {
   commercial: "Where the money is — expansion opportunities (staged budget), contract versions with your overlay, and the budget waterfall.",
   evidence: "What we can prove and how fresh the proof is: ingested metrics (stale renders unknown), benchmarks, and the value-story library.",
   outputs: "What we hand to someone else — QBR, weekly team update, and the client-facing mutual action plan. Client outputs include only promoted records.",
+  internal: "The operating layer behind the account: forecast calls, internal asks, leadership reviews, and colleague coverage.",
 };
 
 function Shell() {
@@ -169,6 +172,7 @@ function Shell() {
       value_story: "evidence", expansion_opportunity: "commercial", scope_change: "plan",
       whitespace_cell: "commercial", value_target: "commercial", funding_pool: "commercial",
       operational_agreement: "commercial", growth_plan_line: "commercial",
+      internal_ask: "internal", product_feedback: "internal",
       signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
       program: "overview", account: "overview",
     };
@@ -435,6 +439,9 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
         {tab === "outputs" && (
           <OutputsTab accounts={accounts} accountId={accountId} programId={programId}
                       setAcct={setAcct} reloadKey={reloadKey} />
+        )}
+        {tab === "internal" && (
+          <Internal accountId={accountId} reloadKey={reloadKey} onChanged={onSaved} />
         )}
       </div>
     </>
