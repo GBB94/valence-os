@@ -6,7 +6,7 @@ _Written 2026-07-29 for a fresh session with no conversation history and kept cu
 
 Valence OS is an internal, single-editor web app for one Valence Engagement Manager to run a few very deep Fortune-100 accounts end to end. `Valence-OS-Scoping-Doc.md` is the original foundation; the completed Phase 3 and Expansion Engine specs and the additive Stage 10 Internal Ops spec deliberately extend it. `CLAUDE.md` defines the current authority chain and binding trust boundaries.
 
-**Status: Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10.** `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md` govern the completed build. All external connections remain gated and mock-only.
+**Status: Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10.** `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md` govern the completed build. `ADOPTION-CAMPAIGN-SPEC.md` is the accepted **Stage 11** authority and describes the only scope not yet built. All external connections remain gated and mock-only.
 
 **The prior "do not resume building" guidance is retired by the Phase 3 spec.** Building to feature-complete is now the instruction; the evidence gates are gone. What stays binding: the §2 trust boundaries, the design guide, mock-only data, tests green, decisions logged. The single remaining gate is **data governance, not scope** — every external connection is a mock adapter until hosting/data-handling is cleared at Valence (see `CONNECTIONS.md`, and `PHASE-3-SPEC.md §9`). Phase 3 progress and the newly permitted dependencies are logged in `decisions.md` (regime change: D-73).
 
@@ -135,13 +135,14 @@ These are enforced in code and in tests. If you touch nearby code, keep them tru
 3. **Stakeholder assessments carry a date + evidence.** Stance, influence, relationship strength always require an assessed-on date and an evidence note.
 4. **Mock/synthetic data only.** No real client names, people, transcripts, or figures anywhere — including tests, seeds, comments, commit messages.
 5. **No hard-coded benchmarks.** Benchmarks are data: versioned, sourced, with population and period. Stale metric-derived indicators render **unknown**, never carried-forward good state. Metrics are ingested, never recomputed.
-6. **Scope follows the authority chain.** Phase 3 and Expansion Engine work through Stage 9 is complete. Stage 10 follows `INTERNAL-OPS-SPEC.md` in order. New objects or fields outside the three additive specs still require asking Zach first; the `stage-0/field-dictionary.md` fence applies where the specs are silent.
-7. **Stage discipline.** Build one numbered stage at a time; Stage 10 follows `INTERNAL-OPS-SPEC.md`. Each stage lands with tests, both-theme screenshots, a `decisions.md` entry, and a HANDOFF update before the next begins. (The old "do not build absent a new instruction" rule is superseded — the standing instruction is to build to feature-complete in the spec's order.)
+6. **Scope follows the authority chain.** Phase 3 and Expansion Engine work through Stage 9 is complete. Stage 10 follows `INTERNAL-OPS-SPEC.md` in order. Stage 11 follows `ADOPTION-CAMPAIGN-SPEC.md`. New objects or fields outside the additive specs still require asking Zach first; the `stage-0/field-dictionary.md` fence applies where the specs are silent.
+7. **Stage discipline.** Build one numbered stage at a time; Stage 10 followed `INTERNAL-OPS-SPEC.md` and Stage 11 follows `ADOPTION-CAMPAIGN-SPEC.md`. Each stage lands with tests, both-theme screenshots, a `decisions.md` entry, and a HANDOFF update before the next begins. (The old "do not build absent a new instruction" rule is superseded — the standing instruction is to build to feature-complete in the spec's order.)
 
 ## Where to look
 
 - `PHASE-3-SPEC.md` + `EXPANSION-ENGINE-SPEC.md` — completed scope through Stage 9.
 - `INTERNAL-OPS-SPEC.md` — **implemented additive scope authority** for Stages 10.0–10.5.
+- `ADOPTION-CAMPAIGN-SPEC.md` — **accepted additive scope authority** for Stages 11.0–11.2 (D-99). Not yet built. Its §5 measurement contract is the binding, non-obvious part.
 - `Valence-OS-Scoping-Doc.md` — the original source of truth (v3.2); governs where the additive specs are silent.
 - `CLAUDE.md` — standing rules (restates the binding constraints).
 - `decisions.md` — decision log, newest first.

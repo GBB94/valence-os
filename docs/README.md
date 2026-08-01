@@ -8,6 +8,7 @@ The repository root contains only active authority, current handoff, and operati
 - `PHASE-3-SPEC.md` — completed comprehensive scope through the Phase 3 stages.
 - `EXPANSION-ENGINE-SPEC.md` — completed expansion scope through Stage 9.
 - `INTERNAL-OPS-SPEC.md` — additive Stage 10 authority; implemented through migration 0030 and externally adversarially reviewed.
+- `ADOPTION-CAMPAIGN-SPEC.md` — accepted additive Stage 11 authority; adoption campaigns, not yet built.
 - `DESIGN-GUIDE.md` — presentation and information-architecture authority.
 - `Valence-OS-Scoping-Doc.md` — original v3.2 scope where additive specs are silent.
 - `CONNECTIONS.md` — executable external-data governance registry.
