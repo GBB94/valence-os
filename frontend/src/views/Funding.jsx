@@ -102,9 +102,10 @@ export default function Funding({ accountId, reloadKey }) {
                 return (
                   <tr key={p.id}>
                     <th scope="row" style={{ textAlign: "left", fontWeight: 500 }}>
-                      {p.name}
+                      <button className="btn ghost" style={{ padding: 0 }} onClick={() => setPanel({ kind: "pool", current: p })}>{p.name}</button>
                       <div className="rowmeta">
                         {(POOL_KINDS.find((k) => k[0] === p.kind) || [])[1] || p.kind}
+                        {p.client_visible ? " · shared" : " · internal"}
                       </div>
                     </th>
                     <td>{p.owner_name || <span className="rowmeta">unowned</span>}</td>
@@ -191,35 +192,43 @@ export default function Funding({ accountId, reloadKey }) {
         ))}
       </div>
 
-      {panel?.kind === "pool" && <PoolPanel accountId={accountId} onClose={() => setPanel(null)} onSaved={after} />}
+      {panel?.kind === "pool" && <PoolPanel accountId={accountId} current={panel.current} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "fiscal" && <FiscalPanel accountId={accountId} current={fm} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "calendar" && <CalendarPanel accountId={accountId} onClose={() => setPanel(null)} onSaved={after} />}
     </>
   );
 }
 
-function PoolPanel({ accountId, onClose, onSaved }) {
+function PoolPanel({ accountId, current, onClose, onSaved }) {
   const toast = useToast();
   const [people, setPeople] = useState([]);
-  const [f, setF] = useState({ name: "", kind: "central_ld_budget", owner_person_id: "",
-                               status: "potential", amount: "", currency: "EUR" });
+  const [sources, setSources] = useState([]);
+  const [f, setF] = useState({ name: current?.name || "", kind: current?.kind || "central_ld_budget",
+    owner_person_id: current?.owner_person_id || "", status: current?.status || "potential",
+    amount: current?.amount ?? "", currency: current?.currency || "EUR", notes: current?.notes || "",
+    source_reference_id: current?.source_reference_id || "", client_visible: Boolean(current?.client_visible) });
   useEffect(() => {
-    api.account(accountId).then((a) => setPeople(a.people || [])).catch(() => {});
+    Promise.all([api.account(accountId), api.sourceReferences()]).then(([a, refs]) => {
+      setPeople(a.people || []); setSources(refs);
+    }).catch(() => {});
   }, [accountId]);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
   return (
     <SlideOver title="New funding pool" onClose={onClose}>
       <form onSubmit={async (e) => {
         e.preventDefault();
         try {
-          await api.createFundingPool({
+          const body = {
             account_id: accountId, name: f.name, kind: f.kind, status: f.status,
             owner_person_id: f.owner_person_id || null,
             amount: f.amount === "" ? null : Number(f.amount),
             currency: f.currency || null,
-          });
-          toast("Pool added"); onSaved();
+            notes: f.notes || null, source_reference_id: f.source_reference_id || null,
+            client_visible: f.client_visible,
+          };
+          if (current) await api.patchFundingPool(current.id, body); else await api.createFundingPool(body);
+          toast(current ? "Pool updated" : "Pool added"); onSaved();
         } catch (err) { toast(err.message, "err"); }
       }}>
         <label style={lbl}>Name<input value={f.name} onChange={set("name")} required style={sel} /></label>
@@ -245,7 +254,15 @@ function PoolPanel({ accountId, onClose, onSaved }) {
             {POOL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <button className="btn small primary" type="submit" style={{ marginTop: 8 }}>Add pool</button>
+        <label style={lbl}>Notes<textarea value={f.notes} onChange={set("notes")} rows={2} style={sel} /></label>
+        <label style={lbl}>Source<select value={f.source_reference_id} onChange={set("source_reference_id")} style={sel}>
+          <option value="">none</option>{sources.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select></label>
+        <label style={{ ...lbl, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={f.client_visible} onChange={set("client_visible")} />
+          <span>Include in client-facing artifacts (requires a source)</span>
+        </label>
+        <button className="btn small primary" type="submit" style={{ marginTop: 8 }}>{current ? "Save pool" : "Add pool"}</button>
       </form>
     </SlideOver>
   );

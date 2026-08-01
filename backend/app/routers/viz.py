@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import cadence, people_core, repo
+from .. import cadence, expansion, people_core, repo
 from ..deps import get_conn
 from ..schemas import EdgeCreate, GraphAssessment, RecoveredSpendCreate
 
@@ -26,7 +26,18 @@ def create_edge(b: EdgeCreate, conn: sqlite3.Connection = Depends(get_conn)):
 
 @router.post("/recovered-spend", status_code=201)
 def create_recovered(b: RecoveredSpendCreate, conn: sqlite3.Connection = Depends(get_conn)):
-    return repo.insert(conn, "recovered_spend", b.model_dump(), object_type="recovered_spend")
+    repo.get_row(conn, "accounts", b.account_id)
+    values = b.model_dump()
+    if values.get("currency"):
+        values["currency"] = values["currency"].upper()
+        if len(values["currency"]) != 3 or not values["currency"].isalpha():
+            raise HTTPException(422, "currency must be a three-letter ISO 4217 code")
+    else:
+        current = conn.execute(
+            "SELECT currency FROM contract_versions WHERE account_id=? AND is_current=1 "
+            "AND archived=0 ORDER BY created_at DESC LIMIT 1", (b.account_id,)).fetchone()
+        values["currency"] = current["currency"] if current else None
+    return repo.insert(conn, "recovered_spend", values, object_type="recovered_spend")
 
 
 @router.get("/accounts/{account_id}/stakeholder-graph")
@@ -187,8 +198,15 @@ def budget_waterfall(account_id: str, conn: sqlite3.Connection = Depends(get_con
         "SELECT * FROM contract_versions WHERE account_id=? AND is_current=1 AND archived=0 ORDER BY created_at DESC LIMIT 1",
         (account_id,)).fetchone()
     base = (current["price"] or 0) if current else 0
+    currency = current["currency"] if current else None
+    excluded = []
     steps.append({"label": "Current contract", "amount": base, "kind": "start"})
     for r in repo.list_rows(conn, "recovered_spend", where="account_id=?", params=(account_id,)):
+        if not r.get("currency") or (currency and r["currency"] != currency):
+            excluded.append({"id": r["id"], "label": r["label"], "currency": r.get("currency"),
+                             "reason": "currency unknown or differs from the contract"})
+            continue
+        currency = currency or r["currency"]
         steps.append({"label": r["label"], "amount": r["amount"], "kind": "add"})
     for x in repo.list_rows(conn, "expansion_opportunities",
                             where="account_id=? AND status='open' ORDER BY created_at", params=(account_id,)):
@@ -196,7 +214,8 @@ def budget_waterfall(account_id: str, conn: sqlite3.Connection = Depends(get_con
             steps.append({"label": x["name"], "amount": x["expected_value"], "kind": "add"})
     total = base + sum(s["amount"] for s in steps[1:])
     steps.append({"label": "Expansion total", "amount": total, "kind": "total"})
-    return {"account_id": account_id, "steps": steps}
+    return {"account_id": account_id, "currency": currency, "steps": steps,
+            "excluded_mixed_currency": excluded}
 
 
 @router.get("/metric-definitions/{definition_id}/observations")
@@ -205,4 +224,7 @@ def observation_history(definition_id: str, conn: sqlite3.Connection = Depends(g
     rows = repo.list_rows(conn, "metric_observations",
                           where="definition_id=? ORDER BY period_label", params=(definition_id,))
     return {"definition_id": definition_id,
-            "series": [{"period": r["period_label"], "value": r["value"], "target": r["target"]} for r in rows]}
+            "series": [{"period": safe["period_label"], "value": safe["value"],
+                        "target": safe["target"], "suppressed": safe["suppressed"],
+                        "suppression_reason": safe["suppression_reason"]}
+                       for safe in (expansion.suppress_observation(conn, r) for r in rows)]}

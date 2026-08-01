@@ -5,7 +5,7 @@ An internal, **single-editor** web app for running a handful of very deep Fortun
 > **Context / source of truth.** The current scope authority is `PHASE-3-SPEC.md` (the consolidated *Comprehensive Spec*, July 2026), a deliberate override of the earlier frozen-scope regime: build to feature-complete now, in its Part 7 order. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth for anything the Phase 3 spec doesn't address. The standing rules that govern every change are in `CLAUDE.md`; the Stage-0 paper model (entity diagram, field dictionary, state transitions, attention rules, wireframes, acceptance script, mock seed) is in `stage-0/`; and every non-obvious decision is logged newest-first in `decisions.md`. All data in the repo is **mock/synthetic** — no real client names, people, or figures anywhere. **One gate remains: build everything, connect nothing real** — every external touchpoint (email, recordings, calendar, transcription, LLM, notifications, storage, hosting) is a mock adapter until the Valence hosting/data-handling conversation happens.
 
 ## What it is (the one-paragraph tour)
-Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into **commitments** (two owners: who does it + the Valence follow-up owner), **risks**, **issues**, **decisions**, **tasks**, and **milestones**. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** models stakeholders by horizontal **layer** and the full buying-committee role taxonomy (coach-vs-champion enforced by advocacy evidence), with a per-person **cadence engine**, a measured **relationship-health** panel, a **champion development pipeline**, **influence-path** route-planning to people you haven't met, an **executive-alignment** map, a role-based **messaging library**, and **meeting-dynamics** attendance. **Communications ingestion** syncs a mock inbox and mock recordings through a **job table**, associates them to accounts/people, and flags priority emails. **Commercial** tracks expansion opportunities (staged budget) and contract versions (canonical copy + operational overlay). **Metrics** are ingested from the Data team (never recomputed; stale renders as *unknown*); a **value-story library** captures wins *and* negative evidence. Generators produce a weekly **team update**, a client-facing **QBR**, and a **Mutual Action Plan** — all excluding internal-only material *by construction*. Visualizations: a **stakeholder graph** (network / layer-lane / power-interest) and a **budget waterfall**. **AI**: pluggable transcript/email extraction (offline mock, your own local LLM, or the Claude API) proposing structured updates for per-item acceptance, plus a **plays** trigger engine.
+Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into execution records. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** covers layers, buying-committee roles, cadence, relationship health, champion development, influence paths, executive alignment, messaging, and meeting dynamics. Mock communications flow through a job table and shared association engine. **Commercial** adds a reconciled whitespace map, explicit row seat inventory, value targets, funding pools, fiscal timing, and atomic back-scheduled asks to opportunities and contracts. Aggregate cohort **metrics** keep stable segment/view identity; stale evidence renders *unknown*. Generators produce editable, review-gated pre-call briefs, expansion business cases, value reviews/QBRs, champion kits, kickoff decks, and schedulable weekly drafts, with PPTX/PDF export. Client-facing output is promotion- and source-gated by construction; nothing is auto-sent. Visualizations include the stakeholder graph and a currency-safe budget waterfall. **AI** remains pluggable (offline mock, local LLM, or Claude API) and proposes structured updates for per-item acceptance. A recurring **signals engine** turns fresh usage bars, client pull, calendar moments, confirmed org changes, champion coverage, and account growth into explainable episodes; mock calendar, enrichment, and HRIS-shaped adapters exercise the flow without connecting real systems.
 
 ## Stack
 - **Backend:** Python 3.12 · FastAPI · SQLite with **versioned SQL migrations** (raw `sqlite3`, no ORM) · SQLite **FTS5** for global search.
@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (118 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (220 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -46,7 +46,9 @@ Valence-OS-Scoping-Doc.md   the original source of truth (v3.2)
 CLAUDE.md                   standing rules (trust boundaries, data rules, design)
 DESIGN-GUIDE.md             standing design authority (supersedes scoping-doc §6)
 HANDOFF.md                  fresh-session onboarding + current build status
-decisions.md                decision log, newest first (D-01…D-80)
+CONNECTIONS.md              executable real-data gate registry; every boundary is local/mock
+PHASE-3-DEMO.md             assigned-account → delivered-expansion-case walkthrough
+decisions.md                decision log, newest first (D-01…D-91)
 design-audit.md             redesign value inventory + contrast audit
 stage-0/                    paper model + mock seed data (seed-data/*.yaml)
 docs/archive/               superseded point-in-time briefs (history only)
@@ -54,7 +56,7 @@ backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py,
                             jobs.py, onboarding.py, people_core.py, cadence.py, ingestion.py,
                             association.py, people_analytics.py, output_gen.py, queue.py …
-  migrations/               0001…0016 numbered SQL; every schema change is a migration
+  migrations/               0001…0024 numbered SQL; every schema change is a migration
   tests/                    pytest (per-slice/-stage + full acceptance script)
 frontend/src/               React views (one per module/tab) + api.js + tokens.css
 ```
@@ -81,7 +83,7 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 
 Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholder **coverage** sidebar (§5C), metric **sparklines + bullet charts** (§6b), the **Mutual Action Plan** (§5N — client-facing joint plan from items promoted via a ★ on the Execution board), and the **Files & context library** (§5O — link-first, searchable, **tagged** list of source references with the records that cite each).
 
-**Phase 3 — feature-complete build, in progress** (authority: `PHASE-3-SPEC.md`; build order in Part 7). The evidence gates are retired; the one remaining gate is data governance (build everything, connect nothing real). Migrations 0011–0016.
+**Phase 3 — feature-complete build, in progress** (authority: `PHASE-3-SPEC.md`, with the expansion interleave in `EXPANSION-ENGINE-SPEC.md`). The one remaining gate is data governance (build everything, connect nothing real). Migrations 0011–0024.
 
 | Stage | Delivered |
 |---|---|
@@ -91,14 +93,22 @@ Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholde
 | **3 · Cadence + health + coverage** | per-role **cadence engine** (content-carrying suggested touches), measured relationship-**health** panel, coverage/layer-heat/detractor analytics (migration 0014) |
 | **4 · Ingestion + association** | mock email/recording **adapters**, one shared **association engine** (learns from corrections), ingestion via the job table, comms panel + priority flagging (migration 0015) |
 | **5 · Relationship intelligence** | **champion pipeline**, **influence paths**, **exec alignment**, role-based **messaging library**, **meeting dynamics**, + §4.4 extraction targets (placeholder-fill / pull-signal / deployment-moment / value-story) with a keyboard-driven review screen (migration 0016) |
+| **5.5 · Expansion nouns** | reconciled whitespace map with explicit row seat inventory; value-realization ledger with linked cohort evidence; funding/fiscal map/atomic ask calendar; revenue semantics (migrations 0017–0019, hardened in 0021) |
+| **6 · Finished artifacts** | editable/review-gated briefs, business cases, value reviews/QBRs, champion kits and kickoff decks; scheduled weekly drafts; PPTX/PDF render; champion handoff history (migrations 0020–0021) |
+| **7 · Signals, calendar, org change** | recurring condition episodes with clear/re-arm semantics, windows/hysteresis/freshness/cooldowns, remaining plays, client-pull precedence and value pacing; mock `.ics`, enrichment, and headcount adapters; confirmation-only org changes + succession (migration 0022) |
+| **7.5 · Qualification, triggers, renewal, growth** | five explicit opportunity slots; sourced operational agreements with earned-trigger events; derived renewal command center; overlap-safe account growth plan and client-facing mutual twin (migration 0023) |
+| **8 · Connection governance + e2e proof** | complete `CONNECTIONS.md` registry backed by a fail-closed runtime gate and Operations view; reproducible Phase 3 demo plus executable assigned-account → delivered-expansion-case test; cross-stage integration fixes (migration 0024) |
+| **9 · Portfolio analytics + playbook** | count-and-denominator portfolio commercial analytics; explicit cell/funding links for velocity; currency-safe actual/projected revenue movement; deterministic shape matching; human-curated play/message promotion (migration 0025) |
 
-**Remaining Phase 3 stages:** 6 · generators to finished artifacts (real `.pptx`, champion kit, expansion business case, schedulable team update); 7 · new triggers + calendar + org-change detection; 8 · `CONNECTIONS.md` registry + the end-to-end demo. Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) remain gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out. See `HANDOFF.md` for the current handoff.
+**Phase 3 feature-complete build — complete through Stage 9.** Production-mode items remain gated on the open §12 decisions and hosting approval. See `HANDOFF.md` for the current handoff.
 
 ## Trust & correctness rules enforced in code (and tested)
 - **No table or column anywhere for a named individual's product usage** — asserted by a test. Champion/relationship signals are deployment engagement (meetings, comms, advocacy) and derived counts only.
 - **No sensitive personal data on people** — professional observations only; no health/family/politics. Relationship-health signals (reciprocity, attendance) are counts and response-time distributions from our own correspondence, never sentiment inference.
-- Client-facing generators (team update, QBR) include **only** affirmatively-promoted, non-negative records **by construction** — raw notes and stakeholder judgments can't leak.
+- Client-facing artifacts include **only** affirmatively promoted, sourced, non-negative records **by construction**; raw notes, stakeholder judgments, internal whitespace tactics, and unsourced plan items cannot leak. The weekly team update and pre-call brief are explicitly internal.
 - Stakeholder assessments (stance, influence, relationship strength) **require a date + evidence note** (DB CHECK + API guard).
 - Metric-derived indicators past their freshness threshold render as **unknown**, never carried-forward.
+- Cross-account and cross-program references are rejected at the API and reinforced with database triggers where SQLite can express the relationship.
+- Monetary movements enforce sign and ISO-currency semantics; mixed/unknown-currency recovered spend is never summed into a waterfall.
 - **No hard-coded benchmarks** — benchmarks are versioned/sourced data with population + period.
 - Versioned migrations from the first table; append-only audit log on every write; soft-delete throughout.

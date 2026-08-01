@@ -35,29 +35,114 @@ _LINK_TABLES = {"value_story": "value_stories", "metric_observation": "metric_ob
                 "task": "tasks", "milestone": "milestones", "compliance_item": "compliance_items"}
 
 
-def _require_linked(conn: sqlite3.Connection, object_type: str, object_id: str) -> None:
+def _require_program_account(conn: sqlite3.Connection, program_id: str, account_id: str) -> dict:
+    program = repo.get_row(conn, "programs", program_id)
+    if program["account_id"] != account_id:
+        raise HTTPException(422, f"program {program_id} belongs to a different account")
+    return program
+
+
+def _require_person_account(conn: sqlite3.Connection, person_id: str | None, account_id: str) -> None:
+    if not person_id:
+        return
+    person = repo.get_row(conn, "persons", person_id)
+    if person.get("account_id") != account_id:
+        raise HTTPException(422, f"person {person_id} belongs to a different account")
+
+
+def _require_source(conn: sqlite3.Connection, source_id: str | None) -> None:
+    if source_id:
+        repo.get_row(conn, "source_references", source_id)
+
+
+def _currency(value: str | None, field: str = "currency") -> str | None:
+    if value is None:
+        return None
+    normalized = value.upper()
+    if len(normalized) != 3 or not normalized.isalpha():
+        raise HTTPException(422, f"{field} must be a three-letter ISO 4217 code")
+    return normalized
+
+
+def _require_linked(conn: sqlite3.Connection, object_type: str, object_id: str,
+                    account_id: str | None = None) -> None:
     table = _LINK_TABLES[object_type]
-    if not conn.execute(f"SELECT 1 FROM {table} WHERE id=?", (object_id,)).fetchone():
+    row = conn.execute(f"SELECT * FROM {table} WHERE id=?", (object_id,)).fetchone()
+    if not row:
         raise HTTPException(422, f"no {object_type} with id {object_id}")
+    if account_id:
+        row = dict(row)
+        linked_account = row.get("account_id")
+        if linked_account is None and row.get("program_id"):
+            program = conn.execute("SELECT account_id FROM programs WHERE id=?",
+                                   (row["program_id"],)).fetchone()
+            linked_account = program["account_id"] if program else None
+        if linked_account is None and object_type == "metric_observation":
+            population_table = ("population_segments" if row.get("population_segment_id")
+                                else "population_views" if row.get("population_view_id") else None)
+            population_id = row.get("population_segment_id") or row.get("population_view_id")
+            if population_table:
+                population = conn.execute(
+                    f"SELECT account_id FROM {population_table} WHERE id=?", (population_id,)).fetchone()
+                linked_account = population["account_id"] if population else None
+        if linked_account != account_id:
+            raise HTTPException(422, f"{object_type} {object_id} belongs to a different account")
+
+
+def _auto_link_target_observations(conn: sqlite3.Connection, target: dict) -> None:
+    """Link only exact stable-identity observations inside the target's agreed window."""
+    where = ("archived=0 AND definition_id=? AND IFNULL(population_segment_id,'')=IFNULL(?, '') "
+             "AND IFNULL(population_view_id,'')=IFNULL(?, '') AND current_through <= ?")
+    params = [target["definition_id"], target.get("segment_id"), target.get("view_id"),
+              target["timeframe_end"]]
+    if not target.get("segment_id") and not target.get("view_id"):
+        programs = [p["id"] for p in repo.list_rows(
+            conn, "programs", where="account_id=?", params=(target["account_id"],))]
+        if not programs:
+            return
+        where += f" AND program_id IN ({','.join('?' * len(programs))})"
+        params += programs
+    if target.get("timeframe_start"):
+        where += " AND current_through >= ?"
+        params.append(target["timeframe_start"])
+    ts = now_utc()
+    with conn:
+        for obs in conn.execute(f"SELECT id FROM metric_observations WHERE {where}", params):
+            conn.execute("INSERT OR IGNORE INTO value_target_evidence "
+                         "(id,target_id,object_type,object_id,note,created_at,updated_at) "
+                         "VALUES (?,?,'metric_observation',?,'Auto-linked by stable population identity',?,?)",
+                         (new_id(), target["id"], obs["id"], ts, ts))
 
 
 # --- settings -------------------------------------------------------------------------------
 @router.put("/accounts/{account_id}/settings")
 def put_settings(account_id: str, b: AccountSettingsPut, conn: sqlite3.Connection = Depends(get_conn)):
     repo.get_row(conn, "accounts", account_id)
-    ts = now_utc()
+    ts, values = now_utc(), b.model_dump()
     with conn:
         conn.execute(
-            "INSERT INTO account_settings (account_id, min_cohort_size, created_at, updated_at) "
-            "VALUES (?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET min_cohort_size=?, updated_at=?",
-            (account_id, b.min_cohort_size, ts, ts, b.min_cohort_size, ts))
-    return {"account_id": account_id, "min_cohort_size": b.min_cohort_size}
+            "INSERT INTO account_settings (account_id,min_cohort_size,pull_signal_window_days,"
+            "signal_cooldown_days,signal_hysteresis_pct,priority_response_hours,champion_quiet_days,"
+            "business_timezone,business_day_start_hour,business_day_end_hour,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET "
+            "min_cohort_size=excluded.min_cohort_size,pull_signal_window_days=excluded.pull_signal_window_days,"
+            "signal_cooldown_days=excluded.signal_cooldown_days,signal_hysteresis_pct=excluded.signal_hysteresis_pct,"
+            "priority_response_hours=excluded.priority_response_hours,champion_quiet_days=excluded.champion_quiet_days,"
+            "business_timezone=excluded.business_timezone,business_day_start_hour=excluded.business_day_start_hour,"
+            "business_day_end_hour=excluded.business_day_end_hour,"
+            "updated_at=excluded.updated_at",
+            (account_id, values["min_cohort_size"], values["pull_signal_window_days"],
+             values["signal_cooldown_days"], values["signal_hysteresis_pct"],
+             values["priority_response_hours"], values["champion_quiet_days"], values["business_timezone"],
+             values["business_day_start_hour"], values["business_day_end_hour"], ts, ts))
+    return {"account_id": account_id, **values}
 
 
 @router.get("/accounts/{account_id}/settings")
 def get_settings(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     repo.get_row(conn, "accounts", account_id)
-    return {"account_id": account_id, "min_cohort_size": expansion.min_cohort_size(conn, account_id)}
+    from .. import stage7
+    return stage7.settings(conn, account_id)
 
 
 # --- portfolio-global vocabularies ------------------------------------------------------------
@@ -148,6 +233,7 @@ def create_segment(b: SegmentCreate, conn: sqlite3.Connection = Depends(get_conn
     if not p:
         raise HTTPException(404, f"partition not found: {b.partition_id}")
     values = b.model_dump()
+    _require_source(conn, b.source_reference_id)
     values["is_unallocated"] = 1 if values["is_unallocated"] else 0
     values["account_id"] = p["account_id"]
     # The unallocated remainder is still part of the company. Exempting it from the cap let a
@@ -169,6 +255,7 @@ def patch_segment(segment_id: str, b: SegmentPatch, conn: sqlite3.Connection = D
 @router.post("/population-headcount-observations", status_code=201)
 def create_headcount_obs(b: HeadcountObservationCreate, conn: sqlite3.Connection = Depends(get_conn)):
     seg = repo.get_row(conn, "population_segments", b.segment_id)
+    _require_source(conn, b.source_reference_id)
     values = {**b.model_dump(), "account_id": seg["account_id"]}
     return repo.insert(conn, "population_headcount_observations", values,
                        object_type="population_headcount_observation")
@@ -191,6 +278,12 @@ def create_view(b: PopulationViewCreate, conn: sqlite3.Connection = Depends(get_
     """Refuses to build a view whose estimated headcount is below the account's cohort floor —
     a composite that narrow is identifying by linkage even with no named-usage field (§1.2)."""
     repo.get_row(conn, "accounts", b.account_id)
+    active_segment_ids = {s["id"] for s in expansion.active_segments(conn, b.account_id)}
+    for segment_id in b.segment_ids:
+        if segment_id not in active_segment_ids:
+            raise HTTPException(422, f"segment {segment_id} is not in this account's active partition")
+    for tag_id in b.tag_ids:
+        repo.get_row(conn, "audience_tags", tag_id)
     floor = expansion.min_cohort_size(conn, b.account_id)
     if b.estimated_headcount is not None and b.estimated_headcount < floor:
         raise HTTPException(422, f"estimated headcount {b.estimated_headcount} is below this "
@@ -244,6 +337,10 @@ def create_cell(b: CellCreate, conn: sqlite3.Connection = Depends(get_conn)):
     if row["account_id"] != b.account_id:
         raise HTTPException(422, f"that {'segment' if b.segment_id else 'view'} belongs to a "
                                  f"different account")
+    _require_person_account(conn, b.sponsor_person_id, b.account_id)
+    _require_source(conn, b.source_reference_id)
+    if b.client_visible and not b.source_reference_id:
+        raise HTTPException(422, "a client-visible whitespace cell requires a source reference")
     return repo.insert(conn, "whitespace_cells", b.model_dump(), object_type="whitespace_cell")
 
 
@@ -274,7 +371,20 @@ def get_cell(cell_id: str, conn: sqlite3.Connection = Depends(get_conn)):
 @router.patch("/whitespace-cells/{cell_id}")
 def patch_cell(cell_id: str, b: CellPatch, conn: sqlite3.Connection = Depends(get_conn)):
     """Non-state fields only. The four facts move through /set-fact, which requires a reason."""
-    cell = repo.patch(conn, "whitespace_cells", cell_id, b.model_dump(), object_type="whitespace_cell")
+    existing = repo.get_row(conn, "whitespace_cells", cell_id)
+    if "sponsor_person_id" in b.model_fields_set:
+        _require_person_account(conn, b.sponsor_person_id, existing["account_id"])
+    if "source_reference_id" in b.model_fields_set:
+        _require_source(conn, b.source_reference_id)
+    visible = b.client_visible if "client_visible" in b.model_fields_set else existing.get("client_visible")
+    source = (b.source_reference_id if "source_reference_id" in b.model_fields_set
+              else existing.get("source_reference_id"))
+    if visible and not source:
+        raise HTTPException(422, "a client-visible whitespace cell requires a source reference")
+    cell = repo.patch(conn, "whitespace_cells", cell_id, b.model_dump(),
+                      object_type="whitespace_cell",
+                      allow_null=set(b.model_fields_set) & {"estimated_seats", "sponsor_person_id",
+                                                            "next_action", "notes", "source_reference_id"})
     cell["state"] = expansion.derive_state(cell)
     return cell
 
@@ -308,6 +418,7 @@ def set_fact(cell_id: str, b: CellSetFact, conn: sqlite3.Connection = Depends(ge
                                          "on is not a gate")
             changes["blocker_lane"] = b.blocker_lane
             changes["blocker_owner_person_id"] = b.blocker_owner_person_id
+            _require_person_account(conn, b.blocker_owner_person_id, cell["account_id"])
         else:
             changes["blocker_lane"] = None
             changes["blocker_owner_person_id"] = None
@@ -327,12 +438,14 @@ def set_fact(cell_id: str, b: CellSetFact, conn: sqlite3.Connection = Depends(ge
     sets = ", ".join(f"{k}=?" for k in changes)
     with conn:
         conn.execute(f"UPDATE whitespace_cells SET {sets} WHERE id=?", (*changes.values(), cell_id))
+        after = repo.get_row(conn, "whitespace_cells", cell_id)
+        after_state = expansion.derive_state(after)
         conn.execute(
             "INSERT INTO cell_state_history (id, cell_id, fact, before_value, after_value, reason, "
-            "changed_on, actor, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            "changed_on, actor, created_at, derived_state_before, derived_state_after) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (new_id(), cell_id, b.fact, cell[b.fact], b.value, b.reason,
-             now_utc()[:10], audit.DEFAULT_ACTOR, now_utc()))
-        after = repo.get_row(conn, "whitespace_cells", cell_id)
+             now_utc()[:10], audit.DEFAULT_ACTOR, now_utc(), before_state, after_state))
         audit.record(conn, object_type="whitespace_cell", object_id=cell_id, action="update",
                      before=cell, after=after)
     after["state"] = expansion.derive_state(after)
@@ -352,15 +465,18 @@ def reopen_cell(cell_id: str, b: CellReopen, conn: sqlite3.Connection = Depends(
     if cell["pursuit_outcome"] != "declined":
         raise HTTPException(422, "only a declined cell can be reopened")
     when = b.reopened_on or now_utc()[:10]
+    before_state = expansion.derive_state(cell)
     with conn:
         conn.execute("UPDATE whitespace_cells SET pursuit_outcome='none', reopened_on=?, "
                      "reopened_reason=?, updated_at=? WHERE id=?", (when, b.reason, now_utc(), cell_id))
+        after = repo.get_row(conn, "whitespace_cells", cell_id)
+        after_state = expansion.derive_state(after)
         conn.execute(
             "INSERT INTO cell_state_history (id, cell_id, fact, before_value, after_value, reason, "
-            "changed_on, actor, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            "changed_on, actor, created_at, derived_state_before, derived_state_after) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (new_id(), cell_id, "reopened", "declined", "none", b.reason, when,
-             audit.DEFAULT_ACTOR, now_utc()))
-        after = repo.get_row(conn, "whitespace_cells", cell_id)
+             audit.DEFAULT_ACTOR, now_utc(), before_state, after_state))
         audit.record(conn, object_type="whitespace_cell", object_id=cell_id, action="update",
                      before=cell, after=after)
     after["state"] = expansion.derive_state(after)
@@ -370,8 +486,8 @@ def reopen_cell(cell_id: str, b: CellReopen, conn: sqlite3.Connection = Depends(
 
 @router.post("/whitespace-cells/{cell_id}/evidence", status_code=201)
 def link_cell_evidence(cell_id: str, b: CellEvidenceLink, conn: sqlite3.Connection = Depends(get_conn)):
-    repo.get_row(conn, "whitespace_cells", cell_id)
-    _require_linked(conn, b.object_type, b.object_id)
+    cell = repo.get_row(conn, "whitespace_cells", cell_id)
+    _require_linked(conn, b.object_type, b.object_id, cell["account_id"])
     ts = now_utc()
     with conn:
         conn.execute("INSERT OR IGNORE INTO cell_evidence_links "
@@ -388,12 +504,31 @@ def create_value_target(b: ValueTargetCreate, conn: sqlite3.Connection = Depends
         raise HTTPException(422, "a value target names one population: segment_id or view_id, not both")
     repo.get_row(conn, "accounts", b.account_id)
     repo.get_row(conn, "metric_definitions", b.definition_id)
+    if b.segment_id:
+        segment = repo.get_row(conn, "population_segments", b.segment_id)
+        if segment["account_id"] != b.account_id:
+            raise HTTPException(422, "that population segment belongs to a different account")
+    if b.view_id:
+        view = repo.get_row(conn, "population_views", b.view_id)
+        if view["account_id"] != b.account_id:
+            raise HTTPException(422, "that population view belongs to a different account")
+    _require_person_account(conn, b.accepted_by_person_id, b.account_id)
+    _require_source(conn, b.source_reference_id)
+    if b.source_interaction_id:
+        interaction = repo.get_row(conn, "interactions", b.source_interaction_id)
+        if interaction["account_id"] != b.account_id:
+            raise HTTPException(422, "source interaction belongs to a different account")
     values = b.model_dump()
     values["client_accepted"] = 1 if values["client_accepted"] else 0
     if values["client_accepted"] and not (values["accepted_by_person_id"] and values["accepted_on"]):
         raise HTTPException(422, "an accepted target needs who accepted it and when: otherwise "
                                  "it is an aspiration, not a bar")
-    return repo.insert(conn, "value_targets", values, object_type="value_target")
+    if values["client_visible"] and not (values["client_accepted"] and
+                                           (values["source_reference_id"] or values["source_interaction_id"])):
+        raise HTTPException(422, "a client-visible target requires client acceptance and a source")
+    target = repo.insert(conn, "value_targets", values, object_type="value_target")
+    _auto_link_target_observations(conn, target)
+    return target
 
 
 @router.get("/accounts/{account_id}/ledger")
@@ -420,6 +555,10 @@ def supersede_target(target_id: str, b: ValueTargetSupersede, conn: sqlite3.Conn
     if b.client_accepted and not (b.accepted_by_person_id and b.accepted_on):
         raise HTTPException(422, "an accepted target needs who accepted it and when: otherwise "
                                  "it is an aspiration, not a bar")
+    _require_person_account(conn, b.accepted_by_person_id, old["account_id"])
+    if b.client_visible and not (b.client_accepted and
+                                  (old.get("source_reference_id") or old.get("source_interaction_id"))):
+        raise HTTPException(422, "a client-visible target requires client acceptance and a source")
     values = {k: old[k] for k in (
         "account_id", "definition_id", "segment_id", "view_id", "unit", "direction",
         "timeframe_start", "origin", "source_interaction_id", "source_reference_id")}
@@ -427,6 +566,7 @@ def supersede_target(target_id: str, b: ValueTargetSupersede, conn: sqlite3.Conn
         "target_value": b.target_value, "timeframe_end": b.timeframe_end,
         "accepted_by_person_id": b.accepted_by_person_id, "accepted_on": b.accepted_on,
         "client_accepted": 1 if b.client_accepted else 0,
+        "client_visible": 1 if b.client_visible else 0,
         "version": old["version"] + 1, "supersedes_id": target_id, "notes": b.reason,
     })
     ts = now_utc()
@@ -439,14 +579,16 @@ def supersede_target(target_id: str, b: ValueTargetSupersede, conn: sqlite3.Conn
                      (ts, target_id))
         audit.record(conn, object_type="value_target", object_id=new_row["id"], action="create",
                      before=old, after=new_row)
-    return repo.get_row(conn, "value_targets", new_row["id"])
+    target = repo.get_row(conn, "value_targets", new_row["id"])
+    _auto_link_target_observations(conn, target)
+    return target
 
 
 @router.post("/value-targets/{target_id}/evidence", status_code=201)
 def link_target_evidence(target_id: str, b: ValueTargetEvidenceLink,
                          conn: sqlite3.Connection = Depends(get_conn)):
-    repo.get_row(conn, "value_targets", target_id)
-    _require_linked(conn, b.object_type, b.object_id)
+    target = repo.get_row(conn, "value_targets", target_id)
+    _require_linked(conn, b.object_type, b.object_id, target["account_id"])
     ts = now_utc()
     with conn:
         conn.execute("INSERT OR IGNORE INTO value_target_evidence "
@@ -460,12 +602,34 @@ def link_target_evidence(target_id: str, b: ValueTargetEvidenceLink,
 @router.post("/funding-pools", status_code=201)
 def create_pool(b: FundingPoolCreate, conn: sqlite3.Connection = Depends(get_conn)):
     repo.get_row(conn, "accounts", b.account_id)
-    return repo.insert(conn, "funding_pools", b.model_dump(), object_type="funding_pool")
+    _require_person_account(conn, b.owner_person_id, b.account_id)
+    _require_source(conn, b.source_reference_id)
+    if b.recovered_spend_id:
+        spend = repo.get_row(conn, "recovered_spend", b.recovered_spend_id)
+        if spend["account_id"] != b.account_id:
+            raise HTTPException(422, "recovered spend belongs to a different account")
+    if b.client_visible and not b.source_reference_id:
+        raise HTTPException(422, "a client-visible funding pool requires a source reference")
+    values = b.model_dump()
+    values["currency"] = _currency(values.get("currency"))
+    return repo.insert(conn, "funding_pools", values, object_type="funding_pool")
 
 
 @router.patch("/funding-pools/{pool_id}")
 def patch_pool(pool_id: str, b: FundingPoolPatch, conn: sqlite3.Connection = Depends(get_conn)):
-    return repo.patch(conn, "funding_pools", pool_id, b.model_dump(), object_type="funding_pool")
+    existing = repo.get_row(conn, "funding_pools", pool_id)
+    if "owner_person_id" in b.model_fields_set:
+        _require_person_account(conn, b.owner_person_id, existing["account_id"])
+    if "source_reference_id" in b.model_fields_set:
+        _require_source(conn, b.source_reference_id)
+    visible = b.client_visible if "client_visible" in b.model_fields_set else existing.get("client_visible")
+    source = (b.source_reference_id if "source_reference_id" in b.model_fields_set
+              else existing.get("source_reference_id"))
+    if visible and not source:
+        raise HTTPException(422, "a client-visible funding pool requires a source reference")
+    return repo.patch(conn, "funding_pools", pool_id, b.model_dump(), object_type="funding_pool",
+                      allow_null=set(b.model_fields_set) & {"owner_person_id", "amount", "notes",
+                                                            "source_reference_id"})
 
 
 @router.put("/accounts/{account_id}/fiscal-map")
@@ -473,6 +637,10 @@ def put_fiscal_map(account_id: str, b: FiscalMapPut, conn: sqlite3.Connection = 
     repo.get_row(conn, "accounts", account_id)
     ts = now_utc()
     fields = b.model_dump()
+    if b.procurement_lead_contract_id:
+        contract = repo.get_row(conn, "contract_versions", b.procurement_lead_contract_id)
+        if contract["account_id"] != account_id:
+            raise HTTPException(422, "procurement contract belongs to a different account")
     cols = ", ".join(fields)
     placeholders = ", ".join("?" for _ in fields)
     updates = ", ".join(f"{k}=excluded.{k}" for k in fields)
@@ -496,18 +664,34 @@ def create_ask_calendar(b: AskCalendarCreate, conn: sqlite3.Connection = Depends
     """Creates the calendar AND back-schedules the whole dependency chain in one call — the
     point of the artifact is that the dates exist before anyone has to ask for them (§4)."""
     repo.get_row(conn, "accounts", b.account_id)
-    cal = repo.insert(conn, "ask_calendars", {
-        "account_id": b.account_id, "name": b.name, "target_close_date": b.target_close_date,
-        "opportunity_id": b.opportunity_id}, object_type="ask_calendar")
+    # Parse and compute before the first write. A malformed close date must not leave an orphaned
+    # calendar behind simply because repo.insert commits independently.
     steps = expansion.back_schedule(conn, b.account_id, b.target_close_date, b.include_works_council)
+    if b.opportunity_id:
+        opportunity = repo.get_row(conn, "expansion_opportunities", b.opportunity_id)
+        if opportunity["account_id"] != b.account_id:
+            raise HTTPException(422, "opportunity belongs to a different account")
     ts = now_utc()
+    cal_id = new_id()
+    cal_values = {
+        "id": cal_id, "account_id": b.account_id, "name": b.name,
+        "target_close_date": b.target_close_date, "opportunity_id": b.opportunity_id,
+        "status": "active", "created_at": ts, "updated_at": ts,
+    }
     with conn:
+        conn.execute(
+            "INSERT INTO ask_calendars (id, account_id, opportunity_id, name, target_close_date, "
+            "status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (cal_id, b.account_id, b.opportunity_id, b.name, b.target_close_date,
+             "active", ts, ts))
+        audit.record(conn, object_type="ask_calendar", object_id=cal_id, action="create",
+                     after=cal_values)
         for s in steps:
             conn.execute(
                 "INSERT INTO ask_calendar_steps (id, calendar_id, kind, label, due_date, "
                 "display_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-                (new_id(), cal["id"], s["kind"], s["label"], s["due_date"], s["display_order"], ts, ts))
-    return expansion.ask_calendar_status(conn, cal["id"])
+                (new_id(), cal_id, s["kind"], s["label"], s["due_date"], s["display_order"], ts, ts))
+    return expansion.ask_calendar_status(conn, cal_id)
 
 
 @router.get("/ask-calendars/{calendar_id}")
@@ -524,7 +708,9 @@ def patch_ask_step(step_id: str, b: AskStepPatch, conn: sqlite3.Connection = Dep
     if not changes:
         return repo.row_to_dict(row)
     if changes.get("linked_id"):
-        _require_linked(conn, changes.get("linked_type") or row["linked_type"], changes["linked_id"])
+        cal = repo.get_row(conn, "ask_calendars", row["calendar_id"])
+        _require_linked(conn, changes.get("linked_type") or row["linked_type"],
+                        changes["linked_id"], cal["account_id"])
     changes["updated_at"] = now_utc()
     sets = ", ".join(f"{k}=?" for k in changes)
     with conn:
@@ -546,6 +732,8 @@ def patch_contract_revenue(contract_id: str, b: ContractRevenuePatch,
     changes = {k: v for k, v in b.model_dump().items() if v is not None}
     if not changes:
         return cv
+    if "currency" in changes:
+        changes["currency"] = _currency(changes["currency"])
     basis = changes.get("price_basis", cv["price_basis"])
     term = changes.get("term_months", cv["term_months"])
     price = cv["price"]
@@ -565,7 +753,25 @@ def patch_contract_revenue(contract_id: str, b: ContractRevenuePatch,
 @router.post("/revenue-events", status_code=201)
 def create_revenue_event(b: RevenueEventCreate, conn: sqlite3.Connection = Depends(get_conn)):
     repo.get_row(conn, "accounts", b.account_id)
-    return repo.insert(conn, "revenue_events", b.model_dump(), object_type="revenue_event")
+    contract = None
+    if b.contract_version_id:
+        contract = repo.get_row(conn, "contract_versions", b.contract_version_id)
+        if contract["account_id"] != b.account_id:
+            raise HTTPException(422, "contract belongs to a different account")
+    _require_source(conn, b.source_reference_id)
+    if b.kind == "expansion" and b.amount is not None and b.amount < 0:
+        raise HTTPException(422, "expansion revenue must be positive")
+    if b.kind in ("contraction", "churn") and b.amount is not None and b.amount > 0:
+        raise HTTPException(422, f"{b.kind} revenue must be negative")
+    if b.kind == "renewal_flat" and (b.amount or 0) != 0:
+        raise HTTPException(422, "a flat renewal has zero revenue movement")
+    values = b.model_dump()
+    values["currency"] = _currency(values.get("currency"))
+    expected_currency = (contract or {}).get("currency")
+    if expected_currency and values["currency"] and values["currency"] != expected_currency:
+        raise HTTPException(422, f"event currency {values['currency']} does not match contract currency "
+                                 f"{expected_currency}")
+    return repo.insert(conn, "revenue_events", values, object_type="revenue_event")
 
 
 @router.get("/accounts/{account_id}/revenue-movement")

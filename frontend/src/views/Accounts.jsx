@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
-import { Empty, useToast } from "../ui";
+import { Empty, SegTabs, useToast } from "../ui";
 import Onboarding from "./Onboarding";
+import PortfolioAnalytics from "./PortfolioAnalytics";
 
 export default function Accounts({ accounts, onOpen, onChanged }) {
   const toast = useToast();
@@ -9,6 +10,7 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
   const [name, setName] = useState("");
   const [ctx, setCtx] = useState("");
   const [onboarding, setOnboarding] = useState(null); // the just-created account being onboarded
+  const [view, setView] = useState("accounts");
 
   async function create() {
     if (!name.trim()) return;
@@ -50,6 +52,10 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
         <button className="btn primary" onClick={() => setAdding((v) => !v)}>New account</button>
       </div>
 
+      <div style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Accounts"], ["analytics", "Portfolio analytics"]]} value={view} onChange={setView} /></div>
+
+      {view === "analytics" ? <PortfolioAnalytics /> : <>
+
       {adding && (
         <div className="card" style={{ padding: 14, marginBottom: 14 }}>
           <div className="grid2">
@@ -89,6 +95,7 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
           </table>
         )}
       </div>
+      </>}
 
       {onboarding && (
         <Onboarding

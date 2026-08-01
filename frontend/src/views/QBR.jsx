@@ -48,7 +48,8 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
                   <tr key={i}><td>{m.name} <Type t={m.type} /></td>
                     <td>{m.value === "unknown" ? <span style={{ color: "var(--ink-tertiary)" }}>unknown</span> : fmtNum(m.value)}</td>
                     <td className="rowmeta">{fmtNum(m.target)}</td>
-                    <td className="rowmeta">{m.population || "—"}{m.current_through ? ` · ${fmtDate(m.current_through)}` : ""}</td></tr>
+                    <td className="rowmeta">{m.population || "—"}{m.current_through ? ` · ${fmtDate(m.current_through)}` : ""}
+                      {m.source?.label ? <div>source: {m.source.label}</div> : null}</td></tr>
                 ))}
                 {q.metrics.length === 0 && <tr><td colSpan={4} className="rowmeta">No metric definitions.</td></tr>}
               </tbody></table>
@@ -65,7 +66,7 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
           <div className="card"><div className="card-h"><h3>Approved value stories</h3><div className="spacer" /><span className="rowmeta">promoted, non-negative only</span></div>
             {q.value_stories.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No promoted stories.</div> : (
               <table><tbody>{q.value_stories.map((v, i) => (
-                <tr key={i}><td>{v.outcome} <Type t={v.type} /><div className="rowmeta">{v.evidence_tier.replace(/_/g, " ")}</div></td></tr>
+                <tr key={i}><td>{v.outcome} <Type t={v.type} /><div className="rowmeta">{v.evidence_tier.replace(/_/g, " ")} · {v.source?.label || "source unavailable"}</div></td></tr>
               ))}</tbody></table>
             )}
           </div>
@@ -73,10 +74,9 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
           <div className="card"><div className="card-h"><h3>Open commitments</h3></div>
             {q.open_commitments.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>None open.</div> : (
               <table><tbody>{q.open_commitments.map((c, i) => (
-                <tr key={i}><td>{c.description}</td><td className="rowmeta" style={{ width: 110 }}>due {fmtDate(c.due_date)}</td></tr>
+                <tr key={i}><td>{c.description}<div className="rowmeta">{c.source?.label || "source unavailable"}</div></td><td className="rowmeta" style={{ width: 110 }}>due {fmtDate(c.due_date)}</td></tr>
               ))}</tbody></table>
             )}
-            <div className="rowmeta" style={{ padding: "8px 12px" }}>Risk posture (internal): {q.risk_posture.open_risks} open risk(s) — high-level only; internal detail excluded.</div>
           </div>
         </>
       )}

@@ -56,6 +56,10 @@ def seed_onboarding(
 
     if program_id:
         prog = repo.get_row(conn, "programs", program_id)
+        if prog["account_id"] != account_id:
+            raise HTTPException(422, "program belongs to a different account")
+        if prog["account_id"] != account_id:
+            raise HTTPException(422, f"program {program_id} belongs to a different account")
         # A program belongs to exactly one account. Seeding account A's launch pack onto
         # account B's program silently mixes two customers' data.
         if prog["account_id"] != account_id:
@@ -129,6 +133,16 @@ def seed_onboarding(
     repo.patch(conn, "programs", pid,
                {"kickoff_date": kickoff_date, "onboarded_at": now_utc()},
                object_type="program")
+
+    # Stage 7 calendar adapter: this is a local/mock write record. A real provider remains
+    # behind the CONNECTIONS governance gate, but the scheduling contract is exercised now.
+    from . import stage7
+    stage7.write_calendar_event(conn, {
+        "account_id": account_id, "program_id": pid, "cell_id": None,
+        "purpose": "kickoff", "title": f"{prog['name']} kickoff",
+        "starts_at": f"{kickoff_date}T15:00:00+00:00", "ends_at": None,
+        "location": None, "organizer_email": None,
+    })
 
     return {"program_id": pid, "kickoff_date": kickoff_date, "seeded": counts}
 

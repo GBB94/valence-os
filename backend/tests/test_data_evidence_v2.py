@@ -32,6 +32,10 @@ def _days(n):
     return (date.fromisoformat(_today()) + timedelta(days=n)).isoformat()
 
 
+def _source(client, label="Mock evidence"):
+    return client.post("/api/source-references", json={"label": label, "type": "data_report"}).json()["id"]
+
+
 def test_scoreboard_renders_stale_as_unknown(client):
     d = client.post("/api/metric-definitions", json={"name": "Activation", "stale_after_days": 30}).json()
     # fresh observation -> value; stale -> unknown
@@ -56,12 +60,13 @@ def test_benchmark_requires_population_and_period(client):
 def test_qbr_excludes_internal_and_negative_by_construction(client):
     a = client.post("/api/accounts", json={"name": "Acme"}).json()
     p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
+    source = _source(client)
     # promoted, internal, and negative value stories
-    client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "PROMOTED win", "visibility_class": "qbr_exec", "evidence_tier": "measured_operational"})
+    client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "PROMOTED win", "visibility_class": "qbr_exec", "evidence_tier": "measured_operational", "source_reference_id": source})
     client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "INTERNAL only note", "visibility_class": "internal"})
     client.post("/api/value-stories", json={"account_id": a["id"], "outcome": "NEGATIVE objection", "visibility_class": "internal", "is_negative": True})
     promoted_c = client.post("/api/commitments", json={"program_id": p["id"], "description": "PROMOTED commitment",
-                                                       "responsible_party_id": _person(client, a), "internal_owner_id": _person(client, a, "v"), "due_date": _days(10)}).json()
+                                                       "responsible_party_id": _person(client, a), "internal_owner_id": _person(client, a, "v"), "due_date": _days(10), "source_reference_id": source}).json()
     client.post("/api/map/promote", json={"object_type": "commitment", "object_id": promoted_c["id"], "client_visible": True})
     qbr = client.get(f"/api/accounts/{a['id']}/qbr").json()
     outcomes = [v["outcome"] for v in qbr["value_stories"]]
@@ -76,9 +81,10 @@ def test_qbr_commitments_require_promotion(client):
     the same rule the mutual action plan enforces. An un-promoted commitment is internal."""
     a = client.post("/api/accounts", json={"name": "Acme"}).json()
     p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
+    source = _source(client)
     rp, io = _person(client, a), _person(client, a, "v")
     shared = client.post("/api/commitments", json={"program_id": p["id"], "description": "SHARED commitment",
-                                                   "responsible_party_id": rp, "internal_owner_id": io, "due_date": _days(10)}).json()
+                                                   "responsible_party_id": rp, "internal_owner_id": io, "due_date": _days(10), "source_reference_id": source}).json()
     client.post("/api/commitments", json={"program_id": p["id"], "description": "INTERNAL commitment",
                                           "responsible_party_id": rp, "internal_owner_id": io, "due_date": _days(10)})
     client.post("/api/map/promote", json={"object_type": "commitment", "object_id": shared["id"], "client_visible": True})
@@ -92,7 +98,7 @@ def test_qbr_metrics_stale_shows_unknown(client):
     a = client.post("/api/accounts", json={"name": "Acme"}).json()
     p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
     d = client.post("/api/metric-definitions", json={"name": "Activation", "stale_after_days": 30}).json()
-    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p["id"], "value": 0.9, "current_through": _days(-120)})
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p["id"], "value": 0.9, "current_through": _days(-120), "source_reference_id": _source(client)})
     qbr = client.get(f"/api/accounts/{a['id']}/qbr").json()
     m = next(m for m in qbr["metrics"] if m["name"] == "Activation")
     assert m["value"] == "unknown"
@@ -109,8 +115,9 @@ def test_qbr_metrics_are_account_scoped(client):
     p2 = client.post("/api/programs", json={"account_id": a2["id"], "name": "P2"}).json()
     d = client.post("/api/metric-definitions", json={"name": "Activation", "stale_after_days": 30}).json()
     other = client.post("/api/metric-definitions", json={"name": "Adoption", "stale_after_days": 30}).json()
-    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p1["id"], "value": 0.40, "current_through": _days(-2)})
-    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p2["id"], "value": 0.95, "current_through": _days(-1)})
+    source = _source(client)
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p1["id"], "value": 0.40, "current_through": _days(-2), "source_reference_id": source})
+    client.post("/api/metric-observations", json={"definition_id": d["id"], "program_id": p2["id"], "value": 0.95, "current_through": _days(-1), "source_reference_id": source})
     # unattributable: no program, and more recent than either of the above
     client.post("/api/metric-observations", json={"definition_id": other["id"], "value": 0.99, "current_through": _today()})
 
@@ -148,6 +155,58 @@ def test_csv_import_preview_commit_supersede_rollback(client):
 def test_csv_import_rejects_bad_rows(client):
     bad = "definition_id,period_label,value\nnope,2026-06,abc\n"
     assert client.post("/api/imports/metric-observations/commit", json={"csv_text": bad}).status_code == 422
+
+
+def test_csv_import_identity_includes_stable_population(client):
+    a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    part = client.post("/api/population-partitions", json={
+        "account_id": a["id"], "total_fte": 1000}).json()
+    s1 = client.post("/api/population-segments", json={
+        "partition_id": part["id"], "name": "North", "headcount": 500}).json()
+    s2 = client.post("/api/population-segments", json={
+        "partition_id": part["id"], "name": "South", "headcount": 500}).json()
+    d = client.post("/api/metric-definitions", json={"name": "Activation"}).json()
+    for segment, value in ((s1, .7), (s2, .8)):
+        csv = ("definition_id,period_label,value,population_segment_id\n"
+               f"{d['id']},2026-Q3,{value},{segment['id']}\n")
+        assert client.post("/api/imports/metric-observations/commit", json={
+            "csv_text": csv, "current_through": _today(), "source_label": "Cohort report"
+        }).status_code == 200
+    rows = client.app.state.conn.execute(
+        "SELECT population_segment_id,value FROM metric_observations "
+        "WHERE definition_id=? AND archived=0", (d["id"],)).fetchall()
+    assert {(r["population_segment_id"], r["value"]) for r in rows} == {
+        (s1["id"], .7), (s2["id"], .8)}
+
+
+def test_target_realization_uses_linked_matching_evidence_inside_timeframe(client):
+    a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    p = client.post("/api/programs", json={"account_id": a["id"], "name": "P"}).json()
+    part = client.post("/api/population-partitions", json={
+        "account_id": a["id"], "total_fte": 500}).json()
+    seg = client.post("/api/population-segments", json={
+        "partition_id": part["id"], "name": "North", "headcount": 500}).json()
+    d = client.post("/api/metric-definitions", json={"name": "Activation"}).json()
+    source = _source(client)
+    target = client.post("/api/value-targets", json={
+        "account_id": a["id"], "definition_id": d["id"], "segment_id": seg["id"],
+        "target_value": .75, "timeframe_start": _days(-30), "timeframe_end": _days(30)}).json()
+    # Same metric/cohort but before the agreed measurement window: it must not prove the target.
+    first_obs = client.post("/api/metric-observations", json={
+        "definition_id": d["id"], "program_id": p["id"], "population_segment_id": seg["id"],
+        "value": .9, "current_through": _days(-60), "source_reference_id": source}).json()
+    first = client.get(f"/api/accounts/{a['id']}/ledger").json()["targets"][0]
+    assert first["realization"]["value"] is None
+    # Inside the window: the API auto-links the exact stable cohort and realization can use it.
+    obs = client.post("/api/metric-observations", json={
+        "definition_id": d["id"], "program_id": p["id"], "population_segment_id": seg["id"],
+        "value": .8, "current_through": _today(), "source_reference_id": source}).json()
+    second = client.get(f"/api/accounts/{a['id']}/ledger").json()["targets"][0]
+    assert second["realization"]["value"] == .8
+    assert second["realization"]["observation_id"] == obs["id"]
+    assert any(e["object_id"] == obs["id"] for e in second["evidence"])
+    picker = client.get(f"/api/accounts/{a['id']}/metric-observations").json()
+    assert {r["id"] for r in picker} == {obs["id"], first_obs["id"]}
 
 
 def test_operations_screen_reports_without_logs(client):

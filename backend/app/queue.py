@@ -11,7 +11,8 @@ windows (v1), stale imports (v2), and fired plays (v4) are intentionally absent.
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException
 
@@ -35,6 +36,14 @@ PRIORITY = {
     "untriaged_inbox": 7,
     "cadence_overdue": 8,      # Phase 3 §3.6 — supersedes the fixed-21d stale_stakeholder trigger
     "open_task": 9,
+    # Stage 7 episodes. Customer pull and confirmed org facts outrank vendor-push timing.
+    "expansion_signal": 2,
+    "org_change_confirmed": 2,
+    "land_and_leave": 2,
+    "no_second_champion": 3,
+    "champion_gone_quiet": 3,
+    "stalled_cohort": 3,
+    "calendar_moment": 4,
 }
 
 # Trigger escalates into the top "needs you now" band once this far past its date (§2/§3).
@@ -54,6 +63,41 @@ def _days_since(iso_date: str | None, today: str) -> int:
         return max(0, (date.fromisoformat(today) - date.fromisoformat(iso_date[:10])).days)
     except ValueError:
         return 0
+
+
+def _business_hours_between(
+    start_iso: str,
+    end_iso: str,
+    timezone_name: str = "America/New_York",
+    start_hour: int = 9,
+    end_hour: int = 17,
+) -> float:
+    """Count weekday hours inside an account's configured local working window."""
+    try:
+        local_tz = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        local_tz = timezone.utc
+    start = datetime.fromisoformat(start_iso)
+    end = datetime.fromisoformat(end_iso)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    start, end = start.astimezone(local_tz), end.astimezone(local_tz)
+    if end <= start:
+        return 0.0
+
+    seconds = 0.0
+    cursor = start.date()
+    while cursor <= end.date():
+        if cursor.weekday() < 5:
+            window_start = datetime.combine(cursor, time(start_hour), tzinfo=local_tz)
+            window_end = datetime.combine(cursor, time.min, tzinfo=local_tz) + timedelta(hours=end_hour)
+            overlap_start, overlap_end = max(start, window_start), min(end, window_end)
+            if overlap_end > overlap_start:
+                seconds += (overlap_end - overlap_start).total_seconds()
+        cursor += timedelta(days=1)
+    return seconds / 3600
 
 
 def _latest_overlays(conn: sqlite3.Connection) -> dict[str, dict]:
@@ -191,6 +235,51 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action=r["action_text"] or "Run the play and record effectiveness.",
         ))
 
+    # 5b. Stage-7 signal episodes. Held episodes stay visible but never fire a play; hiding the
+    # pacing guard would make "no recommendation" look like "no signal".
+    for r in conn.execute(
+        "SELECT se.*, a.name aname FROM signal_episodes se LEFT JOIN accounts a ON a.id=se.account_id "
+        "WHERE se.status IN ('open','held') AND se.source_kind<>'attention'"):
+        ctx = {}
+        if r["context_json"]:
+            try:
+                import json
+                ctx = json.loads(r["context_json"])
+            except (TypeError, ValueError):
+                ctx = {}
+        p = {"aid": r["account_id"], "aname": r["aname"], "pid": r["program_id"], "pname": None}
+        title = ctx.get("title") or r["kind"].replace("_", " ").title()
+        why = r["explanation"]
+        if r["status"] == "held":
+            title = f"Held — {title}"
+            why += f" {r['held_reason'] or 'Pacing guard is active.'}"
+        items.append(_item(
+            r["kind"], "signal_episode", r["id"], r["updated_at"], p,
+            title=title, because=why, age_days=_days_since(r["opened_at"], today),
+            due_date=None,
+            next_action=("Close the value gap before vendor-initiated expansion."
+                         if r["status"] == "held" else
+                         ctx.get("next_action") or "Qualify, attach to an opportunity, or dismiss with a reason."),
+        ))
+
+    # 5c. Earned pre-agreed expansions awaiting action. These fire regardless of a value gap;
+    # the gap remains attached as risk rather than suppressing an agreement the client made.
+    for r in conn.execute(
+        "SELECT oe.*, oa.name agreement_name, a.name aname FROM operational_agreement_events oe "
+        "JOIN operational_agreements oa ON oa.id=oe.agreement_id "
+        "JOIN accounts a ON a.id=oe.account_id WHERE oe.status='fired'"):
+        late = r["action_due_on"] < today
+        items.append(_item(
+            "expansion_signal", "operational_agreement_event", r["id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["aname"], "pid": None, "pname": None},
+            title=f"Earned expansion — {r['agreement_name']}",
+            because=(f"Pre-agreed threshold fired; action was due {r['action_due_on']}."
+                     if late else f"Pre-agreed threshold fired; act by {r['action_due_on']}.") +
+                    (f" {r['risk_note']}" if r["risk_note"] else ""),
+            age_days=_days_since(r["fired_at"], today), due_date=r["action_due_on"],
+            next_action="Run the agreed process and draft the expansion paper.",
+        ))
+
     # 6. At-risk upcoming milestones (flagged, or past target and incomplete)
     for r in conn.execute("SELECT * FROM milestones WHERE archived=0 AND status='upcoming'"):
         past = bool(r["target_date"]) and r["target_date"] < today
@@ -298,14 +387,28 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         "WHERE cm.archived=0 AND cm.needs_response=1 AND cm.responded=0",
     ):
         p = {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]}
+        cfg = conn.execute(
+            "SELECT priority_response_hours,business_timezone,business_day_start_hour,"
+            "business_day_end_hour FROM account_settings WHERE account_id=?",
+            (r["account_id"],),
+        ).fetchone()
+        threshold = cfg["priority_response_hours"] if cfg else 24
         hours = None
         if r["occurred_at"]:
             try:
-                hours = int((datetime.fromisoformat(now_utc()) - datetime.fromisoformat(r["occurred_at"])).total_seconds() // 3600)
+                hours = int(_business_hours_between(
+                    r["occurred_at"], now_utc(),
+                    cfg["business_timezone"] if cfg else "America/New_York",
+                    cfg["business_day_start_hour"] if cfg else 9,
+                    cfg["business_day_end_hour"] if cfg else 17,
+                ))
             except ValueError:
                 hours = None
+        if hours is not None and hours < threshold:
+            continue
         age_days = _days_since(r["occurred_on"], today)
-        unanswered = f"unanswered {hours}h" if (hours is not None and hours < 72) else f"unanswered {age_days}d"
+        unanswered = (f"unanswered {hours} business h" if hours is not None
+                      else f"unanswered {age_days}d")
         items.append(_item(
             "unanswered_email", "comm_message", r["id"], r["updated_at"], p,
             title=r["subject"] or "(no subject)",
@@ -376,6 +479,8 @@ def _object_table(object_type: str) -> str:
         "milestone": "milestones", "task": "tasks", "capture_inbox_item": "capture_inbox_items",
         "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
         "metric_definition": "metric_definitions", "play_run": "play_runs",
+        "signal_episode": "signal_episodes",
+        "operational_agreement_event": "operational_agreement_events",
         "checklist_item": "checklist_items", "person": "persons",
         "comm_message": "comm_messages",
     }[object_type]

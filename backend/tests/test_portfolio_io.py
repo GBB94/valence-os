@@ -126,6 +126,7 @@ def test_export_restore_carries_stage55_records():
         with TestClient(app) as c:
             a = c.post("/api/accounts", json={"name": "Terravance"}).json()
             person = c.post("/api/persons", json={"name": "Sofie", "account_id": a["id"]}).json()
+            source = c.post("/api/source-references", json={"label": "Expansion source"}).json()
             part = c.post("/api/population-partitions", json={
                 "account_id": a["id"], "basis": "region", "total_fte": 20000}).json()
             seg = c.post("/api/population-segments", json={
@@ -133,7 +134,8 @@ def test_export_restore_carries_stage55_records():
             uc = c.post("/api/use-cases", json={"name": "Performance reviews", "slug": "pr"}).json()
             cell = c.post("/api/whitespace-cells", json={
                 "account_id": a["id"], "segment_id": seg["id"], "use_case_id": uc["id"],
-                "paid_seats": 900, "sponsor_person_id": person["id"]}).json()
+                "paid_seats": 900, "sponsor_person_id": person["id"],
+                "client_visible": True, "source_reference_id": source["id"]}).json()
             c.post(f"/api/whitespace-cells/{cell['id']}/set-fact", json={
                 "fact": "penetration", "value": "paid", "reason": "signed"})
             d = c.post("/api/metric-definitions", json={"name": "Activation"}).json()
@@ -142,7 +144,8 @@ def test_export_restore_carries_stage55_records():
                 "target_value": 0.7, "timeframe_end": "2026-12-31"})
             c.post("/api/funding-pools", json={
                 "account_id": a["id"], "name": "Central L&D", "kind": "central_ld_budget",
-                "owner_person_id": person["id"]})
+                "owner_person_id": person["id"], "client_visible": True,
+                "source_reference_id": source["id"]})
             c.post("/api/ask-calendars", json={
                 "account_id": a["id"], "name": "DACH ask", "target_close_date": "2026-12-01"})
             bundle = c.get(f"/api/accounts/{a['id']}/export").json()
@@ -151,6 +154,7 @@ def test_export_restore_carries_stage55_records():
                     "cell_state_history", "value_targets", "funding_pools",
                     "ask_calendars", "ask_calendar_steps", "use_cases"):
             assert bundle["counts"].get(tbl), f"{tbl} missing from the export bundle"
+        assert any(s["id"] == source["id"] for s in bundle["tables"]["source_references"])
 
         os.environ["VALENCE_OS_DB"] = db2
         with TestClient(app) as c2:
@@ -160,6 +164,7 @@ def test_export_restore_carries_stage55_records():
             assert row["paid_seats"] == 900
             restored_cell = next(x["cell"] for x in row["cells"] if x["cell"])
             assert restored_cell["state"] == "penetrated_unevidenced"   # derived, and it survived
+            assert restored_cell["client_visible"] == 1 and restored_cell["source_reference_id"] == source["id"]
             assert c2.get(f"/api/accounts/{a['id']}/ledger").json()["total"] == 1
             assert c2.get(f"/api/accounts/{a['id']}/funding").json()["funding_pools"]
     finally:

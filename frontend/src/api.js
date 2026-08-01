@@ -29,6 +29,7 @@ export const api = {
     return req("GET", `/api/library${qs ? "?" + qs : ""}`);
   },
   createSourceReference: (b) => req("POST", "/api/source-references", b),
+  sourceReferences: () => req("GET", "/api/source-references"),
   patchSourceReference: (id, b) => req("PATCH", `/api/source-references/${id}`, b),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
@@ -76,6 +77,7 @@ export const api = {
   waterfall: (accountId) => req("GET", `/api/accounts/${accountId}/waterfall`),
   stakeholderCoverage: (accountId) => req("GET", `/api/accounts/${accountId}/stakeholder-coverage`),
   observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
+  accountMetricObservations: (accountId) => req("GET", `/api/accounts/${accountId}/metric-observations`),
 
   // v4 AI & automation
   extractionConfig: () => req("GET", "/api/extraction/config"),
@@ -193,6 +195,7 @@ export const api = {
   patchCell: (id, b) => req("PATCH", `/api/whitespace-cells/${id}`, b),
   setCellFact: (id, b) => req("POST", `/api/whitespace-cells/${id}/set-fact`, b),
   reopenCell: (id, b) => req("POST", `/api/whitespace-cells/${id}/reopen`, b),
+  linkCellEvidence: (id, b) => req("POST", `/api/whitespace-cells/${id}/evidence`, b),
   partition: (accountId) => req("GET", `/api/accounts/${accountId}/population-partition`),
   createPartition: (b) => req("POST", "/api/population-partitions", b),
   createSegment: (b) => req("POST", "/api/population-segments", b),
@@ -209,6 +212,7 @@ export const api = {
   valueGaps: (accountId) => req("GET", `/api/accounts/${accountId}/value-gaps`),
   createValueTarget: (b) => req("POST", "/api/value-targets", b),
   supersedeValueTarget: (id, b) => req("POST", `/api/value-targets/${id}/supersede`, b),
+  linkValueTargetEvidence: (id, b) => req("POST", `/api/value-targets/${id}/evidence`, b),
   funding: (accountId) => req("GET", `/api/accounts/${accountId}/funding`),
   createFundingPool: (b) => req("POST", "/api/funding-pools", b),
   patchFundingPool: (id, b) => req("PATCH", `/api/funding-pools/${id}`, b),
@@ -219,4 +223,76 @@ export const api = {
   patchContractRevenue: (id, b) => req("PATCH", `/api/contracts/${id}/revenue`, b),
   accountSettings: (accountId) => req("GET", `/api/accounts/${accountId}/settings`),
   putAccountSettings: (accountId, b) => req("PUT", `/api/accounts/${accountId}/settings`, b),
+
+  // Stage 7 — recurring signal episodes, mock calendar, and org change
+  stage7Fixtures: () => req("GET", "/api/stage7/fixtures"),
+  syncCalendar: () => req("POST", "/api/ingest/calendar/sync"),
+  syncOrgChanges: () => req("POST", "/api/ingest/org-changes/sync"),
+  syncHeadcount: () => req("POST", "/api/ingest/headcount/sync"),
+  calendarEvents: (accountId) => req("GET", `/api/accounts/${accountId}/calendar-events`),
+  createCalendarEvent: (b) => req("POST", "/api/calendar-events", b),
+  orgChanges: (accountId) => req("GET", `/api/accounts/${accountId}/org-changes`),
+  confirmOrgChange: (id) => req("POST", `/api/org-change-flags/${id}/confirm`, {}),
+  dismissOrgChange: (id, reason) => req("POST", `/api/org-change-flags/${id}/dismiss`, { reason }),
+  completeSuccession: (id, b) => req("POST", `/api/succession-records/${id}/complete`, b),
+  evaluateSignals: () => req("POST", "/api/signals/evaluate"),
+  signalEpisodes: ({ accountId = "", status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId); if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/signal-episodes${qs ? "?" + qs : ""}`);
+  },
+  dismissSignal: (id, reason) => req("POST", `/api/signal-episodes/${id}/dismiss`, { reason }),
+  draftSignalOpportunity: (id) => req("POST", `/api/signal-episodes/${id}/draft-opportunity`),
+
+  // Stage 7.5 — qualification, operational agreements, renewal, and growth plan
+  opportunityQualification: (id) => req("GET", `/api/expansions/${id}/qualification`),
+  patchOpportunityQualification: (id, b) => req("PATCH", `/api/expansions/${id}/qualification`, b),
+  operationalAgreements: (accountId) => req("GET", `/api/accounts/${accountId}/operational-agreements`),
+  createOperationalAgreement: (b) => req("POST", "/api/operational-agreements", b),
+  evaluateOperationalAgreements: () => req("POST", "/api/operational-agreements/evaluate"),
+  actionOperationalAgreement: (id) => req("POST", `/api/operational-agreement-events/${id}/action`),
+  dismissOperationalAgreement: (id, reason) => req("POST", `/api/operational-agreement-events/${id}/dismiss`, { dismissal_reason: reason }),
+  renewalCenter: (accountId, contractId = "") => req("GET", `/api/accounts/${accountId}/renewal-center${contractId ? `?contract_id=${contractId}` : ""}`),
+  growthPlan: (accountId) => req("GET", `/api/accounts/${accountId}/growth-plan`),
+  createGrowthPlan: (b) => req("POST", "/api/growth-plans", b),
+  createGrowthPlanLine: (b) => req("POST", "/api/growth-plan-lines", b),
+  patchGrowthPlanLine: (id, b) => req("PATCH", `/api/growth-plan-lines/${id}`, b),
+
+  // Stage 9 — portfolio analytics and expansion learning
+  commercialAnalytics: (windowDays = 90) => req("GET", `/api/portfolio/commercial-analytics?window_days=${windowDays}`),
+  playbookEntries: (accountId = "") => req("GET", `/api/playbook-entries${accountId ? `?account_id=${accountId}` : ""}`),
+  createPlaybookEntry: (b) => req("POST", "/api/playbook-entries", b),
+  playbookMatches: (cellId) => req("GET", `/api/whitespace-cells/${cellId}/playbook-matches`),
+  promotePlaybookPlay: (id, b) => req("POST", `/api/playbook-entries/${id}/promote-play`, b),
+  promotePlaybookMessage: (id, b) => req("POST", `/api/playbook-entries/${id}/promote-message`, b),
+
+  // Stage 6 — generators as finished artifacts
+  generatePreview: (kind, accountId, programId = "") => {
+    const path = { pre_call_brief: "pre-call-brief", business_case: "business-case",
+                   value_review: "value-review", champion_kit: "champion-kit",
+                   kickoff_deck: "kickoff-deck" }[kind];
+    const qs = programId && ["pre_call_brief", "kickoff_deck"].includes(kind)
+      ? `?program_id=${encodeURIComponent(programId)}` : "";
+    return req("GET", `/api/accounts/${accountId}/${path}${qs}`);
+  },
+  documents: ({ accountId = "", status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId);
+    if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/documents${qs ? "?" + qs : ""}`);
+  },
+  saveDocument: (accountId, b) => req("POST", `/api/accounts/${accountId}/documents`, b),
+  patchDocument: (id, b) => req("PATCH", `/api/documents/${id}`, b),
+  setDocumentStatus: (id, b) => req("POST", `/api/documents/${id}/status`, b),
+  // Download links are plain hrefs, so they need the absolute base the fetch client uses.
+  documentPptxUrl: (id) => `${BASE}/api/documents/${id}/pptx`,
+  documentPdfUrl: (id) => `${BASE}/api/documents/${id}/pdf`,
+  kickoffPptxUrl: (accountId) => `${BASE}/api/accounts/${accountId}/kickoff-deck/pptx`,
+  roiModel: (accountId) => req("GET", `/api/accounts/${accountId}/roi-model`),
+  putRoiModel: (accountId, b) => req("PUT", `/api/accounts/${accountId}/roi-model`, b),
+  recoveredSpend: (accountId) => req("GET", `/api/accounts/${accountId}/recovered-spend`),
+  scheduleWeeklyUpdate: (b) => req("POST", "/api/weekly-team-update/schedule", b),
+  jobs: (status = "") => req("GET", `/api/jobs${status ? `?status=${status}` : ""}`),
 };

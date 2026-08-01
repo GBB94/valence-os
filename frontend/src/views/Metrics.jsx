@@ -45,15 +45,16 @@ export default function Metrics({ reloadKey }) {
             <div className="card" key={c.definition.id} style={{ padding: 12 }}>
               <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>{c.definition.name}</div>
               <div className="metric-value">
-                {(c.stale || c.display_value === "unknown") ? <Unknown since={o?.current_through} /> : fmtNum(c.display_value, o?.unit)}
+                {c.suppressed ? <span title={o?.suppression_reason}>▨ Suppressed</span> :
+                  (c.stale || c.display_value === "unknown") ? <Unknown since={o?.current_through} /> : fmtNum(c.display_value, o?.unit)}
               </div>
-              {o && !c.stale && (
+              {o && !c.stale && !c.suppressed && (
                 <div className="rowmeta">
                   target {fmtNum(o.target, o.unit)}{delta != null && <span style={{ color: delta >= 0 ? "var(--status-ok)" : "var(--status-risk)", marginLeft: 6 }}>{delta >= 0 ? "▲" : "▼"} {fmtNum(Math.abs(delta), o.unit)}</span>}
                 </div>
               )}
-              {o && !c.stale && o.target != null && <Bullet value={o.value} target={o.target} />}
-              {c.series && c.series.length > 1 && (
+              {o && !c.stale && !c.suppressed && o.target != null && <Bullet value={o.value} target={o.target} />}
+              {c.series && c.series.length > 1 && !c.suppressed && (
                 <div style={{ height: 30, marginTop: 6 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={c.series} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
@@ -63,7 +64,7 @@ export default function Metrics({ reloadKey }) {
                 </div>
               )}
               <div className="rowmeta" style={{ marginTop: 6 }}>
-                {c.stale
+                {c.suppressed ? o?.suppression_reason : c.stale
                   ? <span style={{ color: "var(--status-warn)" }}>⚠ stale — current through {fmtDate(o?.current_through)}</span>
                   : o ? <>current through {fmtDate(o.current_through)} · <AgeChip date={o.current_through} /> · v{c.definition.version}</> : "no observation"}
               </div>
@@ -135,7 +136,7 @@ function ImportPanel({ onClose, onDone }) {
   return (
     <SlideOver title="Import metric observations" onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn" onClick={doPreview}>Preview</button><button className="btn primary" onClick={doCommit} disabled={!preview || preview.invalid > 0}>Commit</button></>}>
-      <div className="rowmeta" style={{ marginBottom: 8 }}>Columns: <code>definition_id,period_label,value[,program_id,cohort_label,target,unit]</code></div>
+      <div className="rowmeta" style={{ marginBottom: 8 }}>Columns: <code>definition_id,period_label,value[,program_id,population_segment_id,population_view_id,cohort_label,target,unit]</code></div>
       <div className="field"><label>Definition ids</label>
         <div className="rowmeta">{defs.map((d) => <div key={d.id}>{d.id} — {d.name}</div>)}</div>
       </div>

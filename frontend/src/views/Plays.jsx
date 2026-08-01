@@ -4,7 +4,12 @@ import { SlideOver, useToast, fmtDate, AgeChip } from "../ui";
 
 // Plays trigger engine (v4). Definitions fire runs against current state; each run
 // records an effectiveness note so the playbook improves, not just automates.
-const TRIGGERS = ["renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker"];
+const TRIGGERS = [
+  "renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker",
+  "checklist_overdue", "unanswered_email", "unidentified_placeholder", "cadence_overdue",
+  "no_second_champion", "champion_gone_quiet", "stalled_cohort", "expansion_signal",
+  "org_change_confirmed", "calendar_moment", "land_and_leave",
+];
 const EFF = ["effective", "unclear", "ineffective"];
 
 export default function Plays({ reloadKey, onChanged }) {

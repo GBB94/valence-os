@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import audit, repo
+from .. import adapters, audit, connections, expansion, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
@@ -13,6 +13,58 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["data"])
+
+
+@router.get("/accounts/{account_id}/metric-observations")
+def account_metric_observations(account_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Evidence picker read: only observations attributable to this account by program or
+    stable population identity. Unscoped legacy observations stay out."""
+    repo.get_row(conn, "accounts", account_id)
+    rows = conn.execute(
+        "SELECT mo.*, md.name metric_name, ps.name segment_name, pv.name view_name, pr.name program_name "
+        "FROM metric_observations mo JOIN metric_definitions md ON md.id=mo.definition_id "
+        "LEFT JOIN programs pr ON pr.id=mo.program_id "
+        "LEFT JOIN population_segments ps ON ps.id=mo.population_segment_id "
+        "LEFT JOIN population_views pv ON pv.id=mo.population_view_id "
+        "WHERE mo.archived=0 AND (pr.account_id=? OR ps.account_id=? OR pv.account_id=?) "
+        "ORDER BY mo.current_through DESC, md.name", (account_id, account_id, account_id)).fetchall()
+    return [expansion.suppress_observation(conn, dict(r)) for r in rows]
+
+
+def _observation_account(conn, values: dict) -> str | None:
+    accounts = set()
+    if values.get("program_id"):
+        accounts.add(repo.get_row(conn, "programs", values["program_id"])["account_id"])
+    if values.get("population_segment_id"):
+        accounts.add(repo.get_row(conn, "population_segments",
+                                  values["population_segment_id"])["account_id"])
+    if values.get("population_view_id"):
+        accounts.add(repo.get_row(conn, "population_views", values["population_view_id"])["account_id"])
+    if len(accounts) > 1:
+        raise HTTPException(422, "observation program and population belong to different accounts")
+    return next(iter(accounts), None)
+
+
+def _auto_link_observation(conn, observation: dict) -> None:
+    """Exact stable-key matches are safe to link automatically; free-text cohorts never are."""
+    account_id = _observation_account(conn, observation)
+    if not account_id:
+        return
+    targets = conn.execute(
+        "SELECT id FROM value_targets WHERE archived=0 AND status='active' AND account_id=? "
+        "AND definition_id=? AND IFNULL(segment_id,'')=IFNULL(?, '') "
+        "AND IFNULL(view_id,'')=IFNULL(?, '') AND (? IS NULL OR timeframe_start IS NULL OR ? >= timeframe_start) "
+        "AND (? IS NULL OR ? <= timeframe_end)",
+        (account_id, observation["definition_id"], observation.get("population_segment_id"),
+         observation.get("population_view_id"), observation.get("current_through"),
+         observation.get("current_through"), observation.get("current_through"),
+         observation.get("current_through"))).fetchall()
+    ts = now_utc()
+    for target in targets:
+        conn.execute("INSERT OR IGNORE INTO value_target_evidence "
+                     "(id,target_id,object_type,object_id,note,created_at,updated_at) "
+                     "VALUES (?,?,'metric_observation',?,'Auto-linked by stable population identity',?,?)",
+                     (new_id(), target["id"], observation["id"], ts, ts))
 
 
 # --- Metric definitions & observations (ingested, never recomputed) ---
@@ -29,7 +81,14 @@ def list_definitions(conn: sqlite3.Connection = Depends(get_conn)):
 @router.post("/metric-observations", status_code=201)
 def create_observation(b: MetricObservationCreate, conn: sqlite3.Connection = Depends(get_conn)):
     repo.get_row(conn, "metric_definitions", b.definition_id)
-    return repo.insert(conn, "metric_observations", b.model_dump(), object_type="metric_observation")
+    _observation_account(conn, b.model_dump())
+    reason = expansion.cohort_suppression_reason(
+        conn, b.population_segment_id, b.population_view_id)
+    if reason:
+        raise HTTPException(422, f"metric observation refused: {reason}; import a sufficiently aggregated cohort")
+    observation = repo.insert(conn, "metric_observations", b.model_dump(), object_type="metric_observation")
+    _auto_link_observation(conn, observation)
+    return observation
 
 
 @router.get("/scoreboard")
@@ -44,7 +103,9 @@ def scoreboard(conn: sqlite3.Connection = Depends(get_conn)):
             "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
             "ORDER BY current_through DESC, created_at DESC LIMIT 1", (d["id"],)
         ).fetchone()
-        card = {"definition": d, "observation": repo.row_to_dict(obs), "stale": False, "display_value": None}
+        safe_obs = expansion.suppress_observation(conn, repo.row_to_dict(obs)) if obs else None
+        card = {"definition": d, "observation": safe_obs, "stale": False,
+                "display_value": None, "suppressed": bool(safe_obs and safe_obs["suppressed"])}
         if obs and obs["current_through"]:
             from datetime import date
             try:
@@ -52,13 +113,17 @@ def scoreboard(conn: sqlite3.Connection = Depends(get_conn)):
                 card["stale"] = age > d["stale_after_days"]
             except ValueError:
                 card["stale"] = True
-        card["display_value"] = "unknown" if (not obs or card["stale"]) else obs["value"]
+        card["display_value"] = ("suppressed" if card["suppressed"] else
+                                 "unknown" if (not obs or card["stale"]) else obs["value"])
         # trend series for the sparkline (Section 6b) — last ~8 observations by period
         series = conn.execute(
-            "SELECT period_label, value, target FROM metric_observations WHERE archived=0 AND definition_id=? "
+            "SELECT period_label,value,target,population_segment_id,population_view_id "
+            "FROM metric_observations WHERE archived=0 AND definition_id=? "
             "ORDER BY period_label DESC LIMIT 8", (d["id"],)).fetchall()
-        card["series"] = [{"period": r["period_label"], "value": r["value"], "target": r["target"]}
-                          for r in reversed(series)]
+        card["series"] = [{"period": safe["period_label"], "value": safe["value"],
+                           "target": safe["target"], "suppressed": safe["suppressed"]}
+                          for safe in (expansion.suppress_observation(conn, dict(r))
+                                       for r in reversed(series))]
         out.append(card)
     return {"as_of": today, "cards": out}
 
@@ -96,6 +161,8 @@ def _parse(csv_text: str, conn) -> list[dict]:
                "period_label": (raw.get("period_label") or "").strip(),
                "value": (raw.get("value") or "").strip(),
                "program_id": (raw.get("program_id") or "").strip() or None,
+               "population_segment_id": (raw.get("population_segment_id") or "").strip() or None,
+               "population_view_id": (raw.get("population_view_id") or "").strip() or None,
                "cohort_label": (raw.get("cohort_label") or "").strip() or None,
                "target": (raw.get("target") or "").strip() or None,
                "unit": (raw.get("unit") or "").strip() or None,
@@ -108,12 +175,44 @@ def _parse(csv_text: str, conn) -> list[dict]:
             row["value_num"] = float(row["value"])
         except ValueError:
             row["errors"].append("value not numeric")
+        if row["population_segment_id"] and row["population_view_id"]:
+            row["errors"].append("use one population_segment_id or population_view_id, not both")
+        population_account = None
+        if row["population_segment_id"]:
+            segment = conn.execute("SELECT account_id FROM population_segments WHERE id=? AND archived=0",
+                                   (row["population_segment_id"],)).fetchone()
+            if not segment:
+                row["errors"].append(f"unknown population_segment_id {row['population_segment_id']}")
+            else:
+                population_account = segment["account_id"]
+        if row["population_view_id"]:
+            view = conn.execute("SELECT account_id FROM population_views WHERE id=? AND archived=0",
+                                (row["population_view_id"],)).fetchone()
+            if not view:
+                row["errors"].append(f"unknown population_view_id {row['population_view_id']}")
+            else:
+                population_account = view["account_id"]
+        if row["program_id"]:
+            program = conn.execute("SELECT account_id FROM programs WHERE id=? AND archived=0",
+                                   (row["program_id"],)).fetchone()
+            if not program:
+                row["errors"].append(f"unknown program_id {row['program_id']}")
+            elif population_account and program["account_id"] != population_account:
+                row["errors"].append("program and population belong to different accounts")
+        if not row["errors"]:
+            reason = expansion.cohort_suppression_reason(
+                conn, row["population_segment_id"], row["population_view_id"])
+            if reason:
+                row["errors"].append(f"metric observation refused: {reason}")
         # duplicate = same definition+period+program already observed (would supersede)
         if row["definition_id"] and row["period_label"]:
             dup = conn.execute(
                 "SELECT 1 FROM metric_observations WHERE archived=0 AND definition_id=? AND period_label=? "
-                "AND IFNULL(program_id,'')=IFNULL(?, '')",
-                (row["definition_id"], row["period_label"], row["program_id"]),
+                "AND IFNULL(program_id,'')=IFNULL(?, '') "
+                "AND IFNULL(population_segment_id,'')=IFNULL(?, '') "
+                "AND IFNULL(population_view_id,'')=IFNULL(?, '')",
+                (row["definition_id"], row["period_label"], row["program_id"],
+                 row["population_segment_id"], row["population_view_id"]),
             ).fetchone()
             row["duplicate"] = bool(dup)
         rows.append(row)
@@ -137,7 +236,13 @@ def import_commit(b: MetricImport, conn: sqlite3.Connection = Depends(get_conn))
         raise HTTPException(422, {"message": "fix errors before committing", "rows": bad})
     ts = now_utc()
     batch_id = new_id()
+    source_id = new_id() if b.source_label else None
     with conn:
+        if source_id:
+            conn.execute("INSERT INTO source_references (id,type,label,created_at,updated_at) "
+                         "VALUES (?,'data_report',?,?,?)", (source_id, b.source_label, ts, ts))
+            audit.record(conn, object_type="source_reference", object_id=source_id, action="create",
+                         after={"id": source_id, "type": "data_report", "label": b.source_label})
         conn.execute(
             "INSERT INTO import_batches (id, adapter, source_label, status, row_count, current_through, created_at, committed_at) "
             "VALUES (?,?,?,'committed',?,?,?,?)",
@@ -149,19 +254,26 @@ def import_commit(b: MetricImport, conn: sqlite3.Connection = Depends(get_conn))
             # supersede: imported observations are superseded, not deleted
             conn.execute(
                 "UPDATE metric_observations SET archived=1, archived_at=? WHERE archived=0 AND definition_id=? "
-                "AND period_label=? AND IFNULL(program_id,'')=IFNULL(?, '')",
-                (ts, r["definition_id"], r["period_label"], r["program_id"]),
+                "AND period_label=? AND IFNULL(program_id,'')=IFNULL(?, '') "
+                "AND IFNULL(population_segment_id,'')=IFNULL(?, '') "
+                "AND IFNULL(population_view_id,'')=IFNULL(?, '')",
+                (ts, r["definition_id"], r["period_label"], r["program_id"],
+                 r["population_segment_id"], r["population_view_id"]),
             )
             obs = {"id": new_id(), "definition_id": r["definition_id"], "definition_version": "1",
                    "program_id": r["program_id"], "cohort_label": r["cohort_label"],
+                   "population_segment_id": r["population_segment_id"],
+                   "population_view_id": r["population_view_id"],
                    "period_label": r["period_label"], "value": r["value_num"],
                    "unit": r["unit"], "target": float(r["target"]) if r["target"] else None,
                    "current_through": b.current_through, "import_batch_id": batch_id,
+                   "source_reference_id": source_id,
                    "created_at": ts, "updated_at": ts}
             conn.execute(
                 f"INSERT INTO metric_observations ({','.join(obs)}) VALUES ({','.join('?' for _ in obs)})",
                 tuple(obs.values()),
             )
+            _auto_link_observation(conn, obs)
     return {"batch_id": batch_id, "committed": len(rows)}
 
 
@@ -204,11 +316,20 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
         fresh.append({"metric": d["name"], "current_through": obs, "stale": stale})
     return {
         "as_of": today,
-        "job_worker": "none configured yet (single in-process worker arrives with v4 jobs)",
+        "job_worker": "in-process queue; background polling is env-gated, API sync drains synchronously",
         "import_batches": batches,
         "failed_or_rolled_back": sum(1 for b in batches if b["status"] == "rolled_back"),
         "audit_events": audit_count,
         "source_freshness": fresh,
+        "mock_adapters": [
+            {"name": "calendar", "mode": "mock", "fixtures": len(adapters.list_calendar_fixtures()),
+             "records": conn.execute("SELECT COUNT(*) n FROM calendar_events WHERE archived=0").fetchone()["n"]},
+            {"name": "org change", "mode": "mock", "fixtures": len(adapters.list_org_change_fixtures()),
+             "records": conn.execute("SELECT COUNT(*) n FROM org_change_flags WHERE archived=0").fetchone()["n"]},
+            {"name": "population headcount", "mode": "mock", "fixtures": len(adapters.fetch_headcount_observations()),
+             "records": conn.execute("SELECT COUNT(*) n FROM population_headcount_observations WHERE archived=0").fetchone()["n"]},
+        ],
+        "connection_registry": connections.registry_snapshot(),
         "backup": {"rpo_hours": 24, "restore_test": "passing (account export → restore round-trip, tests/test_portfolio_io.py)",
                    "export": "per-account export/restore available (GET /accounts/{id}/export, POST /accounts/import)",
                    "note": "mock/local mode — encrypted off-site backups apply in production mode"},

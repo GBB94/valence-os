@@ -19,6 +19,8 @@ import json
 import os
 import re
 
+from . import connections
+
 # --- Strict output contract shared by every backend --------------------------
 
 # The strict predefined mutation set. The v4 execution targets, plus the §4.4 relationship /
@@ -234,6 +236,7 @@ class ApiExtractor:
 def get_extractor(backend: str | None = None):
     b = (backend or os.environ.get("EXTRACTOR_BACKEND", "mock")).lower()
     if b == "api":
+        connections.require_real_connection("llm_endpoint", b)
         return ApiExtractor()
     if b == "mock":
         return MockExtractor()
@@ -242,6 +245,7 @@ def get_extractor(backend: str | None = None):
 
 def describe_config() -> dict:
     backend = os.environ.get("EXTRACTOR_BACKEND", "mock").lower()
+    gate = connections.approval_state()
     api_installed = False
     try:
         import anthropic  # noqa: F401
@@ -253,9 +257,11 @@ def describe_config() -> dict:
         "available_backends": ["mock", "manual", "api"],
         "api_model": os.environ.get("EXTRACTOR_MODEL", "claude-opus-4-8"),
         "api_installed": api_installed,
+        "real_connection_approved": gate["approved"],
+        "approval_decision_reference": gate["decision_reference"],
         "manual_prompt": EXTRACTION_PROMPT_FOR_MANUAL,
         "schema": PROPOSAL_SCHEMA,
-        "note": "Set EXTRACTOR_BACKEND=mock|api (env) to change the default. 'manual' means you run a local "
-                "LLM yourself and paste its JSON — the app makes no external call. All backends validate against "
-                "the same strict schema and require per-item human acceptance.",
+        "note": "The default is mock. 'manual' means you run a local LLM yourself and paste its JSON — the app "
+                "makes no external call. API mode is additionally blocked by the CONNECTIONS.md approval gate. "
+                "All backends validate against the same strict schema and require per-item human acceptance.",
     }

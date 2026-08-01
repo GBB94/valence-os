@@ -26,6 +26,7 @@ export default function ValueLedger({ accountId, reloadKey }) {
   const toast = useToast();
   const [led, setLed] = useState(null);
   const [panel, setPanel] = useState(null);
+  const [evidenceTarget, setEvidenceTarget] = useState(null);
   const [tick, setTick] = useState(0);
 
   async function load() {
@@ -76,6 +77,7 @@ export default function ValueLedger({ accountId, reloadKey }) {
               <th scope="col" style={{ width: 120 }}>Current</th>
               <th scope="col" style={{ width: 160 }}>Status</th>
               <th scope="col" style={{ width: 110 }}>By</th>
+              <th scope="col" style={{ width: 92 }}></th>
             </tr></thead>
             <tbody>
               {led.targets.map((t) => {
@@ -107,6 +109,7 @@ export default function ValueLedger({ accountId, reloadKey }) {
                       {r.reason && <div className="rowmeta">{r.reason}</div>}
                     </td>
                     <td className="rowmeta">{t.timeframe_end}</td>
+                    <td><button className="btn small ghost" onClick={() => setEvidenceTarget(t)}>Evidence</button></td>
                   </tr>
                 );
               })}
@@ -154,6 +157,8 @@ export default function ValueLedger({ accountId, reloadKey }) {
         <TargetPanel accountId={accountId} onClose={() => setPanel(null)}
                      onSaved={() => { setPanel(null); setTick((t) => t + 1); }} />
       )}
+      {evidenceTarget && <TargetEvidence target={evidenceTarget} onClose={() => setEvidenceTarget(null)}
+                         onSaved={() => { setEvidenceTarget(null); setTick((t) => t + 1); }} />}
     </>
   );
 }
@@ -162,19 +167,24 @@ function TargetPanel({ accountId, onClose, onSaved }) {
   const toast = useToast();
   const [defs, setDefs] = useState([]);
   const [segments, setSegments] = useState([]);
+  const [views, setViews] = useState([]);
   const [people, setPeople] = useState([]);
+  const [sources, setSources] = useState([]);
   const [f, setF] = useState({
-    definition_id: "", segment_id: "", target_value: "", direction: "at_least",
-    timeframe_end: "", accepted_by_person_id: "", accepted_on: "", client_accepted: false,
+    definition_id: "", population_id: "", target_value: "", direction: "at_least",
+    timeframe_start: "", timeframe_end: "", accepted_by_person_id: "", accepted_on: "",
+    client_accepted: false, client_visible: false, source_reference_id: "",
   });
 
   useEffect(() => {
     (async () => {
       try {
-        const [d, part, acct] = await Promise.all([
+        const [d, part, acct, vs, refs] = await Promise.all([
           api.metricDefinitions(), api.partition(accountId).catch(() => null), api.account(accountId),
+          api.populationViews(accountId), api.sourceReferences(),
         ]);
         setDefs(d); setSegments(part?.segments || []); setPeople(acct.people || []);
+        setViews(vs); setSources(refs);
       } catch (e) { toast(e.message, "err"); }
     })();
   }, [accountId]);
@@ -185,13 +195,17 @@ function TargetPanel({ accountId, onClose, onSaved }) {
       await api.createValueTarget({
         account_id: accountId,
         definition_id: f.definition_id,
-        segment_id: f.segment_id || null,
+        segment_id: f.population_id.startsWith("segment:") ? f.population_id.slice(8) : null,
+        view_id: f.population_id.startsWith("view:") ? f.population_id.slice(5) : null,
         target_value: Number(f.target_value),
         direction: f.direction,
+        timeframe_start: f.timeframe_start || null,
         timeframe_end: f.timeframe_end,
         accepted_by_person_id: f.accepted_by_person_id || null,
         accepted_on: f.accepted_on || null,
         client_accepted: f.client_accepted,
+        client_visible: f.client_visible,
+        source_reference_id: f.source_reference_id || null,
       });
       toast("Value target recorded");
       onSaved();
@@ -210,9 +224,10 @@ function TargetPanel({ accountId, onClose, onSaved }) {
           </select>
         </label>
         <label style={lbl}>Population
-          <select value={f.segment_id} onChange={set("segment_id")} style={sel}>
+          <select value={f.population_id} onChange={set("population_id")} style={sel}>
             <option value="">Account-wide</option>
-            {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {segments.map((s) => <option key={s.id} value={`segment:${s.id}`}>{s.name} (segment)</option>)}
+            {views.map((v) => <option key={v.id} value={`view:${v.id}`}>{v.name} (composite)</option>)}
           </select>
         </label>
         <div style={{ display: "flex", gap: 8 }}>
@@ -227,9 +242,10 @@ function TargetPanel({ accountId, onClose, onSaved }) {
                    required style={sel} />
           </label>
         </div>
-        <label style={lbl}>By when
-          <input type="date" value={f.timeframe_end} onChange={set("timeframe_end")} required style={sel} />
-        </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <label style={{ ...lbl, flex: 1 }}>From<input type="date" value={f.timeframe_start} onChange={set("timeframe_start")} style={sel} /></label>
+          <label style={{ ...lbl, flex: 1 }}>By when<input type="date" value={f.timeframe_end} onChange={set("timeframe_end")} required style={sel} /></label>
+        </div>
 
         <label style={{ ...lbl, flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={f.client_accepted} onChange={set("client_accepted")} />
@@ -251,10 +267,50 @@ function TargetPanel({ accountId, onClose, onSaved }) {
             </label>
           </>
         )}
+        <label style={lbl}>Source
+          <select value={f.source_reference_id} onChange={set("source_reference_id")} style={sel}>
+            <option value="">none</option>{sources.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
+        <label style={{ ...lbl, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={f.client_visible} onChange={set("client_visible")} />
+          <span>Include in client-facing artifacts (requires acceptance and a source)</span>
+        </label>
         <button className="btn small primary" type="submit" style={{ marginTop: 8 }}>Record target</button>
       </form>
     </SlideOver>
   );
+}
+
+function TargetEvidence({ target, onClose, onSaved }) {
+  const toast = useToast();
+  const [f, setF] = useState({ object_type: "metric_observation", object_id: "", note: "" });
+  const [stories, setStories] = useState([]);
+  const [observations, setObservations] = useState([]);
+  useEffect(() => {
+    Promise.all([api.valueStories(target.account_id), api.accountMetricObservations(target.account_id)])
+      .then(([storyRows, obsRows]) => { setStories(storyRows); setObservations(obsRows); })
+      .catch((e) => toast(e.message, "err"));
+  }, [target.account_id]);
+  return <SlideOver title={`Evidence — ${target.metric}`} onClose={onClose}>
+    <div className="rowmeta" style={{ marginBottom: 10 }}>Only evidence from this account and matching cohort can be linked.</div>
+    {(target.evidence || []).map((e) => <div key={e.id} className="rowmeta">{e.object_type} · {e.object_id}{e.note ? ` — ${e.note}` : ""}</div>)}
+    <form onSubmit={async (e) => { e.preventDefault(); try {
+      await api.linkValueTargetEvidence(target.id, f); toast("Evidence linked"); onSaved();
+    } catch (err) { toast(err.message, "err"); } }} style={{ marginTop: 12 }}>
+      <label style={lbl}>Evidence type<select value={f.object_type} onChange={(e) => setF({ ...f, object_type: e.target.value, object_id: "" })} style={sel}>
+        <option value="metric_observation">metric observation</option><option value="value_story">value story</option>
+      </select></label>
+      <label style={lbl}>Evidence<select value={f.object_id} onChange={(e) => setF({ ...f, object_id: e.target.value })} required style={sel}>
+        <option value="">choose…</option>
+        {(f.object_type === "value_story" ? stories : observations).map((row) => <option key={row.id} value={row.id}>
+          {f.object_type === "value_story" ? row.outcome : `${row.metric_name} · ${row.segment_name || row.view_name || row.program_name || "account"} · ${row.current_through}`}
+        </option>)}
+      </select></label>
+      <label style={lbl}>Note<textarea value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} rows={2} style={sel} /></label>
+      <button className="btn small primary" type="submit">Link evidence</button>
+    </form>
+  </SlideOver>;
 }
 
 const countsBar = {

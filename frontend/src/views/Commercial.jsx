@@ -5,6 +5,8 @@ import Waterfall from "./Waterfall";
 import Whitespace from "./Whitespace";
 import ValueLedger from "./ValueLedger";
 import Funding from "./Funding";
+import Signals from "./Signals";
+import Growth from "./Growth";
 
 // The whitespace map is the tab's signature surface (EXPANSION-ENGINE-SPEC.md §1), so it is
 // the default view: the first question on this tab is where the next seats live.
@@ -12,6 +14,8 @@ const SUBTABS = [
   ["whitespace", "Whitespace"],
   ["ledger", "Value ledger"],
   ["funding", "Funding"],
+  ["signals", "Signals"],
+  ["growth", "Growth & renewal"],
   ["pipeline", "Pipeline & contracts"],
 ];
 
@@ -25,6 +29,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
   const [expansions, setExpansions] = useState(null);
   const [contracts, setContracts] = useState(null);
   const [people, setPeople] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [panel, setPanel] = useState(null); // {kind:'expansion'|'contract'|'close'|'overlay', ...}
   const [tick, setTick] = useState(0);
   const [sub, setSub] = useState("whitespace");
@@ -33,7 +38,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
     if (!accountId || sub !== "pipeline") return;
     try {
       const [x, c, acct] = await Promise.all([api.expansions(accountId), api.contracts(accountId), api.account(accountId)]);
-      setExpansions(x); setContracts(c); setPeople(acct.people);
+      setExpansions(x); setContracts(c); setPeople(acct.people); setPrograms(acct.programs);
     } catch (e) { toast(e.message, "err"); }
   }
   useEffect(() => { load(); }, [accountId, reloadKey, tick, sub]);
@@ -65,6 +70,8 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       {sub === "whitespace" && <Whitespace accountId={accountId} reloadKey={reloadKey} />}
       {sub === "ledger" && <ValueLedger accountId={accountId} reloadKey={reloadKey} />}
       {sub === "funding" && <Funding accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "signals" && <Signals accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "growth" && <Growth accountId={accountId} reloadKey={reloadKey} />}
 
       {sub === "pipeline" && <>
       <div className="card">
@@ -73,13 +80,15 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
         {!expansions ? <div className="subtle" style={{ padding: 12 }}>Loading…</div> :
           expansions.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No expansion opportunities yet.</div> : (
           <table>
-            <thead><tr><th>Opportunity</th><th style={{ width: 90 }}>Target</th><th style={{ width: 240 }}>Budget state</th><th style={{ width: 130 }}>Status</th><th style={{ width: 120 }}></th></tr></thead>
+            <thead><tr><th>Opportunity</th><th style={{ width: 90 }}>Target</th><th style={{ width: 240 }}>Budget state</th><th style={{ width: 105 }}>Qualification</th><th style={{ width: 130 }}>Status</th><th style={{ width: 150 }}></th></tr></thead>
             <tbody>
               {expansions.map((x) => (
                 <tr key={x.id}>
                   <td>{x.name}<div className="rowmeta">{x.use_case || ""}{x.budget_owner_name ? ` · budget: ${x.budget_owner_name}` : ""} · {money(x.expected_value)}{x.blockers ? ` · blockers: ${x.blockers}` : ""}</div></td>
                   <td className="rowmeta">{x.target_seats ? x.target_seats.toLocaleString() + " seats" : "—"}</td>
                   <td><BudgetStepper state={x.budget_state} closed={x.status === "closed"} /></td>
+                  <td><button className="btn small ghost" onClick={() => setPanel({ kind: "qualification", xo: x })}>
+                    {x.qualification.filled_count}/5 {x.qualification.fully_qualified ? "filled" : "risk"}</button></td>
                   <td>{x.status === "closed"
                     ? <span><span className="dot ok" /> {x.outcome}</span>
                     : <span className="rowmeta">open</span>}
@@ -133,6 +142,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       {panel?.kind === "close" && <CloseExpansion xo={panel.xo} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "contract" && <ContractForm accountId={accountId} contracts={contracts} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "overlay" && <OverlayForm contract={panel.contract} onClose={() => setPanel(null)} onSaved={after} />}
+      {panel?.kind === "qualification" && <QualificationForm accountId={accountId} xo={panel.xo} people={people} programs={programs} onClose={() => setPanel(null)} onSaved={after} />}
     </div>
   );
 }
@@ -258,6 +268,24 @@ function OverlayForm({ contract, onClose, onSaved }) {
       <div className="field"><label>Rationale <span className="req">*</span></label><textarea value={r} onChange={(e) => setR(e.target.value)} placeholder="e.g. procurement requires ~10 weeks" /></div>
     </SlideOver>
   );
+}
+
+function QualificationForm({ accountId, xo, people, programs, onClose, onSaved }) {
+  const toast = useToast(); const [options,setOptions] = useState(null);
+  const [f,setF] = useState({ value_target_id:xo.qualification_value_target_id||"", budget_owner_person_id:xo.budget_owner_person_id||"", ask_calendar_id:xo.qualification_ask_calendar_id||"", champion_person_id:xo.qualification_champion_person_id||"", program_id:xo.qualification_program_id||"" });
+  useEffect(()=>{ Promise.all([api.ledger(accountId),api.funding(accountId),api.championPipeline(accountId)]).then(([ledger,funding,champions])=>setOptions({ledger,funding,champions})).catch(e=>toast(e.message,"err")); },[accountId]);
+  const set=k=>e=>setF({...f,[k]:e.target.value});
+  async function save(){try{await api.patchOpportunityQualification(xo.id,Object.fromEntries(Object.entries(f).map(([k,v])=>[k,v||null])));toast("Qualification updated");onSaved();}catch(e){toast(e.message,"err");}}
+  if(!options)return <SlideOver title="Five-slot qualification" onClose={onClose}><div className="subtle">Loading…</div></SlideOver>;
+  const validated=options.champions.candidates.filter(c=>["validate","arm","maintain"].includes(c.stage)&&c.has_evidence);
+  return <SlideOver title="Five-slot qualification" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
+    <div className="rowmeta" style={{marginBottom:12}}>No score or weighting. Empty slots remain the deal’s explicit risk list; advancing budget state does not hide them.</div>
+    <div className="field"><label>Metric — value target</label><select value={f.value_target_id} onChange={set("value_target_id")}><option value="">— unfilled —</option>{options.ledger.targets.map(t=><option key={t.id} value={t.id}>{t.metric} · {t.population} · {t.target_value}</option>)}</select></div>
+    <div className="field"><label>Budget owner</label><select value={f.budget_owner_person_id} onChange={set("budget_owner_person_id")}><option value="">— unfilled —</option>{people.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+    <div className="field"><label>Decision process — ask calendar</label><select value={f.ask_calendar_id} onChange={set("ask_calendar_id")}><option value="">— unfilled —</option>{options.funding.ask_calendars.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+    <div className="field"><label>Validated champion</label><select value={f.champion_person_id} onChange={set("champion_person_id")}><option value="">— unfilled —</option>{validated.map(c=><option key={c.person_id} value={c.person_id}>{c.person_name} · {c.stage}</option>)}</select></div>
+    <div className="field"><label>Compliance path — program</label><select value={f.program_id} onChange={set("program_id")}><option value="">— unfilled —</option>{programs.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+  </SlideOver>;
 }
 
 const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

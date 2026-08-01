@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from pydantic import ValidationError
 
-from .. import audit, execution_ops, extractor, repo
+from .. import audit, execution_ops, extractor, repo, stage7, stage9
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
@@ -290,34 +290,47 @@ def list_plays(conn: sqlite3.Connection = Depends(get_conn)):
 
 @router.post("/plays/evaluate")
 def evaluate_plays(conn: sqlite3.Connection = Depends(get_conn)):
-    """Evaluate active plays against current state and fire runs (deduped). This is the
-    trigger engine; a run records what fired and awaits completion + an effectiveness note."""
-    today = now_utc()[:10]
+    """Evaluate active plays against recurring condition episodes.
+
+    A play is unique per episode, not per object forever. A condition which clears and later
+    recurs gets a new episode and may fire again; repeated evaluation of the same open episode
+    remains idempotent.
+    """
     fired = []
     plays = repo.list_rows(conn, "play_definitions", where="active=1")
     from ..queue import build_queue
     q = build_queue(conn)
-    # map queue triggers to play trigger kinds
-    by_trigger = {}
-    for it in q["items"]:
-        by_trigger.setdefault(it["trigger_type"], []).append(it)
+    stage7.sync_attention_episodes(conn, q["items"])
+    stage7.evaluate_domain_signals(conn)
+    episodes = stage7.list_episodes(conn, status="open")
+    by_trigger: dict[str, list] = {}
+    for episode in episodes:
+        by_trigger.setdefault(episode["kind"], []).append(episode)
     with conn:
         for play in plays:
-            for it in by_trigger.get(play["trigger_kind"], []):
-                dedupe = f"{play['id']}:{it['object_id']}"
+            for episode in by_trigger.get(play["trigger_kind"], []):
+                if not stage9.play_applies_to_cell(conn, play["id"], episode.get("cell_id")):
+                    continue
+                dedupe = f"{play['id']}:episode:{episode['id']}"
                 exists = conn.execute("SELECT 1 FROM play_runs WHERE dedupe_key=?", (dedupe,)).fetchone()
                 if exists:
                     continue
                 rid = new_id()
-                action = play["action_template"].replace("{title}", it["title"] or "").replace("{because}", it["because"])
+                context = episode.get("context") or {}
+                title = context.get("title") or episode.get("use_case") or episode["kind"].replace("_", " ")
+                because = episode["explanation"]
+                action = play["action_template"].replace("{title}", title).replace("{because}", because)
                 conn.execute(
-                    "INSERT INTO play_runs (id, play_id, account_id, trigger_context, action_text, status, dedupe_key, fired_at) "
-                    "VALUES (?,?,?,?,?, 'fired', ?, ?)",
-                    (rid, play["id"], it.get("account_id"), it["because"], action, dedupe, now_utc()))
+                    "INSERT INTO play_runs (id,play_id,account_id,signal_episode_id,trigger_context,"
+                    "action_text,status,dedupe_key,fired_at) VALUES (?,?,?,?,?,?,'fired',?,?)",
+                    (rid, play["id"], episode.get("account_id"), episode["id"], because,
+                     action, dedupe, now_utc()))
                 _notify(conn, "play_fired", f"Play '{play['name']}' fired: {action}", "play_run", rid)
                 audit.record(conn, object_type="play_run", object_id=rid, action="create",
-                             after={"play": play["name"], "trigger": play["trigger_kind"]})
-                fired.append({"id": rid, "play": play["name"], "action": action, "context": it["because"]})
+                             after={"play": play["name"], "trigger": play["trigger_kind"],
+                                    "episode_id": episode["id"]})
+                fired.append({"id": rid, "play": play["name"], "action": action,
+                              "context": because, "episode_id": episode["id"]})
     return {"fired": fired, "count": len(fired)}
 
 

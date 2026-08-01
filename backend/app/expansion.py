@@ -114,6 +114,42 @@ def _sub_floor_populations(conn: sqlite3.Connection, account_id: str) -> set[str
     return out
 
 
+def cohort_suppression_reason(conn: sqlite3.Connection, segment_id: str | None = None,
+                              view_id: str | None = None) -> str | None:
+    """Return the privacy reason for a stable cohort, or None when it is safe to display.
+
+    Metric values have read paths outside the ledger. Keeping this check here prevents an
+    evidence picker, sparkline, signal explanation, or legacy QBR from becoming a route around
+    the same account-level floor.
+    """
+    if segment_id and view_id:
+        return "an observation cannot name both a segment and a view"
+    table, population_id = (("population_segments", segment_id) if segment_id else
+                            ("population_views", view_id) if view_id else (None, None))
+    if not table:
+        return None
+    size_column = "headcount" if table == "population_segments" else "estimated_headcount"
+    row = conn.execute(f"SELECT account_id,{size_column} AS size FROM {table} "
+                       "WHERE id=? AND archived=0", (population_id,)).fetchone()
+    if not row or row["size"] is None:
+        return None
+    floor = min_cohort_size(conn, row["account_id"])
+    return f"cohort size {row['size']} is below the account minimum of {floor}" if row["size"] < floor else None
+
+
+def suppress_observation(conn: sqlite3.Connection, observation: dict) -> dict:
+    """Redact a legacy/sub-floor observation at every generic read boundary."""
+    row = dict(observation)
+    reason = cohort_suppression_reason(conn, row.get("population_segment_id"),
+                                       row.get("population_view_id"))
+    row["suppressed"] = bool(reason)
+    row["suppression_reason"] = reason
+    if reason:
+        row["value"] = None
+        row["target"] = None
+    return row
+
+
 def _suppressed(value, headcount: int | None, floor: int) -> dict:
     """Below the floor a penetration rate is suppressed, never zeroed or rounded.
 
@@ -176,7 +212,13 @@ def whitespace_map(conn: sqlite3.Connection, account_id: str) -> dict:
                 c = {**c, "paid_density": _suppressed(
                     round(c["paid_seats"] / headcount, 4) if headcount else None, headcount, floor)}
             row_cells.append({"use_case_id": uc["id"], "use_case": uc["name"], "cell": c})
-        paid = sum(c["cell"]["paid_seats"] for c in row_cells if c["cell"])
+        cell_paid_sum = sum(c["cell"]["paid_seats"] for c in row_cells if c["cell"])
+        cell_paid_max = max((c["cell"]["paid_seats"] for c in row_cells if c["cell"]), default=0)
+        # A base segment owns the seat inventory. Per-use-case cells may overlap or be disjoint,
+        # so neither SUM nor MAX can derive their union. Legacy rows fall back to MAX only as an
+        # explicitly labelled estimate until the operator records the segment inventory.
+        explicit_paid = seg.get("paid_seats") if seg else None
+        row_paid = explicit_paid if explicit_paid is not None else cell_paid_max
         return {
             "row_type": "segment" if seg else "view",
             "id": (seg or view)["id"],
@@ -185,12 +227,15 @@ def whitespace_map(conn: sqlite3.Connection, account_id: str) -> dict:
             "headcount_source": (seg or view).get("headcount_source"),
             "headcount_as_of": (seg or view).get("headcount_as_of"),
             "is_unallocated": bool(seg["is_unallocated"]) if seg else False,
-            # A seat is owned by the row, so max-across-cells is the honest paid figure for the
-            # row; summing would count a person once per use case they are lit for.
-            "paid_seats": max((c["cell"]["paid_seats"] for c in row_cells if c["cell"]), default=0),
-            "paid_seats_sum_across_use_cases": paid,
-            "paid_seats_note": "Row paid seats is the max across use cases, not the sum: "
-                               "use cases are entitlements on a seat, not separate inventories.",
+            "paid_seats": row_paid,
+            "paid_seats_source": seg.get("paid_seats_source") if seg else None,
+            "paid_seats_as_of": seg.get("paid_seats_as_of") if seg else None,
+            "paid_seats_is_estimate": explicit_paid is None,
+            "paid_seats_sum_across_use_cases": cell_paid_sum,
+            "paid_seats_note": ("Explicit row inventory; cell counts are non-additive."
+                                if explicit_paid is not None else
+                                "Legacy estimate: max across use cases, not the sum. Record row "
+                                "inventory; the union of overlapping cells cannot be derived."),
             "cells": row_cells,
         }
 
@@ -252,9 +297,16 @@ def rollup(conn: sqlite3.Connection, account_id: str) -> dict:
     # Addressable is a ROW total (headcount per segment), never a sum of cell estimates.
     addressable = sum(s["headcount"] or 0 for s in segments)
     paid_by_segment = {}
+    estimated_segments = []
     for c in segment_cells:
         paid_by_segment[c["segment_id"]] = max(paid_by_segment.get(c["segment_id"], 0), c["paid_seats"])
-    paid = sum(paid_by_segment.values())
+    paid = 0
+    for segment in segments:
+        if segment.get("paid_seats") is None:
+            paid += paid_by_segment.get(segment["id"], 0)
+            estimated_segments.append(segment["id"])
+        else:
+            paid += segment["paid_seats"]
 
     return {
         "addressable_seats": addressable,
@@ -262,8 +314,12 @@ def rollup(conn: sqlite3.Connection, account_id: str) -> dict:
         "unpenetrated_seats": max(addressable - paid, 0),
         "by_state": sorted(by_state.values(), key=lambda x: -x["cells"]),
         "excluded_view_cells": len(cells) - len(segment_cells),
+        "paid_seats_estimated": bool(estimated_segments),
+        "paid_seats_estimated_segment_ids": estimated_segments,
         "additive": True,
-        "basis": "Segment rows only; paid seats taken as the max across use cases per segment.",
+        "basis": ("Segment rows only; explicit row-level paid inventory."
+                  if not estimated_segments else
+                  "Segment rows only; missing row inventories use a labelled legacy MAX estimate."),
     }
 
 
@@ -286,7 +342,10 @@ def next_seats(conn: sqlite3.Connection, account_id: str, limit: int = 10) -> di
     rows = []
     for s in segments:
         scs = by_segment.get(s["id"], [])
-        paid = max((c["paid_seats"] for c in scs), default=0)
+        paid = s.get("paid_seats")
+        paid_is_estimate = paid is None
+        if paid is None:
+            paid = max((c["paid_seats"] for c in scs), default=0)
         gap = (s["headcount"] or 0) - paid
         if gap <= 0:
             continue
@@ -294,7 +353,8 @@ def next_seats(conn: sqlite3.Connection, account_id: str, limit: int = 10) -> di
         best = ranked[0] if ranked else None
         rows.append({
             "segment_id": s["id"], "segment": s["name"],
-            "headcount": s["headcount"], "paid_seats": paid, "unpenetrated_seats": gap,
+            "headcount": s["headcount"], "paid_seats": paid,
+            "paid_seats_is_estimate": paid_is_estimate, "unpenetrated_seats": gap,
             "headcount_source": s["headcount_source"], "headcount_as_of": s["headcount_as_of"],
             "best_motion": ({"use_case": use_cases.get(best["use_case_id"]),
                              "state": derive_state(best),
@@ -329,8 +389,16 @@ def target_realization(conn: sqlite3.Connection, target: dict) -> dict:
         return {"status": "suppressed", "value": None, "current_through": None, "stale": False,
                 "reason": f"cohort below the account's minimum of {min_cohort_size(conn, account_id)}"}
 
-    where = "archived=0 AND definition_id=?"
-    params: list = [target["definition_id"]]
+    linked_observation_ids = [r["object_id"] for r in conn.execute(
+        "SELECT object_id FROM value_target_evidence WHERE target_id=? "
+        "AND object_type='metric_observation'", (target["id"],))]
+    if not linked_observation_ids:
+        return {"status": "not_demonstrated", "value": None, "current_through": None,
+                "stale": True, "reason": "no linked metric observation for this target"}
+
+    where = ("archived=0 AND definition_id=? AND id IN (" +
+             ",".join("?" * len(linked_observation_ids)) + ")")
+    params: list = [target["definition_id"], *linked_observation_ids]
     if target["segment_id"]:
         where += " AND population_segment_id=?"
         params.append(target["segment_id"])
@@ -354,6 +422,14 @@ def target_realization(conn: sqlite3.Connection, target: dict) -> dict:
             extra += prog_ids
         where += " AND (" + " OR ".join(clauses) + ")"
         params += extra
+
+    # A later result cannot prove that a by-when commitment was met in its agreed window.
+    if target.get("timeframe_start"):
+        where += " AND current_through >= ?"
+        params.append(target["timeframe_start"])
+    if target.get("timeframe_end"):
+        where += " AND current_through <= ?"
+        params.append(target["timeframe_end"])
 
     obs = conn.execute(
         f"SELECT * FROM metric_observations WHERE {where} ORDER BY current_through DESC LIMIT 1",
@@ -390,7 +466,7 @@ def target_realization(conn: sqlite3.Connection, target: dict) -> dict:
         near = ratio >= 0.8 if target["direction"] == "at_least" else ratio <= 1.2
         status = "on_track" if near else "at_risk"
     return {"status": status, "value": obs["value"], "current_through": obs["current_through"],
-            "stale": False, "past_due": past_due, "reason": None}
+            "observation_id": obs["id"], "stale": False, "past_due": past_due, "reason": None}
 
 
 def ledger(conn: sqlite3.Connection, account_id: str) -> dict:
@@ -406,11 +482,14 @@ def ledger(conn: sqlite3.Connection, account_id: str) -> dict:
 
     rows = []
     for t in targets:
+        evidence = [repo.row_to_dict(e) for e in conn.execute(
+            "SELECT * FROM value_target_evidence WHERE target_id=? ORDER BY created_at", (t["id"],))]
         rows.append({
             **t,
             "metric": definitions.get(t["definition_id"], {}).get("name"),
             "population": segments.get(t["segment_id"]) or views.get(t["view_id"]) or "Account-wide",
             "accepted_by_name": names.get(t["accepted_by_person_id"]),
+            "evidence": evidence,
             "realization": target_realization(conn, t),
         })
 

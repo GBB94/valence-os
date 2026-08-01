@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { SlideOver, Empty, useToast, fmtDate } from "../ui";
+import PlaybookLibrary from "./PlaybookLibrary";
 
 // Files & context library (Section 5O): link-first, searchable, tagged list of source
 // references, each showing the records that cite it.
@@ -78,6 +79,8 @@ export default function Library({ reloadKey }) {
           </table>
         )}
       </div>
+
+      <PlaybookLibrary reloadKey={reloadKey} />
 
       {adding && <AddSource onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setTick((t) => t + 1); }} />}
     </div>

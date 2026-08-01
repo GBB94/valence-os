@@ -3,12 +3,13 @@ import { api } from "../api";
 import { SegTabs, useToast, AgeChip, Empty, fmtDate } from "../ui";
 import StakeholderGraph from "./StakeholderGraph";
 import PersonCard from "./PersonCard";
+import OrgChanges from "./OrgChanges";
 
 // The People tab (Comprehensive Spec Part 3). Map is the existing stakeholder graph + coverage;
 // the Stage-5 panels add the champion pipeline (§3.4), influence paths (§3.5), executive alignment
 // (§3.8) and the role-based messaging library (§3.12). Meeting dynamics (§3.13) render on the
 // person card and inside exec alignment.
-const TABS = [["map", "Map"], ["champions", "Champions"], ["influence", "Influence"], ["exec", "Exec alignment"], ["messaging", "Messaging"]];
+const TABS = [["map", "Map"], ["champions", "Champions"], ["influence", "Influence"], ["exec", "Exec alignment"], ["changes", "Org changes"], ["messaging", "Messaging"]];
 const LAYER_ORDER = ["executive", "economic", "operational", "technical_gating", "user_advocate"];
 const LAYER_LABEL = { executive: "Executive", economic: "Economic", operational: "Operational", technical_gating: "Technical & gating", user_advocate: "User & advocate" };
 const STAGES = ["identify", "develop", "validate", "arm", "maintain"];
@@ -24,6 +25,7 @@ export default function People({ accounts, accountId, setAccountId, reloadKey })
       {sub === "champions" && <Champions accountId={accountId} reloadKey={reloadKey} />}
       {sub === "influence" && <Influence accountId={accountId} reloadKey={reloadKey} />}
       {sub === "exec" && <ExecAlignment accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "changes" && <OrgChanges accountId={accountId} reloadKey={reloadKey} />}
       {sub === "messaging" && <Messaging />}
     </div>
   );

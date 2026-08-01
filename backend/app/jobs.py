@@ -131,6 +131,8 @@ def run_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict
         return None
     handler = HANDLERS.get(job["kind"])
     payload = json.loads(job["payload_json"]) if job["payload_json"] else {}
+    if job["kind"] == "weekly_team_update":
+        payload["_job_id"] = job["id"]
     try:
         if handler is None:
             raise RuntimeError(f"no handler registered for job kind '{job['kind']}'")

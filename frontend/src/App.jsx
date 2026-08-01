@@ -14,10 +14,12 @@ import Commercial from "./views/Commercial";
 import Timeline from "./views/Timeline";
 import Metrics from "./views/Metrics";
 import ValueLibrary from "./views/ValueLibrary";
+import Artifacts from "./views/Artifacts";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import People from "./views/People";
 import Checklists from "./views/Checklists";
+import CalendarPanel from "./views/CalendarPanel";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
@@ -165,6 +167,9 @@ function Shell() {
       commitment: "ledger", task: "ledger", decision: "ledger", risk: "ledger", issue: "ledger",
       interaction: "ledger", capture_inbox_item: "ledger",
       value_story: "evidence", expansion_opportunity: "commercial", scope_change: "plan",
+      whitespace_cell: "commercial", value_target: "commercial", funding_pool: "commercial",
+      operational_agreement: "commercial", growth_plan_line: "commercial",
+      signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
       program: "overview", account: "overview",
     };
     openAccount(acct, tabByType[r.object_type] || "overview");
@@ -412,6 +417,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
         {tab === "plan" && (
           <div className="stack">
             <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
+            <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
             {selProgram
               ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
               : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
@@ -427,7 +433,8 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
           </div>
         )}
         {tab === "outputs" && (
-          <OutputsTab accounts={accounts} accountId={accountId} setAcct={setAcct} reloadKey={reloadKey} />
+          <OutputsTab accounts={accounts} accountId={accountId} programId={programId}
+                      setAcct={setAcct} reloadKey={reloadKey} />
         )}
       </div>
     </>
@@ -486,13 +493,15 @@ function StatusStat({ label, status, assessed }) {
 }
 
 // Outputs tab: an inner selector across the three generators (interim; Phase D refines).
-function OutputsTab({ accounts, accountId, setAcct, reloadKey }) {
-  const [which, setWhich] = useState("qbr");
+function OutputsTab({ accounts, accountId, programId, setAcct, reloadKey }) {
+  const [which, setWhich] = useState("artifacts");
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <SegTabs tabs={[["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
+        <SegTabs tabs={[["artifacts", "Artifacts"], ["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
       </div>
+      {which === "artifacts" && <Artifacts accounts={accounts} accountId={accountId}
+        programId={programId} setAccountId={setAcct} reloadKey={reloadKey} />}
       {which === "qbr" && <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
       {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
       {which === "map" && <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}

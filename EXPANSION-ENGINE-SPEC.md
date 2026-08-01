@@ -22,11 +22,11 @@ So the order that builds each thing once:
 
 | Stage | Content | Why here |
 |---|---|---|
-| **5.5** (new) | §1 whitespace map · §2 value ledger · §4 funding intelligence | The nouns Stage 6 needs. Pure schema + screens, no adapter dependencies |
-| **6** (unchanged content) | Generators — business case, QBR/kickoff decks, champion kit, weekly update | Now consumes real cells, value targets, and pools. Written once |
-| **7** (absorbs §3) | Triggers, calendar, org-change — §6.1 **already lists** "expansion signal (unit crossing the agreed bar; pull signals logged)" | The expansion signals engine *is* part of Stage 7, not a separate later thing. §3.1's episode semantics land with the rest of the trigger work |
-| **7.5** (new) | §5 five slots · §6 pre-agreed triggers · §7 renewal center · §9 growth plan + mutual view | Depends on both the generators and the trigger engine |
-| **8** (unchanged) | CONNECTIONS.md + end-to-end demo | Now registers the headcount adapter too (§12) |
+| ~~**5.5**~~ **done** | §1 whitespace map · §2 value ledger · §4 funding intelligence | The nouns Stage 6 needs. Pure schema + screens, no adapter dependencies. *Built: migrations 0017-0019; hardened in 0021, D-84/D-86/D-88.* |
+| ~~**6**~~ **done** | Generators — business case, value review (§8), champion kit, pre-call brief, kickoff/QBR decks, weekly update | Consumed real cells, value targets, and pools — written once, as intended. *Built: migrations 0020-0021, D-87/D-88.* |
+| ~~**7**~~ **done** (absorbs §3) | Triggers, calendar, org-change — §6.1 **already lists** "expansion signal (unit crossing the agreed bar; pull signals logged)" | *Built in migration 0022: recurring episodes, pacing, pull/usage/calendar/org/headcount signals, mock adapters, and succession handling (D-89).* |
+| ~~**7.5**~~ **done** (new) | §5 five slots · §6 pre-agreed triggers · §7 renewal center · §9 growth plan + mutual view | *Built in migration 0023: linked qualification, sourced agreements and firing events, derived renewal case, overlap-safe growth bridge, and client-safe mutual view (D-90).* |
+| ~~**8**~~ **done** (unchanged) | CONNECTIONS.md + end-to-end demo | *Built: eleven-boundary registry, fail-closed runtime approval gate, Operations surface, and executable new-account demo; migration 0024 hardens succession soft-delete (D-91).* |
 | **9** (new) | §10 analytics · §11 playbook library | Needs history to be worth anything; genuinely last |
 
 Two things this order gets for free: the `dedupe_key` fix (item 5 below) lands inside Stage 7's trigger work where it's a one-line index change rather than a migration against accumulated play history, and §3's calendar and org-change signals arrive in the same stage as the adapters that feed them.
@@ -38,9 +38,9 @@ Two things this order gets for free: the `dedupe_key` fix (item 5 below) lands i
 | 1 | QBR metric selection is not account-scoped — one account's client-facing QBR can render another account's numbers | **Done** (D-82). Observations are now scoped to the account's programs; an observation with no program is unattributable and never reaches a client artifact |
 | 2 | QBR includes open commitments without the `client_visible` promotion filter the mutual action plan enforces | **Done** (D-82). Regression tests added for both, each verified to fail against the pre-fix code |
 | 3 | `portfolio_io._INSERT_ORDER` enumerates only tables through migration 0005 — MAP promotion, people layers, cadence, ingestion, and relationship intelligence are already silently dropped from "full" account export | **Done** (D-84). Covers everything through 0019, guarded by a test that introspects `sqlite_master` and fails when a new account-scoped table goes unregistered |
-| 4 | Global search, source-citation lookup, and the Operations status screen have not been brought up to the current schema | **Done** (D-84) for search — comm messages, pull signals, checklist items, and the Stage 5.5 objects are indexed, with a test. Operations screen still pending |
-| 5 | `play_runs.dedupe_key` is `play_id:object_id` under a global UNIQUE index — a play can never fire twice for the same object, ever. Recurring signals (§3) are structurally impossible until this changes | Open — lands **inside Stage 7**, where it is an index change rather than a migration against accumulated history |
-| 6 | `play_definitions.trigger_kind` is a DB `CHECK` over four values. Stage 7 §6.1 already widens it; §3 extends that work rather than duplicating it | Owned by Stage 7 |
+| 4 | Global search, source-citation lookup, and the Operations status screen have not been brought up to the current schema | **Done** (D-84/D-91) — search and citations cover the expansion objects; Operations now renders the complete connection registry and its gate state |
+| 5 | `play_runs.dedupe_key` was `play_id:object_id` under a global UNIQUE index — a play could never fire twice for the same object | **Closed in migration 0022:** dedupe is play·episode; terminal actions require an observed clear/re-arm before recurrence |
+| 6 | `play_definitions.trigger_kind` was a DB `CHECK` over four values | **Closed in migration 0022:** widened once for the Phase 3 + expansion trigger set |
 
 Items 3 and 4 are hygiene that expansion will otherwise make worse; close them in Stage 5.5 alongside the first migration, since both are export/read-path work that touches the same registry the new tables must join.
 
@@ -221,7 +221,7 @@ Shipping in the first slice: whitespace conversion counts by state transition, a
 
 So `contract_versions` gains **currency, billing period, and a recurring/one-off type**, with an explicit ARR derivation rather than an inferred one, and contraction and churn become dated events rather than states inferred from a missing row. NRR is then a computation over records that exist, and it is reported per §10's counting rule — absolute movement with the account count stated, never a blended portfolio percentage that five accounts cannot support. Seat-based penetration growth ships alongside it, because it is closer to how this motion is actually managed day to day. External NRR benchmarks remain versioned sourced claims per the standing benchmark rule, never hard-coded.
 
-**Land-and-leave incidents** land with the detector in §3.2 — the one genuine deferral in this document, because it needs elapsed quarters of headcount history and no amount of scope permission manufactures a time series. The observation table ships in Stage 5.5 so the clock starts immediately.
+**Land-and-leave incidents** landed with the §3.2 detector in Stage 7. The mock account carries two dated headcount periods so the behavior is demonstrable now; real accounts remain honestly inactive until their own elapsed history exists.
 
 ## 11. The expansion playbook library
 
@@ -237,7 +237,7 @@ Feeds the plays engine (a repeatedly successful motion becomes a play definition
 
 ## 12. Build notes
 
-**Slice order.** Per the §0 table: Stage 5.5 (whitespace schema and counting rule → cell facts and derived state → heatmap with the §1.3 design amendment → value ledger → funding intelligence and the ask calendar, plus Stage 0 items 3 and 4) → Stage 6 generators consuming it → Stage 7 absorbing §3's signals and the `dedupe_key` fix → Stage 7.5 (five slots, pre-agreed triggers, renewal center, growth plan) → Stage 8 → Stage 9 (analytics, playbook library). The §3.2 land-and-leave detector is the single deferral, waiting on elapsed headcount history rather than on permission.
+**Slice order.** Per the §0 table: Stage 5.5 (whitespace schema and counting rule → cell facts and derived state → heatmap with the §1.3 design amendment → value ledger → funding intelligence and the ask calendar, plus Stage 0 items 3 and 4) → Stage 6 generators consuming it → Stage 7 absorbing §3's signals and the `dedupe_key` fix → Stage 7.5 (five slots, pre-agreed triggers, renewal center, growth plan) → Stage 8 → Stage 9 (analytics, playbook library). Stages 5.5–9 are complete.
 
 Each slice lands with tests, both-theme screenshots, and a HANDOFF.md update before the next begins.
 
@@ -245,7 +245,7 @@ Each slice lands with tests, both-theme screenshots, and a HANDOFF.md update bef
 
 **Integrations inside the tool.** Cells link to People (sponsors, budget owners, audience taxonomy), Evidence (stories, observations), Plan (moments, compliance lanes), and the generators. Business case consumes cells, value targets, and triggers; the value review consumes the ledger and trigger progress; the MAP machinery carries the mutual growth plan.
 
-**Adapters.** Population headcount by segment is HRIS-shaped data, and v2 defined it as manual-entry-only — which was a way of avoiding a CONNECTIONS.md row rather than a design position. It gets **a real adapter with a mock implementation**, exactly like transcription, email, and calendar: an interface, a fixture set (a CSV of segment headcounts by period), a registry row, and the same governance gate as everything else. That is what "build everything, connect nothing real" means, and it is also the only way the §3.2 detector ever gets a time series without hand-keying one. Manual entry stays available as a first-class path, since headcount will often arrive as a number someone says in a meeting — but it is one source among several, each carrying its own provenance and date. The org-change and calendar adapters from Stage 7 feed the signals engine and are already registered.
+**Adapters.** Population headcount by segment is HRIS-shaped data, and v2 defined it as manual-entry-only — which was a way of avoiding a CONNECTIONS.md row rather than a design position. Stage 7 built **a real adapter interface with a mock implementation**, exactly like transcription, email, and calendar, including CSV fixtures and job-backed sync. That is what "build everything, connect nothing real" means, and it is also the only way the §3.2 detector gets a time series without hand-keying one. Manual entry remains a first-class path, since headcount will often arrive as a number someone says in a meeting. Stage 8 registered the boundary formally in `CONNECTIONS.md`; no real source is connected.
 
 **Files the module will touch beyond its own migrations and service.** `schemas.py`, `output_gen.py`, `portfolio_io.py` (export registry, per Stage 0 item 3), `search.py`, `routers/library.py`, `Commercial.jsx`, `App.jsx`, and the QBR, MAP, timeline, metrics, plays, operations, and waterfall views. Also: seed generation, account export/restore, global search, source-citation lookup, attention rules, output security tests, and the full acceptance script.
 

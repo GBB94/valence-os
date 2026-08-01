@@ -16,7 +16,36 @@ _CITERS = [
     ("risk", "SELECT r.id, r.source_reference_id, p.account_id, r.description label FROM risks r JOIN programs p ON p.id=r.program_id WHERE r.archived=0 AND r.source_reference_id IS NOT NULL"),
     ("issue", "SELECT i.id, i.source_reference_id, p.account_id, i.description label FROM issues i JOIN programs p ON p.id=i.program_id WHERE i.archived=0 AND i.source_reference_id IS NOT NULL"),
     ("value_story", "SELECT id, source_reference_id, account_id, outcome label FROM value_stories WHERE archived=0 AND source_reference_id IS NOT NULL"),
-    ("metric_observation", "SELECT mo.id, mo.source_reference_id, p.account_id, md.name label FROM metric_observations mo JOIN programs p ON p.id=mo.program_id JOIN metric_definitions md ON md.id=mo.definition_id WHERE mo.archived=0 AND mo.source_reference_id IS NOT NULL"),
+    ("metric_observation", "SELECT mo.id,mo.source_reference_id,"
+                           "COALESCE(p.account_id,ps.account_id,pv.account_id) account_id,md.name label "
+                           "FROM metric_observations mo JOIN metric_definitions md ON md.id=mo.definition_id "
+                           "LEFT JOIN programs p ON p.id=mo.program_id "
+                           "LEFT JOIN population_segments ps ON ps.id=mo.population_segment_id "
+                           "LEFT JOIN population_views pv ON pv.id=mo.population_view_id "
+                           "WHERE mo.archived=0 AND mo.source_reference_id IS NOT NULL "
+                           "AND COALESCE(p.account_id,ps.account_id,pv.account_id) IS NOT NULL"),
+    ("whitespace_cell", "SELECT wc.id,wc.source_reference_id,wc.account_id,uc.name label "
+                        "FROM whitespace_cells wc JOIN use_cases uc ON uc.id=wc.use_case_id "
+                        "WHERE wc.archived=0 AND wc.source_reference_id IS NOT NULL"),
+    ("value_target", "SELECT vt.id,vt.source_reference_id,vt.account_id,md.name label "
+                     "FROM value_targets vt JOIN metric_definitions md ON md.id=vt.definition_id "
+                     "WHERE vt.archived=0 AND vt.source_reference_id IS NOT NULL"),
+    ("funding_pool", "SELECT id,source_reference_id,account_id,name label FROM funding_pools "
+                     "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("population_segment", "SELECT id,source_reference_id,account_id,name label FROM population_segments "
+                           "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("headcount_observation", "SELECT h.id,h.source_reference_id,h.account_id,"
+                              "s.name||' · '||h.period_label label FROM population_headcount_observations h "
+                              "JOIN population_segments s ON s.id=h.segment_id "
+                              "WHERE h.archived=0 AND h.source_reference_id IS NOT NULL"),
+    ("calendar_event", "SELECT id,source_reference_id,account_id,title label FROM calendar_events "
+                       "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("org_change_flag", "SELECT id,source_reference_id,account_id,summary label FROM org_change_flags "
+                        "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("operational_agreement", "SELECT id,source_reference_id,account_id,name label "
+                              "FROM operational_agreements WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("growth_plan_line", "SELECT id,source_reference_id,account_id,name label FROM growth_plan_lines "
+                         "WHERE archived=0 AND source_reference_id IS NOT NULL"),
 ]
 
 

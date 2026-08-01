@@ -10,10 +10,12 @@ import ConvertPanel from "./ConvertPanel";
 const CHIPS = [
   ["all", "All"], ["interaction", "Interactions"], ["commitment", "Commitments"],
   ["task", "Tasks"], ["decision", "Decisions"], ["risk", "Risks"], ["issue", "Issues"], ["inbox", "Inbox"],
+  ["milestone", "Milestones"],
 ];
 const KIND_LABEL = {
   interaction: "interaction", commitment: "commitment", task: "task",
   decision: "decision", risk: "risk", issue: "issue", inbox: "inbox note",
+  milestone: "milestone",
 };
 
 // state → (color-band, shape) so state never rides on color alone (§6 badges)
@@ -79,6 +81,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
     pushExec("decision", exec.decisions, "decided_on");
     pushExec("risk", exec.risks, "created_at");
     pushExec("issue", exec.issues, "created_at");
+    pushExec("milestone", exec.milestones, "target_date");
     (history.interactions || []).forEach((it) => out.push({
       key: `interaction:${it.id}`, kind: "interaction", raw: it,
       date: it.occurred_on, title: it.summary || "(interaction)", program: it.program_name,
@@ -140,7 +143,15 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
 
         <div className="card ledger-detail">
           {!selected ? <div className="empty"><h3>Select a record</h3><div>Its detail and actions appear here.</div></div> : (
-            <Detail row={selected} onConvert={() => setConverting(selected.raw)} onClose={() => setClosing(selected)} />
+            <Detail row={selected} onConvert={() => setConverting(selected.raw)} onClose={() => setClosing(selected)}
+                    onShare={async () => {
+                      try {
+                        await api.mapPromote({ object_type: selected.kind, object_id: selected.raw.id,
+                          client_visible: !Boolean(selected.raw.client_visible) });
+                        toast(selected.raw.client_visible ? "Removed from mutual plan" : "Added to mutual plan");
+                        await load(); onChanged?.();
+                      } catch (e) { toast(e.message, "err"); }
+                    }} />
           )}
         </div>
       </div>
@@ -151,7 +162,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
   );
 }
 
-function Detail({ row, onConvert, onClose }) {
+function Detail({ row, onConvert, onClose, onShare }) {
   const r = row.raw;
   const closable = ["commitment", "task", "risk", "issue"].includes(row.kind) && row.state.band !== "ok";
   return (
@@ -190,6 +201,11 @@ function Detail({ row, onConvert, onClose }) {
         {closable && <Btn variant="primary" size="small" onClick={onClose}>
           {row.kind === "issue" ? "Resolve issue" : row.kind === "risk" ? "Close risk" : row.kind === "commitment" ? "Close commitment" : "Close task"}
         </Btn>}
+        {["commitment", "task", "milestone"].includes(row.kind) && (
+          <Btn size="small" onClick={onShare}>
+            {r.client_visible ? "★ Shared in mutual plan" : "☆ Add to mutual plan"}
+          </Btn>
+        )}
       </div>
     </div>
   );

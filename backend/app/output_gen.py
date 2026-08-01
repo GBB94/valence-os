@@ -12,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import date, timedelta
 
-from . import repo
+from . import expansion, repo
 from .db import now_utc
 
 # Records that can be created from an interaction (for history back-references).
@@ -28,6 +28,14 @@ DERIVED_TABLES = {
 
 def _label(table: str, row: dict) -> str:
     return row.get("name") if table == "milestones" else row.get("description")
+
+
+def _source(conn, source_id):
+    if not source_id:
+        return None
+    row = conn.execute("SELECT id, label, url, locator, created_at FROM source_references "
+                       "WHERE id=? AND archived=0", (source_id,)).fetchone()
+    return dict(row) if row else None
 
 
 def account_history(conn, account_id, *, person_id=None, program_id=None) -> dict:
@@ -183,6 +191,7 @@ def qbr(conn, account_id: str) -> dict:
             (d["id"], *pids)).fetchone()
         if not obs:
             continue
+        safe_obs = expansion.suppress_observation(conn, dict(obs))
         stale = True
         if obs["current_through"]:
             try:
@@ -191,11 +200,19 @@ def qbr(conn, account_id: str) -> dict:
                 stale = True
         if stale:
             missing_or_stale.append(d["name"])
+        source = _source(conn, obs["source_reference_id"])
+        if not source:
+            missing_or_stale.append(f"{d['name']} has no source reference")
+            continue
+        if safe_obs["suppressed"]:
+            missing_or_stale.append(f"{d['name']} suppressed: cohort too small")
         metrics.append({"name": d["name"], "type": "confirmed_fact",
-                        "value": ("unknown" if stale else obs["value"]),
-                        "target": obs["target"],
+                        "value": ("suppressed" if safe_obs["suppressed"] else
+                                  "unknown" if stale else safe_obs["value"]),
+                        "target": safe_obs["target"],
                         "current_through": obs["current_through"],
-                        "population": d["population"], "definition_version": d["version"]})
+                        "population": d["population"], "definition_version": d["version"],
+                        "source": source})
 
     benchmarks = [{"name": b["name"], "type": "confirmed_fact", "value": b["value"], "unit": b["unit"],
                    "population": b["population"], "period": b["period"], "source": b["source"], "version": b["version"]}
@@ -204,29 +221,44 @@ def qbr(conn, account_id: str) -> dict:
     # ONLY affirmatively-promoted, non-negative value stories (by construction)
     promoted = repo.list_rows(
         conn, "value_stories",
-        where="account_id=? AND is_negative=0 AND visibility_class IN ('qbr_exec','externally_referenceable') ORDER BY evidence_tier DESC",
+        where="account_id=? AND is_negative=0 AND source_reference_id IS NOT NULL "
+              "AND visibility_class IN ('qbr_exec','externally_referenceable') "
+              "ORDER BY evidence_tier DESC",
         params=(account_id,))
     value_stories = [{"outcome": v["outcome"], "type": "confirmed_fact" if v["evidence_tier"] in
                       ("measured_operational", "correlated_business") else "internal_interpretation",
-                      "evidence_tier": v["evidence_tier"], "tags": v["tags"]} for v in promoted]
+                      "evidence_tier": v["evidence_tier"], "tags": v["tags"],
+                      "source": _source(conn, v["source_reference_id"])} for v in promoted]
 
     open_commitments = []
-    risk_open = 0
     if pids:
         qmarks = ",".join("?" * len(pids))
         for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND status='open' "
-                              f"AND client_visible=1 AND program_id IN ({qmarks})", pids):
-            open_commitments.append({"description": r["description"], "due_date": r["due_date"], "type": "confirmed_fact"})
-        risk_open = conn.execute(f"SELECT COUNT(*) c FROM risks WHERE archived=0 AND status='open' AND program_id IN ({qmarks})", pids).fetchone()["c"]
+                              f"AND client_visible=1 AND (source_reference_id IS NOT NULL OR "
+                              f"source_interaction_id IS NOT NULL) AND program_id IN ({qmarks})", pids):
+            source = _source(conn, r["source_reference_id"])
+            if not source and r["source_interaction_id"]:
+                interaction = conn.execute("SELECT occurred_on, summary FROM interactions WHERE id=?",
+                                           (r["source_interaction_id"],)).fetchone()
+                source = ({"id": r["source_interaction_id"],
+                           "label": f"Interaction {interaction['occurred_on']}",
+                           "locator": interaction["summary"],
+                           "created_at": interaction["occurred_on"]} if interaction else None)
+            open_commitments.append({"description": r["description"], "due_date": r["due_date"],
+                                     "type": "confirmed_fact", "source": source})
 
-    stamp = {"generated_at": now_utc(), "data_current_through": today,
+    current_dates = [m["current_through"] for m in metrics if m.get("current_through")]
+    current_dates += [v["source"].get("created_at") for v in value_stories if v.get("source")]
+    current_dates += [c["source"].get("created_at") for c in open_commitments
+                      if c.get("source") and c["source"].get("created_at")]
+    stamp = {"generated_at": now_utc(),
+             "data_current_through": min(current_dates) if current_dates else None,
              "missing_or_stale_sources": missing_or_stale,
              "content_types": ["confirmed_fact", "internal_interpretation", "open_hypothesis", "recommended_action"]}
     return {
         "account_id": account_id, "account_name": acct["name"], "stamp": stamp,
         "metrics": metrics, "benchmarks": benchmarks, "value_stories": value_stories,
         "open_commitments": open_commitments,
-        "risk_posture": {"type": "internal_interpretation", "open_risks": risk_open},
         "excluded_note": "Internal-only and negative-evidence records are excluded by construction, not by review.",
     }
 
@@ -245,30 +277,92 @@ def mutual_action_plan(conn, account_id: str) -> dict:
     names = {p["id"]: p["name"] for p in repo.list_rows(conn, "persons", where="1=1")}
     pids = list(programs)
     items = []
+    source_dates = []
+    def citation(row):
+        row = dict(row)
+        if row.get("source_reference_id"):
+            source = _source(conn, row["source_reference_id"])
+            if source:
+                source_dates.append(source["created_at"][:10])
+                return source["label"]
+        if row.get("source_interaction_id"):
+            source = conn.execute("SELECT occurred_on FROM interactions WHERE id=? AND archived=0",
+                                  (row["source_interaction_id"],)).fetchone()
+            if source:
+                source_dates.append(source["occurred_on"][:10])
+                return f"Interaction {source['occurred_on']}"
+        return None
     if pids:
         qmarks = ",".join("?" * len(pids))
         for r in conn.execute(f"SELECT * FROM milestones WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
             items.append({"type": "milestone", "what": r["name"], "owner": None,
-                          "due": r["target_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+                          "due": r["target_date"], "status": r["status"], "program": programs.get(r["program_id"]),
+                          "source": citation(r)})
         for r in conn.execute(f"SELECT * FROM commitments WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
             items.append({"type": "commitment", "what": r["description"], "owner": names.get(r["responsible_party_id"]),
-                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"]),
+                          "source": citation(r)})
         for r in conn.execute(f"SELECT * FROM tasks WHERE archived=0 AND client_visible=1 AND program_id IN ({qmarks})", pids):
             items.append({"type": "task", "what": r["description"], "owner": names.get(r["internal_owner_id"]),
-                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"])})
+                          "due": r["due_date"], "status": r["status"], "program": programs.get(r["program_id"]),
+                          "source": citation(r)})
+
+    # The client-facing growth-plan twin. Query only promoted, sourced lines and select only
+    # joint fields; probability, funding tactics, competitive notes, and pricing assumptions
+    # never enter this structure and therefore cannot leak through a renderer.
+    for r in conn.execute(
+        "SELECT gl.*,COALESCE(ps.name,pv.name) population FROM growth_plan_lines gl "
+        "JOIN account_growth_plans gp ON gp.id=gl.plan_id "
+        "LEFT JOIN population_segments ps ON ps.id=gl.segment_id "
+        "LEFT JOIN population_views pv ON pv.id=gl.view_id "
+        "WHERE gl.account_id=? AND gp.status='active' AND gl.archived=0 "
+        "AND gl.client_visible=1 AND gl.source_reference_id IS NOT NULL",
+        (account_id,)):
+        items.append({"type": "growth line", "what": f"{r['name']} — {r['seat_count']:,} seats",
+                      "owner": names.get(r["budget_owner_person_id"]), "due": r["ask_date"],
+                      "status": r["status"], "program": r["population"], "source": citation(r)})
+
+    triggers = []
+    for r in conn.execute(
+        "SELECT * FROM operational_agreements WHERE account_id=? AND archived=0 AND status='active' "
+        "AND client_visible=1 AND (source_reference_id IS NOT NULL OR source_interaction_id IS NOT NULL) "
+        "ORDER BY effective_on", (account_id,)):
+        source = citation(r)
+        if not source:
+            continue
+        triggers.append({"name": r["name"], "contractual": r["source_kind"] == "signed_paper",
+                         "seat_band_min": r["seat_band_min"], "seat_band_max": r["seat_band_max"],
+                         "effective_on": r["effective_on"], "expires_on": r["expires_on"],
+                         "agreed_process": r["agreed_process"], "source": source})
     items.sort(key=lambda x: (x["due"] or "9999", x["type"]))
     md = [f"# Mutual action plan — {acct['name']}", "",
           f"_Jointly owned · generated {now_utc()} · current through {today}_", ""]
     if not items:
         md.append("_No items have been shared to this plan yet._")
     else:
-        md.append("| What | Owner | Due | Status | Program |")
-        md.append("|---|---|---|---|---|")
+        md.append("| What | Owner | Due | Status | Program | Source |")
+        md.append("|---|---|---|---|---|---|")
         for it in items:
-            md.append(f"| {it['what']} | {it['owner'] or '—'} | {it['due'] or '—'} | {it['status']} | {it['program'] or '—'} |")
+            safe = lambda v: str(v or "—").replace("|", "\\|").replace("\n", " ")
+            md.append("| " + " | ".join(safe(it[k]) for k in
+                      ("what", "owner", "due", "status", "program", "source")) + " |")
+    md += ["", "## Pre-agreed expansion triggers", ""]
+    if not triggers:
+        md.append("_No triggers have been shared to this plan yet._")
+    else:
+        md.append("| Agreement | Authority | Seat band | Effective | Process | Source |")
+        md.append("|---|---|---|---|---|---|")
+        for trigger in triggers:
+            safe = lambda v: str(v or "—").replace("|", "\\|").replace("\n", " ")
+            md.append("| " + " | ".join(safe(v) for v in (
+                trigger["name"], "contractual" if trigger["contractual"] else "operational",
+                f"{trigger['seat_band_min']:,}–{trigger['seat_band_max']:,}",
+                trigger["effective_on"], trigger["agreed_process"], trigger["source"])) + " |")
+    current_through = min(source_dates) if source_dates else None
     return {"account_id": account_id, "account_name": acct["name"],
-            "stamp": {"generated_at": now_utc(), "data_current_through": today},
-            "items": items, "markdown": "\n".join(md),
+            "stamp": {"generated_at": now_utc(), "data_current_through": current_through,
+                      "missing_or_stale_sources": ([] if current_through else ["no sourced items shared"])},
+            "items": items, "pre_agreed_triggers": triggers, "markdown": "\n".join(md),
             "note": "Client-facing: only items explicitly promoted to the plan appear here, by construction."}
 
 

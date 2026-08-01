@@ -106,7 +106,7 @@ COLUMNS = {
     "benchmarks": {"id", "name", "value", "unit", "population", "period", "source", "version", "source_reference_id"},
     "value_stories": {"id", "account_id", "program_id", "outcome", "tags", "evidence_tier", "visibility_class", "identifiable", "is_negative", "source_reference_id"},
     "relationship_edges": {"id", "account_id", "from_person_id", "to_person_id", "type", "program_id", "note"},
-    "recovered_spend": {"id", "account_id", "label", "amount", "source_note"},
+    "recovered_spend": {"id", "account_id", "label", "amount", "currency", "source_note"},
     "play_definitions": {"id", "name", "trigger_kind", "action_template", "active"},
 }
 # YAML key -> table for v0.2 execution objects.
@@ -248,9 +248,10 @@ def _seed_stage5_demo(conn):
                  (new_id(), "acc-terravance", "p-val-operator", "p-tv-champion", "2026-08-15",
                   "Monthly CHRO check-in.", ts, ts))
     # A logged pull signal (expansion demand) — feeds the Stage-7 expansion play.
-    conn.execute("INSERT INTO pull_signals (id, account_id, program_id, description, occurred_on, status, source_interaction_id, created_at, updated_at) "
-                 "VALUES (?,?,?,?,?,?,?,?,?)",
-                 (new_id(), "acc-terravance", "prog-tv-expansion",
+    conn.execute("INSERT INTO pull_signals (id, account_id, program_id, signal_kind, requested_by_person_id, "
+                 "description, occurred_on, status, source_interaction_id, created_at, updated_at) "
+                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                 (new_id(), "acc-terravance", "prog-tv-expansion", "champion_ask", "p-tv-champion",
                   "Two additional regional GMs asked to be included in the next rollout wave.",
                   "2026-07-18", "open", "int-tv-jul-call", ts, ts))
 
@@ -354,6 +355,11 @@ def _seed_stage55_demo(conn):
             paid, sponsor,
             "Package the DACH readout for the Nordics sponsor." if pen == "pilot" else None, ts, ts))
 
+    # Stage 5 captured the request before cells existed; Stage 5.5 resolves it to the exact
+    # whitespace cell so Stage 7 can apply its window and customer-pull precedence honestly.
+    ex("UPDATE pull_signals SET cell_id='cell-tv-3', updated_at=? WHERE account_id='acc-terravance' "
+       "AND signal_kind='champion_ask' AND cell_id IS NULL", (ts,))
+
     # A cell on the composite view: 300 of DACH's own paid seats seen through the frontline
     # lens. It must NOT add to the rollup — those people are already counted in seg-tv-dach.
     ex("INSERT OR IGNORE INTO whitespace_cells (id, account_id, view_id, use_case_id, penetration, "
@@ -365,16 +371,37 @@ def _seed_stage55_demo(conn):
     ex("UPDATE whitespace_cells SET pursuit_outcome='none', reopened_on='2026-07-20', "
        "reopened_reason='DACH results published; the regional director asked to revisit.' "
        "WHERE id='cell-tv-5' AND reopened_on IS NULL")
-    for cid, fact, before, after, reason, on in (
-        ("cell-tv-1", "penetration",    "pilot", "paid",     "Three-year DACH agreement signed.", "2026-02-10"),
-        ("cell-tv-1", "evidence_state", "anecdotal", "measured", "Q2 manager-quality readout landed.", "2026-06-30"),
-        ("cell-tv-2", "penetration",    "none",  "paid",     "Change cohort added to the DACH order.", "2026-05-18"),
-        ("cell-tv-5", "pursuit_outcome","none",  "declined", "Regional director wanted DACH results first.", "2026-04-22"),
-        ("cell-tv-5", "reopened",       "declined", "none",  "DACH results published; asked to revisit.", "2026-07-20"),
+    for cid, fact, before, after, reason, on, state_before, state_after in (
+        ("cell-tv-1", "evidence_state", "none", "anecdotal", "Pilot stories cleared the proof bar.", "2026-01-20", "target", "proven"),
+        ("cell-tv-1", "penetration",    "pilot", "paid",     "Three-year DACH agreement signed.", "2026-02-10", "proven", "penetrated_unevidenced"),
+        ("cell-tv-1", "evidence_state", "anecdotal", "measured", "Q2 manager-quality readout landed.", "2026-06-30", "penetrated_unevidenced", "penetrated"),
+        ("cell-tv-2", "penetration",    "none",  "paid",     "Change cohort added to the DACH order.", "2026-05-18", "target", "penetrated_unevidenced"),
+        ("cell-tv-5", "pursuit_outcome","none",  "declined", "Regional director wanted DACH results first.", "2026-04-22", "white", "declined"),
+        ("cell-tv-5", "reopened",       "declined", "none",  "DACH results published; asked to revisit.", "2026-07-20", "declined", "white"),
     ):
         ex("INSERT OR IGNORE INTO cell_state_history (id, cell_id, fact, before_value, after_value, "
-           "reason, changed_on, actor, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-           (f"csh-{cid}-{fact}", cid, fact, before, after, reason, on, "operator", ts))
+           "reason, changed_on, actor, created_at, derived_state_before, derived_state_after) "
+           "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+           (f"csh-{cid}-{fact}-{on}", cid, fact, before, after, reason, on, "operator", ts,
+            state_before, state_after))
+
+    # Stage 9 seed learning: one won shape and one lost shape, both tied to a dated transition.
+    for entry in (
+        ("pbe-tv-1", "cell-tv-1", "csh-cell-tv-1-evidence_state-2026-01-20", "uc-perf",
+         "target", "proven", "2026-01-20", "Sponsor-led manager pilot",
+         "Pilot stories plus the agreed scorecard", "Start with the live review moment",
+         "operational", "2025-12-15", 36, "Sponsor carried the readout without us",
+         "Start procurement before the evidence review"),
+        ("pbe-tv-2", "cell-tv-5", "csh-cell-tv-5-pursuit_outcome-2026-04-22", "uc-perf",
+         "white", "declined", "2026-04-22", "Regional proof-first outreach",
+         "DACH evidence was not ready", None, None, "2026-03-20", 33,
+         "The objection was made explicit", "Wait for adjacent proof before the ask"),
+    ):
+        ex("INSERT OR IGNORE INTO playbook_entries (id,account_id,cell_id,transition_history_id,"
+           "use_case_id,transition_from,transition_to,transitioned_on,motion_run,evidence_summary,"
+           "message_summary,message_layer,motion_started_on,duration_days,what_worked,what_differently,"
+           "created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+           (entry[0], "acc-terravance", *entry[1:], ts, ts))
 
     # --- the value ledger (§2) ---
     md = conn.execute("SELECT id FROM metric_definitions ORDER BY name LIMIT 1").fetchone()
@@ -393,8 +420,14 @@ def _seed_stage55_demo(conn):
         # A fresh, population-scoped observation so the DACH bar reads as realized.
         ex("INSERT OR IGNORE INTO metric_observations (id, definition_id, definition_version, "
            "program_id, population_segment_id, period_label, value, target, current_through, "
-           "created_at, updated_at) VALUES ('obs-tv-dach','" + did + "','1','prog-tv-global',"
-           "'seg-tv-dach','2026-07',0.78,0.70,?,?,?)", (today, ts, ts))
+           "source_reference_id, created_at, updated_at) VALUES ('obs-tv-dach','" + did +
+           "','1','prog-tv-global','seg-tv-dach','2026-07',0.78,0.70,?,"
+           "'src-tv-steerdeck',?,?)", (today, ts, ts))
+        ex("UPDATE value_targets SET client_visible=1, source_reference_id='src-tv-steerdeck' "
+           "WHERE id='vt-tv-1'")
+        ex("INSERT OR IGNORE INTO value_target_evidence (id,target_id,object_type,object_id,note,"
+           "created_at,updated_at) VALUES ('vte-tv-1','vt-tv-1','metric_observation',"
+           "'obs-tv-dach','July scorecard observation',?,?)", (ts, ts))
 
     # --- funding intelligence (§4) ---
     for pid, name, kind, owner, status, amount in (
@@ -405,6 +438,10 @@ def _seed_stage55_demo(conn):
         ex("INSERT OR IGNORE INTO funding_pools (id, account_id, name, kind, owner_person_id, "
            "status, amount, currency, created_at, updated_at) VALUES (?,?,?,?,?,?,?,'EUR',?,?)",
            (pid, "acc-terravance", name, kind, owner, status, amount, ts, ts))
+    ex("UPDATE funding_pools SET client_visible=1, source_reference_id='src-tv-steerdeck' "
+       "WHERE id='fp-tv-1'")
+    ex("UPDATE whitespace_cells SET client_visible=1, source_reference_id='src-tv-steerdeck' "
+       "WHERE id='cell-tv-3'")
 
     ex("INSERT OR IGNORE INTO fiscal_maps (account_id, fiscal_year_end, planning_window_start, "
        "planning_window_end, budget_request_deadline, works_council_lead_days, confirmed_on, "
@@ -439,6 +476,79 @@ def _seed_stage55_demo(conn):
            "amount, currency, seats_delta, effective_on, reason, created_at, updated_at) "
            "VALUES ('rev-tv-1','acc-terravance',?,'expansion',180000,'EUR',300,'2026-05-18',"
            "'DACH change cohort added.',?,?)", (cv["id"], ts, ts))
+
+
+def _seed_stage6_demo(conn):
+    """Stage 6 demo rows: an ROI model and one externally-referenceable story, so the champion
+    kit has something it is actually safe to hand over. Mock only."""
+    if not conn.execute("SELECT 1 FROM accounts WHERE id='acc-terravance'").fetchone():
+        return
+    ts = now_utc()
+    # The strictest visibility class — this is the one a champion presents without us there.
+    conn.execute(
+        "INSERT OR IGNORE INTO value_stories (id, account_id, program_id, outcome, tags, "
+        "evidence_tier, visibility_class, identifiable, is_negative, source_reference_id, "
+        "created_at, updated_at) "
+        "VALUES ('vs-tv-ext','acc-terravance','prog-tv-global',"
+        "'Manager 1:1 consistency rose across the DACH rollout cohort in the first two quarters.',"
+        "'manager-quality,dach','measured_operational','externally_referenceable',0,0,"
+        "'src-tv-steerdeck',?,?)", (ts, ts))
+    # ROI inputs are assumptions and carry an author and a date, or the CHECK rejects them.
+    rs = conn.execute("SELECT id FROM recovered_spend WHERE account_id='acc-terravance' LIMIT 1").fetchone()
+    conn.execute(
+        "INSERT OR IGNORE INTO roi_models (account_id, seat_price, seat_price_currency, "
+        "seat_price_basis, retention_uplift_pct, retention_note, recovered_spend_id, "
+        "assumptions_note, author, assessed_on, created_at, updated_at) "
+        "VALUES ('acc-terravance', 42.0, 'EUR', 'list price, pre-volume-discount', 3.5, "
+        "'Operator estimate from the DACH cohort; not a measured figure.', ?, "
+        "'Every figure here is an assumption for discussion, not a measurement.', "
+        "'operator', '2026-07-15', ?, ?)", (rs["id"] if rs else None, ts, ts))
+
+
+def _seed_stage75_demo(conn):
+    """Stage 7.5 mock thesis: one qualified motion, one earned agreement, and named lines."""
+    if not conn.execute("SELECT 1 FROM accounts WHERE id='acc-terravance'").fetchone():
+        return
+    ts = now_utc()
+    contract = conn.execute("SELECT id FROM contract_versions WHERE account_id='acc-terravance' "
+                            "AND is_current=1 LIMIT 1").fetchone()
+    if not contract or not conn.execute("SELECT 1 FROM value_targets WHERE id='vt-tv-1'").fetchone():
+        return
+    conn.execute("UPDATE ask_calendars SET opportunity_id='xo-tv-3k' WHERE id='askcal-tv-1'")
+    conn.execute("UPDATE expansion_opportunities SET qualification_value_target_id='vt-tv-1',"
+                 "qualification_ask_calendar_id='askcal-tv-1',"
+                 "qualification_champion_person_id='p-tv-champion',"
+                 "qualification_program_id='prog-tv-global',funding_pool_id='fp-tv-1' "
+                 "WHERE id='xo-tv-3k'")
+    conn.execute(
+        "INSERT OR IGNORE INTO operational_agreements "
+        "(id,account_id,contract_version_id,name,source_kind,source_reference_id,value_target_id,"
+        "effective_on,expires_on,seat_band_min,seat_band_max,unit_price,currency,agreed_process,"
+        "budget_owner_person_id,action_window_days,status,client_visible,created_at,updated_at) "
+        "VALUES ('oa-tv-1','acc-terravance',?,'DACH proof unlocks Nordics wave','signed_paper',"
+        "'src-tv-steerdeck','vt-tv-1','2026-06-01','2026-12-31',500,800,42,'EUR',"
+        "'Notify the budget owner and issue the pre-priced Nordics order form.',"
+        "'p-tv-budget',14,'active',1,?,?)", (contract["id"], ts, ts))
+    conn.execute(
+        "INSERT OR IGNORE INTO account_growth_plans "
+        "(id,account_id,name,target_seats,target_date,status,notes,created_at,updated_at) "
+        "VALUES ('gp-tv-1','acc-terravance','FY27 account growth thesis',3000,'2026-12-15',"
+        "'active','Named base-population lines only; no use-case seat summing.',?,?)", (ts, ts))
+    for line in (
+        ("gpl-tv-1", "Nordics wave 2", "seg-tv-nordics", "cell-tv-3", 800, 0.70, "committed", "2026-09-30", None),
+        ("gpl-tv-2", "UKI manager rollout", "seg-tv-uki", "cell-tv-6", 700, 0.45, "planned", "2026-10-15", None),
+        ("gpl-tv-3", "DACH evidence-led expansion", "seg-tv-dach", "cell-tv-1", 300, 1.0, "funded", "2026-02-10", "2026-02-10"),
+    ):
+        conn.execute(
+            "INSERT OR IGNORE INTO growth_plan_lines "
+            "(id,plan_id,account_id,name,segment_id,cell_id,opportunity_id,budget_owner_person_id,"
+            "funding_pool_id,ask_calendar_id,seat_count,seat_price_low,seat_price_high,seat_price_currency,"
+            "seat_price_basis,probability,"
+            "probability_author,probability_assessed_on,ask_date,status,funded_on,client_visible,"
+            "source_reference_id,created_at,updated_at) "
+            "VALUES (?,'gp-tv-1','acc-terravance',?,?,?,'xo-tv-3k','p-tv-budget','fp-tv-1',"
+            "'askcal-tv-1',?,38,42,'EUR','annual_recurring',?,'operator','2026-07-31',?,?,?,1,'src-tv-steerdeck',?,?)",
+            (line[0], line[1], line[2], line[3], line[4], line[5], line[7], line[6], line[8], ts, ts))
 
 
 def main():
@@ -479,6 +589,10 @@ def main():
         _seed_stage5_demo(conn)
         # Stage 5.5 — whitespace map, value ledger, funding intelligence.
         _seed_stage55_demo(conn)
+        # Stage 6 — ROI model + externally-referenceable evidence for the champion kit.
+        _seed_stage6_demo(conn)
+        # Stage 7.5 — qualification, operational agreement, renewal, and growth thesis.
+        _seed_stage75_demo(conn)
         print(f"[seed] messaging library entries: {msg_n}")
 
     counts = {

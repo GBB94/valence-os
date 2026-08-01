@@ -229,6 +229,9 @@ export const TYPE_LABEL = {
   commitment: "commitment", risk: "risk", issue: "issue", decision: "decision", task: "task",
   milestone: "milestone", value_story: "value story", expansion_opportunity: "expansion",
   capture_inbox_item: "inbox note", scope_change: "scope change",
+  whitespace_cell: "whitespace cell", value_target: "value target", funding_pool: "funding pool",
+  operational_agreement: "operational agreement", growth_plan_line: "growth plan line",
+  signal_episode: "signal", calendar_event: "calendar", org_change_flag: "org change",
 };
 
 // Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.

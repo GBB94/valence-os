@@ -5,8 +5,9 @@ Only v0.1 fields are accepted. Enums use Literal so bad values 422 at the edge.
 from __future__ import annotations
 
 from typing import Literal, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 Phase = Literal["foundation", "launch", "programmatic", "expansion", "renewal", "closed"]
 Affiliation = Literal["client", "valence"]
@@ -487,7 +488,8 @@ class ValueStoryCreate(BaseModel):
 
 class MetricImport(BaseModel):
     """CSV import for metric observations. Columns:
-    definition_id,period_label,value[,program_id,cohort_label,target,unit]"""
+    definition_id,period_label,value[,program_id,population_segment_id,population_view_id,
+    cohort_label,target,unit]"""
     source_label: Optional[str] = None
     current_through: Optional[str] = None
     csv_text: str
@@ -528,7 +530,8 @@ class MapPromote(BaseModel):
 class RecoveredSpendCreate(BaseModel):
     account_id: str
     label: str = Field(min_length=1)
-    amount: float
+    amount: float = Field(ge=0)
+    currency: Optional[str] = None
     source_note: Optional[str] = None
 
 
@@ -555,7 +558,12 @@ class ProposalAccept(BaseModel):
     overrides: dict = Field(default_factory=dict)
 
 
-TriggerKind = Literal["renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker"]
+TriggerKind = Literal[
+    "renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker",
+    "checklist_overdue", "unanswered_email", "unidentified_placeholder", "cadence_overdue",
+    "no_second_champion", "champion_gone_quiet", "stalled_cohort", "expansion_signal",
+    "org_change_confirmed", "calendar_moment", "land_and_leave",
+]
 
 
 class PlayDefinitionCreate(BaseModel):
@@ -626,6 +634,9 @@ class MessagingEntryPatch(BaseModel):
 class PullSignalCreate(BaseModel):
     account_id: str
     program_id: Optional[str] = None
+    cell_id: Optional[str] = None
+    signal_kind: Literal["client_pull", "champion_ask"] = "client_pull"
+    requested_by_person_id: Optional[str] = None
     description: str = Field(min_length=1)
     occurred_on: Optional[str] = None
     source_interaction_id: Optional[str] = None
@@ -659,6 +670,55 @@ AskStepKind = Literal[
 
 class AccountSettingsPut(BaseModel):
     min_cohort_size: int = Field(default=25, ge=1)
+    pull_signal_window_days: int = Field(default=90, ge=1)
+    signal_cooldown_days: int = Field(default=30, ge=0)
+    signal_hysteresis_pct: float = Field(default=0.05, ge=0, lt=1)
+    priority_response_hours: int = Field(default=24, ge=1)
+    champion_quiet_days: int = Field(default=45, ge=1)
+    business_timezone: str = Field(default="America/New_York", min_length=1)
+    business_day_start_hour: int = Field(default=9, ge=0, le=23)
+    business_day_end_hour: int = Field(default=17, ge=1, le=24)
+
+    @field_validator("business_timezone")
+    @classmethod
+    def known_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("must be an IANA timezone, for example America/New_York") from exc
+        return value
+
+    @model_validator(mode="after")
+    def working_window_is_ordered(self):
+        if self.business_day_end_hour <= self.business_day_start_hour:
+            raise ValueError("business_day_end_hour must be after business_day_start_hour")
+        return self
+
+
+class CalendarEventCreate(BaseModel):
+    account_id: str
+    program_id: Optional[str] = None
+    cell_id: Optional[str] = None
+    purpose: Literal["kickoff", "governance", "qbr", "deployment_moment", "other"] = "other"
+    title: str = Field(min_length=1)
+    starts_at: str
+    ends_at: Optional[str] = None
+    location: Optional[str] = None
+    organizer_email: Optional[str] = None
+
+
+class SignalDismiss(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+class OrgChangeAction(BaseModel):
+    reason: Optional[str] = None
+    actor: str = "operator"
+
+
+class SuccessionComplete(BaseModel):
+    successor_person_id: str
+    transfer_note: Optional[str] = None
 
 
 class AudienceTagCreate(BaseModel):
@@ -693,6 +753,9 @@ class SegmentCreate(BaseModel):
     headcount: Optional[int] = Field(default=None, ge=0)
     headcount_source: Optional[str] = None
     headcount_as_of: Optional[str] = None
+    paid_seats: Optional[int] = Field(default=None, ge=0)
+    paid_seats_source: Optional[str] = None
+    paid_seats_as_of: Optional[str] = None
     source_reference_id: Optional[str] = None
     is_unallocated: bool = False
     display_order: int = 0
@@ -703,6 +766,9 @@ class SegmentPatch(BaseModel):
     headcount: Optional[int] = Field(default=None, ge=0)
     headcount_source: Optional[str] = None
     headcount_as_of: Optional[str] = None
+    paid_seats: Optional[int] = Field(default=None, ge=0)
+    paid_seats_source: Optional[str] = None
+    paid_seats_as_of: Optional[str] = None
     display_order: Optional[int] = None
 
 
@@ -737,6 +803,8 @@ class CellCreate(BaseModel):
     sponsor_person_id: Optional[str] = None
     next_action: Optional[str] = None
     notes: Optional[str] = None
+    client_visible: bool = False
+    source_reference_id: Optional[str] = None
 
 
 class CellPatch(BaseModel):
@@ -746,6 +814,8 @@ class CellPatch(BaseModel):
     sponsor_person_id: Optional[str] = None
     next_action: Optional[str] = None
     notes: Optional[str] = None
+    client_visible: Optional[bool] = None
+    source_reference_id: Optional[str] = None
 
 
 class CellSetFact(BaseModel):
@@ -790,6 +860,7 @@ class ValueTargetCreate(BaseModel):
     source_interaction_id: Optional[str] = None
     source_reference_id: Optional[str] = None
     notes: Optional[str] = None
+    client_visible: bool = False
 
 
 class ValueTargetSupersede(BaseModel):
@@ -800,6 +871,7 @@ class ValueTargetSupersede(BaseModel):
     accepted_by_person_id: Optional[str] = None
     accepted_on: Optional[str] = None
     client_accepted: bool = False
+    client_visible: bool = False
 
 
 class ValueTargetEvidenceLink(BaseModel):
@@ -814,20 +886,24 @@ class FundingPoolCreate(BaseModel):
     kind: FundingPoolKind = "other"
     owner_person_id: Optional[str] = None
     status: FundingPoolStatus = "potential"
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(default=None, ge=0)
     currency: Optional[str] = None
     available_from: Optional[str] = None
     available_until: Optional[str] = None
     recovered_spend_id: Optional[str] = None
     notes: Optional[str] = None
+    client_visible: bool = False
+    source_reference_id: Optional[str] = None
 
 
 class FundingPoolPatch(BaseModel):
     name: Optional[str] = None
     status: Optional[FundingPoolStatus] = None
     owner_person_id: Optional[str] = None
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(default=None, ge=0)
     notes: Optional[str] = None
+    client_visible: Optional[bool] = None
+    source_reference_id: Optional[str] = None
 
 
 class FiscalMapPut(BaseModel):
@@ -877,3 +953,138 @@ class RevenueEventCreate(BaseModel):
     seats_delta: Optional[int] = None
     reason: Optional[str] = None
     source_reference_id: Optional[str] = None
+
+
+# --- Phase 3 Stage 7.5: qualification, agreements, renewal, growth plan -------------------
+
+class OpportunityQualificationPatch(BaseModel):
+    value_target_id: Optional[str] = None
+    budget_owner_person_id: Optional[str] = None
+    ask_calendar_id: Optional[str] = None
+    champion_person_id: Optional[str] = None
+    program_id: Optional[str] = None
+
+
+class OperationalAgreementCreate(BaseModel):
+    account_id: str
+    contract_version_id: str
+    name: str = Field(min_length=1)
+    source_kind: Literal["signed_paper", "agreed_conversation"]
+    source_reference_id: Optional[str] = None
+    source_interaction_id: Optional[str] = None
+    value_target_id: str
+    effective_on: str
+    expires_on: Optional[str] = None
+    seat_band_min: int = Field(gt=0)
+    seat_band_max: int = Field(gt=0)
+    unit_price: Optional[float] = Field(default=None, ge=0)
+    currency: Optional[str] = None
+    agreed_process: str = Field(min_length=1)
+    budget_owner_person_id: Optional[str] = None
+    action_window_days: int = Field(default=14, gt=0)
+    client_visible: bool = False
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def agreement_is_sourced_and_ordered(self):
+        if self.source_kind == "signed_paper" and not self.source_reference_id:
+            raise ValueError("signed-paper agreements require a source reference")
+        if self.source_kind == "agreed_conversation" and not self.source_interaction_id:
+            raise ValueError("conversation agreements require an interaction")
+        if self.seat_band_max < self.seat_band_min:
+            raise ValueError("seat_band_max must be at least seat_band_min")
+        if self.currency and (len(self.currency) != 3 or self.currency != self.currency.upper()):
+            raise ValueError("currency must be a three-letter uppercase ISO code")
+        return self
+
+
+class AgreementEventAction(BaseModel):
+    dismissal_reason: Optional[str] = None
+
+
+class GrowthPlanCreate(BaseModel):
+    account_id: str
+    name: str = Field(min_length=1)
+    target_seats: int = Field(gt=0)
+    target_date: str
+    notes: Optional[str] = None
+
+
+class GrowthPlanLineCreate(BaseModel):
+    plan_id: str
+    name: str = Field(min_length=1)
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    budget_owner_person_id: Optional[str] = None
+    funding_pool_id: Optional[str] = None
+    ask_calendar_id: Optional[str] = None
+    cell_id: Optional[str] = None
+    seat_count: int = Field(gt=0)
+    seat_price_low: Optional[float] = Field(default=None, ge=0)
+    seat_price_high: Optional[float] = Field(default=None, ge=0)
+    seat_price_currency: Optional[str] = None
+    seat_price_basis: Optional[Literal["annual_recurring", "term_total", "one_time"]] = None
+    probability: float = Field(default=0.5, ge=0, le=1)
+    probability_author: str = Field(default="operator", min_length=1)
+    probability_assessed_on: str
+    ask_date: Optional[str] = None
+    status: Literal["planned", "committed", "funded", "slipped", "declined"] = "planned"
+    client_visible: bool = False
+    source_reference_id: Optional[str] = None
+    competitive_notes: Optional[str] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def line_population_and_price_are_valid(self):
+        if bool(self.segment_id) == bool(self.view_id):
+            raise ValueError("exactly one of segment_id or view_id is required")
+        if (self.seat_price_low is not None and self.seat_price_high is not None
+                and self.seat_price_high < self.seat_price_low):
+            raise ValueError("seat_price_high must be at least seat_price_low")
+        if self.client_visible and not self.source_reference_id:
+            raise ValueError("shared growth-plan lines require a source reference")
+        return self
+
+
+class GrowthPlanLinePatch(BaseModel):
+    status: Optional[Literal["planned", "committed", "funded", "slipped", "declined"]] = None
+    seat_count: Optional[int] = Field(default=None, gt=0)
+    probability: Optional[float] = Field(default=None, ge=0, le=1)
+    probability_author: Optional[str] = Field(default=None, min_length=1)
+    probability_assessed_on: Optional[str] = None
+    ask_date: Optional[str] = None
+    client_visible: Optional[bool] = None
+    source_reference_id: Optional[str] = None
+    notes: Optional[str] = None
+    cell_id: Optional[str] = None
+    seat_price_currency: Optional[str] = None
+    seat_price_basis: Optional[Literal["annual_recurring", "term_total", "one_time"]] = None
+
+
+# Stage 9 — the playbook records what actually carried a dated cell transition.  Shape tags
+# are optional because base segments may not have an audience tag; the global use case remains
+# the minimum comparable shape.
+class PlaybookEntryCreate(BaseModel):
+    transition_history_id: str
+    motion_run: str = Field(min_length=1)
+    evidence_summary: Optional[str] = None
+    message_summary: Optional[str] = None
+    message_layer: Optional[Layer] = None
+    motion_started_on: Optional[str] = None
+    what_worked: Optional[str] = None
+    what_differently: Optional[str] = None
+    tag_ids: list[str] = Field(default_factory=list)
+
+
+class PlaybookPlayPromotion(BaseModel):
+    name: str = Field(min_length=1)
+    action_template: str = Field(min_length=1)
+
+
+class PlaybookMessagePromotion(BaseModel):
+    role: Optional[str] = None
+    value_prop: Optional[str] = None
+    proof_points: Optional[str] = None
+    objections: Optional[str] = None
+    artifacts_note: Optional[str] = None

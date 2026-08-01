@@ -396,6 +396,17 @@ def test_works_council_step_can_be_omitted(client, account):
     assert "works_council" not in [s["kind"] for s in cal["steps"]]
 
 
+def test_invalid_ask_reference_does_not_leave_a_partial_calendar(client, account):
+    aid = account["account"]["id"]
+    before = len(client.get(f"/api/accounts/{aid}/funding").json()["ask_calendars"])
+    r = client.post("/api/ask-calendars", json={
+        "account_id": aid, "name": "Must not persist", "target_close_date": _days(180),
+        "opportunity_id": "does-not-exist"})
+    assert r.status_code == 404
+    after = len(client.get(f"/api/accounts/{aid}/funding").json()["ask_calendars"])
+    assert after == before
+
+
 def test_funding_pool_links_to_the_stakeholder_who_controls_it(client, account):
     person = client.post("/api/persons", json={
         "name": "CHRO", "affiliation": "client", "account_id": account["account"]["id"]}).json()
@@ -453,6 +464,23 @@ def test_revenue_movement_says_so_when_there_is_not_enough_data(client, account)
     assert m["insufficient_data"] is True and m["ending_arr"] is None
 
 
+def test_revenue_events_enforce_sign_and_contract_currency(client, account):
+    aid = account["account"]["id"]
+    cv = client.post("/api/contracts", json={
+        "account_id": aid, "version_label": "v1", "price": 500000}).json()
+    client.patch(f"/api/contracts/{cv['id']}/revenue", json={"currency": "EUR", "price_basis": "arr"})
+    assert client.post("/api/revenue-events", json={
+        "account_id": aid, "contract_version_id": cv["id"], "kind": "contraction",
+        "amount": 1, "currency": "EUR", "effective_on": _today()}).status_code == 422
+    assert client.post("/api/revenue-events", json={
+        "account_id": aid, "contract_version_id": cv["id"], "kind": "expansion",
+        "amount": 1, "currency": "USD", "effective_on": _today()}).status_code == 422
+    ok = client.post("/api/revenue-events", json={
+        "account_id": aid, "contract_version_id": cv["id"], "kind": "contraction",
+        "amount": -1000, "currency": "eur", "effective_on": _today()})
+    assert ok.status_code == 201 and ok.json()["currency"] == "EUR"
+
+
 # --- §3.2 the headcount series the detector will need -------------------------------------------------
 def test_headcount_series_reports_when_the_detector_can_switch_on(client, account):
     """The land-and-leave detector needs two comparable periods; the table ships now so the
@@ -488,6 +516,18 @@ def test_cell_row_must_belong_to_the_cell_account(client, account):
         "account_id": account["account"]["id"], "segment_id": oseg["id"],
         "use_case_id": account["uc"]["id"], "paid_seats": 400})
     assert r.status_code == 422 and "different account" in r.json()["detail"]
+
+
+def test_composite_view_cannot_import_another_accounts_segment(client, account):
+    other = client.post("/api/accounts", json={"name": "Globex"}).json()
+    op = client.post("/api/population-partitions", json={
+        "account_id": other["id"], "total_fte": 1000}).json()
+    oseg = client.post("/api/population-segments", json={
+        "partition_id": op["id"], "name": "Other population", "headcount": 500}).json()
+    r = client.post("/api/population-views", json={
+        "account_id": account["account"]["id"], "name": "Mixed customer cohort",
+        "segment_ids": [oseg["id"]], "estimated_headcount": 500})
+    assert r.status_code == 422 and "active partition" in r.json()["detail"]
 
 
 def test_superseded_partition_segments_leave_the_live_map(client, account):
@@ -553,6 +593,49 @@ def test_metric_values_for_sub_floor_cohorts_are_suppressed(client, account):
     led = client.get(f"/api/accounts/{account['account']['id']}/ledger").json()
     r = next(x for x in led["targets"] if x["id"] == t["id"])["realization"]
     assert r["status"] == "suppressed" and r["value"] is None
+
+
+def test_sub_floor_metrics_are_refused_at_ingest_and_redacted_on_every_legacy_read(client, account):
+    """The ledger alone is not the privacy boundary: evidence pickers, scoreboards, trend APIs,
+    and the legacy QBR must not provide alternate routes to the same behavioural value."""
+    p = client.get(f"/api/accounts/{account['account']['id']}/population-partition").json()
+    tiny = client.post("/api/population-segments", json={
+        "partition_id": p["id"], "name": "Small strategy team", "headcount": 8}).json()
+    d = client.post("/api/metric-definitions", json={"name": "Weekly return", "stale_after_days": 30}).json()
+    prog = client.post("/api/programs", json={"account_id": account["account"]["id"], "name": "P"}).json()
+    refused = client.post("/api/metric-observations", json={
+        "definition_id": d["id"], "program_id": prog["id"], "value": 0.88,
+        "target": 0.75, "current_through": _days(-1), "population_segment_id": tiny["id"]})
+    assert refused.status_code == 422 and "sufficiently aggregated" in refused.json()["detail"]
+
+    csv = ("definition_id,period_label,value,program_id,population_segment_id\n"
+           f"{d['id']},2026-Q3,0.88,{prog['id']},{tiny['id']}\n")
+    preview = client.post("/api/imports/metric-observations/preview", json={
+        "csv_text": csv, "current_through": _days(-1)}).json()
+    assert preview["valid"] == 0 and "below the account minimum" in preview["rows"][0]["errors"][0]
+    assert client.post("/api/imports/metric-observations/commit", json={
+        "csv_text": csv, "current_through": _days(-1)}).status_code == 422
+
+    # Simulate a legacy row created before this guard. Every generic read still redacts it.
+    from app import repo
+    source = client.post("/api/source-references", json={
+        "label": "Legacy aggregate report", "type": "data_report"}).json()["id"]
+    legacy = repo.insert(client.app.state.conn, "metric_observations", {
+        "definition_id": d["id"], "definition_version": "1", "program_id": prog["id"],
+        "population_segment_id": tiny["id"], "period_label": "legacy", "value": 0.88,
+        "target": 0.75, "current_through": _days(-1), "source_reference_id": source},
+        object_type="metric_observation")
+    picker = client.get(f"/api/accounts/{account['account']['id']}/metric-observations").json()
+    row = next(r for r in picker if r["id"] == legacy["id"])
+    assert row["suppressed"] is True and row["value"] is None and row["target"] is None
+    scoreboard = client.get("/api/scoreboard").json()
+    card = next(c for c in scoreboard["cards"] if c["definition"]["id"] == d["id"])
+    assert card["suppressed"] is True and card["display_value"] == "suppressed"
+    history = client.get(f"/api/metric-definitions/{d['id']}/observations").json()["series"]
+    assert history[-1]["suppressed"] is True and history[-1]["value"] is None
+    qbr = client.get(f"/api/accounts/{account['account']['id']}/qbr").json()
+    metric = next(m for m in qbr["metrics"] if m["name"] == "Weekly return")
+    assert metric["value"] == "suppressed" and metric["target"] is None
 
 
 def test_a_failed_supersede_leaves_the_original_bar_active(client, account):

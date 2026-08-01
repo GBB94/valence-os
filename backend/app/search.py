@@ -79,6 +79,29 @@ _SOURCES = [
     ("population_segment", "SELECT id, account_id, NULL, name AS title, "
                            "COALESCE(name,'')||' '||COALESCE(business_unit,'')||' '||COALESCE(region,'') AS body "
                            "FROM population_segments WHERE archived=0"),
+    # --- Stage 7 ---------------------------------------------------------------------------
+    ("calendar_event", "SELECT id, account_id, program_id, title, "
+                       "COALESCE(title,'')||' '||COALESCE(purpose,'')||' '||COALESCE(location,'') AS body "
+                       "FROM calendar_events WHERE archived=0"),
+    ("org_change_flag", "SELECT id, account_id, NULL, summary AS title, "
+                        "COALESCE(summary,'')||' '||COALESCE(kind,'')||' '||COALESCE(new_title,'')||' '||"
+                        "COALESCE(new_company,'') AS body FROM org_change_flags WHERE archived=0"),
+    ("signal_episode", "SELECT id, account_id, program_id, kind AS title, "
+                       "COALESCE(explanation,'')||' '||COALESCE(held_reason,'') AS body "
+                       "FROM signal_episodes WHERE status IN ('open','held')"),
+    # --- Stage 7.5 -------------------------------------------------------------------------
+    ("operational_agreement", "SELECT id,account_id,NULL,name AS title, "
+                              "COALESCE(name,'')||' '||COALESCE(agreed_process,'')||' '||COALESCE(notes,'') AS body "
+                              "FROM operational_agreements WHERE archived=0"),
+    ("growth_plan_line", "SELECT id,account_id,NULL,name AS title, "
+                         "COALESCE(name,'')||' '||COALESCE(notes,'') AS body "
+                         "FROM growth_plan_lines WHERE archived=0"),
+    # --- Stage 9 ---------------------------------------------------------------------------
+    ("playbook_entry", "SELECT pe.id,pe.account_id,NULL,uc.name||' — '||pe.motion_run AS title, "
+                       "uc.name||' '||pe.motion_run||' '||COALESCE(pe.evidence_summary,'')||' '||"
+                       "COALESCE(pe.message_summary,'')||' '||COALESCE(pe.what_worked,'')||' '||"
+                       "COALESCE(pe.what_differently,'') AS body FROM playbook_entries pe "
+                       "JOIN use_cases uc ON uc.id=pe.use_case_id WHERE pe.archived=0"),
 ]
 
 

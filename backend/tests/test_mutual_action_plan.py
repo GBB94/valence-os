@@ -25,9 +25,14 @@ def scene(client):
     p = client.post("/api/programs", json={"account_id": a["id"], "name": "Europe"}).json()
     resp = client.post("/api/persons", json={"name": "Sofie", "account_id": a["id"]}).json()
     owner = client.post("/api/persons", json={"name": "Sam", "affiliation": "valence"}).json()
+    source = client.post("/api/source-references", json={"label": "Joint plan notes"}).json()
+    interaction = client.post("/api/interactions", json={
+        "account_id": a["id"], "program_id": p["id"], "type": "meeting", "summary": "Plan agreed"}).json()
     cm = client.post("/api/commitments", json={"program_id": p["id"], "description": "Client to secure DPO sign-off",
-                                               "responsible_party_id": resp["id"], "internal_owner_id": owner["id"], "due_date": "2026-08-15"}).json()
-    ms = client.post("/api/milestones", json={"program_id": p["id"], "name": "Europe go-live", "target_date": "2026-09-15"}).json()
+                                               "responsible_party_id": resp["id"], "internal_owner_id": owner["id"], "due_date": "2026-08-15",
+                                               "source_reference_id": source["id"]}).json()
+    ms = client.post("/api/milestones", json={"program_id": p["id"], "name": "Europe go-live", "target_date": "2026-09-15",
+                                               "source_interaction_id": interaction["id"]}).json()
     internal = client.post("/api/commitments", json={"program_id": p["id"], "description": "INTERNAL: prep board memo",
                                                      "responsible_party_id": owner["id"], "internal_owner_id": owner["id"], "due_date": "2026-08-01"}).json()
     return {"c": client, "a": a, "p": p, "cm": cm, "ms": ms, "internal": internal}
@@ -66,3 +71,9 @@ def test_client_visible_defaults_off(scene):
     # execution board exposes the flag; new items default to not-on-plan
     board = scene["c"].get(f"/api/programs/{scene['p']['id']}/execution").json()
     assert all(cm["client_visible"] is False for cm in board["commitments"])
+
+
+def test_unsourced_item_cannot_be_promoted(scene):
+    r = scene["c"].post("/api/map/promote", json={
+        "object_type": "commitment", "object_id": scene["internal"]["id"], "client_visible": True})
+    assert r.status_code == 422 and "source" in r.json()["detail"]

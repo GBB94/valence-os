@@ -51,6 +51,20 @@ export default function Operations({ reloadKey }) {
         )}
         {ops.failed_or_rolled_back > 0 && <div className="rowmeta" style={{ padding: "8px 12px", color: "var(--status-risk)" }}>{ops.failed_or_rolled_back} rolled-back batch(es).</div>}
       </div>
+
+      <h2>Connection registry</h2>
+      <div className="card">
+        <table><thead><tr><th scope="col">Boundary</th><th scope="col">Current mode</th><th scope="col">Gate</th><th scope="col">Mock fixtures</th></tr></thead>
+          <tbody>{(ops.connection_registry?.connections || []).map((a) => <tr key={a.id}>
+            <td><div>{a.label}</div><div className="rowmeta">{a.config_switch}</div></td>
+            <td><span className="badge">{a.current_mode.replaceAll("_", " ")}</span></td>
+            <td><span className="badge" style={a.gate_status === "blocked" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{a.gate_status}</span></td>
+            <td className="rowmeta">{a.fixtures.length ? a.fixtures.join(", ") : "—"}</td>
+          </tr>)}</tbody></table>
+        <div className="rowmeta" style={{ padding: 12 }}>
+          Policy: {ops.connection_registry?.policy}. Real modes require both explicit approval and a decision-log reference.
+        </div>
+      </div>
     </div>
   );
 }

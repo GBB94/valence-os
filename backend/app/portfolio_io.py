@@ -28,6 +28,7 @@ FORMAT = "valence-os-account-export/1"
 _INSERT_ORDER = [
     # globals first (FK targets)
     "source_references", "metric_definitions", "audience_tags", "use_cases",
+    "messaging_entries", "play_definitions",
     "accounts", "account_settings", "persons", "programs",
     "stakeholder_roles", "interactions", "interaction_participants", "capture_inbox_items",
     "tasks", "commitments", "decisions", "risks", "issues", "milestones",
@@ -36,14 +37,24 @@ _INSERT_ORDER = [
     "value_stories", "relationship_edges", "recovered_spend",
     # 0012-0016 — onboarding, people intelligence, ingestion, relationships
     "checklist_items", "advocacy_events", "comm_messages", "association_hints",
-    "champion_candidates", "exec_pairings", "pull_signals",
+    "champion_candidates", "exec_pairings",
     # 0017-0019 — whitespace, value ledger, funding (population objects precede the cells,
     # observations, and targets that reference them)
     "population_partitions", "population_segments", "population_views",
     "population_view_segments", "population_view_tags", "population_headcount_observations",
-    "metric_observations", "whitespace_cells", "cell_state_history", "cell_evidence_links",
+    "metric_observations", "whitespace_cells", "pull_signals", "cell_state_history", "cell_evidence_links",
     "value_targets", "value_target_evidence",
     "funding_pools", "fiscal_maps", "ask_calendars", "ask_calendar_steps", "revenue_events",
+    # 0020 — generated artifacts and the ROI assumptions behind the champion kit
+    "roi_models", "generated_documents", "generated_document_people",
+    # 0022 — recurring signals, mock calendar, and confirmed org change
+    "calendar_events", "calendar_event_attendees", "org_change_flags", "succession_records",
+    "signal_episodes",
+    # 0023 — Stage 7.5 qualification links, operational triggers, and growth plans
+    "operational_agreements", "operational_agreement_events",
+    "account_growth_plans", "growth_plan_lines",
+    # 0025 — Stage 9 learning records (after cells/history, before tag joins)
+    "playbook_entries", "playbook_entry_tags",
 ]
 
 
@@ -94,6 +105,47 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
                 "funding_pools", "ask_calendars", "revenue_events"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
     t["fiscal_maps"] = _all(conn, "SELECT * FROM fiscal_maps WHERE account_id=?", (account_id,))
+    t["roi_models"] = _all(conn, "SELECT * FROM roi_models WHERE account_id=?", (account_id,))
+    # Portfolio-wide documents (the team update) have no account_id and belong to no single
+    # account, so they stay out of an account bundle by design.
+    t["generated_documents"] = _all(
+        conn, "SELECT * FROM generated_documents WHERE account_id=?", (account_id,))
+    doc_ids = [r["id"] for r in t["generated_documents"]]
+    dgq = ",".join("?" * len(doc_ids)) or "''"
+    t["generated_document_people"] = _all(
+        conn, f"SELECT * FROM generated_document_people WHERE document_id IN ({dgq})", doc_ids
+    ) if doc_ids else []
+
+    # --- 0022: Stage 7 --------------------------------------------------------
+    t["calendar_events"] = _all(conn, "SELECT * FROM calendar_events WHERE account_id=?", (account_id,))
+    event_ids = [r["id"] for r in t["calendar_events"]]
+    eq = ",".join("?" * len(event_ids)) or "''"
+    t["calendar_event_attendees"] = _all(
+        conn, f"SELECT * FROM calendar_event_attendees WHERE event_id IN ({eq})", event_ids
+    ) if event_ids else []
+    for tbl in ("org_change_flags", "succession_records", "signal_episodes"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+
+    # --- 0023: Stage 7.5 ------------------------------------------------------
+    for tbl in ("operational_agreements", "operational_agreement_events",
+                "account_growth_plans", "growth_plan_lines", "playbook_entries"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+
+    playbook_ids = [r["id"] for r in t["playbook_entries"]]
+    pbq = ",".join("?" * len(playbook_ids)) or "''"
+    t["playbook_entry_tags"] = _all(
+        conn, f"SELECT * FROM playbook_entry_tags WHERE entry_id IN ({pbq})", playbook_ids
+    ) if playbook_ids else []
+    play_ids = {r["play_definition_id"] for r in t["playbook_entries"] if r.get("play_definition_id")}
+    plq = ",".join("?" * len(play_ids)) or "''"
+    t["play_definitions"] = _all(
+        conn, f"SELECT * FROM play_definitions WHERE id IN ({plq})", tuple(play_ids)
+    ) if play_ids else []
+    message_ids = {r["messaging_entry_id"] for r in t["playbook_entries"] if r.get("messaging_entry_id")}
+    meq = ",".join("?" * len(message_ids)) or "''"
+    t["messaging_entries"] = _all(
+        conn, f"SELECT * FROM messaging_entries WHERE id IN ({meq})", tuple(message_ids)
+    ) if message_ids else []
 
     view_ids = [r["id"] for r in t["population_views"]]
     vq = ",".join("?" * len(view_ids)) or "''"
@@ -140,7 +192,8 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         ("tasks", ["internal_owner_id"]), ("risks", ["internal_owner_id"]), ("issues", ["internal_owner_id"]),
         ("decisions", ["decided_by_id"]), ("deployment_moments", ["client_owner_person_id"]),
         ("compliance_items", ["owner_person_id"]), ("scope_changes", ["agreed_by_person_id"]),
-        ("expansion_opportunities", ["sponsor_person_id", "budget_owner_person_id"]),
+        ("expansion_opportunities", ["sponsor_person_id", "budget_owner_person_id",
+                                     "qualification_champion_person_id"]),
         ("relationship_edges", ["from_person_id", "to_person_id"]),
         # 0013-0019 person references, or a restored bundle hits a missing FK.
         ("advocacy_events", ["person_id"]), ("comm_messages", ["person_id"]),
@@ -150,6 +203,13 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         ("value_targets", ["accepted_by_person_id"]),
         ("funding_pools", ["owner_person_id"]),
         ("ask_calendar_steps", ["owner_person_id"]),
+        ("generated_document_people", ["person_id"]),
+        ("calendar_event_attendees", ["person_id"]),
+        ("org_change_flags", ["person_id"]),
+        ("succession_records", ["departed_person_id", "successor_person_id",
+                                "successor_placeholder_id"]),
+        ("operational_agreements", ["budget_owner_person_id"]),
+        ("growth_plan_lines", ["budget_owner_person_id"]),
     ]:
         for row in t.get(tbl, []):
             for c in cols:
@@ -165,8 +225,10 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     # value targets is the whole point of the record.
     srcs = {row["source_reference_id"] for tbl in (
         "interactions", "commitments", "decisions", "tasks", "risks", "issues", "milestones",
-        "metric_observations", "value_stories", "population_segments",
+        "metric_observations", "value_stories", "population_segments", "whitespace_cells",
+        "funding_pools",
         "population_headcount_observations", "value_targets", "revenue_events",
+        "calendar_events", "org_change_flags", "operational_agreements", "growth_plan_lines",
     ) for row in t.get(tbl, []) if row.get("source_reference_id")}
     sq = ",".join("?" * len(srcs)) or "''"
     t["source_references"] = _all(conn, f"SELECT * FROM source_references WHERE id IN ({sq})", tuple(srcs)) if srcs else []
@@ -182,6 +244,7 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     uq = ",".join("?" * len(ucs)) or "''"
     t["use_cases"] = _all(conn, f"SELECT * FROM use_cases WHERE id IN ({uq})", tuple(ucs)) if ucs else []
     tags = {row["tag_id"] for row in t["population_view_tags"]}
+    tags |= {row["tag_id"] for row in t["playbook_entry_tags"]}
     gq2 = ",".join("?" * len(tags)) or "''"
     t["audience_tags"] = _all(conn, f"SELECT * FROM audience_tags WHERE id IN ({gq2})", tuple(tags)) if tags else []
 
@@ -202,14 +265,32 @@ def import_account(conn: sqlite3.Connection, bundle: dict) -> dict:
         raise HTTPException(409, f"account {account_id} already exists; restore is for a clean install")
 
     inserted = {}
+    post_updates = []
     with conn:
+        # Stage 7.5 introduces an intentional cycle: an opportunity can point at its ask
+        # calendar while the calendar points back at the opportunity. Defer FK checks until
+        # the complete account graph has been restored, then SQLite validates it atomically.
+        conn.execute("PRAGMA defer_foreign_keys = ON")
         for tbl in _INSERT_ORDER:
             rows = tables.get(tbl) or []
             for row in rows:
                 # Global/shared tables — skip if already present rather than colliding.
-                if tbl in ("metric_definitions", "source_references", "audience_tags", "use_cases") and \
+                if tbl in ("metric_definitions", "source_references", "audience_tags", "use_cases",
+                           "messaging_entries", "play_definitions") and \
                         conn.execute(f"SELECT 1 FROM {tbl} WHERE id=?", (row["id"],)).fetchone():
                     continue
+                row = dict(row)
+                # Break the opportunity ↔ ask-calendar cycle and links to Stage 5.5 records
+                # inserted later. Restore them after the complete graph exists so the scope
+                # triggers can validate real targets rather than accepting dangling ids.
+                if tbl == "expansion_opportunities":
+                    late = {k: row.get(k) for k in (
+                        "qualification_value_target_id", "qualification_ask_calendar_id",
+                        "funding_pool_id") if row.get(k)}
+                    if late:
+                        post_updates.append((row["id"], late))
+                        for key in late:
+                            row[key] = None
                 cols = list(row.keys())
                 conn.execute(
                     f"INSERT INTO {tbl} ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
@@ -217,6 +298,10 @@ def import_account(conn: sqlite3.Connection, bundle: dict) -> dict:
                 )
             if rows:
                 inserted[tbl] = len(rows)
+        for opportunity_id, changes in post_updates:
+            conn.execute("UPDATE expansion_opportunities SET " +
+                         ",".join(f"{k}=?" for k in changes) + " WHERE id=?",
+                         (*changes.values(), opportunity_id))
         audit.record(conn, object_type="account", object_id=account_id, action="create",
                      after={"restored_from_export": True, "tables": inserted})
     return {"account_id": account_id, "restored": inserted}
