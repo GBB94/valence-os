@@ -2,10 +2,11 @@
 import os
 import sqlite3
 import tempfile
-from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -22,10 +23,7 @@ def client():
 
 
 def _day(offset=0):
-    # Production renewal math uses the app's UTC date (`now_utc`), so the fixture must use the
-    # same clock. `date.today()` made this test fail by one day every evening in US time zones.
-    from app.db import now_utc
-    return (date.fromisoformat(now_utc()[:10]) + timedelta(days=offset)).isoformat()
+    return utc_day(offset)
 
 
 def _setup(client, name="Account"):

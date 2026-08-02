@@ -623,6 +623,198 @@ def _seed_internal_ops_demo(conn):
                 conn.execute("INSERT OR IGNORE INTO product_feedback_occurrences(id,feedback_item_id,account_id,stakeholder_person_id,source_interaction_id,source_span,impact,captured_by,captured_on,created_at,updated_at) VALUES (?,'feedback-localized-nudges',?,?,?,?,?,'operator','2026-07-25',?,?)", (oid, aid, person_id, iid, span, "Adoption risk", ts, ts))
 
 
+def _seed_stage11_demo(conn):
+    """Stage 11 demo: one ACTIVE campaign mid-flight and one COMPLETED campaign, on Terravance.
+
+    The active one is deliberately signal-triggered with a `pre_post` design, because that is the
+    combination the §5.2 caution exists for — the demo should show the regression-to-the-mean
+    warning rendering, not hide it. The completed one uses a comparator against Nordics (disjoint
+    from the treated DACH cohort) and lands on `improved_not_met`, so the screen shows an honest
+    partial result rather than a success story. Mock only.
+    """
+    if not conn.execute("SELECT 1 FROM accounts WHERE id='acc-terravance'").fetchone():
+        return
+    ts, today = now_utc(), now_utc()[:10]
+    ex = conn.execute
+
+    def day(n):
+        return (_dt.date.fromisoformat(today) + _dt.timedelta(days=n)).isoformat()
+
+    src = ex("SELECT id FROM source_references LIMIT 1").fetchone()
+    src_id = src["id"] if src else None
+    definition = ex("SELECT id FROM metric_definitions ORDER BY name LIMIT 1").fetchone()
+    if not definition:
+        return
+    did = definition["id"]
+
+    # A prior series so the locked baseline has a trajectory to sit in (§5.1). Without these the
+    # campaign would render the "no prior trajectory" caution, which is honest but not the demo.
+    for i, (value, ago) in enumerate(((0.38, 120), (0.44, 90), (0.49, 60))):
+        ex("INSERT OR IGNORE INTO metric_observations (id, definition_id, definition_version, "
+           "program_id, population_segment_id, period_label, value, target, current_through, "
+           "created_at, updated_at) VALUES (?,?,'1','prog-tv-global','seg-tv-dach',?,?,0.70,?,?,?)",
+           (f"obs-tv-camp-{i}", did, f"2026-M{i}", value, day(-ago), ts, ts))
+
+    # The campaign's own bar, deliberately above the current reading so the demo shows a
+    # campaign genuinely in flight rather than one whose goal was already met.
+    ex("INSERT OR IGNORE INTO value_targets (id, account_id, definition_id, segment_id, "
+       "target_value, direction, timeframe_end, accepted_by_person_id, accepted_on, "
+       "client_accepted, origin, version, status, created_at, updated_at) "
+       "VALUES ('vt-tv-camp','acc-terravance',?, 'seg-tv-dach', 0.85,'at_least',?,"
+       "'p-tv-champion',?,1,'scorecard',1,'active',?,?)", (did, day(40), day(-36), ts, ts))
+
+    # Terravance ships no seeded task, so create the one the campaign embeds. Plan links point at
+    # canonical execution records — the campaign never invents its own to-do.
+    ex("INSERT OR IGNORE INTO tasks (id, program_id, description, internal_owner_id, due_date, "
+       "status, created_at, updated_at) VALUES ('tk-tv-embed','prog-tv-global',"
+       "'Embed the review prompt in the manager workflow','p-val-operator',?,'done',?,?)",
+       (day(-20), ts, ts))
+    ex("INSERT OR IGNORE INTO tasks (id, program_id, description, internal_owner_id, due_date, "
+       "status, created_at, updated_at) VALUES ('tk-tv-clinic','prog-tv-global',"
+       "'Run the change-conversation clinic for DACH managers','p-val-operator',?,'done',?,?)",
+       (day(-170), ts, ts))
+
+    # The signal that proposed the active campaign — selection on a declining reading.
+    ex("INSERT OR IGNORE INTO signal_episodes (id, account_id, program_id, kind, condition_key, "
+       "source_kind, explanation, freshness_as_of, opened_at, last_evaluated_at, created_at, updated_at) "
+       "VALUES ('sig-tv-stalled','acc-terravance','prog-tv-global','stalled_cohort',"
+       "'stalled:vt-tv-1','usage','Cohort stalled across fresh observations: 0.52 -> 0.49.',?,?,?,?,?)",
+       (today, ts, ts, ts, ts))
+
+    # --- the active campaign -------------------------------------------------------------------
+    ex("INSERT OR IGNORE INTO adoption_campaigns (id, account_id, program_id, segment_id, "
+       "use_case_id, name, target_behavior, hypothesis, planned_start_on, planned_end_on, "
+       "evaluation_on, internal_owner_person_id, client_sponsor_person_id, lead_champion_person_id, "
+       "evaluation_design, status, sponsor_gap_reason, created_from_signal_episode_id, "
+       "diagnosis_source_reference_id, created_at, updated_at) "
+       "VALUES ('camp-tv-active','acc-terravance','prog-tv-global','seg-tv-dach','uc-perf',"
+       "'DACH review-cycle adoption',"
+       "'DACH people managers hold a documented review conversation each cycle',"
+       "'If the prompt sits inside the review workflow at cycle open, managers will use it, "
+       "because the barrier is workflow placement rather than willingness',"
+       "?,?,?, 'p-val-operator','p-tv-champion','p-tv-champion','pre_post','active',NULL,"
+       "'sig-tv-stalled',?,?,?)",
+       (day(-35), day(25), day(40), src_id, ts, ts))
+
+    for status_from, status_to, reason, when in (
+        (None, "draft", "Converted from the stalled-cohort signal.", day(-40)),
+        ("draft", "ready", "Barrier diagnosed, plan agreed, baseline locked.", day(-36)),
+        ("ready", "active", "Cycle opened; prompt shipped into the review flow.", day(-35)),
+    ):
+        ex("INSERT OR IGNORE INTO adoption_campaign_state_history (id, campaign_id, from_status, "
+           "to_status, reason, actor, changed_on, created_at) VALUES (?,?,?,?,?,'operator',?,?)",
+           (f"cshist-{status_to}", "camp-tv-active", status_from, status_to, reason, when, ts))
+
+    ex("INSERT OR IGNORE INTO adoption_campaign_barriers (id, campaign_id, category, description, "
+       "confidence, observed_on, source_reference_id, is_primary, state, created_at, updated_at) "
+       "VALUES ('camp-bar-1','camp-tv-active','opportunity',"
+       "'The prompt lives in a separate tool, so managers meet it only if they go looking.',"
+       "'observed',?,?,1,'addressed',?,?)", (day(-45), src_id, ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_barriers (id, campaign_id, category, description, "
+       "confidence, observed_on, source_reference_id, is_primary, state, created_at, updated_at) "
+       "VALUES ('camp-bar-2','camp-tv-active','motivation',"
+       "'Regional GMs describe the conversation as a form-filling exercise rather than useful.',"
+       "'reported',?,?,0,'open',?,?)", (day(-45), src_id, ts, ts))
+
+    ex("INSERT OR IGNORE INTO adoption_campaign_targets (id, campaign_id, value_target_id, role, "
+       "baseline_observation_id, baseline_locked_on, baseline_trajectory_json, created_at, updated_at) "
+       "VALUES ('camp-tgt-1','camp-tv-active','vt-tv-camp','primary','obs-tv-camp-2',?,?,?,?)",
+       (day(-36),
+        '[{"observation_id":"obs-tv-camp-0","value":0.38,"current_through":"' + day(-120) + '"},'
+        '{"observation_id":"obs-tv-camp-1","value":0.44,"current_through":"' + day(-90) + '"}]',
+        ts, ts))
+
+    # Plan links point at records that already exist; nothing is cloned.
+    moment = ex("SELECT id FROM deployment_moments WHERE program_id='prog-tv-global' LIMIT 1").fetchone()
+    ex("INSERT OR IGNORE INTO adoption_campaign_plan_links (id, campaign_id, sequence, "
+       "intervention_kind, intended_barrier_id, purpose, cue, is_reinforcement, task_id, "
+       "created_at, updated_at) VALUES ('camp-plan-1','camp-tv-active',1,'workflow_embed',"
+       "'camp-bar-1','Put the prompt where the work already happens.',"
+       "'Review cycle opens',0,'tk-tv-embed',?,?)", (ts, ts))
+    if moment:
+        ex("INSERT OR IGNORE INTO adoption_campaign_plan_links (id, campaign_id, sequence, "
+           "intervention_kind, intended_barrier_id, purpose, cue, is_reinforcement, "
+           "deployment_moment_id, created_at, updated_at) VALUES ('camp-plan-2','camp-tv-active',2,"
+           "'reinforcement','camp-bar-2','Champion shares two real examples at the mid-cycle check.',"
+           "'Mid-cycle GM forum',1,?,?,?)", (moment["id"], ts, ts))
+
+    ex("INSERT OR IGNORE INTO adoption_campaign_checkpoints (id, campaign_id, scheduled_on, held_on, "
+       "observations_reviewed_json, assessment, decision, reason, next_evidence_on, created_at, updated_at) "
+       "VALUES ('camp-cp-1','camp-tv-active',?,?,'[\"obs-tv-dach\"]','on_track','continue',"
+       "'Uptake rising but the motivation barrier is unaddressed; adding the champion examples.',?,?,?)",
+       (day(-10), day(-10), day(15), ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_checkpoints (id, campaign_id, scheduled_on, "
+       "next_evidence_on, created_at, updated_at) VALUES ('camp-cp-2','camp-tv-active',?,?,?,?)",
+       (day(15), day(25), ts, ts))
+
+    # --- the completed campaign ------------------------------------------------------------------
+    # Comparator design against Nordics, which shares no base segment with DACH (§5.2).
+    ex("INSERT OR IGNORE INTO adoption_campaigns (id, account_id, program_id, segment_id, "
+       "use_case_id, name, target_behavior, hypothesis, planned_start_on, planned_end_on, "
+       "evaluation_on, internal_owner_person_id, client_sponsor_person_id, evaluation_design, "
+       "status, completion_outcome, completion_reviewed_on, completion_note, sponsor_gap_reason, "
+       "diagnosis_source_reference_id, created_at, updated_at) "
+       "VALUES ('camp-tv-done','acc-terravance','prog-tv-global','seg-tv-dach','uc-change',"
+       "'DACH change-conversation pilot',"
+       "'Managers in the change cohort run a structured conversation during restructure',"
+       "'If we give managers a one-page guide plus a live clinic, they will hold the conversation, "
+       "because the barrier is confidence rather than access',"
+       "?,?,?, 'p-val-operator','p-tv-champion','comparator','completed','improved_not_met',?,"
+       "'Uptake rose and stayed above the pre-campaign trajectory, but short of the agreed bar. "
+       "The comparator cohort moved less over the same window; this is association, not proof.',"
+       "NULL,?,?,?)",
+       (day(-180), day(-120), day(-110), day(-105), src_id, ts, ts))
+    for status_from, status_to, reason, when in (
+        (None, "draft", "Opened after the restructure was confirmed.", day(-190)),
+        ("draft", "ready", "Guide drafted, clinic scheduled, baseline locked.", day(-185)),
+        ("ready", "active", "Restructure announced; clinic ran.", day(-180)),
+        ("active", "completed", "Evaluation window closed and reviewed with the sponsor.", day(-105)),
+    ):
+        ex("INSERT OR IGNORE INTO adoption_campaign_state_history (id, campaign_id, from_status, "
+           "to_status, reason, actor, changed_on, created_at) VALUES (?,?,?,?,?,'operator',?,?)",
+           (f"cshist-done-{status_to}", "camp-tv-done", status_from, status_to, reason, when, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_barriers (id, campaign_id, category, description, "
+       "confidence, observed_on, source_reference_id, is_primary, state, resolution_note, "
+       "created_at, updated_at) VALUES ('camp-bar-3','camp-tv-done','capability',"
+       "'Managers had not run a change conversation before and asked for a worked example.',"
+       "'observed',?,?,1,'addressed','The clinic closed this; the residual gap was motivation.',?,?)",
+       (day(-190), src_id, ts, ts))
+
+    # Comparator target: Nordics shares no base segment with DACH, so it is a legitimate control
+    # under §5.2. Observations for both cohorts over the same window let the readout show the
+    # treated delta beside an untreated one.
+    ex("INSERT OR IGNORE INTO value_targets (id, account_id, definition_id, segment_id, "
+       "target_value, direction, timeframe_end, accepted_by_person_id, accepted_on, "
+       "client_accepted, origin, version, status, created_at, updated_at) "
+       "VALUES ('vt-tv-done','acc-terravance',?, 'seg-tv-dach', 0.60,'at_least',?,"
+       "'p-tv-champion',?,1,'business_case',1,'active',?,?)", (did, day(-110), day(-185), ts, ts))
+    for ident, seg, value, ago in (
+        ("obs-tv-done-base", "seg-tv-dach", 0.31, 185),
+        ("obs-tv-done-post", "seg-tv-dach", 0.52, 110),
+        ("obs-tv-comp-base", "seg-tv-nordics", 0.29, 185),
+        ("obs-tv-comp-post", "seg-tv-nordics", 0.33, 110),
+    ):
+        ex("INSERT OR IGNORE INTO metric_observations (id, definition_id, definition_version, "
+           "program_id, population_segment_id, period_label, value, current_through, "
+           "created_at, updated_at) VALUES (?,?,'1','prog-tv-global',?,?,?,?,?,?)",
+           (ident, did, seg, ident[-4:], value, day(-ago), ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_targets (id, campaign_id, value_target_id, role, "
+       "baseline_observation_id, baseline_locked_on, baseline_trajectory_json, "
+       "comparator_segment_id, created_at, updated_at) "
+       "VALUES ('camp-tgt-2','camp-tv-done','vt-tv-done','primary','obs-tv-done-base',?,'[]',"
+       "'seg-tv-nordics',?,?)", (day(-185), ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_plan_links (id, campaign_id, sequence, "
+       "intervention_kind, intended_barrier_id, purpose, cue, is_reinforcement, task_id, "
+       "created_at, updated_at) VALUES ('camp-plan-3','camp-tv-done',1,'enablement',"
+       "'camp-bar-3','A worked example plus a live clinic before the restructure lands.',"
+       "'Restructure announced',0,'tk-tv-clinic',?,?)", (ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_checkpoints (id, campaign_id, scheduled_on, "
+       "held_on, observations_reviewed_json, assessment, decision, reason, created_at, updated_at) "
+       "VALUES ('camp-cp-3','camp-tv-done',?,?,'[\"obs-tv-done-post\"]','at_risk','complete',"
+       "'Uptake improved but plateaued below the bar; closing rather than extending.',?,?)",
+       (day(-115), day(-110), ts, ts))
+
+
 def main():
     reset = "--reset" in sys.argv
     if reset:
@@ -663,6 +855,8 @@ def main():
         _seed_stage55_demo(conn)
         # Stage 6 — ROI model + externally-referenceable evidence for the champion kit.
         _seed_stage6_demo(conn)
+        # Stage 11 — one active and one completed adoption campaign.
+        _seed_stage11_demo(conn)
         # Stage 7.5 — qualification, operational agreement, renewal, and growth thesis.
         _seed_stage75_demo(conn)
         # Stage 10 — five-account internal operating proof.

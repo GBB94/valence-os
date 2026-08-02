@@ -2,10 +2,11 @@
 (Comprehensive Spec §§3.6, 3.7, 3.11)."""
 import os
 import tempfile
-from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -23,7 +24,7 @@ def client():
 
 
 def _today_minus(n):
-    return (date.today() - timedelta(days=n)).isoformat()
+    return utc_day(-n)
 
 
 @pytest.fixture()

@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import os
 import tempfile
-from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -27,7 +28,7 @@ def client(monkeypatch):
 
 
 def _day(offset=0):
-    return (date.today() + timedelta(days=offset)).isoformat()
+    return utc_day(offset)
 
 
 def _post(client, path, body=None, status=201):

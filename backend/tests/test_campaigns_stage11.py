@@ -10,6 +10,7 @@ import tempfile
 from datetime import date, timedelta
 
 import pytest
+from conftest import utc_day
 from fastapi.testclient import TestClient
 
 
@@ -27,13 +28,13 @@ def client():
         except FileNotFoundError: pass
 
 
+# One clock for fixture and code — see tests/conftest.py for why this matters.
 def _today():
-    from app.db import now_utc
-    return now_utc()[:10]
+    return utc_day()
 
 
 def _d(n):
-    return (date.fromisoformat(_today()) + timedelta(days=n)).isoformat()
+    return utc_day(n)
 
 
 @pytest.fixture()
@@ -453,3 +454,72 @@ def test_trigger_violations_surface_as_client_errors_not_500s(client, ctx):
         "planned_end_on": _d(30), "internal_owner_person_id": ctx["owner"]["id"]})
     assert r.status_code == 422
     assert "different account" in r.json()["detail"]
+
+
+# --- measurement window: a finished campaign is judged at its window, not at "now" ---------------
+def test_completed_campaign_ignores_observations_after_its_window(client, ctx):
+    """Taking the newest observation forever would let movement months after the campaign ended
+    flow into its delta, silently re-attributing later change to an intervention that stopped."""
+    _obs(client, ctx, 0.30, 120)
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    client.post(f"/api/campaigns/{c['id']}/activate", json={"reason": "started"})
+    _obs(client, ctx, 0.45, 40)                       # inside the window
+    client.post(f"/api/campaigns/{c['id']}/complete", json={
+        "reason": "window closed", "completion_outcome": "improved_not_met",
+        "completion_reviewed_on": _d(-35)})
+
+    # Unrelated later movement, well after the campaign ended.
+    client.post("/api/metric-observations", json={
+        "definition_id": ctx["d"]["id"], "program_id": ctx["prog"]["id"],
+        "population_segment_id": ctx["dach"]["id"], "value": 0.95,
+        "current_through": _today()})
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["value"] == 0.45          # not 0.95
+    assert ev["delta"] == pytest.approx(0.15)
+
+
+def test_a_finished_campaign_does_not_decay_into_unknown(client, ctx):
+    """Freshness answers "is this on track *now*". A closed campaign's evidence was fresh when the
+    outcome was recorded; judging it against today would turn every historical result into
+    unknown as it aged, which is decay rather than honesty."""
+    _obs(client, ctx, 0.30, 300)
+    c = _campaign(client, ctx, planned_start_on=_d(-300), planned_end_on=_d(-200),
+                  evaluation_on=_d(-190), evaluation_design="pre_post")
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    client.post(f"/api/campaigns/{c['id']}/activate", json={"reason": "started"})
+    _obs(client, ctx, 0.50, 210)                      # fresh at the time, ancient today
+    client.post(f"/api/campaigns/{c['id']}/complete", json={
+        "reason": "closed", "completion_outcome": "improved_not_met",
+        "completion_reviewed_on": _d(-190)})
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["status"] != "unknown" and ev["value"] == 0.50
+
+
+def test_comparator_window_starts_at_the_treated_baseline(client, ctx):
+    """A baseline is routinely locked just before the campaign opens; anchoring the comparator on
+    planned_start_on silently drops its matching pre-reading and reports no evidence."""
+    _obs(client, ctx, 0.30, 40)                                    # treated baseline, pre-start
+    _obs(client, ctx, 0.55, 5, segment_id=ctx["nordics"]["id"])    # comparator post
+    client.post("/api/metric-observations", json={                 # comparator pre, pre-start
+        "definition_id": ctx["d"]["id"], "program_id": ctx["prog"]["id"],
+        "population_segment_id": ctx["nordics"]["id"], "value": 0.50,
+        "current_through": _d(-40)})
+    c = _campaign(client, ctx, planned_start_on=_d(-30), evaluation_design="comparator")
+    _target(client, ctx, c, comparator_segment_id=ctx["nordics"]["id"])
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    _obs(client, ctx, 0.60, 2)
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["comparator"]["delta"] == pytest.approx(0.05)    # 0.50 -> 0.55, not "no evidence"
+    assert "not causation" in ev["comparator"]["note"]

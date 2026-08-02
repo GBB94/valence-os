@@ -87,13 +87,20 @@ def baseline_snapshot(conn: sqlite3.Connection, campaign: dict, value_target: di
     }
 
 
-def _stale(conn, observation: dict) -> bool:
+def _stale(conn, observation: dict, as_of: str | None = None) -> bool:
+    """Was this observation stale *at the moment the judgement was made*?
+
+    `as_of` is today for a live campaign — "is this on track" is a question about now. For a
+    finished campaign it is the evaluation date, because the evidence was fresh when the outcome
+    was recorded and the result is a historical fact. Judging a closed campaign against today
+    would turn every completed record into `unknown` as it aged, which is not honesty, just decay.
+    """
     d = conn.execute("SELECT stale_after_days FROM metric_definitions WHERE id=?",
                      (observation["definition_id"],)).fetchone()
     if not d or not observation.get("current_through"):
         return True
     try:
-        return (date.fromisoformat(_today())
+        return (date.fromisoformat(as_of or _today())
                 - date.fromisoformat(observation["current_through"])).days > d["stale_after_days"]
     except ValueError:
         return True
@@ -133,12 +140,24 @@ def evaluate(conn: sqlite3.Connection, campaign: dict, target: dict) -> dict:
                                         f"import rollback; the comparison cannot stand"}]}
 
     rows = [repo.row_to_dict(r) for r in _observation_query(conn, vt, campaign)]
+    # A finished campaign is measured at its window, not at "whatever landed since". Taking the
+    # newest observation forever would let movement months after the campaign ended flow into its
+    # delta — silently re-attributing later change to an intervention that had already stopped.
+    finished = campaign["status"] in ("completed", "cancelled")
+    # The judgement moment is when the operator actually reviewed it — not a planned evaluation
+    # date, which may still be in the future and would make recent evidence look "stale" by
+    # measuring its age against a date that has not arrived.
+    cutoff = (campaign.get("completion_reviewed_on") or campaign.get("evaluation_on")
+              or campaign["planned_end_on"])
+    if finished:
+        cutoff = min(cutoff, _today())
+        rows = [r for r in rows if (r.get("current_through") or "") <= cutoff]
     current = rows[-1] if rows else None
     if not current:
         return {"status": "no_evidence", "value": None, "baseline_value": None, "delta": None,
                 "design": campaign["evaluation_design"],
                 "cautions": [{"kind": "no_observation", "detail": "no observation for this cohort"}]}
-    if _stale(conn, current):
+    if _stale(conn, current, cutoff if finished else None):
         return {"status": "unknown", "value": None,
                 "baseline_value": baseline["value"] if baseline else None, "delta": None,
                 "current_through": current["current_through"],
@@ -229,12 +248,23 @@ def _comparator_delta(conn: sqlite3.Connection, campaign: dict, target: dict,
     if suppression:
         return {"delta": None, "reason": f"comparator {suppression}", "suppressed": True}
 
+    # The window runs from the treated cohort's own baseline date, not from planned_start_on: a
+    # baseline is routinely locked slightly before the campaign opens, and anchoring on the start
+    # date silently excludes the comparator's matching pre-reading.
+    baseline_from = campaign["planned_start_on"]
+    if target.get("baseline_observation_id"):
+        row = conn.execute("SELECT current_through FROM metric_observations WHERE id=?",
+                           (target["baseline_observation_id"],)).fetchone()
+        if row and row["current_through"]:
+            baseline_from = min(baseline_from, row["current_through"])
+    cutoff = campaign.get("evaluation_on") or campaign["planned_end_on"]
+
     rows = [repo.row_to_dict(r) for r in conn.execute(
         "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
         "AND IFNULL(population_segment_id,'')=IFNULL(?,'') "
         "AND IFNULL(population_view_id,'')=IFNULL(?,'') "
-        "AND current_through >= ? ORDER BY current_through",
-        (value_target["definition_id"], seg, view, campaign["planned_start_on"]))]
+        "AND current_through >= ? AND current_through <= ? ORDER BY current_through",
+        (value_target["definition_id"], seg, view, baseline_from, cutoff))]
     if len(rows) < 2:
         return {"delta": None, "reason": "comparator needs two observations spanning the window"}
     first, last = rows[0], rows[-1]

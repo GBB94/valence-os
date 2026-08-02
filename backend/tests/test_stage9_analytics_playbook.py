@@ -1,10 +1,11 @@
 """Stage 9 adversarial contracts: no invented analytics and no automatic learning mutation."""
 import os
 import tempfile
-from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -21,7 +22,7 @@ def client(monkeypatch):
 
 
 def _day(offset=0):
-    return (date.today() + timedelta(days=offset)).isoformat()
+    return utc_day(offset)
 
 
 def _shape(client, name, use_case_id, tag_id):

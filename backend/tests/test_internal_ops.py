@@ -3,10 +3,11 @@ import os
 import socket
 import sqlite3
 import tempfile
-from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -20,7 +21,7 @@ def client():
 
 
 def _day(offset=0):
-    return (date.today() + timedelta(days=offset)).isoformat()
+    return utc_day(offset)
 
 
 def _setup(c):

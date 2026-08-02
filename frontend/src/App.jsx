@@ -15,6 +15,7 @@ import Timeline from "./views/Timeline";
 import Metrics from "./views/Metrics";
 import ValueLibrary from "./views/ValueLibrary";
 import Artifacts from "./views/Artifacts";
+import Campaigns from "./views/Campaigns";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import People from "./views/People";
@@ -422,6 +423,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
           <div className="stack">
             <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
             <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            <Campaigns accountId={accountId} reloadKey={reloadKey} />
             {selProgram
               ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
               : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}

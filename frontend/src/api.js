@@ -333,4 +333,17 @@ export const api = {
   monthlyInternalPreview: () => req("GET", "/api/internal-reports/monthly_portfolio_brief/preview"),
   generateMonthlyInternal: () => req("POST", "/api/internal-reports/monthly_portfolio_brief/documents", {}),
   excludeInternalReportOrigin: (b) => req("POST", "/api/internal-reports/red-origin-exclusions", b),
+
+  // Stage 11 — adoption campaigns
+  campaigns: (accountId, status) => req("GET",
+    `/api/accounts/${accountId}/campaigns${status ? `?status=${status}` : ""}`),
+  campaign: (id) => req("GET", `/api/campaigns/${id}`),
+  createCampaign: (b) => req("POST", "/api/campaigns", b),
+  patchCampaign: (id, b) => req("PATCH", `/api/campaigns/${id}`, b),
+  campaignReadiness: (id) => req("GET", `/api/campaigns/${id}/readiness`),
+  campaignTransition: (id, action, b) => req("POST", `/api/campaigns/${id}/${action}`, b),
+  addCampaignBarrier: (id, b) => req("POST", `/api/campaigns/${id}/barriers`, b),
+  addCampaignTarget: (id, b) => req("POST", `/api/campaigns/${id}/targets`, b),
+  addCampaignPlanLink: (id, b) => req("POST", `/api/campaigns/${id}/plan`, b),
+  addCampaignCheckpoint: (id, b) => req("POST", `/api/campaigns/${id}/checkpoints`, b),
 };
