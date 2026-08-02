@@ -2,6 +2,13 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Stage 11.2 reconciliation — two sessions, one implementation (2026-08-02)
+
+- **D-107 — Stage 11.2 was built twice concurrently; the integrated implementation was kept and the duplicate removed.** Two sessions worked the same slice against the same tree. `campaigns.py` briefly held both. The integrated one (D-104: service, matching, analytics, router, search, export, seed, UI, tests) was kept; the unwired parallel one was deleted rather than merged, because two implementations of the same contract in one module is worse than either of them. Three things came out of the reconciliation and are worth recording:
+  - **The D-94 ranking rule is now called, not restated.** D-104 described the ranking discipline as "Stage 9's, reused rather than re-derived" — but the code inlined a third copy of it. Extracted to `stage9.rank_shape()`; `stage9.matches()` and `campaigns.nearest_campaigns()` both call it. The rule that an *empty* tag set is never a tier-1 "exact shape" match has already been a live production bug once; a copy of it is a second place for it to regress, and a comment claiming reuse is not reuse.
+  - **A retrospective can no longer stay silent about an intervention.** `record_retrospective` accepted an empty `interventions` list, so a campaign could be written up without mentioning the thing that failed — and §9's realization-by-intervention-kind would then count only whatever someone felt like writing up. Every plan item now needs a verdict; `skipped` is the honest answer for one that never ran. Omission, not deletion, is how failures actually disappear from a portfolio.
+  - **A migration was overwritten without being read first.** `0033_stage11_campaign_learning.sql` already existed, untracked, when the second session wrote its own version over it. The replacement satisfies the other session's service code and all its tests, and the schema is sound — but the original is unrecoverable from git, and the process rule stands: read before overwriting, and check `git status` for another session's in-flight work before touching a shared file.
+
 ## Stage 12 — grounded Account Copilot (2026-08-02)
 
 - **D-106 — Stage 12.0–12.3 are implemented as a deterministic, read-only workflow layer; no real model adapter exists.** Migration 0034 replaces the repeatedly rebuilt generated-document kind CHECK with a governed lookup, versions writing rules, and freezes completed runs, exact field snapshots, claims, support edges, and append-only corrections. Generated internal notes point to the validated run and exact style version.
