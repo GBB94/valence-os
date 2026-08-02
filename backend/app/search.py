@@ -83,6 +83,13 @@ _SOURCES = [
                           "COALESCE(name,'')||' '||COALESCE(target_behavior,'')||' '||"
                           "COALESCE(hypothesis,'') AS body "
                           "FROM adoption_campaigns WHERE archived=0"),
+    ("adoption_campaign_retrospective",
+     "SELECT r.id, c.account_id, c.program_id, "
+     "'Retrospective — '||c.name AS title, "
+     "COALESCE(r.barrier_note,'')||' '||COALESCE(r.what_to_reuse,'')||' '||"
+     "COALESCE(r.what_to_change,'')||' '||COALESCE(r.follow_on_note,'') AS body "
+     "FROM adoption_campaign_retrospectives r "
+     "JOIN adoption_campaigns c ON c.id=r.campaign_id WHERE c.archived=0"),
     ("adoption_campaign_barrier", "SELECT b.id, c.account_id, c.program_id, "
                                   "b.description AS title, "
                                   "b.category||' '||COALESCE(b.description,'') AS body "
@@ -145,6 +152,9 @@ _SOURCES = [
                    "FROM escalation_instances e JOIN internal_asks a ON a.id=e.ask_id WHERE e.archived=0"),
     ("generated_document", "SELECT id,account_id,program_id,title,COALESCE(title,'')||' '||COALESCE(body_markdown,'') AS body "
                            "FROM generated_documents WHERE status<>'discarded'"),
+    ("copilot_run", "SELECT id,account_id,program_id,query_text AS title,"
+                    "COALESCE(query_text,'')||' '||COALESCE(answer_markdown,'') AS body "
+                    "FROM copilot_runs WHERE archived=0 AND status='completed'"),
 ]
 
 
@@ -167,7 +177,21 @@ def reindex(conn: sqlite3.Connection) -> int:
     return n
 
 
-def search(conn: sqlite3.Connection, q: str, limit: int = 30) -> list[dict]:
+def search(
+    conn: sqlite3.Connection,
+    q: str,
+    limit: int = 30,
+    *,
+    account_id: str | None = None,
+    program_id: str | None = None,
+    record_types: list[str] | tuple[str, ...] | None = None,
+) -> list[dict]:
+    """Search inside an explicit SQL scope.
+
+    The optional filters are part of the FTS query itself. Callers building an LLM context must
+    never fetch a portfolio result set and trim it in application code; doing so would put the
+    access boundary after retrieval. The unscoped default remains for the operator's global search.
+    """
     q = (q or "").strip()
     if not q:
         return []
@@ -177,12 +201,26 @@ def search(conn: sqlite3.Connection, q: str, limit: int = 30) -> list[dict]:
     if not terms:
         return []
     match = " ".join(f'"{t}"*' for t in terms)
+    where = ["search_index MATCH ?"]
+    params: list[object] = [match]
+    if account_id is not None:
+        where.append("account_id = ?")
+        params.append(account_id)
+    if program_id is not None:
+        where.append("program_id = ?")
+        params.append(program_id)
+    clean_types = sorted({t for t in (record_types or []) if t})
+    if clean_types:
+        where.append(f"object_type IN ({','.join('?' for _ in clean_types)})")
+        params.extend(clean_types)
+    params.append(max(1, min(limit, 100)))
     try:
         rows = conn.execute(
             "SELECT object_type, object_id, account_id, program_id, title, "
             "snippet(search_index, 5, '[', ']', '…', 8) AS snip "
-            "FROM search_index WHERE search_index MATCH ? ORDER BY bm25(search_index) LIMIT ?",
-            (match, limit),
+            f"FROM search_index WHERE {' AND '.join(where)} "
+            "ORDER BY bm25(search_index), object_type, object_id LIMIT ?",
+            tuple(params),
         ).fetchall()
     except sqlite3.OperationalError:
         return []

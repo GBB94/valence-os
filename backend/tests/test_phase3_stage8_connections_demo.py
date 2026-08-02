@@ -17,6 +17,7 @@ def client(monkeypatch):
     monkeypatch.setenv("VALENCE_OS_DB", path)
     monkeypatch.setenv("VALENCE_OS_WORKER", "0")
     monkeypatch.delenv("EXTRACTOR_BACKEND", raising=False)
+    monkeypatch.delenv("COPILOT_BACKEND", raising=False)
     monkeypatch.delenv("VALENCE_OS_REAL_CONNECTIONS_APPROVED", raising=False)
     monkeypatch.delenv("VALENCE_OS_REAL_CONNECTIONS_DECISION", raising=False)
     from app.main import app
@@ -44,7 +45,7 @@ def test_registry_is_complete_documented_and_local_by_default(client):
     assert ids == {
         "recording_source", "transcription_source", "email_provider", "calendar_provider",
         "enrichment_source", "headcount_source", "metric_source", "notification_channel",
-        "llm_endpoint", "file_storage", "hosting",
+        "llm_endpoint", "copilot_endpoint", "file_storage", "hosting",
     }
     assert snapshot["approval"]["approved"] is False
     assert all(row["gate_status"] == "local" for row in snapshot["connections"])

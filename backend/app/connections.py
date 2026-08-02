@@ -103,6 +103,16 @@ _CONNECTIONS = (
         "real_modes": ("api",),
     },
     {
+        "id": "copilot_endpoint",
+        "label": "Account Copilot cross-record context endpoint",
+        "current_mode": "dynamic_copilot",
+        "config_switch": "COPILOT_BACKEND=mock only; real modes have no implementation",
+        "fixture_glob": "copilot/*.json",
+        "real_requires": "Separate approval for cross-record copilot payload classes, maximum context, provider/model allow-list, processing region, retention/training terms, redacted logging, credential ownership, and rollback decision",
+        "code_owner": "app/copilot_model.py + app/copilot_service.py",
+        "real_modes": ("api",),
+    },
+    {
         "id": "file_storage",
         "label": "File and generated-artifact storage",
         "current_mode": "local_links_sqlite_and_memory",
@@ -164,8 +174,12 @@ def registry_snapshot() -> dict:
     for definition in _CONNECTIONS:
         row = dict(definition)
         real_modes = tuple(row.pop("real_modes", ()))
-        mode = (os.environ.get("EXTRACTOR_BACKEND", "mock").strip().lower()
-                if row["current_mode"] == "dynamic" else row["current_mode"])
+        if row["current_mode"] == "dynamic":
+            mode = os.environ.get("EXTRACTOR_BACKEND", "mock").strip().lower()
+        elif row["current_mode"] == "dynamic_copilot":
+            mode = os.environ.get("COPILOT_BACKEND", "mock").strip().lower()
+        else:
+            mode = row["current_mode"]
         fixture_glob = row.pop("fixture_glob")
         fixtures = sorted(str(path.relative_to(FIXTURES)) for path in FIXTURES.glob(fixture_glob)) \
             if fixture_glob else []

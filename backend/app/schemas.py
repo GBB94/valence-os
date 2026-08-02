@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Phase = Literal["foundation", "launch", "programmatic", "expansion", "renewal", "closed"]
 Affiliation = Literal["client", "valence"]
@@ -1568,3 +1568,95 @@ class PlanLinkSupersede(BaseModel):
     replacement_link_id: str
     reason: str = Field(min_length=1)
     checkpoint_id: Optional[str] = None
+
+
+# --- Stage 11.2: campaign learning (ADOPTION-CAMPAIGN-SPEC.md §§8-9) ----------------------------
+class RetrospectiveInterventionIn(BaseModel):
+    plan_link_id: str = Field(min_length=1)
+    verdict: Literal["appeared_to_help", "appeared_not_to_help", "failed", "skipped", "unclear"]
+    note: str = Field(min_length=1)
+
+
+class CampaignRetrospectiveCreate(BaseModel):
+    barrier_actually_present: Literal["capability", "opportunity", "motivation",
+                                      "mixed", "none_found", "unknown"]
+    barrier_note: str = Field(min_length=1)
+    what_to_reuse: str = Field(min_length=1)
+    what_to_change: str = Field(min_length=1)
+    follow_on: Literal["none", "repeat_same_cohort", "different_cohort",
+                       "different_intervention", "escalate", "stop"] = "none"
+    follow_on_note: Optional[str] = None
+    messaging_entry_id: Optional[str] = None
+    reviewed_on: str
+    author: Optional[str] = None
+    interventions: list[RetrospectiveInterventionIn] = Field(default_factory=list)
+
+
+# --- Stage 12: Account Copilot ---------------------------------------------------------------
+class CopilotRunCreate(BaseModel):
+    scope_type: Literal["program", "account", "portfolio"]
+    account_id: Optional[str] = None
+    program_id: Optional[str] = None
+    query_text: str = Field(min_length=1, max_length=1200)
+    intent: Optional[Literal["fact", "synthesis", "changes", "weekly", "draft"]] = None
+    time_window_start: Optional[str] = None
+    time_window_end: Optional[str] = None
+    idempotency_key: Optional[str] = Field(default=None, max_length=200)
+    context_run_id: Optional[str] = None
+
+
+class CopilotFeedbackCreate(BaseModel):
+    claim_id: Optional[str] = None
+    run_source_id: Optional[str] = None
+    issue_kind: Literal[
+        "helpful", "partially_helpful", "unhelpful", "wrong_fact", "missing_source",
+        "wrong_source", "stale_or_superseded_source", "scope_error", "unsafe_wording",
+        "style_mismatch",
+    ]
+    note: Optional[str] = Field(default=None, max_length=2000)
+    actor: Optional[str] = None
+
+
+class CopilotDraftCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=180)
+
+
+class WritingStyleProfileCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    audience: Literal["internal", "client_facing"]
+    rules: dict = Field(default_factory=dict)
+    sample_text: Optional[str] = Field(default=None, max_length=5000)
+    effective_on: str
+    author: str = Field(min_length=1, max_length=120)
+    supersedes_id: Optional[str] = None
+
+
+class CopilotConfigurationCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    model_version: str = Field(min_length=1, max_length=120)
+    prompt_version: str = Field(min_length=1, max_length=120)
+    retrieval_version: str = Field(min_length=1, max_length=120)
+    validator_version: str = Field(min_length=1, max_length=120)
+
+
+class CopilotReplayCreate(BaseModel):
+    run_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class CopilotConfigurationEvaluation(BaseModel):
+    run_ids_by_case: dict[str, str]
+
+
+class CopilotFeedbackReviewCreate(BaseModel):
+    disposition: Literal["confirmed", "dismissed", "canonical_record_updated", "evaluation_backlog"]
+    resolution_note: str = Field(min_length=1, max_length=2000)
+    reviewed_by: str = Field(min_length=1, max_length=120)
+
+
+class CopilotEntityAliasCreate(BaseModel):
+    account_id: Optional[str] = None
+    record_type: Literal["person", "program", "population_segment", "population_view"]
+    record_id: str = Field(min_length=1)
+    alias: str = Field(min_length=1, max_length=120)
+    created_by: str = Field(min_length=1, max_length=120)

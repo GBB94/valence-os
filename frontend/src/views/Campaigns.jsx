@@ -119,9 +119,19 @@ export default function Campaigns({ accountId, reloadKey }) {
 function CampaignPanel({ campaignId, onClose, onChanged }) {
   const toast = useToast();
   const [c, setC] = useState(null);
+  const [nearest, setNearest] = useState(null);
+  const [retro, setRetro] = useState(null);
 
   async function load() {
-    try { setC(await api.campaign(campaignId)); } catch (e) { toast(e.message, "err"); }
+    try {
+      const next = await api.campaign(campaignId);
+      setC(next);
+      // Prior evidence matters most before you commit to a motion, and the retrospective only
+      // exists once the campaign is over — so each surface is fetched for the state it serves.
+      setNearest(next.status === "draft" || next.status === "ready"
+        ? await api.campaignNearest(campaignId) : null);
+      setRetro(next.status === "completed" ? await api.campaignRetrospective(campaignId) : null);
+    } catch (e) { toast(e.message, "err"); }
   }
   useEffect(() => { load(); }, [campaignId]);
 
@@ -297,6 +307,83 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
             <span className="rowmeta"> · reviewed {c.completion_reviewed_on}</span>
           </p>
           {c.completion_note && <p style={{ ...p, color: "var(--ink-secondary)" }}>{c.completion_note}</p>}
+        </>
+      )}
+
+      {nearest && (
+        <>
+          <h4 style={{ ...h4, marginTop: 18 }}>Have we run this shape before?</h4>
+          {!nearest.cross_account_eligible ? (
+            <p style={p} className="subtle">{nearest.reason}</p>
+          ) : !nearest.matches.length ? (
+            <p style={p} className="subtle">
+              No completed campaign shares this use case yet. This is the first run of this shape.
+            </p>
+          ) : (
+            <table>
+              <thead>
+                <tr><th>Campaign</th><th>Outcome</th><th>Why it matched</th></tr>
+              </thead>
+              <tbody>
+                {nearest.matches.map((m) => (
+                  <tr key={m.retrospective_id}>
+                    <td>
+                      <strong>{m.campaign_name}</strong>
+                      <div className="rowmeta">
+                        Reuse: {m.what_to_reuse} · Change: {m.what_to_change}
+                      </div>
+                    </td>
+                    <td>{(m.completion_outcome || "—").replaceAll("_", " ")}</td>
+                    <td>
+                      {/* Tier is the honest part: an untagged shape is "same feature", not
+                          "same shape". The reason string says which, in words. */}
+                      <span className={m.match_rank === 1 ? "band-ok" : "subtle"}>
+                        {m.match_reason}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      {retro && (
+        <>
+          <h4 style={{ ...h4, marginTop: 18 }}>What we learned</h4>
+          <p style={p}>
+            <strong>Barrier actually present:</strong>{" "}
+            {retro.barrier_actually_present.replaceAll("_", " ")} — {retro.barrier_note}
+          </p>
+          <p style={p}><strong>Reuse:</strong> {retro.what_to_reuse}</p>
+          <p style={p}><strong>Change:</strong> {retro.what_to_change}</p>
+          {retro.follow_on !== "none" && (
+            <p style={p}>
+              <strong>Follow-on ({retro.follow_on.replaceAll("_", " ")}):</strong> {retro.follow_on_note}
+            </p>
+          )}
+          {retro.interventions.length > 0 && (
+            <table>
+              <thead><tr><th>Intervention</th><th>Verdict</th><th>Note</th></tr></thead>
+              <tbody>
+                {retro.interventions.map((i) => (
+                  <tr key={i.id}>
+                    <td>{(i.intervention_kind || "—").replaceAll("_", " ")}</td>
+                    <td>
+                      {/* Failures are recorded and shown. A portfolio that only remembers what
+                          worked cannot tell you what to change. */}
+                      <span className={["failed", "appeared_not_to_help"].includes(i.verdict)
+                        ? "band-risk" : "subtle"}>
+                        {i.verdict.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="rowmeta">{i.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </>
       )}
 

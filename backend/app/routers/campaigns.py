@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from .. import audit, campaigns, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
-from ..schemas import (
+from ..schemas import (CampaignRetrospectiveCreate,
     CampaignBarrierCreate, CampaignBarrierPatch, CampaignCheckpointCreate, CampaignCheckpointHold,
     CampaignAttachEpisode, CampaignCreate, CampaignFromEpisode, CampaignPatch,
     CampaignPlanLinkCreate, CampaignTargetCreate, CampaignTransition, PlanLinkSupersede,
@@ -282,3 +282,27 @@ def supersede_link(link_id: str, b: PlanLinkSupersede,
     """Adjusting the plan replaces a future item; it never rewrites the hypothesis or baseline."""
     return campaigns.supersede_plan_link(conn, link_id, b.replacement_link_id,
                                          reason=b.reason, checkpoint_id=b.checkpoint_id)
+
+
+# --- Stage 11.2: learning (ADOPTION-CAMPAIGN-SPEC.md §§8-9) ------------------------------------
+@router.post("/campaigns/{campaign_id}/retrospective", status_code=201)
+def record_retrospective(campaign_id: str, b: CampaignRetrospectiveCreate,
+                         conn: sqlite3.Connection = Depends(get_conn)):
+    """One learning record per completed campaign; the derived shape freezes here."""
+    return campaigns.record_retrospective(conn, campaign_id, b.model_dump())
+
+
+@router.get("/campaigns/{campaign_id}/retrospective")
+def get_retrospective(campaign_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    return campaigns.retrospective_for(conn, campaign_id)
+
+
+@router.get("/campaigns/{campaign_id}/nearest")
+def nearest(campaign_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Nearest completed campaigns as evidence for a new draft (§8)."""
+    return campaigns.nearest_campaigns(conn, campaign_id)
+
+
+@router.get("/portfolio/campaign-learning")
+def portfolio_learning(conn: sqlite3.Connection = Depends(get_conn)):
+    return campaigns.portfolio_learning(conn)

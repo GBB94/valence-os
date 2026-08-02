@@ -135,6 +135,11 @@ tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transpare
 .state-mark.unknown { background: repeating-linear-gradient(45deg, var(--status-unknown), var(--status-unknown) 1px, transparent 1px, transparent 3px); border: 1px solid var(--status-unknown); }
 .band-ok { color: var(--status-ok); } .band-warn { color: var(--status-warn); } .band-risk { color: var(--status-risk); } .band-unknown { color: var(--ink-secondary); }
 
+/* Evidence gap — the named-missing-rule treatment on an unsupported forecast call.
+   Pairs the risk hue with a mark so the state never rides on colour alone. */
+.evidence-gap { display: inline-flex; align-items: flex-start; gap: var(--sp-3); color: var(--status-risk); }
+.evidence-gap > .state-mark { margin-top: var(--sp-3); }
+
 .detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .detail-title { font-size: var(--t-body-lg); line-height: 1.4; margin-bottom: 12px; }
 .detail-body .kv { grid-template-columns: 120px 1fr; }
@@ -228,6 +233,23 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .slideover header h1 { font-size: var(--t-h3); }
 .slideover .body { padding: 16px 18px; overflow-y: auto; flex: 1; }
 .slideover footer { padding: 12px 18px; border-top: 1px solid var(--line-hairline); display: flex; gap: 8px; justify-content: flex-end; }
+.copilot-panel { width: min(680px, 94vw); }
+.copilot-panel form > label { display: block; color: var(--ink-secondary); font-size: var(--t-small); margin-bottom: 5px; }
+.copilot-panel textarea { width: 100%; resize: vertical; border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 9px 10px; color: var(--ink-primary); background: var(--bg-surface); font: inherit; }
+.copilot-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.copilot-starters { display: flex; flex-wrap: wrap; gap: 6px; }
+.copilot-answer { white-space: pre-wrap; margin-top: 12px; line-height: 1.55; }
+.copilot-gaps { margin-top: 12px; padding: 10px; border-left: 3px solid var(--status-warn); background: var(--status-warn-tint); }
+.copilot-gaps ul { margin: 6px 0 0; padding-left: 20px; }
+.copilot-claim { padding: 10px 12px; border-bottom: 1px solid var(--line-hairline); }
+.copilot-claim:last-child { border-bottom: 0; }
+.copilot-history { width: 100%; border: 0; border-bottom: 1px solid var(--line-hairline); background: transparent; color: var(--ink-primary); padding: 9px 12px; text-align: left; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+.copilot-history:hover, .copilot-history:focus-visible { background: var(--bg-hover); }
+.copilot-source-fields { margin: 0; padding: 0 12px 12px; }
+.copilot-source-fields > div { display: grid; grid-template-columns: minmax(120px, .35fr) 1fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line-hairline); }
+.copilot-source-fields dt { color: var(--ink-tertiary); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .04em; }
+.copilot-source-fields dd { margin: 0; overflow-wrap: anywhere; }
+.copilot-draft-preview .copilot-answer { padding: 0 12px 4px; max-height: 260px; overflow: auto; }
 
 /* Forms */
 .field { margin-bottom: 12px; }

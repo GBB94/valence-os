@@ -296,6 +296,30 @@ def list_entries(conn: sqlite3.Connection, account_id: str | None = None) -> lis
     return [get_entry(conn, entry_id) for entry_id in ids]
 
 
+def rank_shape(target_tags: set[str], entry_tags: set[str],
+               tag_names: dict[str, str] | None = None) -> tuple[int, str]:
+    """Rank one candidate against a target audience shape, and say why (D-94).
+
+    Shared with adoption-campaign matching (`campaigns.matches`) rather than reimplemented there.
+    The rule this encodes was a live bug: `set() == set()` used to rank as tier 1 "exact shape", so
+    two unrelated *untagged* populations matched at the strongest tier. Exact now requires a
+    NON-EMPTY equal tag set; tagless shapes fall through to an honest use-case-only match.
+
+    That distinction is the whole value of the tier: "we have run this exact shape before" justifies
+    copying a motion, "we have used this feature before" does not. One copy of the rule means one
+    place it can regress.
+    """
+    overlap = sorted(target_tags & entry_tags)
+    if target_tags and entry_tags == target_tags:
+        return 1, "Exact use case and audience-tag shape."
+    if overlap:
+        names = [(tag_names or {}).get(t, t) for t in overlap]
+        return 2, "Same use case; overlapping audience tags: " + ", ".join(names) + "."
+    if target_tags and entry_tags:
+        return 3, "Same global use case; no audience-tag overlap."
+    return 3, "Same global use case; audience tags unavailable for one or both shapes."
+
+
 def matches(conn: sqlite3.Connection, cell_id: str) -> dict:
     cell = repo.get_row(conn, "whitespace_cells", cell_id)
     use_case = repo.get_row(conn, "use_cases", cell["use_case_id"])
@@ -308,16 +332,8 @@ def matches(conn: sqlite3.Connection, cell_id: str) -> dict:
         if entry["use_case_id"] != use_case["id"] or not entry["cross_account_eligible"]:
             continue
         entry_tags = {t["id"] for t in entry["audience_tags"]}
-        overlap = sorted(target_tags & entry_tags)
-        if target_tags and entry_tags == target_tags:
-            rank, reason = 1, "Exact use case and audience-tag shape."
-        elif overlap:
-            names = [t["name"] for t in entry["audience_tags"] if t["id"] in overlap]
-            rank, reason = 2, "Same use case; overlapping audience tags: " + ", ".join(names) + "."
-        elif target_tags and entry_tags:
-            rank, reason = 3, "Same global use case; no audience-tag overlap."
-        else:
-            rank, reason = 3, "Same global use case; audience tags unavailable for one or both shapes."
+        rank, reason = rank_shape(target_tags, entry_tags,
+                                  {t["id"]: t["name"] for t in entry["audience_tags"]})
         ranked.append({**entry, "match_rank": rank, "match_reason": reason})
     ranked.sort(key=lambda e: (e["match_rank"],
                                -date.fromisoformat(e["transitioned_on"][:10]).toordinal(), e["id"]))

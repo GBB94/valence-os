@@ -728,17 +728,19 @@ def generate(conn: sqlite3.Connection, kind: str, account_id: str, **kwargs) -> 
 
 
 def save_draft(conn: sqlite3.Connection, doc: dict, *, source_job_id: str | None = None,
-               program_id: str | None = None) -> dict:
+               program_id: str | None = None, title: str | None = None,
+               writing_style_profile_id: str | None = None) -> dict:
     """Persist a generated artifact as a DRAFT. Nothing here sends anything, ever."""
     s = doc["stamp"]
     acct_name = doc.get("account_name") or "portfolio"
     saved = repo.insert(conn, "generated_documents", {
         "account_id": doc.get("account_id"), "program_id": program_id or doc.get("program_id"),
-        "kind": doc["kind"], "title": f"{_TITLES.get(doc['kind'], doc['kind'])} — {acct_name}",
+        "kind": doc["kind"], "title": title or f"{_TITLES.get(doc['kind'], doc['kind'])} — {acct_name}",
         "body_markdown": doc["markdown"], "status": "draft",
         "generated_at": s["generated_at"], "data_current_through": s.get("data_current_through"),
         "missing_or_stale_note": "; ".join(s.get("missing_or_stale_sources") or []) or None,
         "audience": doc.get("audience", "internal"), "source_job_id": source_job_id,
+        "writing_style_profile_id": writing_style_profile_id,
     }, object_type="generated_document")
     if doc.get("kind") == "champion_kit":
         with conn:

@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import sys
 from pathlib import Path
 
@@ -819,6 +820,30 @@ def _seed_stage11_demo(conn):
        "'Uptake improved but plateaued below the bar; closing rather than extending.',?,?)",
        (day(-115), day(-110), ts, ts))
 
+    # --- Stage 11.2: the completion retrospective (§8) --------------------------------------------
+    # Deliberately an honest one. The diagnosed barrier was capability; what was actually in the way
+    # was opportunity, and the demo is more useful showing that gap than showing a clean success.
+    ex("INSERT OR IGNORE INTO adoption_campaign_retrospectives (id, campaign_id, "
+       "barrier_actually_present, barrier_note, what_to_reuse, what_to_change, follow_on, "
+       "follow_on_note, shape_json, reviewed_on, author, created_at, updated_at) "
+       "VALUES ('camp-retro-1','camp-tv-done','opportunity',"
+       "'We diagnosed a capability gap and built a worked example. Managers understood it fine; "
+       "there was no slot in the Nordics review cycle to use it.',"
+       "'The worked example itself — it was reused verbatim by the DACH campaign.',"
+       "'Check the cohort has a recurring moment to attach to before building enablement.',"
+       "'different_intervention',"
+       "'Re-run against the same cohort once the Q3 review cycle opens, embedding in the workflow "
+       "rather than training ahead of it.',?,?,'operator',?,?)",
+       (json.dumps({"use_case_id": "uc-perf", "use_case": "Performance reviews",
+                    "cross_account_eligible": True, "population_kind": "segment",
+                    "audience_tag_ids": [], "audience_tags": []}, sort_keys=True),
+        day(-110), ts, ts))
+    ex("INSERT OR IGNORE INTO adoption_campaign_retrospective_interventions (id, retrospective_id, "
+       "plan_link_id, verdict, note, created_at, updated_at) "
+       "VALUES ('camp-retro-int-1','camp-retro-1','camp-plan-3','appeared_not_to_help',"
+       "'The clinic was well attended and changed nothing measurable — the constraint was not "
+       "knowledge.',?,?)", (ts, ts))
+
 
 def main():
     reset = "--reset" in sys.argv
@@ -866,6 +891,16 @@ def main():
         _seed_stage75_demo(conn)
         # Stage 10 — five-account internal operating proof.
         _seed_internal_ops_demo(conn)
+        # Stage 12 — explicit, versioned operator writing rules. Runs are created through the
+        # normal job path so the seed never pretends a model answer already happened.
+        ts = now_utc()
+        conn.execute(
+            "INSERT OR IGNORE INTO writing_style_profiles "
+            "(id,name,audience,version,rules_json,effective_on,author,is_active,created_at,updated_at) "
+            "VALUES ('style-internal-v1','Operator concise internal','internal',1,?,?,'operator',1,?,?)",
+            (json.dumps({"no_em_dash": False, "max_characters": 6000,
+                         "max_headings": 6, "banned_phrases": ["model confidence"]},
+                        sort_keys=True), now_utc()[:10], ts, ts))
         print(f"[seed] messaging library entries: {msg_n}")
 
     counts = {

@@ -6,6 +6,7 @@ disjointness, the regression-to-the-mean caution, retracted baselines, and stale
 """
 import json
 import os
+import sqlite3
 import tempfile
 from datetime import date, timedelta
 
@@ -81,6 +82,7 @@ def _obs(client, ctx, value, days_ago, segment_id=None):
 def _target(client, ctx, campaign, **kw):
     vt = client.post("/api/value-targets", json={
         "account_id": ctx["a"]["id"], "definition_id": ctx["d"]["id"],
+        "view_id": kw.pop("view_id", None),
         "segment_id": kw.pop("segment_id", ctx["dach"]["id"]),
         "target_value": kw.pop("target_value", 0.70), "timeframe_end": _d(60)}).json()
     body = {"value_target_id": vt["id"], "role": "primary", **kw}
@@ -230,6 +232,111 @@ def test_a_retracted_baseline_invalidates_the_comparison(client, ctx):
     ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
     assert ev["status"] == "invalidated" and ev["delta"] is None
     assert ev["cautions"][0]["kind"] == "baseline_retracted"
+
+
+def test_a_retracted_post_observation_invalidates_too(client, ctx):
+    """§5.1 runs both ways: baseline *or* post.
+
+    Regression. The post side was unchecked, and because the query filtered `archived=0` the
+    withdrawn reading was silently replaced by an older one — rendering `delta 0.0, not_met`
+    with no caution. A retracted number read as "the campaign achieved nothing", which is a
+    different claim from "the evidence was withdrawn", and `no_demonstrated_change` is a real
+    §5.4 outcome an operator would then record in good faith.
+    """
+    _obs(client, ctx, 0.40, 60)
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    post = _obs(client, ctx, 0.62, 1)
+
+    conn = client.app.state.conn
+    conn.execute("UPDATE metric_observations SET archived=1 WHERE id=?", (post["id"],))
+    conn.commit()
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["status"] == "invalidated" and ev["delta"] is None
+    assert ev["cautions"][0]["kind"] == "post_observation_retracted"
+    assert post["id"] in ev["cautions"][0]["detail"]
+
+
+def _locked(client, ctx, c, baseline_value=0.40):
+    """A ready campaign with its baseline locked on `baseline_value`.
+
+    20 days back: older than the post reading each caller adds, but inside the definition's
+    30-day freshness window, so these tests exercise comparability rather than staleness.
+    """
+    base = _obs(client, ctx, baseline_value, 20)
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    return base
+
+
+def test_a_delta_never_spans_a_metric_redefinition(client, ctx):
+    """§5.1 matches on definition *version*. Regression: it matched only on definition."""
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    _locked(client, ctx, c)
+    client.post("/api/metric-observations", json={
+        "definition_id": ctx["d"]["id"], "program_id": ctx["prog"]["id"],
+        "population_segment_id": ctx["dach"]["id"], "definition_version": "2",
+        "value": 0.62, "current_through": _d(-1)})
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["value"] == 0.40 and ev["delta"] == 0.0          # the v2 reading is not differenced
+    caution = next(x for x in ev["cautions"] if x["kind"] == "incomparable_observation")
+    assert "version 2" in caution["detail"]                     # and the exclusion is named
+
+
+def test_a_unit_change_cannot_manufacture_a_delta(client, ctx):
+    """0.40 as a fraction against 62.0 as a percent read as +61.6 — and flipped status to `met`."""
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    base = _locked(client, ctx, c)
+    conn = client.app.state.conn
+    conn.execute("UPDATE metric_observations SET unit='fraction' WHERE id=?", (base["id"],))
+    conn.commit()
+    client.post("/api/metric-observations", json={
+        "definition_id": ctx["d"]["id"], "program_id": ctx["prog"]["id"],
+        "population_segment_id": ctx["dach"]["id"], "unit": "percent",
+        "value": 62.0, "current_through": _d(-1)})
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["status"] == "not_met" and ev["delta"] == 0.0
+    assert any("percent" in x["detail"] for x in ev["cautions"])
+
+
+def test_another_programmes_reading_of_the_cohort_is_not_evidence(client, ctx):
+    """§5.1: a program-scoped observation must belong to the campaign's programme."""
+    other = client.post("/api/programs", json={
+        "account_id": ctx["a"]["id"], "name": "Unrelated"}).json()
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    _locked(client, ctx, c)
+    client.post("/api/metric-observations", json={
+        "definition_id": ctx["d"]["id"], "program_id": other["id"],
+        "population_segment_id": ctx["dach"]["id"],
+        "value": 0.99, "current_through": _d(-1)})
+
+    ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
+    assert ev["value"] == 0.40 and ev["status"] == "not_met"
+    caution = next(x for x in ev["cautions"] if x["kind"] == "incomparable_observation")
+    assert "different programme" in caution["detail"]
+
+
+def test_the_locked_trajectory_only_holds_comparable_readings(client, ctx):
+    """A prior reading on another definition version is a different measurement, not an earlier one."""
+    client.post("/api/metric-observations", json={
+        "definition_id": ctx["d"]["id"], "program_id": ctx["prog"]["id"],
+        "population_segment_id": ctx["dach"]["id"], "definition_version": "0",
+        "value": 0.10, "current_through": _d(-90)})
+    _obs(client, ctx, 0.35, 75)
+    c = _campaign(client, ctx, evaluation_design="pre_post")
+    _locked(client, ctx, c)
+
+    target = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]
+    values = [p["value"] for p in target["baseline_trajectory"]]
+    assert 0.35 in values and 0.10 not in values
 
 
 def test_stale_evidence_cannot_read_as_met(client, ctx):
@@ -736,3 +843,176 @@ def test_no_campaign_path_sends_anything(client, ctx):
 
     routes = [r.path for r in client.app.routes if hasattr(r, "path") and "campaign" in r.path]
     assert not any("send" in p for p in routes)
+
+
+# --- Stage 11.2: learning (ADOPTION-CAMPAIGN-SPEC.md §§8-9) ------------------------------------
+def _completed(client, ctx, name="Shape run", view_id=None, use_case_id=None, outcome="target_met"):
+    """A completed campaign, optionally on a tagged view, ready for a retrospective."""
+    kw = {"name": name}
+    if view_id:
+        kw["view_id"] = view_id
+        kw["segment_id"] = None
+    if use_case_id:
+        kw["use_case_id"] = use_case_id
+    c = _campaign(client, ctx, **kw)
+    _obs(client, ctx, 0.40, 40)
+    # A view-targeted campaign needs its value target on the same population, or readiness fails.
+    _target(client, ctx, c, **({"view_id": view_id, "segment_id": None} if view_id else {}))
+    _make_ready(client, ctx, c)
+    # A view cohort has no seeded observation here; the waiver keeps these tests about shape and
+    # learning rather than re-testing the §5.1 baseline path, which has its own cases above.
+    client.patch(f"/api/campaigns/{c['id']}", json={
+        "sponsor_gap_reason": "not yet secured", "baseline_gap_reason": "data lands next cycle"})
+    for path, reason in (("ready", "go"), ("activate", "kickoff")):
+        r = client.post(f"/api/campaigns/{c['id']}/{path}", json={"reason": reason})
+        assert r.status_code == 200, r.text
+    client.post(f"/api/campaigns/{c['id']}/complete", json={
+        "reason": "window closed", "completion_outcome": outcome,
+        "completion_reviewed_on": _d(0)})
+    return c
+
+
+def _retro(client, campaign, **kw):
+    # Every plan item needs a verdict, so the default body covers whatever the campaign actually
+    # ran. Tests about the coverage rule itself pass `interventions=` explicitly.
+    plan = client.get(f"/api/campaigns/{campaign['id']}").json()["plan"]
+    body = {"barrier_actually_present": "opportunity", "barrier_note": "No slot in the review cycle",
+            "what_to_reuse": "Embedding the prompt in the existing workflow",
+            "what_to_change": "Start procurement earlier", "reviewed_on": _d(0),
+            "interventions": [{"plan_link_id": p["id"], "verdict": "appeared_to_help",
+                               "note": "ran as planned"} for p in plan], **kw}
+    return client.post(f"/api/campaigns/{campaign['id']}/retrospective", json=body)
+
+
+def test_a_retrospective_cannot_stay_silent_about_an_intervention(client, ctx):
+    """§13.10 — omission is how a failed intervention disappears without anyone deleting it."""
+    c = _completed(client, ctx)
+    plan = client.get(f"/api/campaigns/{c['id']}").json()["plan"]
+    assert len(plan) >= 2, "this test needs a campaign with more than one plan item"
+    partial = _retro(client, c, interventions=[
+        {"plan_link_id": plan[0]["id"], "verdict": "appeared_to_help", "note": "landed"}])
+    assert partial.status_code == 422
+    assert plan[1]["id"] in partial.json()["detail"]        # and it names what is missing
+
+    # 'skipped' is the honest answer for something never run — it is not an escape hatch that
+    # hides the item, it puts it on the record.
+    full = _retro(client, c, interventions=[
+        {"plan_link_id": plan[0]["id"], "verdict": "appeared_to_help", "note": "landed"},
+        *({"plan_link_id": p["id"], "verdict": "skipped", "note": "never ran"} for p in plan[1:])])
+    assert full.status_code == 201, full.text
+    verdicts = {v["verdict"] for v in full.json()["interventions"]}
+    assert verdicts == {"appeared_to_help", "skipped"}
+
+
+def test_a_retrospective_belongs_to_a_completed_campaign(client, ctx):
+    c = _campaign(client, ctx)                       # still draft
+    assert _retro(client, c).status_code >= 400
+
+
+def test_outcomes_cannot_be_archived_or_deleted_away(client, ctx):
+    """§9 counts negative and inconclusive outcomes; hiding one would flatter the portfolio."""
+    c = _completed(client, ctx, outcome="no_demonstrated_change")
+    retro = _retro(client, c).json()
+    conn = client.app.state.conn
+    with pytest.raises(sqlite3.IntegrityError, match="cannot be archived"):
+        conn.execute("UPDATE adoption_campaign_retrospectives SET archived=1 WHERE id=?", (retro["id"],))
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        conn.execute("DELETE FROM adoption_campaign_retrospectives WHERE id=?", (retro["id"],))
+
+
+def test_an_intervention_verdict_cannot_credit_another_campaigns_plan_item(client, ctx):
+    other = _completed(client, ctx, name="Other run")
+    mine = _completed(client, ctx, name="Mine")
+    r = _retro(client, mine, interventions=[{
+        "plan_link_id": "does-not-exist", "verdict": "failed", "note": "n/a"}])
+    assert r.status_code >= 400
+
+
+def test_the_frozen_shape_survives_a_later_retag(client, ctx):
+    """Re-tagging a population must not re-rank a finished campaign into a different tier."""
+    tag = client.post("/api/audience-tags", json={"name": "Frontline", "slug": "fl-11-2"}).json()
+    uc = client.post("/api/use-cases", json={"name": "Perf reviews", "slug": "pr-11-2"}).json()
+    view = client.post("/api/population-views", json={
+        "account_id": ctx["a"]["id"], "name": "Managers", "estimated_headcount": 400,
+        "headcount_source": "synthetic", "headcount_as_of": _d(0),
+        "segment_ids": [ctx["dach"]["id"]], "tag_ids": [tag["id"]]}).json()
+    past = _completed(client, ctx, name="Past", view_id=view["id"], use_case_id=uc["id"])
+    retro = _retro(client, past).json()
+    assert retro["shape"]["audience_tags"] == ["Frontline"]
+
+    conn = client.app.state.conn
+    conn.execute("DELETE FROM population_view_tags WHERE view_id=?", (view["id"],))
+    conn.commit()
+    again = client.get(f"/api/campaigns/{past['id']}/retrospective").json()
+    assert again["shape"]["audience_tags"] == ["Frontline"]      # history unchanged
+    with pytest.raises(sqlite3.IntegrityError, match="frozen"):
+        conn.execute("UPDATE adoption_campaign_retrospectives SET shape_json='{}' WHERE id=?",
+                     (retro["id"],))
+
+
+def test_two_untagged_shapes_are_not_an_exact_match(client, ctx):
+    """The D-94 rule: set()==set() is not 'the same shape', it is 'the same feature'."""
+    uc = client.post("/api/use-cases", json={"name": "Change mgmt", "slug": "cm-11-2"}).json()
+    past = _completed(client, ctx, name="Untagged past", use_case_id=uc["id"])   # segment cohort
+    _retro(client, past)
+    now = _campaign(client, ctx, name="Untagged new", use_case_id=uc["id"])
+    res = client.get(f"/api/campaigns/{now['id']}/nearest").json()
+    match = next(m for m in res["matches"] if m["campaign_id"] == past["id"])
+    assert match["match_rank"] == 3
+    assert "audience tags unavailable" in match["match_reason"]
+
+
+def test_account_specific_use_cases_never_cross_accounts(client, ctx):
+    local = client.post("/api/use-cases", json={
+        "name": "Local only", "slug": "local-11-2", "account_id": ctx["a"]["id"]}).json()
+    c = _campaign(client, ctx, name="Local", use_case_id=local["id"])
+    res = client.get(f"/api/campaigns/{c['id']}/nearest").json()
+    assert res["cross_account_eligible"] is False and res["matches"] == []
+
+
+def test_a_cross_account_match_exposes_only_safe_shape_metadata(client, ctx):
+    """§13.14: the retrospective and shape cross the boundary; records and people do not."""
+    uc = client.post("/api/use-cases", json={"name": "Shared", "slug": "sh-11-2"}).json()
+    past = _completed(client, ctx, name="Past run", use_case_id=uc["id"])
+    _retro(client, past)
+    now = _campaign(client, ctx, name="New run", use_case_id=uc["id"])
+    match = client.get(f"/api/campaigns/{now['id']}/nearest").json()["matches"][0]
+    leaked = {"stakeholder_person_id", "source_interaction_id", "baseline_observation_id",
+              "hypothesis", "target_behavior", "internal_owner_person_id", "barrier_note"}
+    assert not (leaked & set(match)), f"cross-account match leaked {leaked & set(match)}"
+    assert {"what_to_reuse", "shape", "match_reason"} <= set(match)
+
+
+def test_portfolio_learning_reports_counts_and_denominators_only(client, ctx):
+    c = _completed(client, ctx, outcome="improved_not_met")
+    _retro(client, c)
+    p = client.get("/api/portfolio/campaign-learning").json()
+    assert p["rules"] == {"percentages": False, "ranked_people_or_accounts": False,
+                          "health_score": False}
+    assert p["outcomes"]["improved_not_met"] == 1
+    # "insufficient data" is a distinct state from zero.
+    tte = p["time_to_first_evidence"]
+    assert tte["insufficient_data"] is (tte["n"] == 0)
+    assert "median_days" in tte and "n" in tte
+
+
+def test_retrospectives_survive_export_and_restore(client, ctx):
+    """Regression: neither table carries a column the export registry guard looks for."""
+    c = _completed(client, ctx)
+    retro = _retro(client, c).json()
+    bundle = client.get(f"/api/accounts/{ctx['a']['id']}/export").json()
+    assert retro["id"] in {r["id"] for r in bundle["tables"]["adoption_campaign_retrospectives"]}
+
+    fd, path = tempfile.mkstemp(suffix=".sqlite"); os.close(fd)
+    try:
+        os.environ["VALENCE_OS_DB"] = path
+        from app import portfolio_io
+        from app.db import connect, run_migrations
+        restored = connect(); run_migrations(restored)
+        portfolio_io.import_account(restored, bundle)
+        assert restored.execute(
+            "SELECT shape_json FROM adoption_campaign_retrospectives WHERE id=?",
+            (retro["id"],)).fetchone() is not None
+        restored.close()
+    finally:
+        os.unlink(path)

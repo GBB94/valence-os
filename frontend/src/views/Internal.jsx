@@ -331,10 +331,23 @@ function Forecast({ accountId, reloadKey }) {
                     ? "—"
                     : `${e.amount.toLocaleString()} ${e.currency} ${e.price_basis}`}
                 </td>
-                <td className={e.evidence.supported ? "subtle" : "risk-text"}>
-                  {e.evidence.supported
-                    ? "Supported"
-                    : e.evidence.missing.map((x) => x.rule_key).join(", ")}
+                <td>
+                  {e.evidence.supported ? (
+                    <span className="subtle">Supported</span>
+                  ) : (
+                    // The checker already returns a written rule per gap; render that rather
+                    // than the machine key, and mark it so an unsupported call is visible
+                    // without reading the sentence.
+                    <span className="evidence-gap">
+                      <span className="state-mark risk" aria-hidden="true" />
+                      <span>
+                        Missing:{" "}
+                        {e.evidence.missing
+                          .map((x) => x.explanation)
+                          .join(" ")}
+                      </span>
+                    </span>
+                  )}
                 </td>
                 <td>
                   {periods.find((p) => p.id === e.period_id)?.status !==

@@ -25,6 +25,7 @@ import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
 import Internal from "./views/Internal";
+import CopilotPanel from "./views/CopilotPanel";
 
 export default function App() {
   return (
@@ -94,6 +95,9 @@ function Shell() {
   const [density, setDensity] = useState(() => {
     try { return localStorage.getItem("valence-density") || "compact"; } catch { return "compact"; }
   });
+  const [copilot, setCopilot] = useState(null);
+  const copilotTriggerRef = useRef(null);
+  const copilotReturnFocusRef = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
@@ -162,7 +166,25 @@ function Shell() {
   const setTab = (tab) => setNav((n) => ({ ...n, tab }));
   const setProgramFilter = (programId) => setNav((n) => ({ ...n, programId: programId || undefined }));
 
+  const copilotScope = nav.dest === "account"
+    ? (nav.programId
+      ? { scope_type: "program", account_id: nav.accountId, program_id: nav.programId }
+      : { scope_type: "account", account_id: nav.accountId })
+    : { scope_type: "portfolio" };
+  const openCopilot = useCallback((intent = "fact", question = "") => {
+    copilotReturnFocusRef.current = document.activeElement;
+    setCopilot({ intent, question });
+  }, []);
+  const closeCopilot = useCallback(() => {
+    setCopilot(null);
+    requestAnimationFrame(() => {
+      const target = copilotReturnFocusRef.current;
+      (target?.isConnected ? target : copilotTriggerRef.current)?.focus?.();
+    });
+  }, []);
+
   function navigateToResult(r) {
+    if (r.object_type === "attention_item") { setNav({ dest: "today" }); return; }
     const acct = r.account_id || (r.object_type === "account" ? r.object_id : null);
     if (!acct) return;
     // route search hits into the most relevant workspace tab
@@ -171,10 +193,17 @@ function Shell() {
       commitment: "ledger", task: "ledger", decision: "ledger", risk: "ledger", issue: "ledger",
       interaction: "ledger", capture_inbox_item: "ledger",
       value_story: "evidence", expansion_opportunity: "commercial", scope_change: "plan",
-      whitespace_cell: "commercial", value_target: "commercial", funding_pool: "commercial",
+      whitespace_cell: "commercial", population_segment: "commercial", population_view: "commercial",
+      value_target: "commercial", metric_observation: "evidence", funding_pool: "commercial",
       operational_agreement: "commercial", growth_plan_line: "commercial",
-      internal_ask: "internal", product_feedback: "internal",
+      contract_version: "commercial", forecast_entry: "internal", forecast_change: "internal",
+      status_assessment: "internal", status_change: "internal", internal_ask: "internal",
+      ask_change: "internal", internal_roster: "internal", escalation: "internal",
+      product_feedback: "internal", product_feedback_occurrence: "internal",
       signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
+      adoption_campaign: "plan", campaign_change: "plan", generated_document: "outputs",
+      commitment_change: "ledger", decision_change: "ledger", risk_change: "ledger",
+      issue_change: "ledger", task_change: "ledger", milestone_change: "ledger",
       program: "overview", account: "overview",
     };
     openAccount(acct, tabByType[r.object_type] || "overview");
@@ -197,6 +226,7 @@ function Shell() {
           <Breadcrumb nav={nav} accounts={accounts} go={setNav} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
           <button className="btn primary small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
+          <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
           <div style={{ position: "relative" }}>
             <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">
               🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--status-risk)", fontWeight: 600 }}>{notifs.unread}</span>}
@@ -278,8 +308,19 @@ function Shell() {
           go={setNav}
           openAccount={openAccount}
           openQuick={() => setQuick(capturePrefill())}
+          openCopilot={openCopilot}
         />
       )}
+
+      {copilot && <CopilotPanel scope={copilotScope}
+        accountName={accounts.find((account) => account.id === copilotScope.account_id)?.name}
+        starter={copilot} onClose={closeCopilot}
+        onNavigateSource={(source) => {
+          const type = source.record_type === "account_snapshot" ? "account" : source.record_type;
+          navigateToResult({ object_type: type, object_id: source.record_id,
+            account_id: source.account_id, program_id: source.program_id });
+          closeCopilot();
+        }} />}
     </div>
   );
 }

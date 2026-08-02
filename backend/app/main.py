@@ -10,10 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ingestion, jobs, stage7, internal_reporting as internal_reporting_service  # noqa: F401 — imports register job handlers
+from . import (copilot_service, ingestion, jobs, stage7,
+               internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, campaigns, ai, attention, commercial, data, delivery, execution, expansion, inbox,
+    accounts, campaigns, copilot, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
@@ -75,6 +76,7 @@ app.add_middleware(
 
 app.include_router(accounts.router)
 app.include_router(campaigns.router)
+app.include_router(copilot.router)
 app.include_router(programs.router)
 app.include_router(people.router)
 app.include_router(interactions.router)

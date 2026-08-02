@@ -239,7 +239,7 @@ const NAV_COMMANDS = [
   ["Today", { dest: "today" }], ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
 ];
 
-export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick }) {
+export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick, openCopilot }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [sel, setSel] = useState(0);
@@ -248,6 +248,9 @@ export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount,
   const ql = q.trim().toLowerCase();
   const commands = [
     { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
+    { kind: "action", label: "Ask current scope", hint: "copilot", run: () => { openCopilot?.("fact"); onClose(); } },
+    { kind: "action", label: "What changed", hint: "copilot", run: () => { openCopilot?.("changes", "What changed since last week?"); onClose(); } },
+    { kind: "action", label: "Plan this week", hint: "copilot", run: () => { openCopilot?.("weekly", "What needs my attention this week?"); onClose(); } },
     ...NAV_COMMANDS.map(([label, dest]) => ({ kind: "nav", label, hint: "go to", run: () => { go(dest); onClose(); } })),
     ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { openAccount(a.id); onClose(); } })),
   ].filter((c) => !ql || c.label.toLowerCase().includes(ql));

@@ -36,6 +36,7 @@ The environment variables are a fail-closed runtime check, not a substitute for 
 | `metric_source` | Data-team metric ingestion | Operator CSV preview → commit → rollback | None | None; no real adapter implemented | Approved aggregate cohort feed; stable metric/population IDs; freshness contract; rollback and cohort-floor enforcement |
 | `notification_channel` | Notification delivery | In-app SQLite notifications only | None | None; no outbound adapter implemented | Approved channel/recipients; least-sensitive payload; delivery audit; retry and disable controls |
 | `llm_endpoint` | LLM extraction and intake endpoint | Offline mock by default; manual local paste is also local | Transcript fixtures | `EXTRACTOR_BACKEND=mock\|api`; API is fail-closed behind the approval contract | Approved provider/model; DPA/region; credential storage; retention review; model allow-list; logged decision |
+| `copilot_endpoint` | Account Copilot cross-record context endpoint | Deterministic offline mock; no real adapter | `backend/app/fixtures/copilot/*.json` | `COPILOT_BACKEND=mock`; any real mode fails closed behind a distinct approval | Separate cross-record payload review; bounded field allow-list and context; provider/model and region; retention/training terms; redacted logs; rollback configuration; logged decision |
 | `file_storage` | Files and generated artifacts | Source links + SQLite markdown; binary export rendered in memory | None | None; no object-store adapter implemented | Approved encrypted object store; account boundaries; signed links; retention/deletion; backup and restore test |
 | `hosting` | Application hosting and database | Local FastAPI + SQLite + optional in-process worker | Synthetic seed database | `VALENCE_OS_DB`; `VALENCE_OS_WORKER` | Approved hosting; SSO/MFA; encryption; managed secrets; network/logging controls; backups, restore drill, incident owner |
 
@@ -44,6 +45,9 @@ The environment variables are a fail-closed runtime check, not a substitute for 
 - The optional Anthropic implementation is code-complete but is a **real** outbound connection.
   `EXTRACTOR_BACKEND=api` is rejected unless the approval contract is present, even when an API
   credential happens to exist on the machine.
+- Extraction approval does not authorize Copilot payloads. `COPILOT_BACKEND` has its own registry
+  entry and approval class; Stage 12 implements only the deterministic mock and deliberately has no
+  network adapter.
 - Manual local-LLM mode makes no call from Valence OS: the operator runs their own local model and
   pastes schema-validated JSON. Proposals still require per-item acceptance.
 - Email, transcripts, calendar, enrichment, headcount, metrics, and generated client artifacts may

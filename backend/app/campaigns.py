@@ -30,7 +30,7 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from . import expansion, repo
+from . import expansion, repo, stage9
 from .db import new_id, now_utc
 
 # §5.1 — how many prior observations to freeze as the baseline trajectory.
@@ -57,28 +57,69 @@ def _cohort(campaign: dict) -> tuple[str | None, str | None]:
 
 
 # --- §5.1 baseline ------------------------------------------------------------------------------
-def _observation_query(conn, target: dict, campaign: dict):
-    """Observations matching the target's stable identity, oldest first.
+def _observations(conn, definition_id: str, segment_id: str | None, view_id: str | None) -> list[dict]:
+    """Every observation for this metric and population, oldest first, archived included.
 
-    Matches on definition, version, unit and population identity — never on a free-text cohort
-    label, which is what made realization uncomputable before Stage 5.5.
+    Deliberately unfiltered: the callers below need to see retracted and non-comparable rows in
+    order to *say so*. Filtering them out in SQL is what let a withdrawn number read as "no
+    change" and a redefined metric read as a delta.
     """
-    segment_id, view_id = _cohort(campaign)
-    return conn.execute(
-        "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
+    return [repo.row_to_dict(r) for r in conn.execute(
+        "SELECT * FROM metric_observations WHERE definition_id=? "
         "AND IFNULL(population_segment_id,'')=IFNULL(?,'') "
-        "AND IFNULL(population_view_id,'')=IFNULL(?,'') "
-        "ORDER BY current_through",
-        (target["definition_id"], segment_id, view_id)).fetchall()
+        "AND IFNULL(population_view_id,'')=IFNULL(?,'') ORDER BY current_through",
+        (definition_id, segment_id, view_id))]
+
+
+def _basis(observation: dict) -> dict:
+    """The identity a value must share to be arithmetically comparable to another."""
+    return {"definition_version": observation.get("definition_version"),
+            "unit": observation.get("unit") or None}
+
+
+def _incomparable_reason(row: dict, basis: dict | None, program_id: str | None) -> str | None:
+    """Why this observation may not be differenced against `basis`, or None if it may (§5.1).
+
+    §5.1 requires a match on definition, definition *version*, unit and population, and requires
+    a program-scoped observation to belong to the campaign's program. Each of these is a distinct
+    way to produce a delta between two numbers that were never the same measurement: a redefined
+    metric, a unit change (0.40 fraction against 62.0 percent reads as +61.6), or another
+    programme's reading of the same cohort.
+    """
+    if program_id and row.get("program_id") and row["program_id"] != program_id:
+        return "belongs to a different programme"
+    if basis is None:
+        return None
+    if row.get("definition_version") != basis["definition_version"]:
+        return (f"uses metric definition version {row.get('definition_version')}, "
+                f"not {basis['definition_version']}")
+    if (row.get("unit") or None) != basis["unit"]:
+        return (f"is recorded in {row.get('unit') or 'no stated unit'}, "
+                f"not {basis['unit'] or 'no stated unit'}")
+    return None
+
+
+def _comparable(rows: list[dict], *, basis: dict | None, program_id: str | None,
+                live_only: bool = True, through: str | None = None) -> list[dict]:
+    return [r for r in rows
+            if not (live_only and r.get("archived"))
+            and not (through and (r.get("current_through") or "") > through)
+            and _incomparable_reason(r, basis, program_id) is None]
 
 
 def baseline_snapshot(conn: sqlite3.Connection, campaign: dict, value_target: dict) -> dict:
     """The locked point plus the series it sits in, frozen at readiness (§5.1)."""
-    rows = [repo.row_to_dict(r) for r in _observation_query(conn, value_target, campaign)]
+    program_id = campaign.get("program_id")
+    segment_id, view_id = _cohort(campaign)
+    rows = _comparable(_observations(conn, value_target["definition_id"], segment_id, view_id),
+                       basis=None, program_id=program_id)
     if not rows:
         return {"baseline_observation_id": None, "trajectory": [], "reason": "no observation for this cohort"}
     latest = rows[-1]
-    prior = rows[-(BASELINE_LOOKBACK + 1):-1]
+    # The trajectory has to be comparable to the point it sits behind, or it cannot answer the
+    # question it exists for — "was this cohort already moving?". A prior reading on a different
+    # definition version or unit is a different measurement, not an earlier one.
+    prior = _comparable(rows[:-1], basis=_basis(latest), program_id=program_id)[-BASELINE_LOOKBACK:]
     return {
         "baseline_observation_id": latest["id"],
         "trajectory": [{"observation_id": r["id"], "value": r["value"],
@@ -139,7 +180,6 @@ def evaluate(conn: sqlite3.Connection, campaign: dict, target: dict) -> dict:
                               "detail": f"baseline observation {baseline['id']} was archived by an "
                                         f"import rollback; the comparison cannot stand"}]}
 
-    rows = [repo.row_to_dict(r) for r in _observation_query(conn, vt, campaign)]
     # A finished campaign is measured at its window, not at "whatever landed since". Taking the
     # newest observation forever would let movement months after the campaign ended flow into its
     # delta — silently re-attributing later change to an intervention that had already stopped.
@@ -149,15 +189,38 @@ def evaluate(conn: sqlite3.Connection, campaign: dict, target: dict) -> dict:
     # measuring its age against a date that has not arrived.
     cutoff = (campaign.get("completion_reviewed_on") or campaign.get("evaluation_on")
               or campaign["planned_end_on"])
-    if finished:
-        cutoff = min(cutoff, _today())
-        rows = [r for r in rows if (r.get("current_through") or "") <= cutoff]
+    window = min(cutoff, _today()) if finished else None
+
+    program_id = campaign.get("program_id")
+    # The baseline sets the basis: a post value is only differenceable against the exact
+    # measurement the baseline was. With no baseline locked there is nothing to difference, so
+    # only the programme rule applies.
+    basis = _basis(baseline) if baseline else None
+    everything = _observations(conn, vt["definition_id"], segment_id, view_id)
+
+    # §5.1 — the retraction rule runs both ways. If the reading we would show has since been
+    # archived by an import rollback, the comparison cannot stand. Filtering archived rows out in
+    # SQL instead would silently fall back to an older observation and render the withdrawal as
+    # "no change", which is the opposite of what happened.
+    with_retracted = _comparable(everything, basis=basis, program_id=program_id,
+                                 live_only=False, through=window)
+    if with_retracted and with_retracted[-1].get("archived"):
+        retracted = with_retracted[-1]
+        return {"status": "invalidated", "value": None,
+                "baseline_value": baseline["value"] if baseline else None, "delta": None,
+                "design": campaign["evaluation_design"],
+                "cautions": [{"kind": "post_observation_retracted",
+                              "detail": f"the most recent observation {retracted['id']} "
+                                        f"(current through {retracted.get('current_through')}) was "
+                                        f"archived by an import rollback; the comparison cannot stand"}]}
+
+    rows = _comparable(everything, basis=basis, program_id=program_id, through=window)
     current = rows[-1] if rows else None
     if not current:
         return {"status": "no_evidence", "value": None, "baseline_value": None, "delta": None,
                 "design": campaign["evaluation_design"],
                 "cautions": [{"kind": "no_observation", "detail": "no observation for this cohort"}]}
-    if _stale(conn, current, cutoff if finished else None):
+    if _stale(conn, current, window):
         return {"status": "unknown", "value": None,
                 "baseline_value": baseline["value"] if baseline else None, "delta": None,
                 "current_through": current["current_through"],
@@ -168,6 +231,20 @@ def evaluate(conn: sqlite3.Connection, campaign: dict, target: dict) -> dict:
     delta = None
     if baseline and baseline["value"] is not None and current["value"] is not None:
         delta = round(current["value"] - baseline["value"], 6)
+
+    # A newer reading exists but is not the same measurement. Excluding it is correct; excluding
+    # it silently is not — the operator would see an older value presented as the latest and have
+    # no way to know a redefinition, a unit change or another programme's data was the reason.
+    live = [r for r in everything
+            if not r.get("archived") and not (window and (r.get("current_through") or "") > window)]
+    if live and live[-1]["id"] != current["id"]:
+        newer = live[-1]
+        cautions.append({
+            "kind": "incomparable_observation",
+            "detail": f"a more recent observation {newer['id']} (current through "
+                      f"{newer.get('current_through')}) was excluded because it "
+                      f"{_incomparable_reason(newer, basis, program_id)}",
+        })
 
     trajectory = json.loads(target.get("baseline_trajectory_json") or "[]")
 
@@ -259,14 +336,21 @@ def _comparator_delta(conn: sqlite3.Connection, campaign: dict, target: dict,
             baseline_from = min(baseline_from, row["current_through"])
     cutoff = campaign.get("evaluation_on") or campaign["planned_end_on"]
 
-    rows = [repo.row_to_dict(r) for r in conn.execute(
-        "SELECT * FROM metric_observations WHERE archived=0 AND definition_id=? "
-        "AND IFNULL(population_segment_id,'')=IFNULL(?,'') "
-        "AND IFNULL(population_view_id,'')=IFNULL(?,'') "
-        "AND current_through >= ? AND current_through <= ? ORDER BY current_through",
-        (value_target["definition_id"], seg, view, baseline_from, cutoff))]
+    # Held to the treated cohort's basis, not merely to the same definition: a comparator delta
+    # measured on a different definition version or unit is not a control, it is a second
+    # incompatible number placed beside the first.
+    basis = None
+    if target.get("baseline_observation_id"):
+        b = conn.execute("SELECT * FROM metric_observations WHERE id=?",
+                         (target["baseline_observation_id"],)).fetchone()
+        if b:
+            basis = _basis(repo.row_to_dict(b))
+    rows = [r for r in _comparable(_observations(conn, value_target["definition_id"], seg, view),
+                                   basis=basis, program_id=campaign.get("program_id"),
+                                   through=cutoff)
+            if (r.get("current_through") or "") >= baseline_from]
     if len(rows) < 2:
-        return {"delta": None, "reason": "comparator needs two observations spanning the window"}
+        return {"delta": None, "reason": "comparator needs two comparable observations spanning the window"}
     first, last = rows[0], rows[-1]
     if first["value"] is None or last["value"] is None:
         return {"delta": None, "reason": "comparator observations carry no value"}
@@ -460,6 +544,7 @@ def detail(conn: sqlite3.Connection, campaign_id: str) -> dict:
             "SELECT * FROM adoption_campaign_state_history WHERE campaign_id=? "
             "ORDER BY changed_on DESC, created_at DESC", (campaign_id,))],
         "readiness": readiness(conn, campaign_id),
+        "retrospective": retrospective_for(conn, campaign_id),
         "stamp": {"generated_at": now_utc(), "data_current_through": _today()},
     }
 
@@ -630,3 +715,265 @@ def attention_items(conn: sqlite3.Connection) -> list[dict]:
             "evaluation_status": ev["status"],
         })
     return out
+
+
+
+# --- §8 completion retrospective ------------------------------------------------------------------
+# The shape is derived once, here, and frozen (migration 0033). Matching a NEW campaign reads live
+# tags; a FINISHED campaign carries the shape it actually ran with, so re-tagging a population later
+# cannot silently re-rank history or move a completed campaign into a different match tier.
+def _live_shape(conn: sqlite3.Connection, campaign: dict) -> dict:
+    """Use case plus audience-tag shape for a campaign, from current data."""
+    use_case = repo.get_row(conn, "use_cases", campaign["use_case_id"])
+    tags = []
+    if campaign.get("view_id"):
+        # Only population VIEWS carry audience tags. A segment-targeted campaign has no shape beyond
+        # its use case, and falls through to an honest use-case-only match rather than being padded.
+        tags = [repo.row_to_dict(r) for r in conn.execute(
+            "SELECT t.* FROM audience_tags t JOIN population_view_tags pvt ON pvt.tag_id=t.id "
+            "WHERE pvt.view_id=? AND t.archived=0 ORDER BY t.name", (campaign["view_id"],))]
+    return {
+        "use_case_id": use_case["id"],
+        "use_case": use_case["name"],
+        # §8: account-specific use cases are excluded from cross-account matching entirely.
+        "cross_account_eligible": use_case.get("account_id") is None,
+        "population_kind": "segment" if campaign.get("segment_id") else "view",
+        "audience_tag_ids": [t["id"] for t in tags],
+        "audience_tags": [t["name"] for t in tags],
+    }
+
+
+def record_retrospective(conn: sqlite3.Connection, campaign_id: str, values: dict) -> dict:
+    """One learning record per completed campaign, with the shape frozen at write (§8).
+
+    Every plan item needs a verdict, including `skipped`. Omission is how a failed intervention
+    actually disappears — nobody deletes it, they just do not write it up — and §9's realization
+    counts by intervention kind would then be tallied over whichever ones somebody felt like
+    mentioning. §13.10 asks the retrospective to preserve failed interventions; silence about one
+    is not preservation.
+    """
+    campaign = repo.get_row(conn, "adoption_campaigns", campaign_id)
+    if campaign["status"] != "completed":
+        raise HTTPException(409, "a retrospective belongs to a completed campaign")
+    verdicts = values.pop("interventions", []) or []
+    for v in verdicts:
+        link = repo.get_row(conn, "adoption_campaign_plan_links", v["plan_link_id"])
+        if link["campaign_id"] != campaign_id:
+            raise HTTPException(422, "that plan item belongs to a different campaign")
+    covered = {v["plan_link_id"] for v in verdicts}
+    missing = [link["id"] for link in repo.list_rows(
+        conn, "adoption_campaign_plan_links", where="campaign_id=? ORDER BY sequence",
+        params=(campaign_id,)) if link["id"] not in covered]
+    if missing:
+        raise HTTPException(422, "every intervention needs a verdict so failures stay on the "
+                                 "record — use 'skipped' if it was never run; missing: "
+                                 + ", ".join(missing))
+    if values.get("messaging_entry_id"):
+        repo.get_row(conn, "messaging_entries", values["messaging_entry_id"])
+    try:
+        row = repo.insert(conn, "adoption_campaign_retrospectives",
+                          {**values, "campaign_id": campaign_id,
+                           "shape_json": json.dumps(_live_shape(conn, campaign), sort_keys=True)},
+                          object_type="campaign_retrospective")
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ts = now_utc()
+    with conn:
+        for v in verdicts:
+            conn.execute(
+                "INSERT INTO adoption_campaign_retrospective_interventions "
+                "(id,retrospective_id,plan_link_id,verdict,note,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (new_id(), row["id"], v["plan_link_id"], v["verdict"], v["note"], ts, ts))
+    return get_retrospective(conn, row["id"])
+
+
+def get_retrospective(conn: sqlite3.Connection, retrospective_id: str) -> dict:
+    row = repo.get_row(conn, "adoption_campaign_retrospectives", retrospective_id)
+    verdicts = [repo.row_to_dict(r) for r in conn.execute(
+        "SELECT ri.*,l.sequence,l.intervention_kind FROM adoption_campaign_retrospective_interventions ri "
+        "JOIN adoption_campaign_plan_links l ON l.id=ri.plan_link_id "
+        "WHERE ri.retrospective_id=? ORDER BY l.sequence", (retrospective_id,))]
+    return {**row, "shape": json.loads(row["shape_json"]), "interventions": verdicts}
+
+
+def retrospective_for(conn: sqlite3.Connection, campaign_id: str) -> dict | None:
+    row = conn.execute("SELECT id FROM adoption_campaign_retrospectives WHERE campaign_id=?",
+                       (campaign_id,)).fetchone()
+    return get_retrospective(conn, row["id"]) if row else None
+
+
+# --- §8 nearest completed campaigns ---------------------------------------------------------------
+# The ranking discipline is Stage 9's, called rather than restated: `stage9.rank_shape`. Its tier-1
+# rule was a live bug (D-94) — `set() == set()` ranked two untagged populations as an exact shape
+# match, so "DACH manufacturing" matched "UK retail frontline" at the strongest tier. Exact matching
+# requires a NON-EMPTY equal tag set; tagless shapes fall through to an honest use-case-only match.
+# That distinction is the whole point here: it separates "we have run this exact shape before" from
+# "we have used this feature before", and only one of those justifies copying a motion. A second
+# copy of the rule would be a second place for it to regress, which is why this calls the original.
+def nearest_campaigns(conn: sqlite3.Connection, campaign_id: str) -> dict:
+    campaign = repo.get_row(conn, "adoption_campaigns", campaign_id)
+    shape = _live_shape(conn, campaign)
+    if not shape["cross_account_eligible"]:
+        return {"campaign_id": campaign_id, "cross_account_eligible": False, "shape": shape,
+                "matches": [],
+                "reason": "Account-specific use cases are excluded from cross-account matching."}
+    target_tags = set(shape["audience_tag_ids"])
+    ranked = []
+    for row in conn.execute(
+            "SELECT r.*,c.name campaign_name,c.account_id,c.completion_outcome,c.completion_reviewed_on "
+            "FROM adoption_campaign_retrospectives r "
+            "JOIN adoption_campaigns c ON c.id=r.campaign_id "
+            "WHERE r.campaign_id<>? AND c.archived=0", (campaign_id,)):
+        entry = repo.row_to_dict(row)
+        past = json.loads(entry["shape_json"])
+        if past["use_case_id"] != shape["use_case_id"] or not past.get("cross_account_eligible"):
+            continue
+        entry_tags = set(past.get("audience_tag_ids") or [])
+        rank, reason = stage9.rank_shape(
+            target_tags, entry_tags,
+            dict(zip(past.get("audience_tag_ids") or [], past.get("audience_tags") or [])))
+        # §13.14: a cross-account match exposes the structured retrospective and safe shape metadata
+        # only. No source records, people, client wording, or observations cross the boundary.
+        ranked.append({
+            "retrospective_id": entry["id"], "campaign_id": entry["campaign_id"],
+            "campaign_name": entry["campaign_name"], "account_id": entry["account_id"],
+            "completion_outcome": entry["completion_outcome"],
+            "reviewed_on": entry["reviewed_on"],
+            "barrier_actually_present": entry["barrier_actually_present"],
+            "what_to_reuse": entry["what_to_reuse"], "what_to_change": entry["what_to_change"],
+            "follow_on": entry["follow_on"],
+            "shape": {"use_case": past["use_case"], "audience_tags": past.get("audience_tags") or [],
+                      "population_kind": past.get("population_kind")},
+            "match_rank": rank, "match_reason": reason,
+        })
+    # Most recent first within a tier, matching stage9.matches(): the newest comparable run is the
+    # one worth copying, and ascending order buried it under the oldest.
+    ranked.sort(key=lambda e: (e["match_rank"], _desc(e["reviewed_on"]), e["retrospective_id"]))
+    return {"campaign_id": campaign_id, "cross_account_eligible": True, "shape": shape,
+            "matches": ranked, "reason": None}
+
+
+# --- §9 portfolio analytics -----------------------------------------------------------------------
+def _desc(iso: str | None) -> str:
+    """Sort key that puts the most recent ISO date first inside an ascending sort."""
+    return "" if not iso else "".join(chr(ord("9") - int(ch)) if ch.isdigit() else ch for ch in iso)
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    s = sorted(values)
+    mid = len(s) // 2
+    return s[mid] if len(s) % 2 else round((s[mid - 1] + s[mid]) / 2, 2)
+
+
+def _first_fresh_post(conn: sqlite3.Connection, campaign: dict, activated_on: str) -> str | None:
+    """Earliest non-stale observation for the primary target after activation."""
+    targets = repo.list_rows(conn, "adoption_campaign_targets",
+                             where="campaign_id=? AND role='primary'", params=(campaign["id"],))
+    if not targets:
+        return None
+    vt = repo.get_row(conn, "value_targets", targets[0]["value_target_id"])
+    segment_id, view_id = _cohort(campaign)
+    for row in _observations(conn, vt["definition_id"], segment_id, view_id):
+        if row.get("archived") or not row.get("current_through"):
+            continue
+        if row["current_through"] < activated_on:
+            continue
+        # No staleness test here on purpose: an observation is current through its own date, so
+        # comparing it against itself would pass unconditionally. "Fresh post observation" means
+        # evidence whose window starts after the intervention did — which is this filter.
+        return row["current_through"]
+    return None
+
+
+def portfolio_learning(conn: sqlite3.Connection) -> dict:
+    """Counts and denominators across the book (§9).
+
+    Deliberately no percentages: five accounts cannot support one without implying precision the
+    sample does not have. No ranking of accounts, cohorts, or people, and no adoption-health score —
+    the same rules the Stage 9 and Stage 10 analytics already follow.
+    """
+    campaigns = repo.list_rows(conn, "adoption_campaigns", where="1=1 ORDER BY name")
+    by_state: dict[str, int] = {}
+    outcomes: dict[str, int] = {}
+    no_baseline, no_sponsor, evidence_quiet = [], [], []
+    days_to_evidence: list[float] = []
+    for c in campaigns:
+        by_state[c["status"]] = by_state.get(c["status"], 0) + 1
+        if c.get("completion_outcome"):
+            outcomes[c["completion_outcome"]] = outcomes.get(c["completion_outcome"], 0) + 1
+        primary = repo.list_rows(conn, "adoption_campaign_targets",
+                                 where="campaign_id=? AND role='primary'", params=(c["id"],))
+        if c["status"] not in ("draft", "cancelled"):
+            if not primary or not primary[0].get("baseline_observation_id"):
+                no_baseline.append({"campaign_id": c["id"], "name": c["name"],
+                                    "reason": c.get("baseline_gap_reason") or "no stated reason"})
+            if not c.get("client_sponsor_person_id"):
+                no_sponsor.append({"campaign_id": c["id"], "name": c["name"],
+                                   "reason": c.get("sponsor_gap_reason") or "no stated reason"})
+        activated = conn.execute(
+            "SELECT changed_on FROM adoption_campaign_state_history WHERE campaign_id=? "
+            "AND to_status='active' ORDER BY changed_on LIMIT 1", (c["id"],)).fetchone()
+        if activated and activated["changed_on"]:
+            fresh = _first_fresh_post(conn, c, activated["changed_on"])
+            if fresh:
+                days_to_evidence.append(
+                    (date.fromisoformat(fresh) - date.fromisoformat(activated["changed_on"])).days)
+    for item in attention_items(conn):
+        evidence_quiet.append({"campaign_id": item["campaign_id"], "name": item["title"],
+                               "because": item["because"]})
+
+    # Realization by intervention kind and barrier — count over count, never a rate.
+    by_intervention: dict[str, dict] = {}
+    by_barrier: dict[str, dict] = {}
+    for row in conn.execute(
+            "SELECT ri.verdict,l.intervention_kind,r.barrier_actually_present,c.completion_outcome "
+            "FROM adoption_campaign_retrospective_interventions ri "
+            "JOIN adoption_campaign_retrospectives r ON r.id=ri.retrospective_id "
+            "JOIN adoption_campaign_plan_links l ON l.id=ri.plan_link_id "
+            "JOIN adoption_campaigns c ON c.id=r.campaign_id"):
+        d = repo.row_to_dict(row)
+        met = d["completion_outcome"] == "target_met"
+        for bucket, key in ((by_intervention, d["intervention_kind"] or "unspecified"),
+                            (by_barrier, d["barrier_actually_present"])):
+            b = bucket.setdefault(key, {"interventions_observed": 0,
+                                        "in_campaigns_that_met_target": 0, "helped": 0, "failed": 0})
+            b["interventions_observed"] += 1
+            b["in_campaigns_that_met_target"] += int(met)
+            b["helped"] += int(d["verdict"] == "appeared_to_help")
+            b["failed"] += int(d["verdict"] in ("failed", "appeared_not_to_help"))
+
+    # Repeated shapes and where they differ in outcome (§9). Keyed on the frozen shape, so a later
+    # re-tag cannot merge or split history.
+    shapes: dict[tuple, list[dict]] = {}
+    for row in conn.execute(
+            "SELECT r.shape_json,r.campaign_id,c.name,c.completion_outcome "
+            "FROM adoption_campaign_retrospectives r JOIN adoption_campaigns c ON c.id=r.campaign_id"):
+        d = repo.row_to_dict(row)
+        s = json.loads(d["shape_json"])
+        key = (s["use_case_id"], tuple(sorted(s.get("audience_tag_ids") or [])))
+        shapes.setdefault(key, []).append({"campaign_id": d["campaign_id"], "name": d["name"],
+                                           "outcome": d["completion_outcome"],
+                                           "use_case": s["use_case"],
+                                           "audience_tags": s.get("audience_tags") or []})
+    repeated = [{"use_case": rows[0]["use_case"], "audience_tags": rows[0]["audience_tags"],
+                 "runs": len(rows), "outcomes": sorted({r["outcome"] for r in rows if r["outcome"]}),
+                 "diverged": len({r["outcome"] for r in rows if r["outcome"]}) > 1,
+                 "campaigns": rows}
+                for rows in shapes.values() if len(rows) > 1]
+
+    return {
+        "by_state": by_state, "outcomes": outcomes,
+        "time_to_first_evidence": {
+            "median_days": _median(days_to_evidence), "n": len(days_to_evidence),
+            "insufficient_data": not days_to_evidence},
+        "by_intervention_kind": [{"intervention_kind": k, **v} for k, v in sorted(by_intervention.items())],
+        "by_barrier_present": [{"barrier": k, **v} for k, v in sorted(by_barrier.items())],
+        "started_without_baseline": no_baseline, "started_without_sponsor": no_sponsor,
+        "evidence_quiet_past_checkpoint": evidence_quiet,
+        "repeated_shapes": repeated,
+        "generated_at": now_utc(),
+        "rules": {"percentages": False, "ranked_people_or_accounts": False, "health_score": False},
+    }

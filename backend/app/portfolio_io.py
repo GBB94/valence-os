@@ -29,8 +29,12 @@ _INSERT_ORDER = [
     # globals first (FK targets)
     "source_references", "metric_definitions", "audience_tags", "use_cases",
     "messaging_entries", "play_definitions", "internal_functions", "status_criteria_versions",
-    "escalation_defaults", "report_templates",
+    "escalation_defaults", "report_templates", "document_kinds", "writing_style_profiles",
+    "copilot_configurations",
     "accounts", "account_settings", "persons", "programs",
+    # 0034 — read-only copilot runs and immutable claim support
+    "copilot_runs", "copilot_run_sources", "copilot_claims", "copilot_claim_sources",
+    "copilot_feedback", "copilot_feedback_reviews",
     "stakeholder_roles", "interactions", "interaction_participants", "capture_inbox_items",
     "account_reviews", "account_review_participants", "operator_views",
     "tasks", "commitments", "decisions", "risks", "issues", "milestones",
@@ -43,6 +47,7 @@ _INSERT_ORDER = [
     # 0017-0019 — whitespace, value ledger, funding (population objects precede the cells,
     # observations, and targets that reference them)
     "population_partitions", "population_segments", "population_views",
+    "copilot_entity_aliases",
     "population_view_segments", "population_view_tags", "population_headcount_observations",
     "metric_observations", "whitespace_cells", "pull_signals", "cell_state_history", "cell_evidence_links",
     "value_targets", "value_target_evidence",
@@ -52,7 +57,9 @@ _INSERT_ORDER = [
     # 0031 — adoption campaigns. Campaign first: barriers, targets, plan links and checkpoints
     # all reference it, and plan links reference barriers.
     "adoption_campaigns", "adoption_campaign_state_history", "adoption_campaign_barriers",
-    "adoption_campaign_targets", "adoption_campaign_plan_links", "adoption_campaign_checkpoints", "generated_document_people",
+    "adoption_campaign_targets", "adoption_campaign_plan_links", "adoption_campaign_checkpoints",
+    "adoption_campaign_retrospectives", "adoption_campaign_retrospective_interventions",
+    "generated_document_people",
     # 0022 — recurring signals, mock calendar, and confirmed org change
     "calendar_events", "calendar_event_attendees", "org_change_flags", "succession_records",
     "signal_episodes",
@@ -132,9 +139,18 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     cmq = ",".join("?" * len(campaign_ids)) or "''"
     for tbl in ("adoption_campaign_state_history", "adoption_campaign_barriers",
                 "adoption_campaign_targets", "adoption_campaign_plan_links",
-                "adoption_campaign_checkpoints"):
+                "adoption_campaign_checkpoints", "adoption_campaign_retrospectives"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE campaign_id IN ({cmq})",
                       campaign_ids) if campaign_ids else []
+    # Intervention verdicts hang off the retrospective, not the campaign. NOTE: neither this table
+    # nor `adoption_campaign_retrospectives` carries a column the registry guard's heuristic looks
+    # for (they reach an account through `campaign_id`), so the guard cannot catch an omission here
+    # — the same shape of gap that silently dropped account-level commitments before D-103.
+    retro_ids = [r["id"] for r in t["adoption_campaign_retrospectives"]]
+    rq = ",".join("?" * len(retro_ids)) or "''"
+    t["adoption_campaign_retrospective_interventions"] = _all(
+        conn, f"SELECT * FROM adoption_campaign_retrospective_interventions "
+              f"WHERE retrospective_id IN ({rq})", retro_ids) if retro_ids else []
     # Portfolio-wide documents (the team update) have no account_id and belong to no single
     # account, so they stay out of an account bundle by design.
     t["generated_documents"] = _all(
@@ -144,6 +160,56 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     t["generated_document_people"] = _all(
         conn, f"SELECT * FROM generated_document_people WHERE document_id IN ({dgq})", doc_ids
     ) if doc_ids else []
+
+    # --- 0034: account-scoped copilot graph ---------------------------------
+    t["copilot_runs"] = _all(
+        conn, "SELECT * FROM copilot_runs WHERE scope_type IN ('account','program') AND account_id=?",
+        (account_id,))
+    run_ids = [r["id"] for r in t["copilot_runs"]]
+    crq = ",".join("?" * len(run_ids)) or "''"
+    t["copilot_run_sources"] = _all(
+        conn, f"SELECT * FROM copilot_run_sources WHERE run_id IN ({crq})", run_ids
+    ) if run_ids else []
+    t["copilot_claims"] = _all(
+        conn, f"SELECT * FROM copilot_claims WHERE run_id IN ({crq})", run_ids
+    ) if run_ids else []
+    claim_ids = [r["id"] for r in t["copilot_claims"]]
+    clq = ",".join("?" * len(claim_ids)) or "''"
+    t["copilot_claim_sources"] = _all(
+        conn, f"SELECT * FROM copilot_claim_sources WHERE claim_id IN ({clq})", claim_ids
+    ) if claim_ids else []
+    t["copilot_feedback"] = _all(
+        conn, f"SELECT * FROM copilot_feedback WHERE run_id IN ({crq})", run_ids
+    ) if run_ids else []
+    feedback_ids = [r["id"] for r in t["copilot_feedback"]]
+    cfq = ",".join("?" * len(feedback_ids)) or "''"
+    t["copilot_feedback_reviews"] = _all(
+        conn, f"SELECT * FROM copilot_feedback_reviews WHERE feedback_id IN ({cfq})", feedback_ids
+    ) if feedback_ids else []
+    t["copilot_entity_aliases"] = _all(
+        conn, "SELECT * FROM copilot_entity_aliases WHERE account_id=?", (account_id,))
+    config_ids = {r["configuration_id"] for r in t["copilot_runs"]}
+    # Preserve the rollback chain as well as the exact configuration each frozen run used.
+    pending_config_ids = set(config_ids)
+    configs: dict[str, dict] = {}
+    while pending_config_ids:
+        config_id = pending_config_ids.pop()
+        row = conn.execute("SELECT * FROM copilot_configurations WHERE id=?", (config_id,)).fetchone()
+        if not row:
+            continue
+        item = dict(row)
+        configs[config_id] = item
+        if item.get("previous_config_id") and item["previous_config_id"] not in configs:
+            pending_config_ids.add(item["previous_config_id"])
+    # The previous version must be inserted before an active version that references it.
+    t["copilot_configurations"] = sorted(configs.values(), key=lambda row: row["created_at"])
+    style_ids = {r["writing_style_profile_id"] for r in t["generated_documents"]
+                 if r.get("writing_style_profile_id")}
+    stq = ",".join("?" * len(style_ids)) or "''"
+    t["writing_style_profiles"] = _all(
+        conn, f"SELECT * FROM writing_style_profiles WHERE id IN ({stq})", tuple(style_ids)
+    ) if style_ids else []
+    t["document_kinds"] = _all(conn, "SELECT * FROM document_kinds")
 
     # --- 0026-0028: internal operating layer ---------------------------------
     for tbl in ("account_reviews", "operator_views", "account_status_assessments",
@@ -319,7 +385,12 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         "population_headcount_observations", "value_targets", "revenue_events",
         "calendar_events", "org_change_flags", "operational_agreements", "growth_plan_lines",
         "internal_asks", "product_feedback_occurrences", "renewal_outcome_events",
+        # Stage 11: a campaign's diagnosis and each barrier cite their evidence, and a bundle
+        # missing those references cannot restore the rows that point at them.
+        "adoption_campaigns", "adoption_campaign_barriers", "adoption_campaign_checkpoints",
     ) for row in t.get(tbl, []) if row.get("source_reference_id")}
+    srcs |= {row["diagnosis_source_reference_id"] for row in t.get("adoption_campaigns", [])
+             if row.get("diagnosis_source_reference_id")}
     sq = ",".join("?" * len(srcs)) or "''"
     t["source_references"] = _all(conn, f"SELECT * FROM source_references WHERE id IN ({sq})", tuple(srcs)) if srcs else []
 
@@ -330,7 +401,10 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
 
     # Portfolio-global vocabularies (§1.2): exported for referenced rows only, so restoring one
     # account into a clean install does not import the whole portfolio's taxonomy.
+    # Campaigns name a use case directly and often one no whitespace cell references, so gathering
+    # only from cells produced a bundle whose campaign row could not be restored (FK on use_case_id).
     ucs = {row["use_case_id"] for row in t["whitespace_cells"] if row.get("use_case_id")}
+    ucs |= {row["use_case_id"] for row in t["adoption_campaigns"] if row.get("use_case_id")}
     uq = ",".join("?" * len(ucs)) or "''"
     t["use_cases"] = _all(conn, f"SELECT * FROM use_cases WHERE id IN ({uq})", tuple(ucs)) if ucs else []
     tags = {row["tag_id"] for row in t["population_view_tags"]}
@@ -368,10 +442,15 @@ def import_account(conn: sqlite3.Connection, bundle: dict) -> dict:
                 if tbl in ("metric_definitions", "source_references", "audience_tags", "use_cases",
                            "messaging_entries", "play_definitions", "internal_functions",
                            "status_criteria_versions", "escalation_defaults",
-                           "report_templates") and \
+                           "report_templates", "document_kinds", "writing_style_profiles",
+                           "copilot_configurations") and \
                         conn.execute(f"SELECT 1 FROM {tbl} WHERE id=?", (row["id"],)).fetchone():
                     continue
                 row = dict(row)
+                if tbl == "copilot_configurations" and row.get("status") == "active":
+                    conn.execute(
+                        "UPDATE copilot_configurations SET status='retired',updated_at=? "
+                        "WHERE status='active' AND id<>?", (now_utc(), row["id"]))
                 # Break the opportunity ↔ ask-calendar cycle and links to Stage 5.5 records
                 # inserted later. Restore them after the complete graph exists so the scope
                 # triggers can validate real targets rather than accepting dangling ids.

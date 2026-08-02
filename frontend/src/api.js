@@ -295,6 +295,7 @@ export const api = {
   recoveredSpend: (accountId) => req("GET", `/api/accounts/${accountId}/recovered-spend`),
   scheduleWeeklyUpdate: (b) => req("POST", "/api/weekly-team-update/schedule", b),
   jobs: (status = "") => req("GET", `/api/jobs${status ? `?status=${status}` : ""}`),
+  runJobs: () => req("POST", "/api/jobs/run", {}),
 
   // Internal operating layer
   forecastPeriods: () => req("GET", "/api/forecast-periods"),
@@ -341,6 +342,11 @@ export const api = {
   createCampaign: (b) => req("POST", "/api/campaigns", b),
   patchCampaign: (id, b) => req("PATCH", `/api/campaigns/${id}`, b),
   campaignReadiness: (id) => req("GET", `/api/campaigns/${id}/readiness`),
+  // Stage 11.2 — learning
+  campaignRetrospective: (id) => req("GET", `/api/campaigns/${id}/retrospective`),
+  recordCampaignRetrospective: (id, b) => req("POST", `/api/campaigns/${id}/retrospective`, b),
+  campaignNearest: (id) => req("GET", `/api/campaigns/${id}/nearest`),
+  campaignLearning: () => req("GET", "/api/portfolio/campaign-learning"),
   campaignTransition: (id, action, b) => req("POST", `/api/campaigns/${id}/${action}`, b),
   addCampaignBarrier: (id, b) => req("POST", `/api/campaigns/${id}/barriers`, b),
   addCampaignTarget: (id, b) => req("POST", `/api/campaigns/${id}/targets`, b),
@@ -353,4 +359,28 @@ export const api = {
     req("POST", `/api/signal-episodes/${episodeId}/attach-campaign`, { campaign_id: campaignId }),
   supersedeCampaignPlanLink: (linkId, b) =>
     req("POST", `/api/campaign-plan-links/${linkId}/supersede`, b),
+
+  // Stage 12 — grounded, read-only Account Copilot
+  createCopilotRun: (b) => req("POST", "/api/copilot/runs", b),
+  copilotRun: (id) => req("GET", `/api/copilot/runs/${id}`),
+  copilotRuns: ({ scopeType = "", accountId = "", programId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (scopeType) p.set("scope_type", scopeType); if (accountId) p.set("account_id", accountId);
+    if (programId) p.set("program_id", programId);
+    return req("GET", `/api/copilot/runs?${p.toString()}`);
+  },
+  copilotFeedback: (id, b) => req("POST", `/api/copilot/runs/${id}/feedback`, b),
+  copilotMarkReviewed: (id) => req("POST", `/api/copilot/runs/${id}/mark-reviewed`, {}),
+  copilotDraftPreview: (id, b) => req("POST", `/api/copilot/runs/${id}/draft-preview`, b),
+  copilotDraft: (id, b) => req("POST", `/api/copilot/runs/${id}/draft`, b),
+  copilotHealth: () => req("GET", "/api/copilot/health"),
+  copilotConfigurations: () => req("GET", "/api/copilot/configurations"),
+  activateCopilotConfiguration: (id) => req("POST", `/api/copilot/configurations/${id}/activate`, {}),
+  rollbackCopilotConfiguration: (id) => req("POST", `/api/copilot/configurations/${id}/rollback`, {}),
+  copilotFeedbackQueue: (pendingOnly = true) => req("GET", `/api/copilot/feedback?pending_only=${pendingOnly}`),
+  reviewCopilotFeedback: (id, b) => req("POST", `/api/copilot/feedback/${id}/review`, b),
+  copilotAliases: (accountId = "") => req("GET", `/api/copilot/entity-aliases${accountId ? `?account_id=${accountId}` : ""}`),
+  createCopilotAlias: (b) => req("POST", "/api/copilot/entity-aliases", b),
+  copilotStyles: () => req("GET", "/api/copilot/styles"),
+  createCopilotStyle: (b) => req("POST", "/api/copilot/styles", b),
 };

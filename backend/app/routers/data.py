@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import adapters, audit, connections, expansion, repo
+from .. import adapters, audit, connections, copilot_service, expansion, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
@@ -317,7 +317,13 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
     internal_tables = ("forecast_entries", "forecast_change_events", "internal_asks",
                        "escalation_instances", "account_reviews", "account_status_assessments",
                        "account_internal_roster", "product_feedback_items",
-                       "product_feedback_occurrences", "generated_document_sources")
+                       "product_feedback_occurrences", "generated_document_sources",
+                       "adoption_campaign_retrospectives",
+                       "adoption_campaign_retrospective_interventions",
+                       "copilot_runs", "copilot_run_sources", "copilot_claims",
+                       "copilot_feedback", "copilot_feedback_reviews",
+                       "copilot_configurations", "copilot_entity_aliases",
+                       "writing_style_profiles")
     internal_counts = []
     for table in internal_tables:
         try:
@@ -342,6 +348,7 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
              "records": conn.execute("SELECT COUNT(*) n FROM population_headcount_observations WHERE archived=0").fetchone()["n"]},
         ],
         "connection_registry": connections.registry_snapshot(),
+        "copilot": copilot_service.health(conn),
         "backup": {"rpo_hours": 24, "restore_test": "passing (account export → restore round-trip, tests/test_portfolio_io.py)",
                    "export": "per-account export/restore available (GET /accounts/{id}/export, POST /accounts/import)",
                    "note": "mock/local mode — encrypted off-site backups apply in production mode"},
