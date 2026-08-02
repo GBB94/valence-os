@@ -523,3 +523,216 @@ def test_comparator_window_starts_at_the_treated_baseline(client, ctx):
     ev = client.get(f"/api/campaigns/{c['id']}").json()["targets"][0]["evaluation"]
     assert ev["comparator"]["delta"] == pytest.approx(0.05)    # 0.50 -> 0.55, not "no evidence"
     assert "not causation" in ev["comparator"]["note"]
+
+
+# --- Stage 11.1 §7: signal to draft ---------------------------------------------------------
+def _episode(client, ctx, **kw):
+    from app.db import new_id, now_utc
+    conn = client.app.state.conn
+    ts, eid = now_utc(), new_id()
+    fields = {"account_id": ctx["a"]["id"], "program_id": ctx["prog"]["id"],
+              "kind": "stalled_cohort", "condition_key": f"stalled:{eid}",
+              "source_kind": "usage", "explanation": "Cohort stalled 0.55 -> 0.50.",
+              "status": "open", **kw}
+    cols = ",".join(fields) + ",opened_at,last_evaluated_at,created_at,updated_at"
+    conn.execute(f"INSERT INTO signal_episodes (id,{cols}) VALUES "
+                 f"(?,{','.join('?' * len(fields))},?,?,?,?)",
+                 (eid, *fields.values(), ts, ts, ts, ts))
+    conn.commit()
+    return eid
+
+
+def _proposal(client, ctx, episode_id, **kw):
+    return client.post(f"/api/signal-episodes/{episode_id}/propose-campaign", json={
+        "planned_start_on": _d(0), "planned_end_on": _d(45),
+        "internal_owner_person_id": ctx["owner"]["id"],
+        "segment_id": ctx["dach"]["id"], "use_case_id": ctx["uc"]["id"], **kw})
+
+
+def test_a_signal_produces_a_draft_never_an_active_campaign(client, ctx):
+    """§7.1 — no signal creates a running campaign. The operator still has to diagnose."""
+    eid = _episode(client, ctx)
+    r = _proposal(client, ctx, eid)
+    assert r.status_code == 201, r.text
+    campaign = r.json()["campaign"]
+    assert campaign["status"] == "draft"
+    assert campaign["created_from_signal_episode_id"] == eid
+
+    conn = client.app.state.conn
+    ep = conn.execute("SELECT status, adoption_campaign_id FROM signal_episodes WHERE id=?",
+                      (eid,)).fetchone()
+    assert ep["status"] == "attached" and ep["adoption_campaign_id"] == campaign["id"]
+
+    # The conversion is recorded as the campaign's first transition, with the signal's reason.
+    history = client.get(f"/api/campaigns/{campaign['id']}").json()["history"]
+    assert history[-1]["to_status"] == "draft" and "signal episode" in history[-1]["reason"]
+
+
+def test_one_episode_cannot_produce_two_campaigns(client, ctx):
+    """§7.2 — a later recurrence may propose again only after the condition cleared and re-armed."""
+    eid = _episode(client, ctx)
+    assert _proposal(client, ctx, eid).status_code == 201
+    again = _proposal(client, ctx, eid)
+    assert again.status_code == 409 and "already produced a campaign" in again.json()["detail"]
+
+
+def test_a_held_signal_cannot_be_converted(client, ctx):
+    eid = _episode(client, ctx, status="held", held_reason="value unrealized")
+    r = _proposal(client, ctx, eid)
+    assert r.status_code == 409 and "value unrealized" in r.json()["detail"]
+
+
+def test_signal_triggered_campaigns_default_to_a_comparator_design(client, ctx):
+    """The design that absorbs the selection effect should be the path of least resistance."""
+    eid = _episode(client, ctx)
+    assert _proposal(client, ctx, eid).json()["campaign"]["evaluation_design"] == "comparator"
+
+
+def test_an_episode_can_attach_to_an_existing_campaign_instead(client, ctx):
+    existing = _campaign(client, ctx)
+    eid = _episode(client, ctx)
+    r = client.post(f"/api/signal-episodes/{eid}/attach-campaign",
+                    json={"campaign_id": existing["id"]})
+    assert r.status_code == 200
+    conn = client.app.state.conn
+    assert conn.execute("SELECT adoption_campaign_id FROM signal_episodes WHERE id=?",
+                        (eid,)).fetchone()[0] == existing["id"]
+
+
+def test_an_episode_cannot_attach_across_accounts(client, ctx):
+    other = client.post("/api/accounts", json={"name": "Globex"}).json()
+    op = client.post("/api/programs", json={"account_id": other["id"], "name": "P"}).json()
+    opart = client.post("/api/population-partitions", json={
+        "account_id": other["id"], "total_fte": 900}).json()
+    oseg = client.post("/api/population-segments", json={
+        "partition_id": opart["id"], "name": "Theirs", "headcount": 400}).json()
+    oowner = client.post("/api/persons", json={"name": "Other op", "affiliation": "valence"}).json()
+    theirs = client.post("/api/campaigns", json={
+        "account_id": other["id"], "program_id": op["id"], "use_case_id": ctx["uc"]["id"],
+        "segment_id": oseg["id"], "name": "Theirs", "target_behavior": "b", "hypothesis": "h",
+        "planned_start_on": _d(0), "planned_end_on": _d(30),
+        "internal_owner_person_id": oowner["id"]}).json()
+    eid = _episode(client, ctx)
+    r = client.post(f"/api/signal-episodes/{eid}/attach-campaign", json={"campaign_id": theirs["id"]})
+    assert r.status_code == 422 and "different accounts" in r.json()["detail"]
+
+
+# --- Stage 11.1 §5.3: one attention item, never a duplicate of the children --------------------
+def _due_checkpoint_campaign(client, ctx):
+    _obs(client, ctx, 0.40, 200)                       # stale by design
+    c = _campaign(client, ctx)
+    _target(client, ctx, c)
+    task = _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    client.post(f"/api/campaigns/{c['id']}/activate", json={"reason": "started"})
+    client.post(f"/api/campaigns/{c['id']}/checkpoints", json={"scheduled_on": _d(-2)})
+    return c, task
+
+
+def test_a_campaign_with_quiet_evidence_raises_one_item(client, ctx):
+    c, _ = _due_checkpoint_campaign(client, ctx)
+    items = [x for x in client.get("/api/queue").json()["items"]
+             if x["trigger_type"] == "campaign_evidence_gap"]
+    assert len(items) == 1
+    assert items[0]["object_id"] == c["id"]
+    assert "freshness threshold" in items[0]["because"]
+    assert "Checkpoint due" in items[0]["because"]
+
+
+def test_the_campaign_item_does_not_duplicate_its_childrens_items(client, ctx):
+    """Linked tasks keep their own Today items; the campaign must not raise one per child."""
+    c, task = _due_checkpoint_campaign(client, ctx)
+    client.patch(f"/api/tasks/{task['id']}", json={"due_date": _d(-20)})   # overdue child
+    items = client.get("/api/queue").json()["items"]
+
+    campaign_items = [x for x in items if x["trigger_type"] == "campaign_evidence_gap"]
+    assert len(campaign_items) == 1                     # still exactly one, not one per child
+    # The child speaks for itself, under its own trigger and object type.
+    assert not any(x["object_id"] == task["id"] and x["trigger_type"] == "campaign_evidence_gap"
+                   for x in items)
+
+
+def test_a_campaign_with_fresh_evidence_raises_nothing(client, ctx):
+    _obs(client, ctx, 0.40, 1)
+    c = _campaign(client, ctx)
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    client.post(f"/api/campaigns/{c['id']}/activate", json={"reason": "started"})
+    client.post(f"/api/campaigns/{c['id']}/checkpoints", json={"scheduled_on": _d(-2)})
+    assert not [x for x in client.get("/api/queue").json()["items"]
+                if x["trigger_type"] == "campaign_evidence_gap"]
+
+
+# --- Stage 11.1 §5.3: adjustment appends, never rewrites --------------------------------------
+def test_adjusting_supersedes_a_plan_item_without_erasing_it(client, ctx):
+    """"We tried X, then swapped it for Y" is the learning; deleting X throws it away."""
+    c = _campaign(client, ctx)
+    original = client.post(f"/api/campaigns/{c['id']}/plan", json={
+        "intervention_kind": "communication", "sequence": 3,
+        "comms_entry_id": None, "task_id": client.post("/api/tasks", json={
+            "program_id": ctx["prog"]["id"], "description": "Email the cohort"}).json()["id"]}).json()
+    replacement = client.post(f"/api/campaigns/{c['id']}/plan", json={
+        "intervention_kind": "champion_action", "sequence": 4,
+        "task_id": client.post("/api/tasks", json={
+            "program_id": ctx["prog"]["id"], "description": "Champion runs a clinic"}).json()["id"]}).json()
+
+    r = client.post(f"/api/campaign-plan-links/{original['id']}/supersede", json={
+        "replacement_link_id": replacement["id"],
+        "reason": "Email landed flat; the barrier is confidence, not awareness."})
+    assert r.status_code == 200
+    assert r.json()["superseded_by_link_id"] == replacement["id"]
+    assert r.json()["supersede_reason"].startswith("Email landed flat")
+
+    plan = client.get(f"/api/campaigns/{c['id']}").json()["plan"]
+    assert {p["id"] for p in plan} == {original["id"], replacement["id"]}   # both still visible
+
+
+def test_adjustment_never_touches_the_hypothesis_or_the_locked_baseline(client, ctx):
+    _obs(client, ctx, 0.40, 60)
+    c = _campaign(client, ctx)
+    _target(client, ctx, c)
+    _make_ready(client, ctx, c)
+    client.patch(f"/api/campaigns/{c['id']}", json={"sponsor_gap_reason": "n/a"})
+    client.post(f"/api/campaigns/{c['id']}/ready", json={"reason": "go"})
+    before = client.get(f"/api/campaigns/{c['id']}").json()
+
+    cp = client.post(f"/api/campaigns/{c['id']}/checkpoints", json={"scheduled_on": _d(5)}).json()
+    client.post(f"/api/campaign-checkpoints/{cp['id']}/hold", json={
+        "held_on": _today(), "assessment": "at_risk", "decision": "adjust",
+        "reason": "Swapping the comms step for a champion clinic."})
+
+    after = client.get(f"/api/campaigns/{c['id']}").json()
+    assert after["hypothesis"] == before["hypothesis"]
+    assert after["targets"][0]["baseline_observation_id"] == before["targets"][0]["baseline_observation_id"]
+    assert after["targets"][0]["baseline_trajectory"] == before["targets"][0]["baseline_trajectory"]
+
+
+def test_a_plan_item_cannot_be_superseded_by_another_campaigns_item(client, ctx):
+    a = _campaign(client, ctx, name="A")
+    b = _campaign(client, ctx, name="B", use_case_id=ctx["uc2"]["id"] if ctx.get("uc2") else ctx["uc"]["id"],
+                  segment_id=ctx["nordics"]["id"])
+    mine = client.post(f"/api/campaigns/{a['id']}/plan", json={
+        "intervention_kind": "enablement", "task_id": client.post("/api/tasks", json={
+            "program_id": ctx["prog"]["id"], "description": "mine"}).json()["id"]}).json()
+    theirs = client.post(f"/api/campaigns/{b['id']}/plan", json={
+        "intervention_kind": "enablement", "task_id": client.post("/api/tasks", json={
+            "program_id": ctx["prog"]["id"], "description": "theirs"}).json()["id"]}).json()
+    r = client.post(f"/api/campaign-plan-links/{mine['id']}/supersede", json={
+        "replacement_link_id": theirs["id"], "reason": "x"})
+    assert r.status_code == 422
+
+
+# --- §0.2 / §14: nothing is transmitted ---------------------------------------------------------
+def test_no_campaign_path_sends_anything(client, ctx):
+    """The module links comms and documents; it must never acquire a send verb."""
+    import app.campaigns as service
+    import app.routers.campaigns as router_module
+    source = (service.__doc__ or "") + open(router_module.__file__).read() + open(service.__file__).read()
+    for forbidden in ("smtplib", "sendgrid", "requests.post", "httpx.post", "urlopen"):
+        assert forbidden not in source, f"campaign code must not reach the network ({forbidden})"
+
+    routes = [r.path for r in client.app.routes if hasattr(r, "path") and "campaign" in r.path]
+    assert not any("send" in p for p in routes)

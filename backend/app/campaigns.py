@@ -497,3 +497,136 @@ def plan(conn: sqlite3.Connection, campaign_id: str) -> list[dict]:
             break
         out.append(row)
     return out
+
+
+# --- §7 signal -> draft campaign ------------------------------------------------------------
+def propose_from_episode(conn: sqlite3.Connection, episode_id: str, values: dict) -> dict:
+    """Convert a signal episode into a DRAFT campaign — never a ready or active one.
+
+    §7.1 is explicit that no signal creates a running campaign. The operator still has to
+    diagnose the barrier, name the intervention and lock a baseline; the episode only supplies
+    the cohort, the evidence and the reason it was proposed.
+
+    The dedupe rule (§7.2) inherits Stage 7's episode semantics rather than inventing a second
+    one: one campaign per episode, and a later recurrence may propose again only after the
+    condition cleared and re-armed.
+    """
+    episode = conn.execute("SELECT * FROM signal_episodes WHERE id=?", (episode_id,)).fetchone()
+    if not episode:
+        raise HTTPException(404, "signal episode not found")
+    episode = repo.row_to_dict(episode)
+    if episode.get("adoption_campaign_id"):
+        raise HTTPException(409, "this episode already produced a campaign; a new one may be "
+                                 "proposed once the condition clears and recurs")
+    if episode["status"] == "held":
+        raise HTTPException(409, episode.get("held_reason") or "signal is held")
+    if episode["status"] not in ("open", "attached"):
+        raise HTTPException(409, f"signal episode is already {episode['status']}")
+
+    # The cohort comes from the episode's cell where it has one; otherwise the caller names it.
+    cell = repo.get_row(conn, "whitespace_cells", episode["cell_id"]) if episode.get("cell_id") else None
+    payload = dict(values)
+    if cell:
+        payload.setdefault("segment_id", cell.get("segment_id"))
+        payload.setdefault("view_id", cell.get("view_id"))
+        payload.setdefault("use_case_id", cell["use_case_id"])
+        payload.setdefault("cell_id", cell["id"])
+    payload["account_id"] = episode["account_id"]
+    payload.setdefault("program_id", episode.get("program_id"))
+    payload["created_from_signal_episode_id"] = episode_id
+    payload.setdefault("name", f"Adoption campaign — {episode['kind'].replace('_', ' ')}")
+    # The signal's own explanation is the starting diagnosis, not a finished one.
+    payload.setdefault("hypothesis", f"Proposed from a signal: {episode['explanation']} "
+                                     f"State the intervention and why it should work.")
+    payload.setdefault("target_behavior", "State the cohort-level behaviour to change.")
+
+    ts = now_utc()
+    campaign = repo.insert(conn, "adoption_campaigns", payload, object_type="adoption_campaign")
+    with conn:
+        conn.execute("UPDATE signal_episodes SET status='attached', adoption_campaign_id=?, "
+                     "updated_at=? WHERE id=?", (campaign["id"], ts, episode_id))
+        conn.execute(
+            "INSERT INTO adoption_campaign_state_history (id,campaign_id,from_status,to_status,"
+            "reason,actor,changed_on,created_at) VALUES (?,?,NULL,'draft',?,?,?,?)",
+            (new_id(), campaign["id"],
+             f"Converted from signal episode: {episode['explanation']}",
+             "operator", _today(), ts))
+    return {"episode_id": episode_id, "campaign": repo.get_row(conn, "adoption_campaigns", campaign["id"])}
+
+
+def attach_episode(conn: sqlite3.Connection, episode_id: str, campaign_id: str) -> dict:
+    """Point an episode at an EXISTING campaign instead of creating a second one."""
+    episode = conn.execute("SELECT * FROM signal_episodes WHERE id=?", (episode_id,)).fetchone()
+    if not episode:
+        raise HTTPException(404, "signal episode not found")
+    campaign = repo.get_row(conn, "adoption_campaigns", campaign_id)
+    if repo.row_to_dict(episode)["account_id"] != campaign["account_id"]:
+        raise HTTPException(422, "the episode and campaign belong to different accounts")
+    ts = now_utc()
+    with conn:
+        conn.execute("UPDATE signal_episodes SET status='attached', adoption_campaign_id=?, "
+                     "updated_at=? WHERE id=?", (campaign_id, ts, episode_id))
+    return {"episode_id": episode_id, "campaign_id": campaign_id, "status": "attached"}
+
+
+# --- §5.3 checkpoint adjustment ----------------------------------------------------------------
+def supersede_plan_link(conn: sqlite3.Connection, link_id: str, replacement_id: str, *,
+                        reason: str, checkpoint_id: str | None = None) -> dict:
+    """Replace a future plan item without erasing what was originally tried.
+
+    "We tried X, then swapped it for Y at the mid-cycle checkpoint" is the learning §8 wants to
+    query later. Deleting X would throw that away and leave a plan that looks like it always
+    said Y. The hypothesis and the locked baseline are never touched here.
+    """
+    link = repo.get_row(conn, "adoption_campaign_plan_links", link_id)
+    replacement = repo.get_row(conn, "adoption_campaign_plan_links", replacement_id)
+    if replacement["campaign_id"] != link["campaign_id"]:
+        raise HTTPException(422, "a plan item can only be superseded within its own campaign")
+    if link.get("superseded_by_link_id"):
+        raise HTTPException(409, "that plan item is already superseded")
+    ts = now_utc()
+    with conn:
+        conn.execute(
+            "UPDATE adoption_campaign_plan_links SET superseded_by_link_id=?, superseded_on=?, "
+            "supersede_reason=?, adjusted_at_checkpoint_id=?, updated_at=? WHERE id=?",
+            (replacement_id, _today(), reason, checkpoint_id, ts, link_id))
+    return repo.get_row(conn, "adoption_campaign_plan_links", link_id)
+
+
+# --- §5.3 attention ------------------------------------------------------------------------------
+def attention_items(conn: sqlite3.Connection) -> list[dict]:
+    """ONE explainable item per campaign whose evidence has gone quiet past its checkpoint.
+
+    Deliberately narrow. Linked tasks and commitments already raise their own Today items when
+    they go overdue; a campaign that also raised one per child would double-count the same work
+    and train the operator to ignore the queue. The campaign speaks only about the thing no child
+    record can: the evidence it is measured by has stopped arriving.
+    """
+    today = _today()
+    out = []
+    for c in repo.list_rows(conn, "adoption_campaigns",
+                            where="status IN ('active','ready') ORDER BY planned_end_on"):
+        due = conn.execute(
+            "SELECT * FROM adoption_campaign_checkpoints WHERE campaign_id=? AND archived=0 "
+            "AND held_on IS NULL AND scheduled_on <= ? ORDER BY scheduled_on LIMIT 1",
+            (c["id"], today)).fetchone()
+        if not due:
+            continue
+        targets = repo.list_rows(conn, "adoption_campaign_targets",
+                                 where="campaign_id=? AND role='primary'", params=(c["id"],))
+        if not targets:
+            continue
+        ev = evaluate(conn, c, targets[0])
+        if ev["status"] not in ("unknown", "no_evidence", "invalidated"):
+            continue
+        reason = {"unknown": "its evidence is past the freshness threshold",
+                  "no_evidence": "no observation has arrived for this cohort",
+                  "invalidated": "its locked baseline was retracted by an import rollback"}[ev["status"]]
+        out.append({
+            "campaign_id": c["id"], "account_id": c["account_id"], "title": c["name"],
+            "checkpoint_id": due["id"], "scheduled_on": due["scheduled_on"],
+            "because": f"Checkpoint due {due['scheduled_on']} and {reason}.",
+            "next_action": "Review the evidence and record the checkpoint decision.",
+            "evaluation_status": ev["status"],
+        })
+    return out

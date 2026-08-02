@@ -696,6 +696,11 @@ def _seed_stage11_demo(conn):
        "'sig-tv-stalled',?,?,?)",
        (day(-35), day(25), day(40), src_id, ts, ts))
 
+    # The episode points back at the campaign it produced. Without this the UI would offer to
+    # propose a second campaign from a signal that already has one (§7.2).
+    ex("UPDATE signal_episodes SET status='attached', adoption_campaign_id='camp-tv-active', "
+       "updated_at=? WHERE id='sig-tv-stalled'", (ts,))
+
     for status_from, status_to, reason, when in (
         (None, "draft", "Converted from the stalled-cohort signal.", day(-40)),
         ("draft", "ready", "Barrier diagnosed, plan agreed, baseline locked.", day(-36)),

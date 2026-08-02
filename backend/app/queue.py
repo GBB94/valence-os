@@ -45,6 +45,7 @@ PRIORITY = {
     "feedback_acknowledgment": 3,
     "feedback_resolution": 2,
     # Stage 7 episodes. Customer pull and confirmed org facts outrank vendor-push timing.
+    "campaign_evidence_gap": 3,   # Stage 11.1 §5.3 — one item per campaign, never per child
     "expansion_signal": 2,
     "org_change_confirmed": 2,
     "land_and_leave": 2,
@@ -565,6 +566,20 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             title=r["title"], because=f"Feedback is {r['status']} but this account has not received the resolution loop.", age_days=0,
             due_date=None, next_action="Record the resolution interaction; do not auto-send."))
 
+    # Stage 11.1 §5.3 — ONE item per campaign whose evidence has gone quiet past its checkpoint.
+    # Deliberately narrow: linked tasks and commitments already raise their own items when they go
+    # overdue, and a campaign that also raised one per child would double-count the same work and
+    # train the operator to skim the queue. The campaign speaks only to what no child record can —
+    # the evidence it is measured by has stopped arriving.
+    from . import campaigns as _campaigns
+    for gap in _campaigns.attention_items(conn):
+        items.append(_item(
+            "campaign_evidence_gap", "adoption_campaign", gap["campaign_id"],
+            gap["scheduled_on"], accounts.get(gap["account_id"], {}),
+            title=gap["title"], because=gap["because"],
+            age_days=_days_since(gap["scheduled_on"], today) or 0,
+            due_date=gap["scheduled_on"], next_action=gap["next_action"]))
+
     return items
 
 
@@ -621,6 +636,7 @@ def _object_table(object_type: str) -> str:
         "comm_message": "comm_messages",
         "internal_ask": "internal_asks", "escalation": "escalation_instances",
         "product_feedback_occurrence": "product_feedback_occurrences",
+        "adoption_campaign": "adoption_campaigns",
     }[object_type]
 
 

@@ -10,6 +10,7 @@ export default function Signals({ accountId, reloadKey }) {
   const [tab, setTab] = useState("active");
   const [tick, setTick] = useState(0);
   const [dismiss, setDismiss] = useState(null);
+  const [propose, setPropose] = useState(null);
 
   const load = () => api.signalEpisodes({ accountId }).then((r) => setEpisodes(r.episodes))
     .catch((e) => toast(e.message, "err"));
@@ -47,11 +48,16 @@ export default function Signals({ accountId, reloadKey }) {
             {e.held_reason && <div className="rowmeta">{e.held_reason}</div>}</td>
           <td>{["open", "held"].includes(e.status) && <div className="actions">
             {e.status === "open" && e.cell_id && <button className="btn small primary" onClick={() => draft(e)}>Draft opportunity</button>}
+            {e.status === "open" && !e.adoption_campaign_id &&
+              <button className="btn small" onClick={() => setPropose(e)}>Propose campaign</button>}
+            {e.adoption_campaign_id && <span className="rowmeta">campaign drafted</span>}
             <button className="btn small ghost" onClick={() => setDismiss(e)}>Dismiss</button>
           </div>}</td>
         </tr>)}</tbody>
       </table></div>}
     {dismiss && <DismissSignal episode={dismiss} onClose={() => setDismiss(null)} onSaved={() => { setDismiss(null); setTick((x) => x + 1); }} />}
+    {propose && <ProposeCampaign episode={propose} accountId={accountId} onClose={() => setPropose(null)}
+                                 onSaved={() => { setPropose(null); setTick((x) => x + 1); }} />}
   </div>;
 }
 
@@ -69,3 +75,86 @@ function DismissSignal({ episode, onClose, onSaved }) {
     <div className="field"><label>Reason</label><textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} /></div>
   </SlideOver>;
 }
+
+
+/* §7.1 — a signal proposes a DRAFT campaign, never a running one. The operator still has to
+   diagnose the barrier, name the intervention and lock a baseline before it can go anywhere.
+   The design defaults to comparator because this campaign was selected on a declining reading,
+   and a comparator is what absorbs that selection effect. */
+function ProposeCampaign({ episode, accountId, onClose, onSaved }) {
+  const toast = useToast();
+  const [people, setPeople] = useState([]);
+  const [f, setF] = useState({
+    internal_owner_person_id: "", planned_start_on: "", planned_end_on: "",
+    evaluation_on: "", evaluation_design: "comparator",
+  });
+
+  useEffect(() => {
+    api.account(accountId)
+      .then((a) => setPeople((a.people || []).filter((p) => p.affiliation === "valence")))
+      .catch(() => {});
+  }, [accountId]);
+
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  return (
+    <SlideOver title="Propose a campaign" onClose={onClose}>
+      <div className="rowmeta" style={{ marginBottom: 12 }}>
+        {episode.explanation}
+      </div>
+      <div className="rowmeta" style={{ marginBottom: 12 }}>
+        This creates a <strong>draft</strong>. It cannot start until you diagnose a barrier, link a
+        real intervention and lock a baseline.
+      </div>
+      <form onSubmit={async (ev) => {
+        ev.preventDefault();
+        try {
+          await api.proposeCampaignFromSignal(episode.id, {
+            ...f, evaluation_on: f.evaluation_on || null,
+          });
+          toast("Draft campaign created");
+          onSaved();
+        } catch (err) { toast(err.message, "err"); }
+      }}>
+        <label style={pcLbl}>Internal owner
+          <select value={f.internal_owner_person_id} onChange={set("internal_owner_person_id")}
+                  required style={pcInput}>
+            <option value="">choose…</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <label style={{ ...pcLbl, flex: 1 }}>Starts
+            <input type="date" value={f.planned_start_on} onChange={set("planned_start_on")}
+                   required style={pcInput} /></label>
+          <label style={{ ...pcLbl, flex: 1 }}>Ends
+            <input type="date" value={f.planned_end_on} onChange={set("planned_end_on")}
+                   required style={pcInput} /></label>
+        </div>
+        <label style={pcLbl}>Evaluate on
+          <input type="date" value={f.evaluation_on} onChange={set("evaluation_on")} style={pcInput} /></label>
+        <label style={pcLbl}>Evaluation design
+          <select value={f.evaluation_design} onChange={set("evaluation_design")} style={pcInput}>
+            <option value="comparator">Comparator (recommended for signal-triggered)</option>
+            <option value="pre_post">Pre/post</option>
+            <option value="descriptive">Descriptive</option>
+          </select>
+        </label>
+        {f.evaluation_design === "pre_post" && (
+          <div className="rowmeta" style={{ marginBottom: 10, color: "var(--ink-secondary)" }}>
+            ▲ This cohort was selected because its reading fell, so some rebound is expected
+            without intervention. A comparator absorbs that; pre/post will carry the caution.
+          </div>
+        )}
+        <button className="btn small primary" type="submit">Create draft</button>
+      </form>
+    </SlideOver>
+  );
+}
+
+const pcLbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
+const pcInput = {
+  padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
+  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  color: "var(--ink-primary)",
+};

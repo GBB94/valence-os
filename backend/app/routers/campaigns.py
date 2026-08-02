@@ -20,7 +20,8 @@ from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
     CampaignBarrierCreate, CampaignBarrierPatch, CampaignCheckpointCreate, CampaignCheckpointHold,
-    CampaignCreate, CampaignPatch, CampaignPlanLinkCreate, CampaignTargetCreate, CampaignTransition,
+    CampaignAttachEpisode, CampaignCreate, CampaignFromEpisode, CampaignPatch,
+    CampaignPlanLinkCreate, CampaignTargetCreate, CampaignTransition, PlanLinkSupersede,
 )
 
 router = APIRouter(prefix="/api", tags=["campaigns"])
@@ -258,3 +259,26 @@ def hold_checkpoint(checkpoint_id: str, b: CampaignCheckpointHold,
     changes["observations_reviewed_json"] = json.dumps(changes.pop("observations_reviewed"))
     return repo.patch(conn, "adoption_campaign_checkpoints", checkpoint_id, changes,
                       object_type="adoption_campaign_checkpoint")
+
+
+# --- §7 signal conversion ---------------------------------------------------------------------
+@router.post("/signal-episodes/{episode_id}/propose-campaign", status_code=201)
+def propose_campaign(episode_id: str, b: CampaignFromEpisode,
+                     conn: sqlite3.Connection = Depends(get_conn)):
+    """Convert a signal into a DRAFT. No signal ever produces a ready or active campaign."""
+    return campaigns.propose_from_episode(conn, episode_id,
+                                          {k: v for k, v in b.model_dump().items() if v is not None})
+
+
+@router.post("/signal-episodes/{episode_id}/attach-campaign")
+def attach_campaign(episode_id: str, b: CampaignAttachEpisode,
+                    conn: sqlite3.Connection = Depends(get_conn)):
+    return campaigns.attach_episode(conn, episode_id, b.campaign_id)
+
+
+@router.post("/campaign-plan-links/{link_id}/supersede")
+def supersede_link(link_id: str, b: PlanLinkSupersede,
+                   conn: sqlite3.Connection = Depends(get_conn)):
+    """Adjusting the plan replaces a future item; it never rewrites the hypothesis or baseline."""
+    return campaigns.supersede_plan_link(conn, link_id, b.replacement_link_id,
+                                         reason=b.reason, checkpoint_id=b.checkpoint_id)

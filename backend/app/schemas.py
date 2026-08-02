@@ -1542,3 +1542,29 @@ class CampaignCheckpointHold(BaseModel):
     source_interaction_id: Optional[str] = None
     source_reference_id: Optional[str] = None
     next_evidence_on: Optional[str] = None
+
+
+class CampaignFromEpisode(BaseModel):
+    """Convert a signal episode to a DRAFT campaign (§7.1). Never ready, never active."""
+    name: Optional[str] = None
+    target_behavior: Optional[str] = None
+    hypothesis: Optional[str] = None
+    planned_start_on: str
+    planned_end_on: str
+    evaluation_on: Optional[str] = None
+    internal_owner_person_id: str
+    program_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+    use_case_id: Optional[str] = None
+    evaluation_design: EvaluationDesign = "comparator"   # §5.2 default for signal-triggered work
+
+
+class CampaignAttachEpisode(BaseModel):
+    campaign_id: str
+
+
+class PlanLinkSupersede(BaseModel):
+    replacement_link_id: str
+    reason: str = Field(min_length=1)
+    checkpoint_id: Optional[str] = None

@@ -346,4 +346,11 @@ export const api = {
   addCampaignTarget: (id, b) => req("POST", `/api/campaigns/${id}/targets`, b),
   addCampaignPlanLink: (id, b) => req("POST", `/api/campaigns/${id}/plan`, b),
   addCampaignCheckpoint: (id, b) => req("POST", `/api/campaigns/${id}/checkpoints`, b),
+
+  proposeCampaignFromSignal: (episodeId, b) =>
+    req("POST", `/api/signal-episodes/${episodeId}/propose-campaign`, b),
+  attachEpisodeToCampaign: (episodeId, campaignId) =>
+    req("POST", `/api/signal-episodes/${episodeId}/attach-campaign`, { campaign_id: campaignId }),
+  supersedeCampaignPlanLink: (linkId, b) =>
+    req("POST", `/api/campaign-plan-links/${linkId}/supersede`, b),
 };
