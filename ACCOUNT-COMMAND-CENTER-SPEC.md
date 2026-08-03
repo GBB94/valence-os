@@ -113,11 +113,12 @@ For a selected meeting, the order is:
 1. **Meeting identity** — title, time, purpose, program, location, organizer, and association confidence where applicable.
 2. **Attendees** — known people first, with professional role/layer, stance freshness, last meaningful touch, and response status. Unknown invitees remain unknown and are never silently matched.
 3. **What changed since the last meaningful interaction with these attendees** — activity projection filtered to attendee context where the underlying record supports that relationship.
-4. **Open threads** — commitments, decisions needed, blockers, relevant internal asks, and recent customer follow-up.
-5. **Evidence gaps** — stale, missing, conflicted, or insufficient inputs that would weaken the conversation.
-6. **Suggested preparation actions** — explicit buttons to log an interaction, open the existing deterministic pre-call brief, or open Copilot with a meeting-preparation intent. Nothing runs automatically.
+4. **Public context for this conversation** — at most five confirmed, non-expired company events with live evidence, included only through a confirmed account-wide or resolved-attendee link. Exact sources remain inspectable.
+5. **Open threads** — commitments, decisions needed, blockers, relevant internal asks, and recent customer follow-up.
+6. **Evidence gaps** — stale, missing, conflicted, or insufficient inputs that would weaken the conversation.
+7. **Suggested preparation actions** — explicit buttons to log an interaction, open the existing deterministic pre-call brief, or open Copilot with a meeting-preparation intent. Nothing runs automatically.
 
-The implemented version filters recent context to attendee relationships supported by the native record, excludes the baseline last-touch interaction, names partial activity coverage, and falls back to an explicit evidence gap when a relationship cannot be established. Meeting selection and brief preview are reads: opening Prepare never creates a document, sends a brief, or mutates canonical records.
+The implemented version filters recent context to attendee relationships supported by the native record, excludes the baseline last-touch interaction, names partial activity coverage, and falls back to an explicit evidence gap when a relationship cannot be established. Its separate public-context reader is shared with the deterministic pre-call brief, is capped at five facts, excludes proposed/expired/retracted evidence at query time, and never treats an unconfirmed map suggestion as relevance. Meeting selection and brief preview are reads: opening Prepare never creates a document, sends a brief, or mutates canonical records.
 
 ### 5.3 Leadership — implemented
 
@@ -425,6 +426,7 @@ Implemented evidence:
 - Ledger retains its mutable **Records** view and adds an **Activity** subview over the typed projection. No ninth account tab or parallel editor is introduced.
 - Activity exposes scoped stream, source, state, direction, and materiality filters; local search is explicitly limited to loaded pages; effective and recorded time remain separately visible; partial coverage is named; and every row opens its native record.
 - A source interaction and records created from it retain distinct activity IDs but render as one keyboard-operable expandable group when both are loaded.
+- Company-event native targets carry an addressable Commercial/Company subsection and stable event focus rather than landing on the Commercial default.
 - Adapter coverage, item count, and elapsed projection time are returned per read. A 30-run read-only sample across all five seeded accounts (150 projections, ten adapters) measured 0.089 ms median, 0.235 ms p95, and 1.988 ms maximum, with 17 items on the largest account.
 - Those measurements do not justify materialization. The projection remains query-time and rebuildable; reconsider only with representative evidence of sustained latency or lock contention, not a speculative scale concern.
 - The five-job navigation remains directional. No product-usage evidence currently shows that replacing the eight established tabs would reduce task switching or improve completion, so Release 2 preserves the taxonomy and gathers experience through the Ledger subview.

@@ -434,6 +434,26 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .prepare-preview-section ul { margin: var(--sp-4) 0 0; padding-left: var(--sp-7); }
 .prepare-preview-person { padding: var(--sp-4) var(--sp-5); }
 .prepare-preview-person + .prepare-preview-person { margin-top: var(--sp-3); }
+.prepare-public-sources {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-2); font-size: var(--t-small);
+}
+.prepare-preview-public + .prepare-preview-public {
+  margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line-hairline);
+}
+
+/* Exact public evidence remains inspectable from feed, activity, brief, and search routes. */
+.company-event-focused {
+  outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-subtle);
+}
+.company-evidence-list { margin-top: var(--sp-4); }
+.company-evidence-summary { min-height: 28px; }
+.company-evidence-list blockquote {
+  margin: var(--sp-2) 0 0; padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--line-strong); background: var(--bg-sunken);
+}
+.company-evidence-meta { margin-top: var(--sp-2); align-items: center; }
+.company-evidence-meta .btn { margin-left: auto; }
 
 /* Leadership lens — governed posture first, then movement, exposure, asks, and review trail. */
 .leadership-scope {

@@ -16,6 +16,23 @@ test("account routes preserve tab and program scope", () => {
   assert.equal(navigationUrl(nav), "/accounts/acct-1/commercial?program=program-2");
 });
 
+test("Commercial company routes preserve an exact record focus", () => {
+  const nav = parseNavigation({
+    pathname: "/accounts/acct-1/commercial",
+    search: "?section=company&record=event-2",
+  });
+  assert.deepEqual(nav, {
+    dest: "account", accountId: "acct-1", tab: "commercial",
+    section: "company", recordId: "event-2",
+  });
+  assert.equal(navigationUrl(nav),
+    "/accounts/acct-1/commercial?section=company&record=event-2");
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/commercial",
+    search: "?section=unknown&record=%3Cscript%3E",
+  }), { dest: "account", accountId: "acct-1", tab: "commercial" });
+});
+
 test("account Overview preserves lens and meeting focus canonically", () => {
   const nav = parseNavigation({
     pathname: "/accounts/acct-1/overview",

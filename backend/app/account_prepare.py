@@ -209,6 +209,67 @@ def _related_source_ids(
     }
 
 
+def public_company_context(
+    conn: sqlite3.Connection, account_id: str, person_ids: set[str] | None = None, *, limit: int = 5,
+) -> list[dict]:
+    """Return a bounded set of active public facts relevant to the account or its attendees."""
+    if limit < 1:
+        return []
+    people = person_ids or set()
+    rows = conn.execute(
+        "SELECT e.id,e.summary,e.occurred_on,e.expires_on,k.key kind,k.label kind_label,k.direction "
+        "FROM company_events e JOIN company_event_kinds k ON k.id=e.kind_id "
+        "WHERE e.account_id=? AND e.status='confirmed' AND e.expires_on>=date('now') "
+        "AND e.occurred_on<=date('now') AND e.archived=0 "
+        "ORDER BY e.occurred_on DESC,e.id", (account_id,)
+    ).fetchall()
+    result = []
+    for raw in rows:
+        event = dict(raw)
+        links = [dict(row) for row in conn.execute(
+            "SELECT account_target_id,person_id FROM company_event_links "
+            "WHERE event_id=? AND status='confirmed' AND archived=0", (event["id"],)
+        ).fetchall()]
+        attendee_ids = {link["person_id"] for link in links if link.get("person_id") in people}
+        attendee_names = []
+        if attendee_ids:
+            placeholders = ",".join("?" for _ in attendee_ids)
+            attendee_names = [row["name"] for row in conn.execute(
+                f"SELECT name FROM persons WHERE id IN ({placeholders}) AND account_id=? "
+                "AND archived=0 ORDER BY name", (*attendee_ids, account_id),
+            ).fetchall()]
+        account_wide = any(link.get("account_target_id") == account_id for link in links)
+        if not attendee_ids and not account_wide:
+            continue
+        evidence = [dict(row) for row in conn.execute(
+            "SELECT s.id span_id,s.locator,s.excerpt,d.id document_id,d.title,d.publisher,"
+            "d.published_on,d.retrieved_at,d.url FROM company_event_evidence ee "
+            "JOIN intel_document_spans s ON s.id=ee.span_id AND s.archived=0 "
+            "JOIN intel_documents d ON d.id=s.document_id AND d.archived=0 "
+            "AND d.correction_state='active' WHERE ee.event_id=? AND ee.archived=0 "
+            "ORDER BY d.published_on DESC,d.id,s.id", (event["id"],)
+        ).fetchall()]
+        if not evidence:
+            continue
+        if attendee_names:
+            relevance = f"Linked to attendee{'s' if len(attendee_names) > 1 else ''} " + ", ".join(attendee_names)
+        elif attendee_ids:
+            relevance = "Linked to a resolved attendee"
+        else:
+            relevance = "Confirmed account-wide context"
+        result.append({
+            **event, "title": event["kind_label"], "relevance": relevance,
+            "evidence": evidence,
+            "source_count": len({source["document_id"] for source in evidence}),
+            "span_count": len(evidence),
+            "native_target": {"tab": "commercial", "subview": "company",
+                              "record_type": "company_event", "record_id": event["id"]},
+        })
+        if len(result) >= limit:
+            break
+    return result
+
+
 def _recent_context(
     conn: sqlite3.Connection, account_id: str, program_id: str | None, meeting: dict,
     attendees: list[dict], person_ids: set[str], stamp: str,
@@ -382,7 +443,7 @@ def build_meeting_prep(
         return {
             "stamp": {"generated_at": stamp, "data_current_through": stamp},
             "meetings": meetings, "selected_meeting": None, "attendees": [],
-            "recent_context": [], "context_window": None, "open_threads": [],
+            "recent_context": [], "public_context": [], "context_window": None, "open_threads": [],
             "evidence_gaps": [{
                 "kind": "meeting_not_recorded", "title": "No associated meeting is recorded",
                 "detail": "Create or associate a calendar event before preparing attendee context.",
@@ -436,7 +497,9 @@ def build_meeting_prep(
     return {
         "stamp": {"generated_at": stamp, "data_current_through": stamp},
         "meetings": meetings, "selected_meeting": _meeting_summary(selected, now),
-        "attendees": attendees, "recent_context": recent, "context_window": context_window,
+        "attendees": attendees, "recent_context": recent,
+        "public_context": public_company_context(conn, account_id, person_ids),
+        "context_window": context_window,
         "open_threads": _open_threads(
             conn, account_id, effective_program, person_ids, attendees
         ),

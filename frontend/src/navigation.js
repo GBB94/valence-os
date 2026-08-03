@@ -13,6 +13,10 @@ export const WORKSPACE_TABS = [
 
 const WORKSPACE_TAB_KEYS = new Set(WORKSPACE_TABS.map(([key]) => key));
 const GLOBAL_DESTINATIONS = new Set(["today", "accounts", "library", "operations"]);
+export const COMMERCIAL_SECTIONS = [
+  "whitespace", "ledger", "funding", "signals", "company", "growth", "pipeline",
+];
+const COMMERCIAL_SECTION_KEYS = new Set(COMMERCIAL_SECTIONS);
 
 function cleanSegment(value) {
   if (!value) return "";
@@ -37,11 +41,16 @@ export function parseNavigation(locationLike) {
     const lens = tab === "overview" && isCommandCenterLens(search.get("lens"))
       ? search.get("lens") : undefined;
     const meetingId = lens === "prepare" ? cleanPreference(search.get("meeting")) : undefined;
+    const section = tab === "commercial" && COMMERCIAL_SECTION_KEYS.has(search.get("section"))
+      ? search.get("section") : undefined;
+    const recordId = section === "company" ? cleanPreference(search.get("record")) : undefined;
     return {
       dest: "account", accountId, tab,
       ...(programId ? { programId } : {}),
       ...(lens ? { lens } : {}),
       ...(meetingId ? { meetingId } : {}),
+      ...(section ? { section } : {}),
+      ...(recordId ? { recordId } : {}),
     };
   }
 
@@ -71,6 +80,10 @@ export function navigationUrl(nav) {
     const lens = tab === "overview" && isCommandCenterLens(nav.lens) ? nav.lens : undefined;
     if (lens) params.set("lens", lens);
     if (lens === "prepare" && cleanPreference(nav.meetingId)) params.set("meeting", nav.meetingId);
+    const section = tab === "commercial" && COMMERCIAL_SECTION_KEYS.has(nav.section)
+      ? nav.section : undefined;
+    if (section) params.set("section", section);
+    if (section === "company" && cleanPreference(nav.recordId)) params.set("record", nav.recordId);
     const search = params.size ? `?${params}` : "";
     return `/accounts/${encodeURIComponent(nav.accountId)}/${tab}${search}`;
   }

@@ -184,6 +184,12 @@ def pre_call_brief(conn: sqlite3.Connection, account_id: str, *,
                       where="account_id=? AND needs_response=1 AND responded=0 ORDER BY occurred_on",
                       params=(account_id,))]
 
+    # Use the same bounded, proposal-safe outside-in context as the Prepare lens.
+    from . import account_prepare
+    public_context = account_prepare.public_company_context(
+        conn, account_id, {person["id"] for person in people}, limit=5
+    )
+
     # Talking points: open first-call questions carried on the checklist, plus what the
     # attendees care about. Recommendations, labeled as such.
     open_questions = [c["label"] for c in repo.list_rows(
@@ -200,9 +206,12 @@ def pre_call_brief(conn: sqlite3.Connection, account_id: str, *,
         "kind": "pre_call_brief", "audience": "internal",
         "account_id": account_id, "account_name": acct["name"], "program_id": program_id,
         "attendees": attendees, "live_risks": live_risks, "gate_items_due": gate_items,
-        "unanswered_email": unanswered, "talking_points": talking_points,
+        "unanswered_email": unanswered, "public_context": public_context,
+        "talking_points": talking_points,
         "stamp": _stamp(conn, missing, [
-            x for a in attendees for x in (a.get("stance_assessed_on"), a.get("last_touch")) if x]),
+            *[x for a in attendees for x in (a.get("stance_assessed_on"), a.get("last_touch")) if x],
+            *[item["occurred_on"] for item in public_context if item.get("occurred_on")],
+        ]),
     }
     doc["markdown"] = _render_brief(doc)
     return doc
@@ -241,6 +250,17 @@ def _render_brief(d: dict) -> str:
     md += _md_table(["Risk", "Severity", "Blocker"],
                     [[r["description"], r["severity"], "yes" if r["is_blocker"] else ""]
                      for r in d["live_risks"]])
+    md += ["## Public context", ""]
+    for event in d.get("public_context") or []:
+        md.append(f"- {event['summary']} ({event['relevance']}; {event['occurred_on']})")
+        for source in event["evidence"]:
+            md.append(
+                f"    - {source['publisher']} · {source['published_on'] or 'date unknown'} · "
+                f"{source['locator']} · {source['url']}"
+            )
+    if not d.get("public_context"):
+        md.append("_No confirmed, active account- or attendee-linked public context._")
+    md.append("")
     md += ["## Gate items still open", ""]
     md += _md_table(["Item", "Gate"], [[g["description"], g["gate"]] for g in d["gate_items_due"]])
     md += ["## Unanswered, flagged", ""]

@@ -536,7 +536,7 @@ def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], lis
         "JOIN company_event_evidence ee ON ee.event_id=e.id AND ee.archived=0 "
         "JOIN intel_document_spans s ON s.id=ee.span_id AND s.archived=0 "
         "JOIN intel_documents d ON d.id=s.document_id AND d.archived=0 AND d.correction_state='active' "
-        "WHERE e.account_id=? AND e.status='confirmed' AND e.archived=0 "
+        "WHERE e.account_id=? AND e.status='confirmed' AND e.expires_on>=date('now') AND e.archived=0 "
         "ORDER BY e.occurred_on DESC,e.id,s.id LIMIT ?",
         (run["account_id"], MAX_PACKET_ITEMS)).fetchall()
     listing = conn.execute(
@@ -546,9 +546,6 @@ def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], lis
     gaps = []
     if not rows:
         gaps.append("No confirmed company events with live evidence spans were found.")
-    kinds = {row["document_kind"] for row in rows}
-    if listing and listing["listing_status"] == "public" and not kinds.intersection({"earnings_call","annual_report","regulatory_filing"}):
-        gaps.append("No confirmed earnings or filing evidence is available for this public company.")
     if listing and listing["listing_status"] == "private":
         gaps.append("Earnings and filing coverage is not expected for this private company.")
     items, excluded = [], []
@@ -558,7 +555,6 @@ def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], lis
         "FROM company_convergence_events ce JOIN company_convergences c ON c.id=ce.convergence_id "
         "WHERE c.account_id=? AND c.status='active' AND c.archived=0 AND ce.archived=0",
         (run["account_id"],)).fetchall()}
-    latest_by_source: dict[str, dict] = {}
     rank = 1
     for raw in rows:
         row = dict(raw)
@@ -567,23 +563,21 @@ def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], lis
             excluded.append({"record_type": "company_event", "record_id": row["event_id"],
                              "reason": "quarantined untrusted instruction-like text in public evidence excerpt"})
             continue
-        latest_by_source.setdefault(row["document_kind"], row)
         section = "What they did" if row["kind"] in action_kinds else "What they said"
         if row["kind"] == "hiring_cluster": section = "Hiring picture"
-        expired = bool(row["expires_on"] and row["expires_on"] < now_utc()[:10])
-        if expired: section = "Watch"
-        prefix = f"Expired {row['expires_on']}: " if expired else ""
-        statement = (f"{prefix}{row['summary']} Source: {row['publisher']}, "
+        statement = (f"{row['summary']} Source: {row['publisher']}, "
                      f"{row['published_on'] or 'date unknown'}, {row['locator']}.")
         fields = {"brief_section": section, "kind": row["kind"], "direction": row["direction"],
                   "summary": row["summary"], "occurred_on": row["occurred_on"],
                   "expires_on": row["expires_on"], "publisher": row["publisher"],
                   "published_on": row["published_on"], "locator": row["locator"],
-                  "evidence_excerpt": _safe_text(row["excerpt"]), "source_url": row["url"]}
+                  "evidence_excerpt": _safe_text(row["excerpt"]), "source_url": row["url"],
+                  "native_record_type": "company_event", "native_record_id": row["event_id"],
+                  "evidence_span_id": row["span_id"]}
         base_item = {"record_type": "company_event", "record_id": f"{row['event_id']}:{row['span_id']}",
                      "account_id": run["account_id"], "program_id": None,
                      "record_version": row["updated_at"], "authority": "confirmed_public_span",
-                     "freshness_state": "current" if not row["expires_on"] or row["expires_on"] >= now_utc()[:10] else "historical",
+                     "freshness_state": "current",
                      "visibility": "internal", "fields": fields, "statement": statement,
                      "excerpt": _safe_text(row["excerpt"]), "retrieval_method": "company_inputs",
                      "retrieval_rank": rank, "inclusion_reason": "confirmed event with live exact evidence span"}
@@ -623,24 +617,45 @@ def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], lis
                           "inclusion_reason": "active convergence composition or approaching expiry"})
             rank += 1
 
-    # Coverage statements are metadata claims tied to a live exact span from that source class.
-    for source_class, row in latest_by_source.items():
+    # Coverage is ordered by retrieval time rather than event occurrence time. This separate query
+    # also prevents the content limit from silently hiding an otherwise-covered source class.
+    coverage_rows = conn.execute(
+        "SELECT * FROM (SELECT e.id event_id,d.kind document_kind,d.title,d.publisher,d.published_on,"
+        "d.retrieved_at,d.url,s.id span_id,s.locator,s.excerpt,"
+        "ROW_NUMBER() OVER (PARTITION BY d.kind ORDER BY d.retrieved_at DESC,d.id,s.id) source_rank "
+        "FROM company_events e JOIN company_event_evidence ee ON ee.event_id=e.id AND ee.archived=0 "
+        "JOIN intel_document_spans s ON s.id=ee.span_id AND s.archived=0 "
+        "JOIN intel_documents d ON d.id=s.document_id AND d.archived=0 AND d.correction_state='active' "
+        "WHERE e.account_id=? AND e.status='confirmed' AND e.expires_on>=date('now') AND e.archived=0) "
+        "WHERE source_rank=1 ORDER BY document_kind", (run["account_id"],)
+    ).fetchall()
+    covered_kinds = {row["document_kind"] for row in coverage_rows}
+    if (listing and listing["listing_status"] == "public" and
+            not covered_kinds.intersection({"earnings_call", "annual_report", "regulatory_filing"})):
+        gaps.append("No confirmed earnings or filing evidence is available for this public company.")
+    coverage_items = []
+    for coverage_rank, row in enumerate(coverage_rows, 1):
+        source_class = row["document_kind"]
         coverage_statement = (f"Coverage includes {source_class.replace('_', ' ')} through "
                               f"{row['retrieved_at'][:10]}: {row['title']}, {row['locator']}.")
         fields = {"brief_section": "Coverage and as-of", "source_class": source_class,
                   "retrieved_at": row["retrieved_at"], "title": row["title"],
                   "publisher": row["publisher"], "published_on": row["published_on"],
                   "locator": row["locator"], "evidence_excerpt": _safe_text(row["excerpt"]),
-                  "source_url": row["url"]}
-        items.append({"record_type": "intel_document_span", "record_id": f"{row['span_id']}:coverage",
+                  "source_url": row["url"], "native_record_type": "company_event",
+                  "native_record_id": row["event_id"], "evidence_span_id": row["span_id"]}
+        coverage_items.append({"record_type": "intel_document_span", "record_id": f"{row['span_id']}:coverage",
                       "account_id": run["account_id"], "program_id": None,
                       "record_version": row["retrieved_at"], "authority": "confirmed_public_span",
                       "freshness_state": "current", "visibility": "internal", "fields": fields,
                       "statement": coverage_statement, "excerpt": _safe_text(row["excerpt"]),
-                      "retrieval_method": "company_inputs", "retrieval_rank": rank,
+                      "retrieval_method": "company_inputs", "retrieval_rank": coverage_rank,
                       "inclusion_reason": "latest live exact span for covered public source class"})
-        rank += 1
-    return items[:MAX_PACKET_ITEMS], gaps, excluded
+    # Coverage is the brief's as-of contract, so reserve the leading ranks for it. Content starts
+    # after those ranks and remains bounded without being able to crowd coverage out of the packet.
+    for item in items:
+        item["retrieval_rank"] += len(coverage_items)
+    return (coverage_items + items)[:MAX_PACKET_ITEMS], gaps, excluded
 
 
 def build_packet(conn: sqlite3.Connection, run: dict) -> dict:

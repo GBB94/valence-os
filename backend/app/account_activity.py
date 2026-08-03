@@ -68,6 +68,7 @@ class ActivityNativeTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tab: Literal["overview", "ledger", "people", "plan", "commercial", "evidence", "outputs", "internal"]
+    subview: str | None = None
     record_type: str
     record_id: str
 
@@ -841,7 +842,7 @@ def _company_source(conn: sqlite3.Connection, event_id: str) -> ActivitySourceRe
 @register_adapter("company_event")
 def company_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[ActivityItem]:
     rows = conn.execute(
-        "SELECT e.*,k.label kind_label FROM company_events e "
+        "SELECT e.*,k.key kind_key,k.label kind_label FROM company_events e "
         "JOIN company_event_kinds k ON k.id=e.kind_id "
         "WHERE e.account_id=? AND e.archived=0", (query.account_id,)
     ).fetchall()
@@ -852,7 +853,7 @@ def company_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[Act
         state: ActivityState = row["status"]
         out.append(ActivityItem(
             id=f"company_event:{row['id']}:{row['status']}", account_id=query.account_id,
-            source_type="company_event", source_id=row["id"], event_kind=f"company_{row['kind_id']}",
+            source_type="company_event", source_id=row["id"], event_kind=f"company_{row['kind_key']}",
             stream="external", state=state, title=row["kind_label"], summary=row["summary"],
             display_at=display_at, recorded_at=row["updated_at"],
             temporal_kind="occurred" if row["occurred_on"] else "recorded", temporal_precision=precision,
@@ -861,6 +862,8 @@ def company_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[Act
             status=row["status"],
             reason="Confirmed external change" if row["status"] == "confirmed" else "External change proposal awaiting review" if row["status"] == "proposed" else f"External change is {row['status']}",
             source_reference=_company_source(conn, row["id"]),
-            native_target=ActivityNativeTarget(tab="commercial", record_type="company_event", record_id=row["id"]),
+            native_target=ActivityNativeTarget(
+                tab="commercial", subview="company", record_type="company_event", record_id=row["id"]
+            ),
         ))
     return out

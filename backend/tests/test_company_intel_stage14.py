@@ -118,6 +118,9 @@ def test_proposal_gate_independent_convergence_and_grounded_brief(client):
     assert run["claims"] and all(claim["sources"] for claim in run["claims"])
     assert all(source["authority"] == "confirmed_public_span" for source in run["sources"])
     assert all("locator" in source["fields"] and "evidence_excerpt" in source["fields"] for source in run["sources"])
+    assert all(source["fields"].get("native_record_type") == "company_event" for source in run["sources"])
+    assert all(source["fields"].get("native_record_id") in {event["id"] for event in workspace["events"]}
+               for source in run["sources"])
 
     # The complete cited graph restores into a clean installation, not just into a bundle count.
     from app import portfolio_io
@@ -151,6 +154,65 @@ def test_proposal_gate_independent_convergence_and_grounded_brief(client):
         (account["id"],)).fetchone()["status"] == "closed"
     assert c.app.state.conn.execute(
         "SELECT status FROM signal_episodes WHERE id=?", (company_episode["id"],)).fetchone()["status"] == "closed"
+
+
+def test_public_context_is_cited_routable_and_excludes_expired_events(client):
+    c, monkeypatch = client
+    account = _watch(c, "Brief Context Synthetic")
+    artifact = _artifact(
+        account["id"], "brief-context", "strategic_initiative",
+        "Brief Context Synthetic named manager readiness as a strategic priority.",
+        "brief-context-origin", -3,
+    )
+    artifact["document"]["spans"].append({
+        "locator": "¶2", "excerpt": "Brief Context Synthetic linked manager readiness to regional execution."
+    })
+    artifact["events"][0]["span_indexes"] = [0, 1]
+    _sync(c, monkeypatch, [artifact])
+    event = c.get(f"/api/accounts/{account['id']}/company").json()["events"][0]
+    assert len(event["evidence"]) == 2
+    assert c.post(f"/api/intel/events/{event['id']}/confirm", json={}).status_code == 200
+    account_link = next(link for link in event["links"] if link["account_target_id"])
+    assert c.post(f"/api/intel/events/{event['id']}/links/{account_link['id']}/confirm", json={}).status_code == 200
+
+    meeting = c.post("/api/calendar-events", json={
+        "account_id": account["id"], "purpose": "governance", "title": "Executive review",
+        "starts_at": f"{utc_day(2)}T15:00:00+00:00",
+    }).json()
+    prepared = c.get(f"/api/accounts/{account['id']}/command-center/prepare",
+                     params={"meeting_id": meeting["id"]}).json()
+    assert len(prepared["public_context"]) == 1
+    context = prepared["public_context"][0]
+    assert context["id"] == event["id"] and context["source_count"] == 1
+    assert context["span_count"] == 2
+    assert context["native_target"] == {
+        "tab": "commercial", "subview": "company",
+        "record_type": "company_event", "record_id": event["id"],
+    }
+
+    brief = c.get(f"/api/accounts/{account['id']}/pre-call-brief").json()
+    assert brief["public_context"][0]["id"] == event["id"]
+    assert "## Public context" in brief["markdown"] and "fixture://brief-context" in brief["markdown"]
+    activity = c.get(f"/api/accounts/{account['id']}/activity",
+                     params={"source_type": "company_event"}).json()["items"][0]
+    assert activity["event_kind"] == "company_strategic_initiative"
+    assert activity["native_target"]["subview"] == "company"
+
+    with c.app.state.conn:
+        c.app.state.conn.execute(
+            "UPDATE company_events SET expires_on=date('now','-1 day') WHERE id=?", (event["id"],)
+        )
+    assert c.get(f"/api/accounts/{account['id']}/command-center/prepare",
+                 params={"meeting_id": meeting["id"]}).json()["public_context"] == []
+    assert c.get(f"/api/accounts/{account['id']}/pre-call-brief").json()["public_context"] == []
+    queued = c.post("/api/copilot/runs", json={
+        "scope_type": "account", "account_id": account["id"],
+        "query_text": "Give me the grounded company brief", "intent": "company_brief",
+    }).json()
+    c.post("/api/jobs/run")
+    run = c.get(f"/api/copilot/runs/{queued['id']}").json()
+    assert run["status"] == "abstained"
+    assert "strategic priority" not in (run.get("answer_markdown") or "")
 
 
 def test_same_origin_does_not_converge_and_retraction_invalidates(client):

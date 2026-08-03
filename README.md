@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (353 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (364 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -74,7 +74,7 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 
 **UX foundation Release 1 — implemented:** canonical `/today`, `/accounts`, account-tab/program, `/library`, and `/operations` routes now survive refresh and support Back/Forward; production deep links fall back to the SPA without masking missing assets or unknown APIs. Today and the Accounts Book have built-in and named browser-local saved views, search/filter controls, and modified-state feedback. The Accounts Book now exposes delivery and commercial status directly. Authority: `UX-FOUNDATION-SPEC.md`; decision: D-116.
 
-**Account command center Release 2 — implemented:** account Overview now switches among complete Operate, Prepare, and Leadership lenses over ten rebuildable activity adapters and append-only scoped review checkpoints. Ledger retains its mutable Records workflow and adds a read-only Activity chronology with server-scoped filters, stable pagination, effective-versus-recorded time, provenance, partial-coverage evidence, and expandable interaction-derived groups. Per-adapter item/latency measurements show no current need for a materialized event table; the established eight-tab taxonomy remains because no usage evidence yet justifies the directional five-job rewrite. Authority: `ACCOUNT-COMMAND-CENTER-SPEC.md`; decisions: D-117–D-122.
+**Account command center Release 2 — implemented:** account Overview now switches among complete Operate, Prepare, and Leadership lenses over ten rebuildable activity adapters and append-only scoped review checkpoints. Ledger retains its mutable Records workflow and adds a read-only Activity chronology with server-scoped filters, stable pagination, effective-versus-recorded time, provenance, partial-coverage evidence, and expandable interaction-derived groups. Prepare and its deterministic pre-call brief share bounded, confirmed outside-in public context. Company Activity, Search, and Copilot sources route to one addressable exact-event Company view with expandable evidence. Per-adapter item/latency measurements show no current need for a materialized event table; the established eight-tab taxonomy remains because no usage evidence yet justifies the directional five-job rewrite. Authority: `ACCOUNT-COMMAND-CENTER-SPEC.md`; decisions: D-117–D-123.
 
 | Phase | Delivered |
 |---|---|

@@ -12,7 +12,7 @@ function Status({ value }) {
   return <span className="badge">{glyph} {String(value).replaceAll("_", " ")}</span>;
 }
 
-export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
+export default function CompanyIntel({ accountId, reloadKey, openCopilot, focusedEventId }) {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -25,6 +25,15 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
     catch (e) { toast(e.message, "err"); }
   }, [accountId, toast]);
   useEffect(() => { load(); }, [load, reloadKey, tick]);
+  useEffect(() => {
+    if (!data || !focusedEventId) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`company-event-${focusedEventId}`);
+      target?.scrollIntoView({ block: "center", behavior: "smooth" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [data, focusedEventId]);
   const refresh = () => setTick((n) => n + 1);
 
   async function act(fn, success) {
@@ -67,7 +76,8 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
     <div className="card">
       <div className="card-h"><h3>Cited event feed</h3><div className="spacer" /><span className="rowmeta">{confirmed.length} confirmed · {proposed.length} awaiting review</span></div>
       {!data.events.length ? <Empty title="No public artifacts yet">Sync the mock boundary to load cited proposals.</Empty> :
-        <div>{data.events.map((event) => <Event key={event.id} event={event} busy={busy} targets={data.map_targets}
+        <div>{data.events.map((event) => <Event key={event.id} event={event} busy={busy}
+          focused={event.id === focusedEventId} targets={data.map_targets}
           onConfirm={() => act(async () => {
             await api.confirmCompanyEvent(event.id, { actor: "operator" });
             const accountLink = event.links?.find((l) => l.account_target_id && l.status === "proposed");
@@ -118,8 +128,11 @@ function KeywordManager({ accountId, keywords, useCases, onChanged }) {
   </div>;
 }
 
-function Event({ event, busy, onConfirm, onDismiss, targets, onChanged }) {
-  const evidence = event.evidence?.[0];
+function Event({ event, busy, onConfirm, onDismiss, targets, onChanged, focused }) {
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const evidence = event.evidence || [];
+  const sourceCount = new Set(evidence.map((source) => source.document_id)).size;
+  const visibleEvidence = evidenceOpen ? evidence : evidence.slice(0, 1);
   const toast = useToast();
   const [target, setTarget] = useState("");
   async function addLink() {
@@ -137,17 +150,34 @@ function Event({ event, busy, onConfirm, onDismiss, targets, onChanged }) {
       toast(`Link ${action}ed`); onChanged();
     } catch (e) { toast(e.message, "err"); }
   }
-  return <article style={{ padding: 16, borderTop: "1px solid var(--line-hairline)" }}>
+  return <article id={`company-event-${event.id}`} tabIndex={-1}
+    className={focused ? "company-event-focused" : ""}
+    style={{ padding: 16, borderTop: "1px solid var(--line-hairline)" }}>
     <div className="actions"><Status value={event.status} /><span className="badge">{event.direction === "contraction" ? "▼" : event.direction === "expansion" ? "▲" : "—"} {event.kind_label}</span><div className="spacer" />{event.occurred_on
       ? <span className="rowmeta">{event.occurred_on} <AgeChip date={event.occurred_on} /></span>
       : <span className="unknown-chip"><span className="unknown-hatch" aria-hidden="true" />date unknown</span>}</div>
     <div style={{ marginTop: 9 }}>{event.summary}</div>
-    {evidence && <blockquote style={{ margin: "12px 0 0", padding: "8px 12px", borderLeft: "3px solid var(--line-strong)", background: "var(--bg-sunken)" }}>
-      <div>“{evidence.excerpt}”</div>
-      <div className="rowmeta" style={{ marginTop: 5 }}>{evidence.publisher} · {evidence.published_on
-        ? <>{evidence.published_on} <AgeChip date={evidence.published_on} /></>
-        : "publication date unknown"} · {evidence.locator}</div>
-    </blockquote>}
+    {!!evidence.length && <div className="company-evidence-list">
+      <div className="actions company-evidence-summary"><span className="rowmeta">
+        {evidence.length} exact span{evidence.length === 1 ? "" : "s"} from {sourceCount} source{sourceCount === 1 ? "" : "s"}</span>
+        {evidence.length > 1 && <button className="btn small ghost" aria-expanded={evidenceOpen}
+          onClick={() => setEvidenceOpen((value) => !value)}>
+          {evidenceOpen ? "Show primary source" : `Show all ${evidence.length}`}
+        </button>}
+      </div>
+      {visibleEvidence.map((source) => <blockquote key={source.span_id}>
+        <div>“{source.excerpt}”</div>
+        <div className="actions rowmeta company-evidence-meta">
+          <a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.locator}</a>
+          <span>{source.published_on ? <>{source.published_on} <AgeChip date={source.published_on} /></> : "publication date unknown"}</span>
+          {event.status !== "invalidated" && <button className="btn small ghost" disabled={busy}
+            onClick={async () => {
+              try { await api.retractIntelDocument(source.document_id, { actor: "operator", reason: "Retracted during source review" }); toast("Source retracted and derivatives reevaluated"); onChanged(); }
+              catch (e) { toast(e.message, "err"); }
+            }}>Retract this source</button>}
+        </div>
+      </blockquote>)}
+    </div>}
     {event.status === "proposed" && <div className="actions" style={{ marginTop: 10 }}>
       <button className="btn small" disabled={busy} onClick={onConfirm}>Confirm event</button>
       <button className="btn small ghost" disabled={busy} onClick={onDismiss}>Dismiss</button>
@@ -168,12 +198,6 @@ function Event({ event, busy, onConfirm, onDismiss, targets, onChanged }) {
         <button className="btn small ghost" onClick={addLink} disabled={!target}>Propose link</button>
         <button className="btn small ghost" onClick={async () => { try { await api.suggestCompanyEventLinks(event.id); toast("Suggestions refreshed"); onChanged(); } catch (e) { toast(e.message, "err"); } }}>Suggest links</button>
       </div>
-    </div>}
-    {evidence && event.status !== "invalidated" && <div className="actions" style={{ marginTop: 8 }}>
-      <button className="btn small ghost" disabled={busy} onClick={async () => {
-        try { await api.retractIntelDocument(evidence.document_id, { actor: "operator", reason: "Retracted during source review" }); toast("Source retracted and derivatives reevaluated"); onChanged(); }
-        catch (e) { toast(e.message, "err"); }
-      }}>Retract source</button>
     </div>}
   </article>;
 }

@@ -26,7 +26,8 @@ const BUDGET_STATES = ["conceptually_supported", "in_planning", "formally_alloca
 const OUTCOMES = ["won", "lost", "deferred", "merged", "no_decision"];
 const money = (v) => (v == null ? "—" : "$" + Number(v).toLocaleString());
 
-export default function Commercial({ accounts, accountId, setAccountId, reloadKey, openCopilot }) {
+export default function Commercial({ accounts, accountId, setAccountId, reloadKey, openCopilot,
+  section, focusedRecordId, onSectionChange }) {
   const toast = useToast();
   const [expansions, setExpansions] = useState(null);
   const [contracts, setContracts] = useState(null);
@@ -34,7 +35,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
   const [programs, setPrograms] = useState([]);
   const [panel, setPanel] = useState(null); // {kind:'expansion'|'contract'|'close'|'overlay', ...}
   const [tick, setTick] = useState(0);
-  const [sub, setSub] = useState("whitespace");
+  const sub = section || "whitespace";
 
   async function load() {
     if (!accountId || sub !== "pipeline") return;
@@ -66,14 +67,15 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <SegTabs tabs={SUBTABS} value={sub} onChange={setSub} />
+        <SegTabs tabs={SUBTABS} value={sub} onChange={(value) => onSectionChange?.(value)} />
       </div>
 
       {sub === "whitespace" && <Whitespace accountId={accountId} reloadKey={reloadKey} />}
       {sub === "ledger" && <ValueLedger accountId={accountId} reloadKey={reloadKey} />}
       {sub === "funding" && <Funding accountId={accountId} reloadKey={reloadKey} />}
       {sub === "signals" && <Signals accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "company" && <CompanyIntel accountId={accountId} reloadKey={reloadKey} openCopilot={openCopilot} />}
+      {sub === "company" && <CompanyIntel accountId={accountId} reloadKey={reloadKey}
+        openCopilot={openCopilot} focusedEventId={focusedRecordId} />}
       {sub === "growth" && <Growth accountId={accountId} reloadKey={reloadKey} />}
 
       {sub === "pipeline" && <>

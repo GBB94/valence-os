@@ -138,6 +138,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
               <select aria-label="Answer intent" value={intent} onChange={(event) => setIntent(event.target.value)}>
                 <option value="fact">Answer</option><option value="synthesis">Synthesize</option>
                 <option value="changes">What changed</option><option value="weekly">Plan this week</option>
+                <option value="company_brief">Company brief</option>
               </select>
               <div className="spacer" />
               <Btn variant="primary" disabled={working || !question.trim()}>{working ? "Assembling…" : "Ask"}</Btn>
@@ -190,7 +191,9 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
                   {selectedSource.archived_after_answer ? " · native record is now archived" : ""}</div></div>
                 <button className="btn small ghost" onClick={() => setSelectedSource(null)}>Close source</button></div>
               <dl className="copilot-source-fields">{Object.entries(selectedSource.fields || {}).map(([key, value]) =>
-                <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{value == null ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>
+                <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{key === "source_url" && value
+                  ? <a href={String(value)} target="_blank" rel="noreferrer">Open exact source</a>
+                  : value == null ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>
               <div className="actions" style={{ padding: "0 12px 12px" }}>
                 <Btn onClick={() => onNavigateSource?.({ ...selectedSource,
                   record_type: selectedSource.fields?.native_record_type || selectedSource.record_type,

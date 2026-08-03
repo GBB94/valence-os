@@ -201,7 +201,18 @@ function Shell() {
     ...n,
     tab,
     ...(tab === "overview" ? {} : { lens: undefined, meetingId: undefined }),
+    ...(tab === "commercial" ? {} : { section: undefined, recordId: undefined }),
   })), [go]);
+  const openWorkspaceTarget = useCallback((target) => go((n) => ({
+    ...n,
+    tab: target?.tab || "overview",
+    section: target?.subview,
+    recordId: target?.record_id,
+    ...(target?.tab === "overview" ? {} : { lens: undefined, meetingId: undefined }),
+  })), [go]);
+  const setCommercialSection = useCallback((section, { replace = false } = {}) => go((n) => ({
+    ...n, tab: "commercial", section: section || undefined, recordId: undefined,
+  }), { replace }), [go]);
   const setCommandCenterLens = useCallback((lens, { replace = false } = {}) => {
     go((n) => ({
       ...n,
@@ -265,10 +276,16 @@ function Shell() {
       signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
       adoption_campaign: "plan", campaign_change: "plan", comms_sequence: "plan",
       generated_document: "outputs",
+      company_event: "commercial", intel_document_span: "commercial",
       commitment_change: "ledger", decision_change: "ledger", risk_change: "ledger",
       issue_change: "ledger", task_change: "ledger", milestone_change: "ledger",
       program: "overview", account: "overview",
     };
+    if (r.object_type === "company_event" || r.object_type === "intel_document_span") {
+      go({ dest: "account", accountId: acct, tab: "commercial", section: "company",
+        recordId: r.object_type === "company_event" ? r.object_id : undefined });
+      return;
+    }
     openAccount(acct, tabByType[r.object_type] || "overview");
   }
 
@@ -345,10 +362,14 @@ function Shell() {
             programId={nav.programId}
             lens={nav.lens}
             meetingId={nav.meetingId}
+            commercialSection={nav.section}
+            focusedRecordId={nav.recordId}
             reloadKey={reloadKey}
             setTab={setTab}
             setCommandCenterLens={setCommandCenterLens}
             setCommandCenterMeeting={setCommandCenterMeeting}
+            setCommercialSection={setCommercialSection}
+            openWorkspaceTarget={openWorkspaceTarget}
             setProgramFilter={setProgramFilter}
             openAccount={openAccount}
             onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
@@ -481,7 +502,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, commercialSection, focusedRecordId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -525,14 +546,14 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
         {tab === "overview" && (
           <AccountCommandCenter accountId={accountId} programId={programId} lens={lens} meetingId={meetingId}
             reloadKey={reloadKey} onLensChange={setCommandCenterLens} onMeetingChange={setCommandCenterMeeting}
-            onOpenTarget={(target) => setTab(target?.tab || "overview")}
+            onOpenTarget={openWorkspaceTarget}
             onQuickEntry={(aid) => onQuickEntry(aid, programId)} onSaved={onSaved}
             onOpenCopilot={openCopilot} />
         )}
         {tab === "ledger" && (
           <div className="stack">
             <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved}
-              onOpenTarget={(target) => setTab(target?.tab || "ledger")} />
+              onOpenTarget={openWorkspaceTarget} />
             <Collapsible title="Communications (email + recordings)">
               <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
             </Collapsible>
@@ -556,7 +577,9 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
           </div>
         )}
         {tab === "commercial" && (
-          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} openCopilot={openCopilot} />
+          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct}
+            reloadKey={reloadKey} openCopilot={openCopilot} section={commercialSection}
+            focusedRecordId={focusedRecordId} onSectionChange={setCommercialSection} />
         )}
         {tab === "evidence" && (
           <div className="stack">

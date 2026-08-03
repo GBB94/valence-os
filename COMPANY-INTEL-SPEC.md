@@ -114,7 +114,7 @@ The existing copilot gains intent `company_brief` with fixed sections:
 5. **On the map** — confirmed account/row/column/cell/person links.
 6. **Watch** — expiring confirmed events and active convergence composition.
 
-Only confirmed events and live evidence spans enter the packet. Proposed-review counts are rendered separately in the Company UI/Today and never in generated prose. Each non-heading factual bullet cites a packet snapshot that includes the span locator and excerpt. Unsupported claims fail validation; missing filings for a private company produce `insufficient`, not guessed prose; expired events may only be described as expired. No causal or buying-intent forecast is permitted.
+Only confirmed, non-expired events and live evidence spans enter the standard packet. Proposed-review counts are rendered separately in the Company UI/Today and never in generated prose. Each non-heading factual bullet cites a packet snapshot that includes the span locator and excerpt. Unsupported claims fail validation; missing filings for a private company produce `insufficient`, not guessed prose. Expired events remain inspectable as history but do not enter the active brief or its Watch section. No causal or buying-intent forecast is permitted.
 
 ## 9. Ingestion, observability, and governance
 
@@ -133,7 +133,7 @@ Both call `require_real_connection` and fail before network intent unless separa
 
 No new top-level destination.
 
-- **Accounts → Commercial → Company:** coverage, watch policy, proposed-review strip, cited event feed, hiring history, mapping controls, and “Run company brief.”
+- **Accounts → Commercial → Company:** an addressable subsection with optional exact-event focus, coverage, watch policy, proposed-review strip, expandable multi-span cited event feed, hiring history, mapping controls, and “Run company brief.” Search, Activity, Prepare, and Copilot source actions use the same route.
 - **Whitespace:** toggleable header overlay, off by default.
 - **Signals/Today:** standard episode UI for convergence; at most one convergence item per account-target and one review-debt item per account.
 - **Operations:** sync/freshness/evaluation measures and connection state.
@@ -198,6 +198,8 @@ Required tests:
 - one/stale/closed/duplicated/spread hiring postings do not cluster; five active unique postings in one function × region do, as proposed;
 - contraction holds vendor-push candidates and never becomes an expansion positive;
 - private-company missing filing coverage is insufficient; non-entailing and injection-bearing excerpts cannot change or pass the brief;
+- expired events are excluded from company-brief packets and bounded Prepare/pre-call public context;
+- source counts count distinct documents rather than spans, all live spans remain expandable, and native source actions retain stable event IDs;
 - immutable artifact/version and event-expiry rules are trigger-enforced;
 - non-mock connection modes fail closed before network intent;
 - no Stage 14 schema stores individual product usage, personal sentiment, or a numeric opportunity/intent score.

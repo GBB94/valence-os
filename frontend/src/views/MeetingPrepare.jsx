@@ -44,6 +44,28 @@ function ActivityContext({ items, window, onOpenTarget }) {
   </div>;
 }
 
+function PublicContext({ items, onOpenTarget }) {
+  if (!items?.length) return <Empty title="No active public context linked">
+    Confirmed company events appear here only when they are linked to this account or a resolved attendee.
+  </Empty>;
+  return <div className="command-rows">
+    {items.map((item) => <article className="command-row" key={item.id}>
+      <div className="command-row-time"><AgeChip date={item.occurred_on} /></div>
+      <div className="command-row-body">
+        <div className="actions command-row-title"><strong>{item.title}</strong>
+          <Badge>{words(item.direction)}</Badge><Badge>{item.source_count} source{item.source_count === 1 ? "" : "s"}</Badge></div>
+        <div className="subtle">{item.summary}</div>
+        <div className="rowmeta">{item.relevance}</div>
+        <div className="prepare-public-sources">{item.evidence.map((source) => <a key={source.span_id}
+          href={source.url} target="_blank" rel="noreferrer">
+          {source.publisher} · {source.locator}
+        </a>)}</div>
+      </div>
+      <button className="btn small ghost" onClick={() => onOpenTarget(item.native_target)}>Inspect</button>
+    </article>)}
+  </div>;
+}
+
 function ThreadRows({ items, onOpenTarget }) {
   const [expanded, setExpanded] = useState(false);
   if (!items?.length) return <Empty title="No open threads">No attendee-related or scoped blockers, commitments, asks, or follow-ups are open.</Empty>;
@@ -125,6 +147,13 @@ function BriefPreview({ brief, onClose }) {
     </section>
     <section className="prepare-preview-section"><h2>Live risks</h2>
       {brief.live_risks?.length ? <ul>{brief.live_risks.map((item, index) => <li key={index}>{item.description} · {item.severity}{item.is_blocker ? " · blocker" : ""}</li>)}</ul> : <div className="rowmeta">None recorded.</div>}
+    </section>
+    <section className="prepare-preview-section"><h2>Public context</h2>
+      {brief.public_context?.length ? brief.public_context.map((item) => <article key={item.id} className="prepare-preview-public">
+        <strong>{item.summary}</strong><div className="rowmeta">{item.relevance} · {fmtDate(item.occurred_on)}</div>
+        <div className="prepare-public-sources">{item.evidence.map((source) => <a key={source.span_id}
+          href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.locator}</a>)}</div>
+      </article>) : <div className="rowmeta">No confirmed, active account- or attendee-linked public context.</div>}
     </section>
     <section className="prepare-preview-section"><h2>Open gates and follow-up</h2>
       {brief.gate_items_due?.map((item, index) => <div key={index}>{item.description} · <span className="rowmeta">{item.gate}</span></div>)}
@@ -237,6 +266,9 @@ export default function MeetingPrepare({
             <div className="rowmeta">{data.context_window?.starts_on ? `Since ${fmtDate(data.context_window.starts_on)} · ` : ""}{data.context_window?.basis}</div></div></div>
             {!!data.context_window?.omitted?.length && <div className="callout warn prepare-inline-callout">Partial coverage: {data.context_window.omitted.map(words).join(", ")}</div>}
             <ActivityContext items={data.recent_context} window={data.context_window} onOpenTarget={onOpenTarget} /></Card>
+          <Card><div className="card-h"><div><h3>Public context for this conversation</h3>
+            <div className="rowmeta">Confirmed, non-expired evidence linked to the account or a resolved attendee</div></div></div>
+            <PublicContext items={data.public_context} onOpenTarget={onOpenTarget} /></Card>
           <Card><div className="card-h"><div><h3>Open threads</h3><div className="rowmeta">Attendee-linked first, followed by blockers and active account follow-through</div></div></div>
             <ThreadRows items={data.open_threads} onOpenTarget={onOpenTarget} /></Card>
         </div>
