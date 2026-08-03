@@ -8,7 +8,7 @@ _Written 2026-07-29 for a fresh session with no conversation history and kept cu
 
 Today and the Accounts Book now share one saved-view contract with built-in presets, named browser-local custom views, modified-state feedback, safe corrupt-preference fallback, and an accessible save slide-over. Today adds account and text filtering; Accounts adds text/status filtering, status-aware sorting, and visible delivery/commercial assessments in the Book. Browser-local persistence is deliberate for the current single-editor product and stores presentation state only.
 
-Validation: 353 backend tests and 8 frontend unit tests pass; frontend lint exits zero with the repository's pre-existing warnings; production build succeeds; direct FastAPI smoke requests return the SPA for all canonical routes and JSON 404 for an unknown API. No fresh both-theme rendered pass is claimed because the in-app browser exposed no target in this session. Release 2 (command center and unified activity) and Release 3 (outcomes, hierarchy, and Growth Thesis) remain specified, not implemented.
+Validation: 353 backend tests and 8 frontend unit tests pass; frontend lint exits zero with the repository's pre-existing warnings; production build succeeds; direct FastAPI smoke requests return the SPA for all canonical routes and JSON 404 for an unknown API. No fresh both-theme rendered pass is claimed because the in-app browser exposed no target in this session. Release 2 is now detailed in `ACCOUNT-COMMAND-CENTER-SPEC.md` (D-117) but remains unimplemented; Release 3 (outcomes, hierarchy, and Growth Thesis) remains directional.
 
 ## Stage 14 — company intelligence implemented (2026-08-02, D-110/D-111)
 

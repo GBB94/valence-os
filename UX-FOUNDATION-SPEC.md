@@ -1,6 +1,6 @@
 # Valence OS UX foundation specification
 
-**Status:** Release 1 implemented; Releases 2–3 specified, 2026-08-03  
+**Status:** Release 1 implemented; Release 2 detailed in `ACCOUNT-COMMAND-CENTER-SPEC.md`; Release 3 directional, 2026-08-03
 **Authority:** Additive to `DESIGN-GUIDE.md`; trust and data boundaries in `CLAUDE.md` remain unchanged.  
 **Scope:** Navigation, reusable portfolio views, account orientation, and the migration path toward a decision-oriented workspace.
 
@@ -107,10 +107,11 @@ Release 1 defines the reusable contract even if only the first account preview l
 
 ### Release 2 — account command center and unified activity
 
-- Replace the current Overview body with a compact command center.
+- Replace the current Overview body with one command center that can switch among Operate, Prepare, and Leadership lenses. Operate is the default; all lenses use the same source contracts rather than becoming separate dashboards.
 - Add “since last visit” and “since last review” change summaries.
 - Normalize existing interactions, ledger records, communications, company events, assessment changes, internal reviews, and planned events into one read model before deciding whether a new persisted event table is necessary.
 - Add purpose-specific Copilot entry points for meeting preparation, renewal review, handoff, and change review.
+- `ACCOUNT-COMMAND-CENTER-SPEC.md` contains the detailed proposed implementation contract for this release, including temporal semantics, source coverage, checkpoints, URL state, accessibility, and delivery slices.
 
 ### Release 3 — outcomes and growth synthesis
 
@@ -152,7 +153,7 @@ These do not block Release 1:
 
 - Final five-tab labels and the migration of Evidence, Outputs, and Internal.
 - Whether team saved views are shared by default or explicitly published.
-- Whether unified activity is a query-time read model or a persisted canonical event stream.
+- Whether a measured scale problem eventually requires a rebuildable materialized index for the query-time unified activity projection.
 - Objective visibility and the customer-sharing permission model.
 - Corporate hierarchy semantics for legal entity, buying entity, business unit, and program.
 
