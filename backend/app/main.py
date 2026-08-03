@@ -62,13 +62,26 @@ class SPAStaticFiles(StaticFiles):
     """
 
     async def get_response(self, path, scope):
+        is_navigation = not path.startswith("api/") and not Path(path).suffix
+        request_scope = scope
+        if is_navigation:
+            # A production rebuild replaces the hashed JS filename in index.html and removes the
+            # previous asset. Never let a conditional navigation request reuse an HTML shell that
+            # still points at that deleted bundle.
+            request_scope = dict(scope)
+            request_scope["headers"] = [
+                (key, value) for key, value in scope.get("headers", [])
+                if key.lower() not in {b"if-none-match", b"if-modified-since"}
+            ]
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, request_scope)
         except StarletteHTTPException as exc:
-            is_navigation = not path.startswith("api/") and not Path(path).suffix
             if exc.status_code != 404 or not is_navigation:
                 raise
-            return await super().get_response("index.html", scope)
+            response = await super().get_response("index.html", request_scope)
+        if is_navigation and response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["cache-control"] = "no-store"
+        return response
 
 
 @app.exception_handler(sqlite3.IntegrityError)

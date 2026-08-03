@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
 import { SavedViewBar } from "../SavedViewControls";
 import { useSavedViews } from "../useSavedViews";
+import { accountFilterOptions } from "../queueView";
 
 const TODAY_VIEWS = [
   { id: "all", label: "All attention", state: { band: "all", accountId: "", query: "" } },
@@ -50,8 +51,9 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
       .filter(Boolean).some((value) => value.toLowerCase().includes(query));
   });
   const bands = BANDS.map((b) => ({ ...b, items: visibleItems.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
-  const accountOptions = [...new Map(q.items.map((item) => [item.account_id, item.account_name])).entries()]
-    .sort((a, b) => a[1].localeCompare(b[1]));
+  // Portfolio-level attention (for example, a stale global metric definition) deliberately has
+  // no account. It belongs in the queue, but not in an account filter whose labels must be sortable.
+  const accountOptions = accountFilterOptions(q.items);
 
   return (
     <div>
@@ -136,7 +138,9 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
         </div>
       </td>
       <td>
-        <button className="linklike" onClick={() => onOpenAccount(it.account_id)}>{it.account_name}</button>
+        {it.account_id && it.account_name
+          ? <button className="linklike" onClick={() => onOpenAccount(it.account_id)}>{it.account_name}</button>
+          : <span className="rowmeta">Portfolio</span>}
         {it.program_name ? <div className="rowmeta">{it.program_name}</div> : null}
       </td>
       <td><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>
