@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import tempfile
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -222,6 +223,34 @@ def test_change_cursor_advances_only_on_explicit_mark_reviewed(client):
     assert client.get(f"/api/copilot/runs/{run['id']}").json()["reviewed_at"] is None
     marked = client.post(f"/api/copilot/runs/{run['id']}/mark-reviewed")
     assert marked.status_code == 200 and marked.json()["review_cursor"] == run["generated_at"]
+    checkpoint = client.app.state.conn.execute(
+        "SELECT * FROM account_change_checkpoints WHERE source_type='copilot_run' AND source_id=?",
+        (run["id"],),
+    ).fetchone()
+    assert checkpoint and checkpoint["reviewed_through"] == run["generated_at"]
+
+
+def test_reviewing_an_older_change_brief_does_not_rewind_shared_checkpoint(client, monkeypatch):
+    s = _setup(client)
+    run = _run(client, {"scope_type": "account", "account_id": s["a"]["id"],
+        "query_text": "What changed since last week?", "intent": "changes",
+        "time_window_start": utc_day(-7)})
+    from app import account_activity
+    newer = (datetime.fromisoformat(run["generated_at"]) + timedelta(seconds=1)).isoformat()
+    monkeypatch.setattr(account_activity, "now_utc", lambda: newer)
+    checkpoint = client.post(f"/api/accounts/{s['a']['id']}/change-checkpoints", json={
+        "scope_type": "account", "reviewed_through": newer,
+    })
+    assert checkpoint.status_code == 201, checkpoint.text
+
+    marked = client.post(f"/api/copilot/runs/{run['id']}/mark-reviewed")
+    assert marked.status_code == 200 and marked.json()["reviewed_at"]
+    latest = client.app.state.conn.execute(
+        "SELECT reviewed_through FROM account_change_checkpoints WHERE account_id=? "
+        "ORDER BY julianday(reviewed_through) DESC LIMIT 1",
+        (s["a"]["id"],),
+    ).fetchone()
+    assert latest["reviewed_through"] == newer
 
 
 def test_feedback_is_append_only_and_never_changes_canonical_fact(client):

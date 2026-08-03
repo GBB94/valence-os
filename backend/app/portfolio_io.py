@@ -36,6 +36,7 @@ _INSERT_ORDER = [
     # 0034 — read-only copilot runs and immutable claim support
     "copilot_runs", "copilot_run_sources", "copilot_claims", "copilot_claim_sources",
     "copilot_feedback", "copilot_feedback_reviews",
+    "account_change_checkpoints",
     "stakeholder_roles", "interactions", "interaction_participants", "capture_inbox_items",
     "account_reviews", "account_review_participants", "operator_views",
     "tasks", "commitments", "decisions", "risks", "issues", "milestones",
@@ -248,6 +249,8 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     for tbl in ("account_reviews", "operator_views", "account_status_assessments",
                 "account_internal_roster", "renewal_outcome_events"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+    t["account_change_checkpoints"] = _all(
+        conn, "SELECT * FROM account_change_checkpoints WHERE account_id=?", (account_id,))
     review_ids = [r["id"] for r in t["account_reviews"]]
     rq = ",".join("?" * len(review_ids)) or "''"
     t["account_review_participants"] = _all(conn, f"SELECT * FROM account_review_participants WHERE review_id IN ({rq})", review_ids) if review_ids else []

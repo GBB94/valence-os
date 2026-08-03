@@ -69,6 +69,11 @@ input, select, textarea { background: var(--bg-surface); color: var(--ink-primar
 .ctx-name { font-size: var(--t-h1); font-weight: 600; letter-spacing: -.02em; line-height: 1; }
 .ctx-prog { height: 28px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 0 8px; font-size: var(--t-small); background: var(--bg-surface); color: var(--ink-primary); }
 .ctx-stat { display: flex; flex-direction: column; gap: 2px; }
+.ctx-stat-button {
+  border: 0; border-radius: var(--r-sm); background: none; color: inherit;
+  text-align: left; padding: var(--sp-2); margin: calc(var(--sp-2) * -1); cursor: pointer;
+}
+.ctx-stat-button:hover { background: var(--bg-hover); }
 .ctx-k { font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-tertiary); }
 .ctx-v { font-size: var(--t-body); text-transform: capitalize; }
 .tabstrip {
@@ -344,3 +349,63 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .kv { display: grid; grid-template-columns: 130px 1fr; gap: 4px 10px; margin: 0; }
 .kv dt { color: var(--ink-tertiary); font-size: var(--t-small); }
 .kv dd { margin: 0; font-size: var(--t-body); }
+
+/* Account command center — one shared shell, three task-focused lenses. */
+.command-center { max-width: 1440px; margin: 0 auto; }
+.command-center-head {
+  display: flex; align-items: flex-start; gap: var(--sp-5); margin-bottom: var(--sp-5);
+}
+.command-head-actions { flex-wrap: wrap; justify-content: flex-end; }
+.command-panel { padding-top: var(--sp-5); }
+.command-coverage { margin-top: var(--sp-5); }
+.command-grid {
+  display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, .8fr);
+  gap: var(--sp-5); align-items: start;
+}
+.leadership-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-5); align-items: start;
+}
+.command-section { overflow: hidden; }
+.command-section .card-h { align-items: flex-start; }
+.command-section-meta { margin-top: var(--sp-2); }
+.command-rows { display: flex; flex-direction: column; }
+.command-row {
+  display: flex; align-items: flex-start; gap: var(--sp-4); padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--line-hairline);
+}
+.command-row:last-child { border-bottom: 0; }
+.command-row:hover { background: var(--bg-hover); }
+.command-row > .state-mark { margin-top: var(--sp-3); }
+.command-row-body { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.command-row-title { flex-wrap: wrap; gap: var(--sp-3); }
+.command-row-time { flex: none; min-width: 54px; text-align: right; }
+.command-date {
+  flex: none; width: 108px; font-family: var(--font-mono); font-size: var(--t-micro);
+  color: var(--ink-secondary); font-variant-numeric: tabular-nums;
+}
+.command-pov { padding: var(--sp-5); }
+.command-pov p { margin: 0 0 var(--sp-4); line-height: 1.55; white-space: pre-wrap; }
+.command-pov .btn { margin-top: var(--sp-4); }
+.command-more {
+  border: 0; border-top: 1px solid var(--line-hairline); background: var(--bg-sunken);
+  color: var(--accent); padding: var(--sp-4) var(--sp-5); text-align: left; cursor: pointer;
+}
+.command-more:hover { background: var(--bg-hover); }
+.command-load-error { padding: var(--sp-5); }
+.command-load-error .empty { padding-top: var(--sp-4); }
+
+@media (max-width: 1000px) {
+  .command-grid, .leadership-grid { grid-template-columns: minmax(0, 1fr); }
+  .command-center-head { flex-wrap: wrap; }
+  .command-center-head .spacer { display: none; }
+  .command-head-actions { width: 100%; justify-content: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .content { padding: var(--sp-5); }
+  .command-row { flex-wrap: wrap; }
+  .command-row-time { min-width: auto; text-align: left; }
+  .command-date { width: auto; }
+  .command-row > .btn { margin-left: auto; }
+}

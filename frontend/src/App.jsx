@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
 import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
 import Accounts from "./views/Accounts";
-import AccountDetail from "./views/AccountDetail";
+import AccountCommandCenter from "./views/AccountCommandCenter";
 import ProgramDetail from "./views/ProgramDetail";
 import Ledger from "./views/Ledger";
 import QuickEntry from "./views/QuickEntry";
@@ -62,7 +62,7 @@ const INFO = {
   today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
   library: "Link-first, tagged, searchable source references and files, with the records that cite each. Points to originals, never copies.",
   operations: "System health for this single-editor tool: imports, data freshness, backups, search-index health, and the plays engine.",
-  overview: "Where this account stands right now: both statuses with rationale, the phase, and the top risks. Depth is one click away.",
+  overview: "The account command center: operate the day, prepare for the next customer moment, or frame the leadership view without losing account context.",
   ledger: "One chronological record of everything on this account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture.",
   people: "The stakeholder network — stance, influence, relationships, and who has not been touched. Every assessment carries a date and evidence.",
   plan: "What is scheduled and what is gating: timeline, deployment moments, phase gates, and compliance lanes.",
@@ -197,7 +197,19 @@ function Shell() {
   const openAccount = useCallback((id, tab = "overview") => {
     go({ dest: "account", accountId: id, tab, programId: undefined });
   }, [go]);
-  const setTab = useCallback((tab) => go((n) => ({ ...n, tab })), [go]);
+  const setTab = useCallback((tab) => go((n) => ({
+    ...n,
+    tab,
+    ...(tab === "overview" ? {} : { lens: undefined, meetingId: undefined }),
+  })), [go]);
+  const setCommandCenterLens = useCallback((lens, { replace = false } = {}) => {
+    go((n) => ({
+      ...n,
+      tab: "overview",
+      lens,
+      meetingId: lens === "prepare" ? n.meetingId : undefined,
+    }), { replace });
+  }, [go]);
   const setProgramFilter = useCallback((programId, options) => {
     go((n) => ({ ...n, programId: programId || undefined }), options);
   }, [go]);
@@ -323,8 +335,11 @@ function Shell() {
             accountId={nav.accountId}
             tab={nav.tab}
             programId={nav.programId}
+            lens={nav.lens}
+            meetingId={nav.meetingId}
             reloadKey={reloadKey}
             setTab={setTab}
+            setCommandCenterLens={setCommandCenterLens}
             setProgramFilter={setProgramFilter}
             openAccount={openAccount}
             onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
@@ -457,7 +472,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, reloadKey, setTab, setCommandCenterLens, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -487,7 +502,8 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
 
   return (
     <>
-      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram} setProgramFilter={setProgramFilter} renewal={renewal} />
+      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram}
+        setProgramFilter={setProgramFilter} renewal={renewal} onOpenStatus={() => setTab("internal")} />
       <div className="tabstrip" role="tablist">
         {WORKSPACE_TABS.map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key}
@@ -498,8 +514,11 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
       </div>
       <div className="content">
         {tab === "overview" && (
-          <AccountDetail accountId={accountId} reloadKey={reloadKey}
-            onOpenProgram={() => setTab("plan")} onQuickEntry={(aid) => onQuickEntry(aid, programId)} />
+          <AccountCommandCenter accountId={accountId} programId={programId} lens={lens} meetingId={meetingId}
+            reloadKey={reloadKey} onLensChange={setCommandCenterLens}
+            onOpenTarget={(target) => setTab(target?.tab || "overview")}
+            onQuickEntry={(aid) => onQuickEntry(aid, programId)} onSaved={onSaved}
+            onOpenCopilot={openCopilot} />
         )}
         {tab === "ledger" && (
           <div className="stack">
@@ -555,7 +574,7 @@ function renewalText(dateStr) {
   return { text: `in ${fmt(until)}`, warn: until <= 90 };
 }
 
-function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter, renewal }) {
+function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter, renewal, onOpenStatus }) {
   if (!detail) return <div className="ctx-header"><div className="ctx-name subtle">Loading…</div></div>;
   const phase = selProgram?.phase;
   const ren = renewalText(renewal);
@@ -566,8 +585,8 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
         <option value="">All programs</option>
         {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
-      <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} />
-      <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} />
+      <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} onOpen={onOpenStatus} />
+      <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} onOpen={onOpenStatus} />
       {ren && (
         <div className="ctx-stat">
           <span className="ctx-k">Renewal</span>
@@ -587,14 +606,14 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
 
 // Manually-assessed status (§7): keeps its color, but past the 30-day reassessment interval
 // it gains a dotted outline + the age chip, so a stale judgment can't pass as a fresh one.
-function StatusStat({ label, status, assessed }) {
+function StatusStat({ label, status, assessed, onOpen }) {
   const stale = ageDays(assessed) != null && ageDays(assessed) > 30;
   return (
-    <div className="ctx-stat">
+    <button className="ctx-stat ctx-stat-button" onClick={onOpen} title={`Review ${label.toLowerCase()} status`}>
       <span className="ctx-k">{label}</span>
       <span className={"ctx-v" + (stale ? " status-stale-outline" : "")}>{(status || "—").replace(/_/g, " ")}</span>
       <AgeChip date={assessed} />
-    </div>
+    </button>
   );
 }
 

@@ -1,6 +1,6 @@
 # Valence OS account command center and unified activity specification
 
-**Status:** Slice 2.0 implemented; Slices 2.1–2.4 specified, 2026-08-03
+**Status:** Slices 2.0–2.1 implemented; Slices 2.2–2.4 specified, 2026-08-03
 
 **Parent authority:** `UX-FOUNDATION-SPEC.md`
 

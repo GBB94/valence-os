@@ -5,11 +5,12 @@ import hashlib
 import json
 import sqlite3
 import time
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
 
-from . import (audit, copilot_context, copilot_evaluation, copilot_model,
+from . import (account_activity, audit, copilot_context, copilot_evaluation, copilot_model,
                copilot_validation, generators, jobs, repo)
 from .db import new_id, now_utc
 
@@ -548,6 +549,21 @@ def mark_reviewed(conn: sqlite3.Connection, run_id: str) -> dict:
         audit.record(conn, object_type="copilot_run", object_id=run_id, action="update",
                      before={"reviewed_at": run.get("reviewed_at")},
                      after={"reviewed_at": ts, "review_cursor": run["generated_at"]})
+        if run["scope_type"] == "account":
+            latest = account_activity.latest_change_checkpoint(conn, run["account_id"])
+            # Reviewing an older saved brief must not fail or move the shared cursor backward.
+            # The run is still marked reviewed; only a current brief advances the checkpoint.
+            if (
+                not latest
+                or datetime.fromisoformat(run["generated_at"].replace("Z", "+00:00"))
+                >= datetime.fromisoformat(latest["reviewed_through"].replace("Z", "+00:00"))
+            ):
+                account_activity.insert_change_checkpoint(conn, run["account_id"], {
+                    "scope_type": "account",
+                    "reviewed_through": run["generated_at"],
+                    "source_type": "copilot_run",
+                    "source_id": run_id,
+                })
     return detail(conn, run_id)
 
 

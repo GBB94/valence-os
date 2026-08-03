@@ -35,6 +35,28 @@ export const api = {
   patchSourceReference: (id, b) => req("PATCH", `/api/source-references/${id}`, b),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
+  commandCenter: (id, { programId = "", recordedAfter = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (recordedAfter) p.set("recorded_after", recordedAfter);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center${qs ? "?" + qs : ""}`);
+  },
+  accountActivity: (id, filters = {}) => {
+    const p = new URLSearchParams();
+    const keys = {
+      programId: "program_id", recordedAfter: "recorded_after", eventKind: "event_kind",
+      displayFrom: "display_from", displayTo: "display_to", nextCursor: "cursor",
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value == null || value === "" || value === false) return;
+      const name = keys[key] || key;
+      (Array.isArray(value) ? value : [value]).forEach((item) => p.append(name, item));
+    });
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/activity${qs ? "?" + qs : ""}`);
+  },
+  markAccountChangesReviewed: (id, b) => req("POST", `/api/accounts/${id}/change-checkpoints`, b),
   companyWorkspace: (id) => req("GET", `/api/accounts/${id}/company`),
   putCompanyWatch: (id, b) => req("PUT", `/api/accounts/${id}/company-watch`, b),
   syncCompanyIntel: () => req("POST", "/api/ingest/company-intel/sync"),

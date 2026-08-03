@@ -16,7 +16,7 @@ from . import (company_intel, copilot_service, ingestion, jobs, stage7,
                internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, campaigns, copilot, ai, attention, commercial, data, delivery, execution, expansion, inbox,
+    account_command_center, accounts, campaigns, copilot, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
@@ -97,6 +97,7 @@ app.add_middleware(
 )
 
 app.include_router(accounts.router)
+app.include_router(account_command_center.router)
 app.include_router(campaigns.router)
 app.include_router(copilot.router)
 app.include_router(programs.router)
