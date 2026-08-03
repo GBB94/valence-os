@@ -7,6 +7,7 @@ import ValueLedger from "./ValueLedger";
 import Funding from "./Funding";
 import Signals from "./Signals";
 import Growth from "./Growth";
+import CompanyIntel from "./CompanyIntel";
 
 // The whitespace map is the tab's signature surface (EXPANSION-ENGINE-SPEC.md §1), so it is
 // the default view: the first question on this tab is where the next seats live.
@@ -15,6 +16,7 @@ const SUBTABS = [
   ["ledger", "Value ledger"],
   ["funding", "Funding"],
   ["signals", "Signals"],
+  ["company", "Company"],
   ["growth", "Growth & renewal"],
   ["pipeline", "Pipeline & contracts"],
 ];
@@ -24,7 +26,7 @@ const BUDGET_STATES = ["conceptually_supported", "in_planning", "formally_alloca
 const OUTCOMES = ["won", "lost", "deferred", "merged", "no_decision"];
 const money = (v) => (v == null ? "—" : "$" + Number(v).toLocaleString());
 
-export default function Commercial({ accounts, accountId, setAccountId, reloadKey }) {
+export default function Commercial({ accounts, accountId, setAccountId, reloadKey, openCopilot }) {
   const toast = useToast();
   const [expansions, setExpansions] = useState(null);
   const [contracts, setContracts] = useState(null);
@@ -71,6 +73,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       {sub === "ledger" && <ValueLedger accountId={accountId} reloadKey={reloadKey} />}
       {sub === "funding" && <Funding accountId={accountId} reloadKey={reloadKey} />}
       {sub === "signals" && <Signals accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "company" && <CompanyIntel accountId={accountId} reloadKey={reloadKey} openCopilot={openCopilot} />}
       {sub === "growth" && <Growth accountId={accountId} reloadKey={reloadKey} />}
 
       {sub === "pipeline" && <>

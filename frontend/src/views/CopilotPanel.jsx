@@ -7,6 +7,7 @@ const STARTERS = [
   ["changes", "What changed since last week?"],
   ["weekly", "What needs my attention this week?"],
   ["synthesis", "What is blocking progress?"],
+  ["company_brief", "Give me the grounded company brief"],
 ];
 
 const STATE_LABEL = {

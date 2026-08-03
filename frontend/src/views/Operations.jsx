@@ -45,6 +45,20 @@ export default function Operations({ reloadKey }) {
         </div>
       </div>
 
+      <h2>Company intelligence</h2>
+      <div className="card" aria-label="Company intelligence operations">
+        <div className="grid2" style={{ padding: 12 }}>
+          <div><div className="rowmeta">Event review states</div><div className="chiprow">
+            {Object.entries(ops.company_intelligence?.event_states || {}).map(([key, value]) => <span className="badge" key={key}>{key} · {value}</span>)}
+          </div><div className="rowmeta" style={{ marginTop: 6 }}>Oldest proposal: {ops.company_intelligence?.proposed_oldest_age_days == null ? "none" : `${ops.company_intelligence.proposed_oldest_age_days}d`} · confirmation rate: {ops.company_intelligence?.confirmation_rate == null ? "insufficient data" : `${Math.round(ops.company_intelligence.confirmation_rate * 100)}%`} ({ops.company_intelligence?.reviewed_events} reviewed)</div></div>
+          <div><div className="rowmeta">Ingestion outcomes</div><div className="chiprow">
+            {Object.entries(ops.company_intelligence?.sync_totals || {}).map(([key, value]) => <span className="badge" key={key}>{key} · {value}</span>)}
+          </div><div className="rowmeta" style={{ marginTop: 6 }}>Active convergence: {ops.company_intelligence?.active_convergences || 0}</div></div>
+        </div>
+        {!!ops.company_intelligence?.source_freshness?.length && <table><thead><tr><th>Source class</th><th>Latest retrieval</th><th>Documents</th><th>Retracted</th></tr></thead>
+          <tbody>{ops.company_intelligence.source_freshness.map((row) => <tr key={row.source_class}><td>{row.source_class.replaceAll("_", " ")}</td><td>{fmtDate(row.latest_retrieval)}</td><td>{row.documents}</td><td>{row.retracted}</td></tr>)}</tbody></table>}
+      </div>
+
       <h2>Campaign learning</h2>
       <div className="card" aria-label="Portfolio campaign learning">
         {!learning ? <div className="rowmeta" style={{ padding: 12 }}>Loading campaign learning…</div> : <>

@@ -2,11 +2,19 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Stage 14 — company intelligence implemented (2026-08-02, D-110/D-111)
+
+`COMPANY-INTEL-SPEC.md` v2 is accepted and implemented as migrations 0036–0038. The architecture separates canonical companies from account records; stores provider-scoped immutable public artifact versions and exact evidence spans; keeps imported events and map links proposal-first; derives posting-level hiring clusters; persists independent convergence composition; bridges only convergence into Stage 7; and adds a fixed-section, claim-cited `company_brief` copilot intent. Corrections/retractions invalidate unsupported derivatives, and the public-source and extraction boundaries remain separate local-only registry entries.
+
+The account Commercial workspace now has a Company sub-tab for identity/watch setup, mock sync, proposal review, cited feed, hiring facts, convergence evaluation, and brief launch. The whitespace map has an off-by-default outside-in flag overlay that annotates row/column headers without altering cell state. Search, account export/restore, Today review debt/convergence, Operations counts, and connection governance are integrated.
+
+Validation: all 352 backend tests pass, including 17 Stage 14 adversarial cases (13 from the build, 4 from the post-build review, D-112); frontend lint exits zero (repository-pre-existing warnings remain), the production build succeeds, and the Company and Operations surfaces were exercised in a 1440×1000 rendered browser in dark and light themes with no horizontal overflow. The rendered flow confirmed both events, opened convergence with exact composition, exposed map/source controls and the full watch policy, and showed Operations freshness/review/sync measures. A rapid concurrent navigation pass also remained clean under the request-level SQLite serialization guard.
+
 ## What this is
 
 Valence OS is an internal, single-editor web app for one Valence Engagement Manager to run a few very deep Fortune-100 accounts end to end. `Valence-OS-Scoping-Doc.md` is the original foundation; the completed Phase 3 and Expansion Engine specs and the additive Stage 10 Internal Ops spec deliberately extend it. `CLAUDE.md` defines the current authority chain and binding trust boundaries.
 
-**Status: Phase 3 through Stage 13 is implemented.** `ADOPTION-CAMPAIGN-SPEC.md` governs completed Stage 11, `ACCOUNT-COPILOT-SPEC.md` governs completed mock-only Stage 12, and `ADOPTION-COMMS-SPEC.md` governs Stage 13's planned communication waves, webinar/office-hours sessions, and privacy-safe attendance. No real sending, calendar write, or Copilot adapter exists; all external connections remain gated and mock-only. The in-app browser exposed no available session for Stage 13's final rendered/keyboard pass, recorded in `design-screenshots/stage-13/VERIFICATION.md`.
+**Status: Phase 3 through Stage 14 is implemented.** `ADOPTION-CAMPAIGN-SPEC.md` governs completed Stage 11, `ACCOUNT-COPILOT-SPEC.md` governs completed mock-only Stage 12, `ADOPTION-COMMS-SPEC.md` governs completed Stage 13, and `COMPANY-INTEL-SPEC.md` governs completed mock-only Stage 14. No real sending, calendar write, public-artifact retrieval, extraction, or Copilot adapter exists; all external connections remain gated and mock-only. Stage 14 has rendered pointer-flow and both-theme verification; a dedicated screen-reader/keyboard-only audit remains a release-hardening task rather than a Stage 14 functional gap.
 
 **The prior "do not resume building" guidance is retired by the Phase 3 spec.** Building to feature-complete is now the instruction; the evidence gates are gone. What stays binding: the §2 trust boundaries, the design guide, mock-only data, tests green, decisions logged. The single remaining gate is **data governance, not scope** — every external connection is a mock adapter until hosting/data-handling is cleared at Valence (see `CONNECTIONS.md`, and `PHASE-3-SPEC.md §9`). Phase 3 progress and the newly permitted dependencies are logged in `decisions.md` (regime change: D-73).
 
@@ -43,7 +51,7 @@ The §0 pre-existing export/search gaps are closed. The export registry now cove
 
 **Two client-facing QBR defects fixed (2026-07-31, D-82).** `output_gen.qbr` was selecting metric observations with no account scoping — one account's QBR could render another's numbers — and was including open commitments without the `client_visible` promotion filter that `mutual_action_plan` applies. Both are trust-boundary violations in a client-facing generator, and neither was caught by the suite; one existing test was in fact asserting the buggy behavior. Fixed with regression tests verified to fail against the pre-fix code.
 
-**Running backend test count: 322** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
+**Running backend test count: 352** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
 
 ## How to run / seed / test
 
@@ -59,7 +67,7 @@ Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`
 .venv/bin/python -m app.seed --reset      # wipe DB, apply migrations, load mock accounts
 .venv/bin/python -m app.seed              # load into existing DB
 
-# Tests (from backend/) — 334 tests, all green
+# Tests (from backend/) — 352 tests, all green
 .venv/bin/python -m pytest
 
 # Frontend dev (from frontend/) — Vite on :5173, proxies API to :8000
@@ -68,7 +76,7 @@ npm run build                             # emits frontend/dist, served by the A
 ```
 
 - DB path override: env var `VALENCE_OS_DB`; default file `valence_os.sqlite`.
-- Migrations live in `backend/migrations/` as numbered `NNNN_*.sql`. The runner in `app/db.py` applies any file whose version isn't in `schema_migrations`. **Every schema change is a migration — no manual DB surgery.** Latest is `0035_stage13_adoption_comms.sql`.
+- Migrations live in `backend/migrations/` as numbered `NNNN_*.sql`. The runner in `app/db.py` applies any file whose version isn't in `schema_migrations`. **Every schema change is a migration — no manual DB surgery.** Latest is `0038_stage14_company_brief.sql`.
 - Git: commit as `git -c user.name='Sam' -c user.email='noreply@example.test' commit`, trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`, then `git push -q origin main`. Private repo `github.com/GBB94/valence-os`, `gh` authed as `GBB94`.
 
 ## What's built (by module → doc section)

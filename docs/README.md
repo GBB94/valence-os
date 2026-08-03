@@ -10,6 +10,8 @@ The repository root contains only active authority, current handoff, and operati
 - `INTERNAL-OPS-SPEC.md` — additive Stage 10 authority; implemented through migration 0030 and externally adversarially reviewed.
 - `ADOPTION-CAMPAIGN-SPEC.md` — implemented additive Stage 11 authority; current verification status is in `HANDOFF.md`.
 - `ACCOUNT-COPILOT-SPEC.md` — implemented additive Stage 12 authority; grounded read-only analyst, drafting, and release-control contract.
+- `ADOPTION-COMMS-SPEC.md` — implemented additive Stage 13 authority; planned waves and privacy-safe attendance.
+- `COMPANY-INTEL-SPEC.md` — implemented additive Stage 14 authority; cited outside-in company events and grounded briefs.
 - `DESIGN-GUIDE.md` — presentation and information-architecture authority.
 - `Valence-OS-Scoping-Doc.md` — original v3.2 scope where additive specs are silent.
 - `CONNECTIONS.md` — executable external-data governance registry.

@@ -27,9 +27,11 @@ def backend_state() -> dict:
 
 
 def classify_intent(question: str, requested: str | None = None) -> str:
-    if requested in {"fact", "synthesis", "changes", "weekly", "draft"}:
+    if requested in {"fact", "synthesis", "changes", "weekly", "draft", "company_brief"}:
         return requested
     q = question.lower()
+    if any(term in q for term in ("company brief", "publicly", "what did they announce", "what did the company say")):
+        return "company_brief"
     if any(term in q for term in ("what changed", "since last", "since ")):
         return "changes"
     if any(term in q for term in ("this week", "plan my week", "attention")):
@@ -47,7 +49,8 @@ def strict_plan(question: str, scope_type: str, account_id: str | None,
                 time_window_end: str | None = None) -> dict:
     """Planner sees only trusted operator input and governed vocabulary."""
     intent = classify_intent(question, requested_intent)
-    readers = ({"changes": ["get_material_changes"], "weekly": ["get_week_inputs"]}
+    readers = ({"changes": ["get_material_changes"], "weekly": ["get_week_inputs"],
+                "company_brief": ["get_company_inputs"]}
                .get(intent, ["get_account_snapshot", "search_records"]))
     return {"intent": intent, "scope": {"type": scope_type, "account_id": account_id,
                                          "program_id": program_id},
@@ -84,6 +87,30 @@ def generate(packet: dict, run: dict) -> dict[str, Any]:
                 "gaps": ["No matching current record was found in the selected scope."]}
 
     evidence_state = _coverage(items, packet["excluded"], packet.get("ambiguities") or [])
+    if run["intent"] == "company_brief":
+        claims = []
+        sections = ["Coverage and as-of", "What they said", "What they did",
+                    "Hiring picture", "On the map", "Watch"]
+        grouped = {section: [] for section in sections}
+        for sequence, item in enumerate(items, 1):
+            section = item["fields"].get("brief_section", "What they said")
+            text = item["statement"]
+            claims.append({"sequence": sequence, "kind": "fact", "claim_text": text,
+                           "support_state": "supported", "packet_ids": [item["packet_id"]]})
+            grouped.setdefault(section, []).append(f"- {text} [{item['packet_id']}]")
+        lines = ["## Company brief", ""]
+        for section in sections:
+            lines.append(f"### {section}")
+            lines.extend(grouped.get(section) or [])
+            lines.append("")
+        gaps = list(packet.get("coverage_gaps") or [])
+        if gaps:
+            evidence_state = "partial"
+            lines.extend(["### Evidence gaps", *[f"- {gap}" for gap in gaps]])
+        return {"abstain": False, "answer_markdown": "\n".join(lines).strip(), "claims": claims,
+                "evidence_state": evidence_state, "gaps": gaps,
+                "estimated_input_tokens": max(1, packet["packet_bytes"] // 4),
+                "estimated_output_tokens": max(1, len("\n".join(lines)) // 4)}
     claims = []
     selected = items[:8 if run["intent"] in ("changes", "weekly") else 6]
     for sequence, item in enumerate(selected, 1):

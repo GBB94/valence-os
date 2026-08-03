@@ -155,6 +155,53 @@ class SourceReferencePatch(BaseModel):
     tags: Optional[str] = None
 
 
+# --- Stage 14 company intelligence -----------------------------------------
+
+class CompanyWatchPut(BaseModel):
+    legal_name: str = Field(min_length=1)
+    aliases: list[str] = Field(default_factory=list)
+    listing_status: Literal["public", "private", "subsidiary"] = "private"
+    hq_country: Optional[str] = None
+    fiscal_year_end_month: Optional[int] = Field(default=None, ge=1, le=12)
+    identifiers: list[dict] = Field(default_factory=list)
+    watch_tier: Literal["standard", "elevated", "paused"] = "standard"
+    source_include: list[str] = Field(default_factory=list)
+    source_exclude: list[str] = Field(default_factory=list)
+    topic_include: list[str] = Field(default_factory=list)
+    topic_exclude: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=lambda: ["en"])
+    cadence_days: int = Field(default=7, gt=0)
+    hiring_cluster_min: int = Field(default=5, ge=2)
+    hiring_window_days: int = Field(default=21, gt=0)
+    convergence_max_gap_days: int = Field(default=120, gt=0)
+
+
+class CompanyIntelAction(BaseModel):
+    actor: str = "operator"
+    reason: Optional[str] = None
+
+
+class IntelDocumentAction(BaseModel):
+    actor: str = "operator"
+    reason: str = Field(min_length=1)
+
+
+class CompanyEventLinkCreate(BaseModel):
+    account_target_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+    use_case_id: Optional[str] = None
+    cell_id: Optional[str] = None
+    person_id: Optional[str] = None
+    rationale: str = Field(min_length=1)
+    suggested_by: Literal["operator", "matcher"] = "operator"
+
+
+class CompanyLinkKeywordCreate(BaseModel):
+    phrase: str = Field(min_length=2)
+    use_case_id: str
+
+
 # --- v0.2 execution objects ---------------------------------------------------
 
 Severity = Literal["low", "medium", "high"]
@@ -1670,7 +1717,7 @@ class CopilotRunCreate(BaseModel):
     account_id: Optional[str] = None
     program_id: Optional[str] = None
     query_text: str = Field(min_length=1, max_length=1200)
-    intent: Optional[Literal["fact", "synthesis", "changes", "weekly", "draft"]] = None
+    intent: Optional[Literal["fact", "synthesis", "changes", "weekly", "draft", "company_brief"]] = None
     time_window_start: Optional[str] = None
     time_window_end: Optional[str] = None
     idempotency_key: Optional[str] = Field(default=None, max_length=200)

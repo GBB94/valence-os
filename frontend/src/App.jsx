@@ -288,6 +288,7 @@ function Shell() {
             onSaved={onSaved}
             setInboxCount={setInboxCount}
             refreshNotifs={refreshNotifs}
+            openCopilot={openCopilot}
           />
         )}
       </div>
@@ -412,7 +413,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -474,7 +475,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
           </div>
         )}
         {tab === "commercial" && (
-          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} openCopilot={openCopilot} />
         )}
         {tab === "evidence" && (
           <div className="stack">

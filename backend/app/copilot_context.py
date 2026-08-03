@@ -54,6 +54,8 @@ _RECORDS: dict[str, tuple[str, tuple[str, ...]]] = {
     "value_target": ("value_targets", ("target_value", "operator", "unit", "timeframe_start", "timeframe_end", "status")),
     "growth_plan_line": ("growth_plan_lines", ("name", "status", "seat_count", "seat_price_low", "seat_price_high", "ask_date")),
     "generated_document": ("generated_documents", ("kind", "title", "status", "generated_at", "data_current_through", "audience")),
+    "company_event": ("company_events", ("status", "summary", "occurred_on", "expires_on", "canonical_occurrence_key")),
+    "intel_document_span": ("intel_document_spans", ("locator", "excerpt", "section", "speaker")),
 }
 
 
@@ -522,6 +524,125 @@ def week_inputs(conn: sqlite3.Connection, run: dict) -> list[dict]:
     return out
 
 
+def company_inputs(conn: sqlite3.Connection, run: dict) -> tuple[list[dict], list[str], list[dict]]:
+    """Confirmed event + exact live span packets; proposed records have no query path."""
+    if run["scope_type"] != "account":
+        return [], ["Company briefs require account scope."], []
+    rows = conn.execute(
+        "SELECT e.id event_id,e.summary,e.occurred_on,e.expires_on,e.updated_at,k.key kind,k.direction,"
+        "d.kind document_kind,d.title,d.publisher,d.published_on,d.retrieved_at,d.url,"
+        "s.id span_id,s.locator,s.excerpt,s.section,s.speaker "
+        "FROM company_events e JOIN company_event_kinds k ON k.id=e.kind_id "
+        "JOIN company_event_evidence ee ON ee.event_id=e.id AND ee.archived=0 "
+        "JOIN intel_document_spans s ON s.id=ee.span_id AND s.archived=0 "
+        "JOIN intel_documents d ON d.id=s.document_id AND d.archived=0 AND d.correction_state='active' "
+        "WHERE e.account_id=? AND e.status='confirmed' AND e.archived=0 "
+        "ORDER BY e.occurred_on DESC,e.id,s.id LIMIT ?",
+        (run["account_id"], MAX_PACKET_ITEMS)).fetchall()
+    listing = conn.execute(
+        "SELECT ce.listing_status FROM account_company_links acl JOIN company_entities ce ON ce.id=acl.company_entity_id "
+        "WHERE acl.account_id=? AND acl.relationship='primary' AND acl.valid_to IS NULL AND acl.archived=0",
+        (run["account_id"],)).fetchone()
+    gaps = []
+    if not rows:
+        gaps.append("No confirmed company events with live evidence spans were found.")
+    kinds = {row["document_kind"] for row in rows}
+    if listing and listing["listing_status"] == "public" and not kinds.intersection({"earnings_call","annual_report","regulatory_filing"}):
+        gaps.append("No confirmed earnings or filing evidence is available for this public company.")
+    if listing and listing["listing_status"] == "private":
+        gaps.append("Earnings and filing coverage is not expected for this private company.")
+    items, excluded = [], []
+    action_kinds = {"m_and_a","geo_or_facility_expansion","leadership_change","restructuring_or_layoffs","partnership_or_alliance"}
+    convergence = {row["event_id"]: dict(row) for row in conn.execute(
+        "SELECT ce.event_id,c.target_kind,c.target_id,c.explanation,c.id convergence_id "
+        "FROM company_convergence_events ce JOIN company_convergences c ON c.id=ce.convergence_id "
+        "WHERE c.account_id=? AND c.status='active' AND c.archived=0 AND ce.archived=0",
+        (run["account_id"],)).fetchall()}
+    latest_by_source: dict[str, dict] = {}
+    rank = 1
+    for raw in rows:
+        row = dict(raw)
+        untrusted = _INJECTION.search(row["excerpt"] or "")
+        if untrusted:
+            excluded.append({"record_type": "company_event", "record_id": row["event_id"],
+                             "reason": "quarantined untrusted instruction-like text in public evidence excerpt"})
+            continue
+        latest_by_source.setdefault(row["document_kind"], row)
+        section = "What they did" if row["kind"] in action_kinds else "What they said"
+        if row["kind"] == "hiring_cluster": section = "Hiring picture"
+        expired = bool(row["expires_on"] and row["expires_on"] < now_utc()[:10])
+        if expired: section = "Watch"
+        prefix = f"Expired {row['expires_on']}: " if expired else ""
+        statement = (f"{prefix}{row['summary']} Source: {row['publisher']}, "
+                     f"{row['published_on'] or 'date unknown'}, {row['locator']}.")
+        fields = {"brief_section": section, "kind": row["kind"], "direction": row["direction"],
+                  "summary": row["summary"], "occurred_on": row["occurred_on"],
+                  "expires_on": row["expires_on"], "publisher": row["publisher"],
+                  "published_on": row["published_on"], "locator": row["locator"],
+                  "evidence_excerpt": _safe_text(row["excerpt"]), "source_url": row["url"]}
+        base_item = {"record_type": "company_event", "record_id": f"{row['event_id']}:{row['span_id']}",
+                     "account_id": run["account_id"], "program_id": None,
+                     "record_version": row["updated_at"], "authority": "confirmed_public_span",
+                     "freshness_state": "current" if not row["expires_on"] or row["expires_on"] >= now_utc()[:10] else "historical",
+                     "visibility": "internal", "fields": fields, "statement": statement,
+                     "excerpt": _safe_text(row["excerpt"]), "retrieval_method": "company_inputs",
+                     "retrieval_rank": rank, "inclusion_reason": "confirmed event with live exact evidence span"}
+        items.append(base_item)
+        rank += 1
+
+        links = conn.execute(
+            "SELECT l.*,COALESCE(a.name,ps.name,pv.name,uc.name,"
+            "COALESCE(cps.name,cpv.name)||' · '||cuc.name,p.name) target_label "
+            "FROM company_event_links l LEFT JOIN accounts a ON a.id=l.account_target_id "
+            "LEFT JOIN population_segments ps ON ps.id=l.segment_id LEFT JOIN population_views pv ON pv.id=l.view_id "
+            "LEFT JOIN use_cases uc ON uc.id=l.use_case_id LEFT JOIN whitespace_cells wc ON wc.id=l.cell_id "
+            "LEFT JOIN population_segments cps ON cps.id=wc.segment_id LEFT JOIN population_views cpv ON cpv.id=wc.view_id "
+            "LEFT JOIN use_cases cuc ON cuc.id=wc.use_case_id LEFT JOIN persons p ON p.id=l.person_id "
+            "WHERE l.event_id=? AND l.status='confirmed' AND l.archived=0", (row["event_id"],)).fetchall()
+        if links:
+            labels = ", ".join(link["target_label"] for link in links if link["target_label"])
+            map_statement = (f"On the map: {row['summary']} Confirmed targets: {labels}. "
+                             f"Source: {row['publisher']}, {row['published_on'] or 'date unknown'}, {row['locator']}.")
+            items.append({**base_item, "record_id": f"{row['event_id']}:{row['span_id']}:map",
+                          "fields": {**fields, "brief_section": "On the map", "confirmed_targets": labels},
+                          "statement": map_statement, "retrieval_rank": rank,
+                          "inclusion_reason": "confirmed event and operator-confirmed map link"})
+            rank += 1
+        converged = convergence.get(row["event_id"])
+        expiring = bool(row["expires_on"] and row["expires_on"] >= now_utc()[:10] and
+                        row["expires_on"] <= (date.fromisoformat(now_utc()[:10]) + timedelta(days=30)).isoformat())
+        if converged or expiring:
+            detail = (f"It composes active convergence on {converged['target_kind']} {converged['target_id']}. "
+                      if converged else f"It expires on {row['expires_on']}. ")
+            watch_statement = (f"Watch: {row['summary']} {detail}Source: {row['publisher']}, "
+                               f"{row['published_on'] or 'date unknown'}, {row['locator']}.")
+            items.append({**base_item, "record_id": f"{row['event_id']}:{row['span_id']}:watch",
+                          "fields": {**fields, "brief_section": "Watch",
+                                     "convergence_id": converged["convergence_id"] if converged else None},
+                          "statement": watch_statement, "retrieval_rank": rank,
+                          "inclusion_reason": "active convergence composition or approaching expiry"})
+            rank += 1
+
+    # Coverage statements are metadata claims tied to a live exact span from that source class.
+    for source_class, row in latest_by_source.items():
+        coverage_statement = (f"Coverage includes {source_class.replace('_', ' ')} through "
+                              f"{row['retrieved_at'][:10]}: {row['title']}, {row['locator']}.")
+        fields = {"brief_section": "Coverage and as-of", "source_class": source_class,
+                  "retrieved_at": row["retrieved_at"], "title": row["title"],
+                  "publisher": row["publisher"], "published_on": row["published_on"],
+                  "locator": row["locator"], "evidence_excerpt": _safe_text(row["excerpt"]),
+                  "source_url": row["url"]}
+        items.append({"record_type": "intel_document_span", "record_id": f"{row['span_id']}:coverage",
+                      "account_id": run["account_id"], "program_id": None,
+                      "record_version": row["retrieved_at"], "authority": "confirmed_public_span",
+                      "freshness_state": "current", "visibility": "internal", "fields": fields,
+                      "statement": coverage_statement, "excerpt": _safe_text(row["excerpt"]),
+                      "retrieval_method": "company_inputs", "retrieval_rank": rank,
+                      "inclusion_reason": "latest live exact span for covered public source class"})
+        rank += 1
+    return items[:MAX_PACKET_ITEMS], gaps, excluded
+
+
 def build_packet(conn: sqlite3.Connection, run: dict) -> dict:
     """Build the stable, bounded packet for one already-validated plan."""
     included: list[dict] = []
@@ -529,7 +650,13 @@ def build_packet(conn: sqlite3.Connection, run: dict) -> dict:
     readers: list[str] = []
     retrieval_rounds = 1
     intent = run["intent"]
-    if intent == "changes":
+    coverage_gaps: list[str] = []
+    if intent == "company_brief":
+        readers.append("get_company_inputs")
+        company_items, coverage_gaps, company_excluded = company_inputs(conn, run)
+        included.extend(company_items)
+        excluded.extend(company_excluded)
+    elif intent == "changes":
         readers.append("get_material_changes")
         included.extend(material_changes(conn, run, run.get("time_window_start"),
                                          run.get("time_window_end")))
@@ -611,5 +738,6 @@ def build_packet(conn: sqlite3.Connection, run: dict) -> dict:
         for item in ordered], sort_keys=True, separators=(",", ":"), default=str)
     return {"items": ordered, "readers": readers, "excluded": excluded,
             "ambiguities": ambiguities, "resolved_entities": resolved,
+            "coverage_gaps": coverage_gaps,
             "packet_hash": hashlib.sha256(canonical.encode()).hexdigest(),
             "packet_bytes": len(canonical.encode()), "retrieval_rounds": retrieval_rounds}

@@ -331,6 +331,24 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
         except sqlite3.OperationalError:
             count = None
         internal_counts.append({"record_type": table, "count": count})
+    event_states = {row["status"]: row["n"] for row in conn.execute(
+        "SELECT status,COUNT(*) n FROM company_events WHERE archived=0 GROUP BY status").fetchall()}
+    reviewed = event_states.get("confirmed", 0) + event_states.get("dismissed", 0)
+    source_freshness = [dict(row) for row in conn.execute(
+        "SELECT kind source_class,MAX(retrieved_at) latest_retrieval,COUNT(*) documents,"
+        "SUM(CASE WHEN correction_state='retracted' THEN 1 ELSE 0 END) retracted "
+        "FROM intel_documents WHERE archived=0 GROUP BY kind ORDER BY kind").fetchall()]
+    proposed_oldest = conn.execute(
+        "SELECT MIN(created_at) oldest FROM company_events WHERE status='proposed' AND archived=0").fetchone()["oldest"]
+    proposed_age = None
+    if proposed_oldest:
+        try: proposed_age = (date.fromisoformat(today) - date.fromisoformat(proposed_oldest[:10])).days
+        except ValueError: pass
+    sync_totals = dict(conn.execute(
+        "SELECT COALESCE(SUM(created_count),0) created,COALESCE(SUM(skipped_count),0) skipped,"
+        "COALESCE(SUM(unmatched_count),0) unmatched,COALESCE(SUM(corrected_count),0) corrected,"
+        "COALESCE(SUM(retracted_count),0) retracted,COALESCE(SUM(error_count),0) errors FROM intel_sync_runs "
+        "WHERE archived=0").fetchone())
     return {
         "as_of": today,
         "job_worker": "in-process queue; background polling is env-gated, API sync drains synchronously",
@@ -346,7 +364,23 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
              "records": conn.execute("SELECT COUNT(*) n FROM org_change_flags WHERE archived=0").fetchone()["n"]},
             {"name": "population headcount", "mode": "mock", "fixtures": len(adapters.fetch_headcount_observations()),
              "records": conn.execute("SELECT COUNT(*) n FROM population_headcount_observations WHERE archived=0").fetchone()["n"]},
+            {"name": "company intelligence", "mode": "mock", "fixtures": len(adapters.list_company_intel_fixtures()),
+             "records": conn.execute("SELECT COUNT(*) n FROM intel_documents WHERE archived=0").fetchone()["n"]},
         ],
+        "company_intelligence": {
+            "latest_runs": [dict(r) for r in conn.execute(
+                "SELECT * FROM intel_sync_runs WHERE archived=0 ORDER BY started_at DESC LIMIT 10").fetchall()],
+            "proposed_events": conn.execute(
+                "SELECT COUNT(*) n FROM company_events WHERE status='proposed' AND archived=0").fetchone()["n"],
+            "active_convergences": conn.execute(
+                "SELECT COUNT(*) n FROM company_convergences WHERE status='active' AND archived=0").fetchone()["n"],
+            "event_states": event_states,
+            "reviewed_events": reviewed,
+            "confirmation_rate": (event_states.get("confirmed", 0) / reviewed) if reviewed else None,
+            "proposed_oldest_age_days": proposed_age,
+            "source_freshness": source_freshness,
+            "sync_totals": sync_totals,
+        },
         "connection_registry": connections.registry_snapshot(),
         "copilot": copilot_service.health(conn),
         "backup": {"rpo_hours": 24, "restore_test": "passing (account export → restore round-trip, tests/test_portfolio_io.py)",

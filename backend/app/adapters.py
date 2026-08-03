@@ -9,6 +9,7 @@ from __future__ import annotations
 import email
 import csv
 import json
+import os
 import re
 from email.utils import parseaddr, getaddresses, parsedate_to_datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ TRANSCRIPT_DIR = FIXTURES / "transcripts"
 CALENDAR_DIR = FIXTURES / "calendar"
 ORG_CHANGE_DIR = FIXTURES / "org_changes"
 HEADCOUNT_DIR = FIXTURES / "headcount"
+COMPANY_INTEL_DIR = FIXTURES / "company_intel"
 
 
 # --- Transcription adapter ---------------------------------------------------
@@ -186,3 +188,29 @@ def fetch_headcount_observations() -> list[dict]:
             for row in csv.DictReader(fh):
                 rows.append({**row, "fixture": path.name})
     return rows
+
+
+# --- Company-intelligence adapter ------------------------------------------
+
+def fetch_company_intel() -> list[dict]:
+    """MOCK public-source boundary. Fixtures contain snapshots and extracted proposals.
+
+    No URL is fetched here. Real retrieval and extraction are separate CONNECTIONS.md gates.
+    """
+    mode = os.environ.get("COMPANY_INTEL_BACKEND", "mock").strip().lower()
+    if mode != "mock":
+        from . import connections
+        connections.require_real_connection("company_intel_source", mode)
+        raise RuntimeError("company-intelligence real mode has no implementation; use COMPANY_INTEL_BACKEND=mock")
+    if not COMPANY_INTEL_DIR.exists():
+        return []
+    rows: list[dict] = []
+    for path in sorted(COMPANY_INTEL_DIR.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for row in payload if isinstance(payload, list) else payload.get("items", []):
+            rows.append({**row, "fixture": path.name})
+    return rows
+
+
+def list_company_intel_fixtures() -> list[str]:
+    return sorted(p.name for p in COMPANY_INTEL_DIR.glob("*.json")) if COMPANY_INTEL_DIR.exists() else []

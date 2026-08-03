@@ -44,8 +44,9 @@ def test_registry_is_complete_documented_and_local_by_default(client):
     ids = {row["id"] for row in snapshot["connections"]}
     assert ids == {
         "recording_source", "transcription_source", "email_provider", "calendar_provider",
-        "enrichment_source", "headcount_source", "metric_source", "notification_channel",
-        "llm_endpoint", "copilot_endpoint", "file_storage", "hosting",
+            "enrichment_source", "headcount_source", "metric_source", "notification_channel",
+            "llm_endpoint", "copilot_endpoint", "company_intel_source",
+            "intel_extraction_endpoint", "file_storage", "hosting",
     }
     assert snapshot["approval"]["approved"] is False
     assert all(row["gate_status"] == "local" for row in snapshot["connections"])

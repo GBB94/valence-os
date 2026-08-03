@@ -37,6 +37,8 @@ The environment variables are a fail-closed runtime check, not a substitute for 
 | `notification_channel` | Notification delivery | In-app SQLite notifications only | None | None; no outbound adapter implemented | Approved channel/recipients; least-sensitive payload; delivery audit; retry and disable controls |
 | `llm_endpoint` | LLM extraction and intake endpoint | Offline mock by default; manual local paste is also local | Transcript fixtures | `EXTRACTOR_BACKEND=mock\|api`; API is fail-closed behind the approval contract | Approved provider/model; DPA/region; credential storage; retention review; model allow-list; logged decision |
 | `copilot_endpoint` | Account Copilot cross-record context endpoint | Deterministic offline mock; no real adapter | `backend/app/fixtures/copilot/*.json` | `COPILOT_BACKEND=mock`; any real mode fails closed behind a distinct approval | Separate cross-record payload review; bounded field allow-list and context; provider/model and region; retention/training terms; redacted logs; rollback configuration; logged decision |
+| `company_intel_source` | Public company artifact source | Synthetic JSON snapshots only | `backend/app/fixtures/company_intel/*.json` | `COMPANY_INTEL_BACKEND=mock` only; any real mode fails closed because no retrieval adapter exists | Provider terms/content license; API/robots compliance; source allow-list; exact provenance; retention; correction/takedown; credentials/logging; rollback |
+| `intel_extraction_endpoint` | Public artifact → company-event extraction | Fixture-carried proposals; no extraction call | `backend/app/fixtures/company_intel/*.json` | None; no extraction implementation | Separate model/provider and payload approval; licensing; region/retention; prompt-injection controls; golden evaluation; credentials/logging; rollback |
 | `file_storage` | Files and generated artifacts | Source links + SQLite markdown; binary export rendered in memory | None | None; no object-store adapter implemented | Approved encrypted object store; account boundaries; signed links; retention/deletion; backup and restore test |
 | `hosting` | Application hosting and database | Local FastAPI + SQLite + optional in-process worker | Synthetic seed database | `VALENCE_OS_DB`; `VALENCE_OS_WORKER` | Approved hosting; SSO/MFA; encryption; managed secrets; network/logging controls; backups, restore drill, incident owner |
 
@@ -48,6 +50,9 @@ The environment variables are a fail-closed runtime check, not a substitute for 
 - Extraction approval does not authorize Copilot payloads. `COPILOT_BACKEND` has its own registry
   entry and approval class; Stage 12 implements only the deterministic mock and deliberately has no
   network adapter.
+- Company retrieval and company-event extraction are two independent approvals. Stage 14 performs
+  neither: exact public excerpts and proposed structured events arrive together in synthetic
+  fixtures. Public availability does not waive content licensing or correction/takedown duties.
 - Manual local-LLM mode makes no call from Valence OS: the operator runs their own local model and
   pastes schema-validated JSON. Proposals still require per-item acceptance.
 - Email, transcripts, calendar, enrichment, headcount, metrics, and generated client artifacts may

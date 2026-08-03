@@ -30,8 +30,9 @@ _INSERT_ORDER = [
     "source_references", "metric_definitions", "audience_tags", "use_cases",
     "messaging_entries", "play_definitions", "internal_functions", "status_criteria_versions",
     "escalation_defaults", "report_templates", "document_kinds", "writing_style_profiles",
-    "copilot_configurations",
-    "accounts", "account_settings", "persons", "programs",
+    "copilot_configurations", "company_event_kinds", "company_entities", "company_identifiers",
+    "intel_documents", "intel_document_spans",
+    "accounts", "account_settings", "account_company_links", "company_watch_profiles", "persons", "programs",
     # 0034 — read-only copilot runs and immutable claim support
     "copilot_runs", "copilot_run_sources", "copilot_claims", "copilot_claim_sources",
     "copilot_feedback", "copilot_feedback_reviews",
@@ -64,7 +65,10 @@ _INSERT_ORDER = [
     "generated_document_people",
     # 0022 — recurring signals, mock calendar, and confirmed org change
     "calendar_events", "calendar_event_attendees", "org_change_flags", "succession_records",
-    "signal_episodes",
+    # 0036-0037 — company events precede convergence; signal composition follows episodes.
+    "company_events", "company_event_evidence", "company_link_keywords", "company_event_links",
+    "hiring_postings", "hiring_observations", "company_convergences", "company_convergence_events",
+    "signal_episodes", "signal_episode_company_events",
     # 0023 — Stage 7.5 qualification links, operational triggers, and growth plans
     "operational_agreements", "operational_agreement_events",
     "account_growth_plans", "growth_plan_lines",
@@ -118,6 +122,31 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
 
     # --- 0012-0016: onboarding, people intelligence, ingestion, relationships ---
     t["account_settings"] = _all(conn, "SELECT * FROM account_settings WHERE account_id=?", (account_id,))
+    # --- 0036-0038: canonical company identity, exact evidence, and persisted convergence ---
+    t["account_company_links"] = _all(conn, "SELECT * FROM account_company_links WHERE account_id=?", (account_id,))
+    t["company_watch_profiles"] = _all(conn, "SELECT * FROM company_watch_profiles WHERE account_id=?", (account_id,))
+    t["company_event_kinds"] = _all(conn, "SELECT * FROM company_event_kinds WHERE archived=0")
+    entity_ids = [row["company_entity_id"] for row in t["account_company_links"]]
+    eq = ",".join("?" * len(entity_ids)) or "''"
+    t["company_entities"] = _all(conn, f"SELECT * FROM company_entities WHERE id IN ({eq})", entity_ids) if entity_ids else []
+    t["company_identifiers"] = _all(conn, f"SELECT * FROM company_identifiers WHERE company_entity_id IN ({eq})", entity_ids) if entity_ids else []
+    t["intel_documents"] = _all(conn, f"SELECT * FROM intel_documents WHERE company_entity_id IN ({eq})", entity_ids) if entity_ids else []
+    doc_ids = [row["id"] for row in t["intel_documents"]]
+    diq = ",".join("?" * len(doc_ids)) or "''"
+    t["intel_document_spans"] = _all(conn, f"SELECT * FROM intel_document_spans WHERE document_id IN ({diq})", doc_ids) if doc_ids else []
+    t["company_events"] = _all(conn, "SELECT * FROM company_events WHERE account_id=?", (account_id,))
+    event_ids = [row["id"] for row in t["company_events"]]
+    eiq = ",".join("?" * len(event_ids)) or "''"
+    t["company_event_evidence"] = _all(conn, f"SELECT * FROM company_event_evidence WHERE event_id IN ({eiq})", event_ids) if event_ids else []
+    t["company_link_keywords"] = _all(conn, "SELECT * FROM company_link_keywords WHERE account_id=?", (account_id,))
+    t["company_event_links"] = _all(conn, f"SELECT * FROM company_event_links WHERE event_id IN ({eiq})", event_ids) if event_ids else []
+    t["hiring_postings"] = _all(conn, "SELECT * FROM hiring_postings WHERE account_id=?", (account_id,))
+    t["hiring_observations"] = _all(conn, "SELECT * FROM hiring_observations WHERE account_id=?", (account_id,))
+    t["company_convergences"] = _all(conn, "SELECT * FROM company_convergences WHERE account_id=?", (account_id,))
+    convergence_ids = [row["id"] for row in t["company_convergences"]]
+    coq = ",".join("?" * len(convergence_ids)) or "''"
+    t["company_convergence_events"] = _all(conn, f"SELECT * FROM company_convergence_events WHERE convergence_id IN ({coq})", convergence_ids) if convergence_ids else []
+    t["signal_episode_company_events"] = []  # populated after signal_episodes below
     for tbl in ("checklist_items", "comm_messages", "association_hints",
                 "champion_candidates", "exec_pairings", "pull_signals"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
@@ -273,6 +302,11 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     ) if event_ids else []
     for tbl in ("org_change_flags", "succession_records", "signal_episodes"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+    signal_ids = [row["id"] for row in t["signal_episodes"]]
+    siq = ",".join("?" * len(signal_ids)) or "''"
+    t["signal_episode_company_events"] = _all(
+        conn, f"SELECT * FROM signal_episode_company_events WHERE signal_episode_id IN ({siq})", signal_ids
+    ) if signal_ids else []
 
     # --- 0023: Stage 7.5 ------------------------------------------------------
     for tbl in ("operational_agreements", "operational_agreement_events",
@@ -369,6 +403,7 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         ("product_feedback_occurrences", ["stakeholder_person_id"]),
         ("product_feedback_items", ["owner_person_id"]),
         ("escalation_events", ["destination_person_id"]),
+        ("company_event_links", ["person_id"]),
     ]:
         for row in t.get(tbl, []):
             for c in cols:
@@ -392,6 +427,7 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         # Stage 11: a campaign's diagnosis and each barrier cite their evidence, and a bundle
         # missing those references cannot restore the rows that point at them.
         "adoption_campaigns", "adoption_campaign_barriers", "adoption_campaign_checkpoints",
+        "intel_documents",
     ) for row in t.get(tbl, []) if row.get("source_reference_id")}
     srcs |= {row["diagnosis_source_reference_id"] for row in t.get("adoption_campaigns", [])
              if row.get("diagnosis_source_reference_id")}
@@ -409,6 +445,7 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     # only from cells produced a bundle whose campaign row could not be restored (FK on use_case_id).
     ucs = {row["use_case_id"] for row in t["whitespace_cells"] if row.get("use_case_id")}
     ucs |= {row["use_case_id"] for row in t["adoption_campaigns"] if row.get("use_case_id")}
+    ucs |= {row["use_case_id"] for row in t.get("company_event_links", []) if row.get("use_case_id")}
     uq = ",".join("?" * len(ucs)) or "''"
     t["use_cases"] = _all(conn, f"SELECT * FROM use_cases WHERE id IN ({uq})", tuple(ucs)) if ucs else []
     tags = {row["tag_id"] for row in t["population_view_tags"]}
@@ -447,7 +484,8 @@ def import_account(conn: sqlite3.Connection, bundle: dict) -> dict:
                            "messaging_entries", "play_definitions", "internal_functions",
                            "status_criteria_versions", "escalation_defaults",
                            "report_templates", "document_kinds", "writing_style_profiles",
-                           "copilot_configurations") and \
+                           "copilot_configurations", "company_event_kinds", "company_entities",
+                           "company_identifiers", "intel_documents", "intel_document_spans") and \
                         conn.execute(f"SELECT 1 FROM {tbl} WHERE id=?", (row["id"],)).fetchone():
                     continue
                 row = dict(row)

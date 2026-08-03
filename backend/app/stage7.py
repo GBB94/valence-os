@@ -39,6 +39,28 @@ def _json(value) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
+def _sync_company_episode_composition(conn: sqlite3.Connection, episode_id: str,
+                                      convergence_id: str) -> None:
+    """Keep the episode's exact composing event set inspectable and historical."""
+    ts = now_utc()
+    event_ids = [row["event_id"] for row in conn.execute(
+        "SELECT event_id FROM company_convergence_events WHERE convergence_id=? AND archived=0",
+        (convergence_id,)).fetchall()]
+    conn.execute("UPDATE signal_episode_company_events SET archived=1,archived_at=?,archived_by='system',updated_at=? "
+                 "WHERE signal_episode_id=? AND archived=0", (ts, ts, episode_id))
+    for event_id in event_ids:
+        existing = conn.execute(
+            "SELECT id FROM signal_episode_company_events WHERE signal_episode_id=? AND event_id=?",
+            (episode_id, event_id)).fetchone()
+        if existing:
+            conn.execute("UPDATE signal_episode_company_events SET convergence_id=?,archived=0,archived_at=NULL,"
+                         "archived_by=NULL,updated_at=? WHERE id=?", (convergence_id, ts, existing["id"]))
+        else:
+            conn.execute("INSERT INTO signal_episode_company_events(id,signal_episode_id,convergence_id,event_id,"
+                         "created_at,updated_at) VALUES (?,?,?,?,?,?)",
+                         (new_id(), episode_id, convergence_id, event_id, ts, ts))
+
+
 def _open_or_refresh(conn: sqlite3.Connection, candidate: dict) -> dict | None:
     """Open one episode, refresh its evidence, or suppress it during a dismissal cooldown."""
     ts = now_utc()
@@ -61,6 +83,8 @@ def _open_or_refresh(conn: sqlite3.Connection, candidate: dict) -> dict | None:
         conn.execute(
             "UPDATE signal_episodes SET " + ",".join(f"{k}=?" for k in values) + " WHERE id=?",
             (*values.values(), current["id"]),)
+        if candidate["source_kind"] == "company" and candidate.get("source_id"):
+            _sync_company_episode_composition(conn, current["id"], candidate["source_id"])
         return dict(conn.execute("SELECT * FROM signal_episodes WHERE id=?", (current["id"],)).fetchone())
 
     prior = conn.execute(
@@ -95,6 +119,8 @@ def _open_or_refresh(conn: sqlite3.Connection, candidate: dict) -> dict | None:
     audit.record(conn, object_type="signal_episode", object_id=eid, action="create",
                  after={"kind": row["kind"], "condition_key": row["condition_key"],
                         "status": row["status"], "explanation": row["explanation"]})
+    if candidate["source_kind"] == "company" and candidate.get("source_id"):
+        _sync_company_episode_composition(conn, eid, candidate["source_id"])
     return dict(conn.execute("SELECT * FROM signal_episodes WHERE id=?", (eid,)).fetchone())
 
 
@@ -146,6 +172,13 @@ def sync_attention_episodes(conn: sqlite3.Connection, items: list[dict]) -> list
 
 def _guard_for_cell(conn: sqlite3.Connection, cell: dict) -> tuple[str, str | None]:
     """Vendor-initiated signals wait behind unrealized value; client pull never calls this."""
+    contraction = conn.execute(
+        "SELECT 1 FROM company_events e JOIN company_event_kinds k ON k.id=e.kind_id "
+        "WHERE e.account_id=? AND e.status='confirmed' AND e.archived=0 "
+        "AND k.direction='contraction' AND e.expires_on>=? LIMIT 1",
+        (cell["account_id"], _today().isoformat())).fetchone()
+    if contraction:
+        return "held", "Vendor-initiated motion held: active confirmed company contraction evidence."
     where = "account_id=? AND status='active'"
     params: list = [cell["account_id"]]
     if cell.get("segment_id"):
@@ -406,12 +439,38 @@ def _land_leave_candidates(conn: sqlite3.Connection) -> list[dict]:
     return out
 
 
+def _company_candidates(conn: sqlite3.Connection) -> list[dict]:
+    """Persisted, independently-sourced convergence is the sole company-intel bridge."""
+    from . import company_intel  # lazy: company_intel imports this module for refresh
+    # Time passing alone must close an expired composition (COMPANY-INTEL-SPEC §7), so a plain
+    # signal evaluation reevaluates every account that still holds an active convergence.
+    for row in conn.execute(
+            "SELECT DISTINCT account_id FROM company_convergences WHERE status='active' AND archived=0").fetchall():
+        company_intel.evaluate_convergence(conn, row["account_id"])
+    rows = conn.execute(
+        "SELECT c.*,COUNT(ce.event_id) event_count FROM company_convergences c "
+        "JOIN company_convergence_events ce ON ce.convergence_id=c.id AND ce.archived=0 "
+        "WHERE c.status='active' AND c.archived=0 GROUP BY c.id HAVING COUNT(ce.event_id)>=2"
+    ).fetchall()
+    return [{
+        "account_id": row["account_id"], "kind": "company_convergence",
+        "condition_key": row["condition_key"], "object_type": row["target_kind"],
+        "object_id": row["target_id"], "source_kind": "company", "source_id": row["id"],
+        "explanation": row["explanation"], "freshness_as_of": row["last_evaluated_at"],
+        "current_value": row["event_count"], "threshold_value": 2, "direction": "at_least",
+        "context": {"title": "Company evidence convergence", "target_kind": row["target_kind"],
+                    "target_id": row["target_id"], "convergence_id": row["id"],
+                    "event_count": row["event_count"]},
+    } for row in rows]
+
+
 def evaluate_domain_signals(conn: sqlite3.Connection) -> dict:
     """Evaluate every Stage 7 source in one transaction and close conditions that cleared."""
     groups = {
         "pull": _pull_candidates(conn), "usage": _usage_candidates(conn) + _stalled_candidates(conn),
         "calendar": _calendar_candidates(conn), "org_change": _org_candidates(conn),
         "headcount": _land_leave_candidates(conn),
+        "company": _company_candidates(conn),
     }
     groups["relationship"] = _relationship_candidates(conn)
     opened, refreshed = [], 0

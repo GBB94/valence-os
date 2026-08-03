@@ -159,6 +159,10 @@ _SOURCES = [
     ("copilot_run", "SELECT id,account_id,program_id,query_text AS title,"
                     "COALESCE(query_text,'')||' '||COALESCE(answer_markdown,'') AS body "
                     "FROM copilot_runs WHERE archived=0 AND status='completed'"),
+    ("company_event", "SELECT e.id,e.account_id,NULL,e.summary AS title,"
+                      "e.summary||' '||k.label||' '||COALESCE(e.occurred_on,'') AS body "
+                      "FROM company_events e JOIN company_event_kinds k ON k.id=e.kind_id "
+                      "WHERE e.archived=0 AND e.status IN ('proposed','confirmed')"),
 ]
 
 

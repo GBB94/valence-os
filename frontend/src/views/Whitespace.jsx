@@ -50,6 +50,8 @@ export default function Whitespace({ accountId, reloadKey }) {
   const toast = useToast();
   const [map, setMap] = useState(null);
   const [next, setNext] = useState(null);
+  const [outside, setOutside] = useState(null);
+  const [showOutside, setShowOutside] = useState(false);
   const [openCell, setOpenCell] = useState(null);
   const [setup, setSetup] = useState(false);
   const [tick, setTick] = useState(0);
@@ -58,8 +60,8 @@ export default function Whitespace({ accountId, reloadKey }) {
   async function load() {
     if (!accountId) return;
     try {
-      const [m, n] = await Promise.all([api.whitespace(accountId), api.nextSeats(accountId)]);
-      setMap(m); setNext(n);
+      const [m, n, o] = await Promise.all([api.whitespace(accountId), api.nextSeats(accountId), api.companyWorkspace(accountId)]);
+      setMap(m); setNext(n); setOutside(o.overlay || null);
     } catch (e) { toast(e.message, "err"); }
   }
   useEffect(() => { load(); }, [accountId, reloadKey, tick]);
@@ -112,6 +114,9 @@ export default function Whitespace({ accountId, reloadKey }) {
             {map.rollup.addressable_seats.toLocaleString()} addressable
           </span>
           <button className="btn small" onClick={() => setSetup(true)}>Manage populations</button>
+          <button className="btn small ghost" aria-pressed={showOutside} onClick={() => setShowOutside((v) => !v)}>
+            {showOutside ? "Hide" : "Show"} outside-in
+          </button>
         </div>
 
         {/* Reconciliation: the visible remainder is what stops the map claiming more
@@ -147,6 +152,7 @@ export default function Whitespace({ accountId, reloadKey }) {
                 {map.use_cases.map((u) => (
                   <th key={u.id} scope="col" style={{ minWidth: 132 }}>
                     {u.name}
+                    {showOutside && <OutsideMarker events={outside?.use_cases?.[u.id]} />}
                     {!u.portfolio_comparable && (
                       <div className="rowmeta" style={{ fontWeight: 400 }}>account-specific</div>
                     )}
@@ -159,6 +165,7 @@ export default function Whitespace({ accountId, reloadKey }) {
                 <tr key={`${row.row_type}-${row.id}`}>
                   <th scope="row" style={{ textAlign: "left", fontWeight: 500 }}>
                     {row.name}
+                    {showOutside && <OutsideMarker events={outside?.[row.row_type === "view" ? "views" : "segments"]?.[row.id]} />}
                     <div className="rowmeta">
                       {row.row_type === "view" ? "composite · not additive" :
                         row.is_unallocated ? "unallocated remainder" : "segment"}
@@ -315,6 +322,13 @@ function Legend() {
       </span>
     </div>
   );
+}
+
+function OutsideMarker({ events }) {
+  if (!events?.length) return null;
+  const title = events.map((event) => event.summary).join("\n");
+  return <span className="badge" title={title} aria-label={`${events.length} confirmed outside-in event${events.length === 1 ? "" : "s"}`}
+    style={{ marginLeft: 6, whiteSpace: "nowrap" }}>⚑ {events.length}</span>;
 }
 
 /* The cell card. Shows ALL FOUR stored facts even though the heatmap shows one derived state,

@@ -54,6 +54,8 @@ PRIORITY = {
     "champion_gone_quiet": 3,
     "stalled_cohort": 3,
     "calendar_moment": 4,
+    "company_convergence": 2,
+    "intel_review_debt": 3,
 }
 
 # Trigger escalates into the top "needs you now" band once this far past its date (§2/§3).
@@ -274,6 +276,21 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action=("Close the value gap before vendor-initiated expansion."
                          if r["status"] == "held" else
                          ctx.get("next_action") or "Qualify, attach to an opportunity, or dismiss with a reason."),
+        ))
+
+    # Stage 14 review debt is an operational nudge, never evidence. One item per account.
+    for r in conn.execute(
+        "SELECT e.account_id,a.name aname,COUNT(*) proposed_count,MIN(e.created_at) oldest,MAX(e.updated_at) updated_at "
+        "FROM company_events e JOIN accounts a ON a.id=e.account_id "
+        "WHERE e.status='proposed' AND e.archived=0 AND date(e.created_at)<=date(?, '-7 days') "
+        "GROUP BY e.account_id,a.name", (today,)):
+        age = _days_since(r["oldest"], today)
+        items.append(_item(
+            "intel_review_debt", "account", r["account_id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["aname"], "pid": None, "pname": None},
+            title=f"Review {r['proposed_count']} company-intel proposal(s)",
+            because=f"Oldest unreviewed public-source proposal is {age}d old.",
+            age_days=age, due_date=None, next_action="Review, confirm, or dismiss the proposed events.",
         ))
 
     # 5c. Earned pre-agreed expansions awaiting action. These fire regardless of a value gap;

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (copilot_service, ingestion, jobs, stage7,
+from . import (company_intel, copilot_service, ingestion, jobs, stage7,
                internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
@@ -19,7 +20,7 @@ from .routers import (
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
     stage9 as stage9_router, viz, internal_forecast, internal_asks, internal_reviews,
-    internal_reporting, internal_roster, product_feedback, adoption_comms,
+    internal_reporting, internal_roster, product_feedback, adoption_comms, company_intel as company_intel_router,
 )
 
 
@@ -37,6 +38,9 @@ async def lifespan(app: FastAPI):
         print(f"[migrations] applied: {applied}")
     internal_reporting_service.sync_templates(conn)
     app.state.conn = conn
+    # FastAPI may enter and finalize a generator dependency on different worker threads, so use a
+    # plain Lock (which is not thread-owned) rather than RLock.
+    app.state.conn_lock = threading.Lock()
     worker = jobs.start_worker()  # env-gated (VALENCE_OS_WORKER); None when off
     if worker:
         print("[jobs] in-process worker started")
@@ -107,6 +111,7 @@ app.include_router(internal_reporting.router)
 app.include_router(internal_roster.router)
 app.include_router(product_feedback.router)
 app.include_router(adoption_comms.router)
+app.include_router(company_intel_router.router)
 
 
 @app.get("/api/health")
