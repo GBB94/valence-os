@@ -27,6 +27,7 @@ import Plays from "./views/Plays";
 import Internal from "./views/Internal";
 import CopilotPanel from "./views/CopilotPanel";
 import AdoptionComms from "./views/AdoptionComms";
+import { WORKSPACE_TABS, navigationUrl, parseNavigation } from "./navigation";
 
 export default function App() {
   return (
@@ -56,14 +57,6 @@ function resolveTheme(choice) {
   return choice;
 }
 
-// The account workspace tabs (DESIGN-GUIDE §2.2). Phase C builds the shell + tab strip and
-// slots today's views into each tab as an interim; Phase D merges them (Ledger, etc.).
-const WORKSPACE_TABS = [
-  ["overview", "Overview"], ["ledger", "Ledger"], ["people", "People"],
-  ["plan", "Plan"], ["commercial", "Commercial"], ["evidence", "Evidence"], ["outputs", "Outputs"],
-  ["internal", "Internal"],
-];
-
 // Short "what is this" help text, keyed by destination or account-tab (topbar ⓘ).
 const INFO = {
   today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
@@ -82,7 +75,9 @@ const INFO = {
 function Shell() {
   const [accounts, setAccounts] = useState([]);
   // nav: { dest: 'today'|'account'|'library'|'operations', accountId?, tab?, programId? }
-  const [nav, setNav] = useState({ dest: "today" });
+  const initialNavRef = useRef(parseNavigation(window.location));
+  const [nav, setNav] = useState(initialNavRef.current);
+  const navRef = useRef(initialNavRef.current);
   const [quick, setQuick] = useState(null);
   const [palette, setPalette] = useState(false);
   const [inboxCount, setInboxCount] = useState(null);
@@ -99,6 +94,32 @@ function Shell() {
   const [copilot, setCopilot] = useState(null);
   const copilotTriggerRef = useRef(null);
   const copilotReturnFocusRef = useRef(null);
+
+  // Navigation is deliberately a small internal route contract rather than a third-party
+  // router. Every existing destination remains a state object, but the URL is now canonical
+  // and Back/Forward can restore that state.
+  const go = useCallback((nextOrUpdater, { replace = false } = {}) => {
+    const next = typeof nextOrUpdater === "function" ? nextOrUpdater(navRef.current) : nextOrUpdater;
+    const target = navigationUrl(next);
+    const current = window.location.pathname + window.location.search;
+    navRef.current = next;
+    if (target !== current) window.history[replace ? "replaceState" : "pushState"]({}, "", target);
+    setNav(next);
+  }, []);
+
+  useEffect(() => {
+    const canonical = navigationUrl(navRef.current);
+    if (canonical !== window.location.pathname + window.location.search) {
+      window.history.replaceState({}, "", canonical);
+    }
+    const onPopState = () => {
+      const restored = parseNavigation(window.location);
+      navRef.current = restored;
+      setNav(restored);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
@@ -173,9 +194,13 @@ function Shell() {
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
 
-  const openAccount = (id, tab = "overview") => setNav({ dest: "account", accountId: id, tab, programId: undefined });
-  const setTab = (tab) => setNav((n) => ({ ...n, tab }));
-  const setProgramFilter = (programId) => setNav((n) => ({ ...n, programId: programId || undefined }));
+  const openAccount = useCallback((id, tab = "overview") => {
+    go({ dest: "account", accountId: id, tab, programId: undefined });
+  }, [go]);
+  const setTab = useCallback((tab) => go((n) => ({ ...n, tab })), [go]);
+  const setProgramFilter = useCallback((programId, options) => {
+    go((n) => ({ ...n, programId: programId || undefined }), options);
+  }, [go]);
 
   const copilotScope = nav.dest === "account"
     ? (nav.programId
@@ -193,9 +218,15 @@ function Shell() {
       (target?.isConnected ? target : copilotTriggerRef.current)?.focus?.();
     });
   }, []);
+  const handleMissingAccount = useCallback(() => {
+    go({ dest: "accounts" }, { replace: true });
+  }, [go]);
+  const setPortfolioView = useCallback((viewId, { replace = false } = {}) => {
+    go((current) => ({ ...current, view: viewId === "all" ? undefined : viewId }), { replace });
+  }, [go]);
 
   function navigateToResult(r) {
-    if (r.object_type === "attention_item") { setNav({ dest: "today" }); return; }
+    if (r.object_type === "attention_item") { go({ dest: "today" }); return; }
     const acct = r.account_id || (r.object_type === "account" ? r.object_id : null);
     if (!acct) return;
     // route search hits into the most relevant workspace tab
@@ -229,13 +260,13 @@ function Shell() {
         collapsed={railCollapsed}
         onToggleCollapse={() => setRailCollapsed((v) => !v)}
         inboxCount={inboxCount}
-        go={setNav}
+        go={go}
         openAccount={openAccount}
       />
 
       <div className="main">
         <div className="topbar">
-          <Breadcrumb nav={nav} accounts={accounts} go={setNav} />
+          <Breadcrumb nav={nav} accounts={accounts} go={go} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
           <button className="btn small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
           <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
@@ -268,12 +299,14 @@ function Shell() {
 
         {nav.dest === "today" && (
           <div className="content">
-            <Queue reloadKey={reloadKey} onOpenAccount={(id) => openAccount(id)} onChanged={onSaved} />
+            <Queue reloadKey={reloadKey} onOpenAccount={(id) => openAccount(id)} onChanged={onSaved}
+              viewId={nav.view} onViewChange={setPortfolioView} />
           </div>
         )}
         {nav.dest === "accounts" && (
           <div className="content">
-            <Accounts accounts={accounts} onOpen={(id) => openAccount(id)} onChanged={loadAccounts} />
+            <Accounts accounts={accounts} onOpen={(id) => openAccount(id)} onChanged={loadAccounts}
+              viewId={nav.view} onViewChange={setPortfolioView} />
           </div>
         )}
         {nav.dest === "library" && <div className="content"><Library reloadKey={reloadKey} /></div>}
@@ -299,6 +332,7 @@ function Shell() {
             setInboxCount={setInboxCount}
             refreshNotifs={refreshNotifs}
             openCopilot={openCopilot}
+            onMissingAccount={handleMissingAccount}
           />
         )}
       </div>
@@ -318,7 +352,7 @@ function Shell() {
           accounts={accounts}
           onClose={() => setPalette(false)}
           onNavigate={navigateToResult}
-          go={setNav}
+          go={go}
           openAccount={openAccount}
           openQuick={() => setQuick(capturePrefill())}
           openCopilot={openCopilot}
@@ -423,25 +457,33 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
   useEffect(() => {
     if (!accountId) return;
     let live = true;
-    api.account(accountId).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    api.account(accountId).then((d) => { if (live) setDetail(d); }).catch((error) => {
+      if (live && error?.status === 404) onMissingAccount?.();
+    });
     api.contracts(accountId).then((cs) => {
       if (!live) return;
       const cur = (cs || []).find((c) => c.is_current) || (cs || [])[0];
       setRenewal(cur?.renewal_date || null);
     }).catch(() => setRenewal(null));
     return () => { live = false; };
-  }, [accountId, reloadKey]);
+  }, [accountId, reloadKey, onMissingAccount]);
 
   const programs = detail?.programs ?? [];
   const selProgram = programs.find((p) => p.id === programId) || null;
   const setAcct = (id) => openAccount(id, tab);
+
+  useEffect(() => {
+    if (detail && programId && !(detail.programs || []).some((program) => program.id === programId)) {
+      setProgramFilter("", { replace: true });
+    }
+  }, [detail, programId, setProgramFilter]);
 
   return (
     <>

@@ -2,7 +2,7 @@
 
 An internal, **single-editor** web app for running a handful of very deep Fortune-100 accounts end to end — the execution ledger, stakeholders, commercial motion, evidence, and generated outputs in one place. Built for an Engagement Manager at Valence (who sells *Nadia*, an AI coaching product) to live in daily and brief the team in minutes.
 
-> **Context / source of truth.** Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10 under `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md`. `ADOPTION-CAMPAIGN-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, `ADOPTION-COMMS-SPEC.md`, and `COMPANY-INTEL-SPEC.md` are the accepted **Stage 11–14** authorities; current implementation status is tracked in `HANDOFF.md`. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth where the additive specs are silent. The standing rules are in `CLAUDE.md`, the Stage-0 paper model is in `stage-0/`, and non-obvious decisions are logged newest-first in `decisions.md`. All repository data is **mock/synthetic**. **One gate remains: build everything, connect nothing real** until Valence approves hosting and data handling.
+> **Context / source of truth.** Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10 under `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md`. `ADOPTION-CAMPAIGN-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, `ADOPTION-COMMS-SPEC.md`, and `COMPANY-INTEL-SPEC.md` are the accepted **Stage 11–14** authorities; `UX-FOUNDATION-SPEC.md` is the additive staged UX authority. Current implementation status is tracked in `HANDOFF.md`. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth where the additive specs are silent. The standing rules are in `CLAUDE.md`, the Stage-0 paper model is in `stage-0/`, and non-obvious decisions are logged newest-first in `decisions.md`. All repository data is **mock/synthetic**. **One gate remains: build everything, connect nothing real** until Valence approves hosting and data handling.
 
 ## What it is (the one-paragraph tour)
 Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into execution records. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** covers layers, buying-committee roles, cadence, relationship health, champion development, influence paths, executive alignment, messaging, and meeting dynamics. Mock communications flow through a job table and shared association engine. **Commercial** adds a reconciled whitespace map, explicit row seat inventory, value targets, funding pools, fiscal timing, and atomic back-scheduled asks to opportunities and contracts. Aggregate cohort **metrics** keep stable segment/view identity; stale evidence renders *unknown*. Generators produce editable, review-gated pre-call briefs, expansion business cases, value reviews/QBRs, champion kits, kickoff decks, and schedulable weekly drafts, with PPTX/PDF export. Client-facing output is promotion- and source-gated by construction; nothing is auto-sent. Visualizations include the stakeholder graph and a currency-safe budget waterfall. **AI** remains pluggable (offline mock, local LLM, or Claude API) and proposes structured updates for per-item acceptance. A recurring **signals engine** turns fresh usage bars, client pull, calendar moments, confirmed org changes, champion coverage, and account growth into explainable episodes; mock calendar, enrichment, and HRIS-shaped adapters exercise the flow without connecting real systems.
@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (352 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (353 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -48,6 +48,7 @@ ADOPTION-CAMPAIGN-SPEC.md   Accepted Stage 11 authority — adoption campaigns (
 ACCOUNT-COPILOT-SPEC.md     Accepted Stage 12 authority — grounded account copilot (status in HANDOFF.md)
 ADOPTION-COMMS-SPEC.md      Accepted Stage 13 authority — comms waves and cohort attendance
 COMPANY-INTEL-SPEC.md       Accepted Stage 14 authority — cited outside-in company intelligence
+UX-FOUNDATION-SPEC.md       staged UX authority — addressability, saved views, and later orchestration
 Valence-OS-Scoping-Doc.md   the original source of truth (v3.2)
 CLAUDE.md                   standing rules (trust boundaries, data rules, design)
 DESIGN-GUIDE.md             standing design authority (supersedes scoping-doc §6)
@@ -70,6 +71,8 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 **Foundation — Section 9 build order complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation), plus global search, cmd-K, export/restore, MAP, and the files library. Migrations 0001–0010.
 
 **Frontend redesign — complete:** fully redesigned to `DESIGN-GUIDE.md` (eight phases A–H + a corrective pass + a punch-list pass). Backend, behavior, and the §2 trust boundaries unchanged; no schema changes. See `docs/archive/design-audit.md` for the retrospective value inventory.
+
+**UX foundation Release 1 — implemented:** canonical `/today`, `/accounts`, account-tab/program, `/library`, and `/operations` routes now survive refresh and support Back/Forward; production deep links fall back to the SPA without masking missing assets or unknown APIs. Today and the Accounts Book have built-in and named browser-local saved views, search/filter controls, and modified-state feedback. The Accounts Book now exposes delivery and commercial status directly. Authority: `UX-FOUNDATION-SPEC.md`; decision: D-116.
 
 | Phase | Delivered |
 |---|---|

@@ -1,14 +1,35 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
+import { SavedViewBar } from "../SavedViewControls";
+import { useSavedViews } from "../useSavedViews";
+
+const TODAY_VIEWS = [
+  { id: "all", label: "All attention", state: { band: "all", accountId: "", query: "" } },
+  { id: "needs-now", label: "Needs you now", state: { band: "now", accountId: "", query: "" } },
+  { id: "this-week", label: "This week", state: { band: "week", accountId: "", query: "" } },
+  { id: "keep-an-eye", label: "Keep an eye", state: { band: "watch", accountId: "", query: "" } },
+];
+const TODAY_BAND_KEYS = new Set(["all", "now", "week", "watch"]);
+function normalizeTodayView(state = {}) {
+  return {
+    band: TODAY_BAND_KEYS.has(state.band) ? state.band : "all",
+    accountId: typeof state.accountId === "string" ? state.accountId : "",
+    query: typeof state.query === "string" ? state.query : "",
+  };
+}
 
 // Portfolio home — the ranked, explainable attention queue (Module A).
-export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
+export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onViewChange }) {
   const toast = useToast();
   const [q, setQ] = useState(null);
   const [showSnoozed, setShowSnoozed] = useState(false);
   const [snoozing, setSnoozing] = useState(null); // item
   const [resolving, setResolving] = useState(null); // item
+  const views = useSavedViews({
+    surface: "today", builtIns: TODAY_VIEWS, defaultId: "all", requestedId: viewId, onActivate: onViewChange,
+    normalizeState: normalizeTodayView,
+  });
 
   async function load() {
     try { setQ(await api.queue()); } catch (e) { toast(e.message, "err"); }
@@ -19,17 +40,43 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
 
   if (!q) return <Loading what="attention queue" />;
 
-  const bands = BANDS.map((b) => ({ ...b, items: q.items.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
+  const query = views.state.query.trim().toLowerCase();
+  const visibleItems = q.items.filter((item) => {
+    const band = BANDS.find((candidate) => candidate.match(item.priority))?.key;
+    if (views.state.band !== "all" && band !== views.state.band) return false;
+    if (views.state.accountId && item.account_id !== views.state.accountId) return false;
+    if (!query) return true;
+    return [item.title, item.because, item.next_action, item.account_name, item.program_name]
+      .filter(Boolean).some((value) => value.toLowerCase().includes(query));
+  });
+  const bands = BANDS.map((b) => ({ ...b, items: visibleItems.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
+  const accountOptions = [...new Map(q.items.map((item) => [item.account_id, item.account_name])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]));
 
   return (
     <div>
-      <PageHeader title="Today" meta={`${q.items.length} to act · as of ${q.as_of}`} />
+      <PageHeader title="Today" meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · as of ${q.as_of}`} />
       <div className="rowmeta" style={{ marginBottom: 14 }}>
         Ranked by rule, grouped by urgency, and every item explains itself. This screen exists to be emptied.
       </div>
 
+      <SavedViewBar model={views}>
+        <label className="view-filter">
+          <span className="rowmeta">Account</span>
+          <select aria-label="Filter attention by account" value={views.state.accountId}
+            onChange={(event) => views.setState((current) => ({ ...current, accountId: event.target.value }))}>
+            <option value="">All accounts</option>
+            {accountOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>
+        <input aria-label="Search attention" placeholder="Search attention…" value={views.state.query}
+          onChange={(event) => views.setState((current) => ({ ...current, query: event.target.value }))} />
+      </SavedViewBar>
+
       {q.items.length === 0 ? (
         <div className="card"><Empty title="Queue clear">Nothing needs attention right now.</Empty></div>
+      ) : visibleItems.length === 0 ? (
+        <div className="card"><Empty title="No matching attention">Change this view's account or search filters.</Empty></div>
       ) : (
         bands.map((b) => (
           <div key={b.key} style={{ marginBottom: 18 }}>

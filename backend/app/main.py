@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import (company_intel, copilot_service, ingestion, jobs, stage7,
                internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
@@ -51,6 +52,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Valence OS", version="0.1.0", lifespan=lifespan)
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve the frontend entry point for canonical client-side routes.
+
+    Unknown API paths and missing files must remain real 404s; only extensionless
+    navigation paths are eligible for the SPA fallback.
+    """
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            is_navigation = not path.startswith("api/") and not Path(path).suffix
+            if exc.status_code != 404 or not is_navigation:
+                raise
+            return await super().get_response("index.html", scope)
 
 
 @app.exception_handler(sqlite3.IntegrityError)
@@ -122,4 +140,4 @@ def health():
 # Serve the built frontend if present (production-ish single-process serving).
 _dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _dist.is_dir():
-    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="frontend")
+    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="frontend")

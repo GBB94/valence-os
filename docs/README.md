@@ -12,6 +12,7 @@ The repository root contains only active authority, current handoff, and operati
 - `ACCOUNT-COPILOT-SPEC.md` — implemented additive Stage 12 authority; grounded read-only analyst, drafting, and release-control contract.
 - `ADOPTION-COMMS-SPEC.md` — implemented additive Stage 13 authority; planned waves and privacy-safe attendance.
 - `COMPANY-INTEL-SPEC.md` — implemented additive Stage 14 authority; cited outside-in company events and grounded briefs.
+- `UX-FOUNDATION-SPEC.md` — staged UX authority; Release 1 canonical navigation and saved portfolio views, with later command-center/activity/outcomes contracts.
 - `DESIGN-GUIDE.md` — presentation and information-architecture authority.
 - `Valence-OS-Scoping-Doc.md` — original v3.2 scope where additive specs are silent.
 - `CONNECTIONS.md` — executable external-data governance registry.

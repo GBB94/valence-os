@@ -2,6 +2,14 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## UX foundation Release 1 — implemented (2026-08-03, D-116)
+
+`UX-FOUNDATION-SPEC.md` is the additive staged UX authority created after the full-app adversarial product review. Release 1 deliberately preserves the current eight account tabs while fixing the low-regret foundation: a pure route codec and History API wrapper make Today, Accounts, account tab/program scope, Library, and Operations directly loadable, refresh-safe, and Back/Forward-aware. FastAPI's static mount now falls back to `index.html` only for extensionless non-API navigation paths, so missing assets and unknown APIs stay real 404s. A missing account route recovers to Accounts rather than hanging on a loading state.
+
+Today and the Accounts Book now share one saved-view contract with built-in presets, named browser-local custom views, modified-state feedback, safe corrupt-preference fallback, and an accessible save slide-over. Today adds account and text filtering; Accounts adds text/status filtering, status-aware sorting, and visible delivery/commercial assessments in the Book. Browser-local persistence is deliberate for the current single-editor product and stores presentation state only.
+
+Validation: 353 backend tests and 8 frontend unit tests pass; frontend lint exits zero with the repository's pre-existing warnings; production build succeeds; direct FastAPI smoke requests return the SPA for all canonical routes and JSON 404 for an unknown API. No fresh both-theme rendered pass is claimed because the in-app browser exposed no target in this session. Release 2 (command center and unified activity) and Release 3 (outcomes, hierarchy, and Growth Thesis) remain specified, not implemented.
+
 ## Stage 14 — company intelligence implemented (2026-08-02, D-110/D-111)
 
 `COMPANY-INTEL-SPEC.md` v2 is accepted and implemented as migrations 0036–0038. The architecture separates canonical companies from account records; stores provider-scoped immutable public artifact versions and exact evidence spans; keeps imported events and map links proposal-first; derives posting-level hiring clusters; persists independent convergence composition; bridges only convergence into Stage 7; and adds a fixed-section, claim-cited `company_brief` copilot intent. Corrections/retractions invalidate unsupported derivatives, and the public-source and extraction boundaries remain separate local-only registry entries.

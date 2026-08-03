@@ -123,6 +123,18 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .filter-chip.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); font-weight: 500; }
 .chip-count { font-size: var(--t-micro); color: var(--ink-tertiary); font-family: var(--font-mono); }
 .filter-chip.active .chip-count { color: var(--accent); }
+.viewbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-5);
+  border: 1px solid var(--line-hairline); border-radius: var(--r-md); background: var(--bg-surface);
+}
+.view-picker { display: inline-flex; align-items: center; gap: var(--sp-3); }
+.viewbar input, .viewbar select {
+  height: 30px; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 0 var(--sp-4); background: var(--bg-surface); color: var(--ink-primary);
+}
+.viewbar input { min-width: 220px; }
+.viewbar .view-filter { display: inline-flex; align-items: center; gap: var(--sp-3); }
 .ledger { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; align-items: start; }
 /* Scroll, never clip: at split-screen widths a hidden overflow silently amputates columns. */
 .ledger-list { overflow-x: auto; }

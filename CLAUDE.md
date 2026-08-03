@@ -47,6 +47,9 @@ _Superseded by the above, retained for history:_ ~~The scope is frozen; new obje
 - `DESIGN-GUIDE.md` is the standing design authority. It supersedes §6 of the
   scoping doc and the navigation inherited from the §5 module list. Read it
   before any frontend change.
+- `UX-FOUNDATION-SPEC.md` is the additive authority for canonical navigation,
+  saved portfolio views, and the staged command-center/activity/outcomes path.
+  Release 1 preserves the current account-tab taxonomy and trust boundaries.
 - No raw hex values, no arbitrary pixel values. Everything comes from
   `tokens.css`. Both light and dark are first-class; a change that only works
   in one theme is not done.

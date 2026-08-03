@@ -13,7 +13,9 @@ async function req(method, path, body) {
       const j = await res.json();
       if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
     } catch { /* keep default */ }
-    throw new Error(detail);
+    const error = new Error(detail);
+    error.status = res.status;
+    throw error;
   }
   if (res.status === 204) return null;
   return res.json();

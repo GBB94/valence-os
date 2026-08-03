@@ -1,6 +1,6 @@
 # Valence OS — Design Guide
 ### Visual system and screen architecture — the standing design authority for the shipped frontend
-*v3 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6 and `CLAUDE.md` · revised after the full-app adversarial design review (D-113/D-114)*
+*v4 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6, `UX-FOUNDATION-SPEC.md`, and `CLAUDE.md` · revised after the full-app adversarial design review and UX foundation pass (D-113/D-114/D-116)*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **This guide supersedes §6 of the scoping doc and the navigation the current build inherited from the §5 module list.** Where the two disagree, this document wins. The scoping doc's design section was written before anything existed; this one is written against a working app, so it replaces rather than supplements. The one-color-mode line and the one-destination-per-module structure are both explicitly retired here.
 
-**Status (v3).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. Where this guide and the shipped code disagreed, v3 resolves each case explicitly — either the guide was corrected to the audited, deliberate implementation (token values, control heights, panel width), or the gap is named below as open debt rather than silently restated as fact.
+**Status (v4).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. v3 corrected the guide against the audited implementation; v4 closes the URL-addressability debt and makes `UX-FOUNDATION-SPEC.md` the additive authority for saved views and the staged path toward a decision-oriented account workspace.
 
 **What still holds, and why.**
 
@@ -53,7 +53,7 @@ Operations       jobs, imports, backups, index health (bottom of rail, quiet)
 
 One screen per account. A persistent context header, then a tab strip that never reloads the header.
 
-> **Open debt (v3):** tabs were specified as URL destinations — linkable and back-button-able — and the build keeps navigation in memory instead, so refresh loses your place and the back button does nothing. The requirement stands; it is unimplemented, not retired. Until it lands, do not describe navigation as linkable.
+> **Addressability (v4):** global destinations, account tabs, and program scope are canonical URL destinations. Refresh and direct loading restore the same context; Back/Forward traverse prior Valence destinations. `/` normalizes to `/today`, invalid routes fail closed, and FastAPI serves the SPA entry point only for extensionless non-API navigation paths. Saved Today and Accounts views use the `view` query parameter.
 
 | Tab | Merges today's modules | The question it answers |
 |---|---|---|
@@ -86,6 +86,8 @@ The 30-second rule should be structural, not aspirational. Capture is available 
 ### 2.5 Today
 
 A single ranked list, grouped by urgency band rather than by account, with the account name as a column. No cards, no charts, no summary tiles. Every row carries the trigger reason in plain text, its age, its due date, and one primary action inline. Snooze and resolve are row actions. This screen exists to be emptied.
+
+Today and the Accounts Book also carry built-in and operator-saved views. Saved views are presentation preferences, not copied account data: they store filters and sort state locally for the current single-editor product, show when the active arrangement has been modified, and fail closed to the built-in default if a referenced custom view is unavailable or corrupt. The reusable contract and team-era migration path are in `UX-FOUNDATION-SPEC.md` §5.2.
 
 ### 2.6 Progressive disclosure
 
