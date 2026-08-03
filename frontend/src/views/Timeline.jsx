@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast, fmtDate } from "../ui";
+import { Empty, Loading, useToast, fmtDate } from "../ui";
 
 // Program-scoped timeline (Section 6b): milestones as diamonds, deployment moments
 // as dots, renewal marker, today line. Limited palette; color for status/key markers only.
@@ -63,7 +63,7 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
         </select>
       </div>
 
-      {!data ? <div className="subtle">Loading…</div> : markers.length === 0 ? (
+      {!data ? <Loading what="timeline" /> : markers.length === 0 ? (
         <div className="placeholder">No dated milestones, moments, comms, or renewal for this program yet.</div>
       ) : (
         <div className="card" style={{ padding: "16px 24px 24px" }}>
@@ -83,7 +83,7 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
                 {markers.filter((m) => m.lane === lane).sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
                   <div key={i} style={{ position: "absolute", left: pct(m.date), top: 23, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
                     <Marker kind={m.kind} status={m.status} />
-                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10, color: "var(--ink-secondary)" }}>
+                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: "var(--t-micro)", color: "var(--ink-secondary)" }}>
                       {(m.label || "").slice(0, 22)}
                     </div>
                   </div>
@@ -91,7 +91,7 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
               </div>
             </div>
           ))}
-          <div className="rowmeta" style={{ marginTop: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div className="rowmeta" style={{ marginTop: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
             <span><Marker kind="milestone" status="complete" /> milestone complete</span>
             <span><Marker kind="milestone" /> milestone due</span>
             <span><Marker kind="moment" /> deployment moment</span>

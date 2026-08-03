@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, StanceLabel, Empty, SlideOver, useToast, fmtDate, ROLE_LABELS } from "../ui";
+import { PhaseBadge, StanceLabel, Empty, Loading, SlideOver, useToast, fmtDate, ROLE_LABELS } from "../ui";
 import DeliveryPanel from "./DeliveryPanel";
 
 export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
@@ -14,7 +14,7 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
   }
   useEffect(() => { load(); }, [programId, reloadKey]);
 
-  if (!prog) return <div className="subtle">Loading…</div>;
+  if (!prog) return <Loading what="program" />;
 
   const ExecutionSummary = ({ ex }) => {
     if (!ex) return null;
@@ -106,11 +106,11 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
               <Empty title="No interactions yet">Log a call to build the history.</Empty>
             ) : (
               <table>
-                <thead><tr><th style={{width:96}}>Date</th><th style={{width:80}}>Type</th><th>Summary</th></tr></thead>
+                <thead><tr><th scope="col" className="num" style={{width:96}}>Date</th><th scope="col" style={{width:80}}>Type</th><th scope="col">Summary</th></tr></thead>
                 <tbody>
                   {prog.interactions.map((it) => (
                     <tr key={it.id}>
-                      <td className="rowmeta">{fmtDate(it.occurred_on)}</td>
+                      <td className="rowmeta num">{fmtDate(it.occurred_on)}</td>
                       <td><span className="badge">{it.type}</span></td>
                       <td>{it.summary || <span className="rowmeta">—</span>}</td>
                     </tr>
@@ -127,7 +127,7 @@ export default function ProgramDetail({ programId, onQuickEntry, reloadKey }) {
             <Empty title="No stakeholders yet">Add people with a role and dated stance.</Empty>
           ) : (
             <table>
-              <thead><tr><th>Person</th><th>Role</th><th>Stance</th></tr></thead>
+              <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Stance</th></tr></thead>
               <tbody>
                 {prog.stakeholders.map((s) => (
                   <tr key={s.id}>

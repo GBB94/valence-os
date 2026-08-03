@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
+import { Empty, Loading, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
 import ConvertPanel from "./ConvertPanel";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
@@ -111,7 +111,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
 
   const afterMutation = () => { setClosing(null); setConverting(null); setSelKey(null); load(); onChanged?.(); };
 
-  if (!exec || !history) return <div className="subtle">Loading…</div>;
+  if (!exec || !history) return <Loading what="ledger" />;
 
   return (
     <div>
@@ -123,7 +123,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
         <div className="card ledger-list">
           {shown.length === 0 ? <Empty title="Nothing here yet">Capture a call, or convert an inbox note into a record.</Empty> : (
             <table>
-              <thead><tr><th style={{ width: 96 }}>Type</th><th>What</th><th style={{ width: 120 }}>State</th><th style={{ width: 64 }}>Age</th></tr></thead>
+              <thead><tr><th scope="col" style={{ width: 96 }}>Type</th><th scope="col">What</th><th scope="col" style={{ width: 120 }}>State</th><th scope="col" className="num" style={{ width: 64 }}>Age</th></tr></thead>
               <tbody>
                 {shown.map((r) => (
                   <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}

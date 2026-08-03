@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate } from "../ui";
+import { Empty, Loading, SlideOver, useToast, fmtDate } from "../ui";
 
 export default function CalendarPanel({ accountId, reloadKey, programId }) {
   const toast = useToast();
@@ -17,12 +17,12 @@ export default function CalendarPanel({ accountId, reloadKey, programId }) {
     <div className="card-h"><h3>Calendar</h3><div className="spacer" />
       <button className="btn small ghost" onClick={sync}>Sync mock .ics</button>
       <button className="btn small" onClick={() => setAdding(true)}>Schedule</button></div>
-    {!events ? <div className="subtle" style={{ padding: "var(--sp-5)" }}>Loading…</div> : events.length === 0
+    {!events ? <Loading what="calendar" /> : events.length === 0
       ? <Empty title="No calendar entries">Sync the mock fixture or schedule a kickoff, governance meeting, or value review.</Empty>
-      : <table><thead><tr><th>Moment</th><th>When</th><th>Attendance facts</th><th>Source</th></tr></thead>
+      : <table><thead><tr><th scope="col">Moment</th><th scope="col" className="num">When</th><th scope="col">Attendance facts</th><th scope="col">Source</th></tr></thead>
         <tbody>{events.map((e) => <tr key={e.id}>
           <td>{e.title}<div className="rowmeta">{e.purpose.replace(/_/g, " ")}{e.location ? ` · ${e.location}` : ""}</div></td>
-          <td className="rowmeta">{fmtDate(e.starts_at)}</td>
+          <td className="rowmeta num">{fmtDate(e.starts_at)}</td>
           <td className="rowmeta">{e.attendees.length ? e.attendees.map((a) => `${a.person_name || a.name || a.email}: ${a.attendance_status}`).join(" · ") : "none recorded"}</td>
           <td><span className="badge">{e.direction === "read" ? "mock read" : "local write"}</span></td>
         </tr>)}</tbody></table>}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast } from "../ui";
+import { Empty, Loading, useToast } from "../ui";
 
 const n = (value) => value == null ? "—" : Number(value).toLocaleString();
 
@@ -12,7 +12,7 @@ export default function PortfolioAnalytics() {
     setData(null);
     api.commercialAnalytics(days).then(setData).catch((e) => toast(e.message, "err"));
   }, [days]);
-  if (!data) return <div className="subtle" style={{ padding: 12 }}>Loading portfolio facts…</div>;
+  if (!data) return <Loading what="portfolio facts" />;
   const bridge = data.portfolio_bridge;
   return <div>
     <div className="actions" style={{ marginBottom: 14 }}>
@@ -45,11 +45,11 @@ export default function PortfolioAnalytics() {
           <Fact title="Named lines" value={n(bridge.totals.named_seats)} />
           <Fact title="Unfunded gap" value={n(bridge.totals.unfunded_gap)} />
         </div>
-        <table><thead><tr><th>Account</th><th>Current</th><th>Named</th><th>Committed</th><th>Target</th><th>Gap</th></tr></thead>
+        <table><thead><tr><th scope="col">Account</th><th scope="col" className="num">Current</th><th scope="col" className="num">Named</th><th scope="col" className="num">Committed</th><th scope="col" className="num">Target</th><th scope="col" className="num">Gap</th></tr></thead>
           <tbody>{bridge.accounts.map((r) => <tr key={r.account_id}>
             <td>{r.account_name}{!r.additive && <div className="rowmeta">excluded: overlapping lines</div>}</td>
-            <td>{n(r.current_seats)}</td><td>{n(r.named_seats)}</td><td>{n(r.committed_seats)}</td>
-            <td>{n(r.target_seats)}</td><td>{n(r.unfunded_gap)}</td>
+            <td className="num">{n(r.current_seats)}</td><td className="num">{n(r.named_seats)}</td><td className="num">{n(r.committed_seats)}</td>
+            <td className="num">{n(r.target_seats)}</td><td className="num">{n(r.unfunded_gap)}</td>
           </tr>)}</tbody></table>
       </>}
       <div className="rowmeta" style={{ padding: "8px 12px" }}>{bridge.basis}</div>
@@ -59,8 +59,8 @@ export default function PortfolioAnalytics() {
       <div className="card">
         <div className="card-h"><h3>Whitespace movement</h3></div>
         {data.whitespace.transitions.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>Zero dated transitions in this window.</div> :
-          <table><thead><tr><th>Transition</th><th>Cells</th><th>Accounts</th></tr></thead><tbody>
-            {data.whitespace.transitions.map((r) => <tr key={`${r.from}-${r.to}`}><td>{r.from} → {r.to}</td><td>{r.count}</td><td>{r.account_count}</td></tr>)}
+          <table><thead><tr><th scope="col">Transition</th><th scope="col" className="num">Cells</th><th scope="col" className="num">Accounts</th></tr></thead><tbody>
+            {data.whitespace.transitions.map((r) => <tr key={`${r.from}-${r.to}`}><td>{r.from} → {r.to}</td><td className="num">{r.count}</td><td className="num">{r.account_count}</td></tr>)}
           </tbody></table>}
         <div className="rowmeta" style={{ padding: "8px 12px" }}>{data.whitespace.history_coverage_note}</div>
       </div>
@@ -75,12 +75,12 @@ export default function PortfolioAnalytics() {
     <div className="card" style={{ marginTop: 14 }}>
       <div className="card-h"><h3>Recurring revenue movement</h3><div className="spacer" />
         <span className="rowmeta">absolute movement; never blended across currencies</span></div>
-      <table><thead><tr><th>Account</th><th>Currency</th><th>Base ARR</th><th>Actual movement</th><th>Ending ARR</th><th>Projected expansion</th><th>Events</th></tr></thead>
+      <table><thead><tr><th scope="col">Account</th><th scope="col">Currency</th><th scope="col" className="num">Base ARR</th><th scope="col" className="num">Actual movement</th><th scope="col" className="num">Ending ARR</th><th scope="col" className="num">Projected expansion</th><th scope="col" className="num">Events</th></tr></thead>
         <tbody>{data.revenue.accounts.map((r) => <tr key={r.account_id}>
-          <td>{r.account_name}</td><td>{r.currency || "unknown"}</td><td>{n(r.base_arr)}</td>
-          <td>{n(r.net_movement)}</td><td>{n(r.ending_arr)}</td><td>{r.projected_expansion.insufficient_data ?
+          <td>{r.account_name}</td><td>{r.currency || "unknown"}</td><td className="num">{n(r.base_arr)}</td>
+          <td className="num">{n(r.net_movement)}</td><td className="num">{n(r.ending_arr)}</td><td className="num">{r.projected_expansion.insufficient_data ?
             <span className="rowmeta">insufficient data<div>{r.projected_expansion.reason}</div></span> :
-            <>{n(r.projected_expansion.low)}–{n(r.projected_expansion.high)}<div className="rowmeta">weighted {n(r.projected_expansion.probability_weighted)}</div></>}</td><td>{r.event_count}</td>
+            <>{n(r.projected_expansion.low)}–{n(r.projected_expansion.high)}<div className="rowmeta">weighted {n(r.projected_expansion.probability_weighted)}</div></>}</td><td className="num">{r.event_count}</td>
         </tr>)}</tbody></table>
       <div className="rowmeta" style={{ padding: "8px 12px" }}>{data.revenue.note}</div>
     </div>

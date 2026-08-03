@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SlideOver, useToast } from "../ui";
+import { AgeChip, Empty, Loading, SlideOver, useToast } from "../ui";
 
 export default function OrgChanges({ accountId, reloadKey }) {
   const toast = useToast();
@@ -17,19 +17,19 @@ export default function OrgChanges({ accountId, reloadKey }) {
     try { await api.confirmOrgChange(id); toast("Change confirmed and follow-up created"); setTick((x) => x + 1); }
     catch (e) { toast(e.message, "err"); }
   };
-  if (!data) return <div className="subtle">Loading…</div>;
+  if (!data) return <Loading what="org changes" />;
   return <div>
     <div className="actions" style={{ marginBottom: "var(--sp-4)" }}><div><h1 style={{ margin: 0 }}>Org changes</h1>
       <div className="rowmeta">Adapter findings are proposals. Nothing edits a person until you confirm it.</div></div>
-      <div className="spacer" /><button className="btn small primary" onClick={sync}>Sync mock enrichment</button></div>
+      <div className="spacer" /><button className="btn small" onClick={sync}>Sync mock enrichment</button></div>
     <div className="card">
       {data.flags.length === 0 ? <Empty title="No change proposals">Sync the mock fixture to exercise confirmation.</Empty>
-        : <table><thead><tr><th>Change</th><th>State</th><th></th></tr></thead>
+        : <table><thead><tr><th scope="col">Change</th><th scope="col">State</th><th scope="col">Actions</th></tr></thead>
           <tbody>{data.flags.map((f) => <tr key={f.id}>
             <td><strong>{f.kind.replace(/_/g, " ")}</strong> · {f.summary}
               <div className="rowmeta">{f.occurred_on ? <AgeChip date={f.occurred_on} /> : "date unknown"}</div></td>
             <td><span className="badge">{f.status}</span></td>
-            <td>{f.status === "proposed" && <div className="actions"><button className="btn small primary" onClick={() => confirm(f.id)}>Confirm</button>
+            <td>{f.status === "proposed" && <div className="actions"><button className="btn small" onClick={() => confirm(f.id)}>Confirm change</button>
               <button className="btn small ghost" onClick={() => setDismissing(f)}>Dismiss</button></div>}</td>
           </tr>)}</tbody></table>}
     </div>

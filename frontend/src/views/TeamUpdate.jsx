@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast } from "../ui";
+import { Empty, Loading, useToast } from "../ui";
 import { DocPanel } from "./Artifacts";
 
 // Weekly team update export (Module L). Internal, freshness-stamped, summary-level
@@ -63,7 +63,7 @@ export default function TeamUpdate({ reloadKey }) {
         </div>
       )}
 
-      {!tu ? <div className="subtle">Loading…</div> : tu.sections.length === 0 ? (
+      {!tu ? <Loading what="team update" /> : tu.sections.length === 0 ? (
         <div className="placeholder">Nothing to report this week.</div>
       ) : (
         tu.sections.map((s) => (
@@ -86,15 +86,15 @@ export default function TeamUpdate({ reloadKey }) {
         ))
       )}
 
-      <div className="card" style={{ marginTop: 14 }}>
+      <div className="card" style={{ marginTop: 16 }}>
         <div className="card-h"><h3>Review queue</h3><div className="spacer" />
           <span className="rowmeta">{jobs.length} scheduled · {docs.length} saved</span>
         </div>
         {docs.length === 0 ? <Empty title="No weekly drafts yet">Schedule one above; it will be saved for review and never auto-sent.</Empty> : (
-          <table><thead><tr><th>Draft</th><th>Status</th><th>Generated</th><th></th></tr></thead>
+          <table><thead><tr><th scope="col">Draft</th><th scope="col">Status</th><th scope="col" className="num">Generated</th><th scope="col">Actions</th></tr></thead>
             <tbody>{docs.map((d) => <tr key={d.id}>
-              <th style={{ textAlign: "left", fontWeight: 500 }}>{d.title}</th>
-              <td>{d.status}</td><td className="rowmeta">{d.generated_at}</td>
+              <th scope="row" style={{ textAlign: "left", fontWeight: 500 }}>{d.title}</th>
+              <td>{d.status}</td><td className="rowmeta num">{d.generated_at}</td>
               <td><div className="actions">
                 <button className="btn small" onClick={() => setOpen(d)}>Open</button>
                 <a className="btn small ghost" href={api.documentPptxUrl(d.id)}>.pptx</a>

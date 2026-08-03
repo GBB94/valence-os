@@ -11,11 +11,11 @@
      closing elsewhere changes this readout without anything writing to the campaign. */
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SlideOver, Unknown, useToast } from "../ui";
+import { AgeChip, Badge, Empty, Loading, SlideOver, Unknown, useToast } from "../ui";
 
 const STATUS = {
   draft:     { glyph: "○", hue: "--ink-secondary",   label: "Draft" },
-  ready:     { glyph: "◐", hue: "--status-warn",     label: "Ready" },
+  ready:     { glyph: "◐", hue: "--ink-secondary",   label: "Ready" },
   active:    { glyph: "●", hue: "--status-ok",       label: "Active" },
   paused:    { glyph: "‖", hue: "--status-warn",     label: "Paused" },
   completed: { glyph: "✓", hue: "--ink-secondary",   label: "Completed" },
@@ -66,7 +66,7 @@ export default function Campaigns({ accountId, reloadKey }) {
         never claims the campaign caused it.
       </div>
 
-      {!rows ? <div className="subtle" style={{ padding: 12 }}>Loading…</div> :
+      {!rows ? <Loading what="campaigns" /> :
         rows.length === 0 ? (
           <Empty title="No campaigns yet">
             A campaign names the cohort, the behaviour to change, the barrier in the way, and the
@@ -78,7 +78,7 @@ export default function Campaigns({ accountId, reloadKey }) {
               <th scope="col">Campaign</th>
               <th scope="col" style={{ width: 150 }}>Cohort</th>
               <th scope="col" style={{ width: 130 }}>Status</th>
-              <th scope="col" style={{ width: 120 }}>Window</th>
+              <th scope="col" className="num" style={{ width: 120 }}>Window</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => {
@@ -95,12 +95,12 @@ export default function Campaigns({ accountId, reloadKey }) {
                       <div>{r.use_case}</div>
                     </td>
                     <td>
-                      <span aria-hidden="true" style={{ color: `var(${st.hue})`, marginRight: 5 }}>
+                      <span aria-hidden="true" style={{ color: `var(${st.hue})`, marginRight: 6 }}>
                         {st.glyph}
                       </span>
                       {st.label}
                     </td>
-                    <td className="rowmeta">
+                    <td className="rowmeta num">
                       {r.planned_start_on} → {r.planned_end_on}
                     </td>
                   </tr>
@@ -136,7 +136,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
   useEffect(() => { load(); }, [campaignId]);
 
   if (!c) return <SlideOver title="Campaign" onClose={onClose}>
-    <div className="subtle">Loading…</div></SlideOver>;
+    <Loading /></SlideOver>;
 
   const st = STATUS[c.status] || STATUS.draft;
 
@@ -147,7 +147,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
         <strong>{st.label}</strong>
         <span className="rowmeta">· {c.population} · {c.use_case}</span>
       </div>
-      <div className="rowmeta" style={{ marginBottom: 14 }}>
+      <div className="rowmeta" style={{ marginBottom: 16 }}>
         {c.planned_start_on} → {c.planned_end_on}
         {c.evaluation_on ? ` · evaluated ${c.evaluation_on}` : ""}
         {c.internal_owner_name ? ` · ${c.internal_owner_name}` : ""}
@@ -170,7 +170,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
           const ev = t.evaluation;
           const e = EVAL[ev.status] || EVAL_FALLBACK;
           return (
-            <div key={t.id} style={{ marginBottom: 14 }}>
+            <div key={t.id} style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                 <span aria-hidden="true" style={{ color: `var(${e.hue})` }}>{e.glyph}</span>
                 <strong>{t.metric}</strong>
@@ -231,7 +231,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 
       <h4 style={h4}>Barriers</h4>
       {c.barriers.length === 0 ? <div className="rowmeta">None diagnosed.</div> : (
-        <table style={{ marginBottom: 14 }}>
+        <table style={{ marginBottom: 16 }}>
           <tbody>
             {c.barriers.map((b) => (
               <tr key={b.id}>
@@ -253,7 +253,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 
       <h4 style={h4}>The intervention</h4>
       {c.plan.length === 0 ? <div className="rowmeta">No linked interventions yet.</div> : (
-        <table style={{ marginBottom: 14 }}>
+        <table style={{ marginBottom: 16 }}>
           <thead><tr>
             <th scope="col">Step</th>
             <th scope="col" style={{ width: 110 }}>Kind</th>
@@ -281,7 +281,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 
       <h4 style={h4}>Checkpoints</h4>
       {c.checkpoints.length === 0 ? <div className="rowmeta">None scheduled.</div> : (
-        <table style={{ marginBottom: 14 }}>
+        <table style={{ marginBottom: 16 }}>
           <tbody>
             {c.checkpoints.map((cp) => (
               <tr key={cp.id}>
@@ -312,7 +312,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 
       {nearest && (
         <>
-          <h4 style={{ ...h4, marginTop: 18 }}>Have we run this shape before?</h4>
+          <h4 style={{ ...h4, marginTop: 20 }}>Have we run this shape before?</h4>
           {!nearest.cross_account_eligible ? (
             <p style={p} className="subtle">{nearest.reason}</p>
           ) : !nearest.matches.length ? (
@@ -322,7 +322,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
           ) : (
             <table>
               <thead>
-                <tr><th>Campaign</th><th>Outcome</th><th>Why it matched</th></tr>
+                <tr><th scope="col">Campaign</th><th scope="col">Outcome</th><th scope="col">Why it matched</th></tr>
               </thead>
               <tbody>
                 {nearest.matches.map((m) => (
@@ -337,9 +337,8 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
                     <td>
                       {/* Tier is the honest part: an untagged shape is "same feature", not
                           "same shape". The reason string says which, in words. */}
-                      <span className={m.match_rank === 1 ? "band-ok" : "subtle"}>
-                        {m.match_reason}
-                      </span>
+                      {m.match_rank === 1 && <Badge>top match</Badge>}{" "}
+                      <span className="subtle">{m.match_reason}</span>
                     </td>
                   </tr>
                 ))}
@@ -351,7 +350,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 
       {retro && (
         <>
-          <h4 style={{ ...h4, marginTop: 18 }}>What we learned</h4>
+          <h4 style={{ ...h4, marginTop: 20 }}>What we learned</h4>
           <p style={p}>
             <strong>Barrier actually present:</strong>{" "}
             {retro.barrier_actually_present.replaceAll("_", " ")} — {retro.barrier_note}
@@ -365,7 +364,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
           )}
           {retro.interventions.length > 0 && (
             <table>
-              <thead><tr><th>Intervention</th><th>Verdict</th><th>Note</th></tr></thead>
+              <thead><tr><th scope="col">Intervention</th><th scope="col">Verdict</th><th scope="col">Note</th></tr></thead>
               <tbody>
                 {retro.interventions.map((i) => (
                   <tr key={i.id}>
@@ -387,7 +386,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
         </>
       )}
 
-      <h4 style={{ ...h4, marginTop: 18 }}>History</h4>
+      <h4 style={{ ...h4, marginTop: 20 }}>History</h4>
       <table>
         <tbody>
           {c.history.map((h) => (
@@ -396,7 +395,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
                 {h.from_status ? `${h.from_status} → ${h.to_status}` : h.to_status}
               </th>
               <td>{h.reason}</td>
-              <td className="rowmeta" style={{ width: 92 }}>{h.changed_on}</td>
+              <td className="rowmeta num" style={{ width: 92 }}>{h.changed_on}</td>
             </tr>
           ))}
         </tbody>
@@ -408,7 +407,7 @@ function CampaignPanel({ campaignId, onClose, onChanged }) {
 const h4 = { margin: "16px 0 6px", fontSize: 12, textTransform: "uppercase",
              letterSpacing: ".04em", color: "var(--ink-tertiary)" };
 const p = { margin: "0 0 6px", fontSize: 13, lineHeight: 1.5 };
-const gapBar = { padding: "8px 10px", marginBottom: 8,
+const gapBar = { padding: "8px 12px", marginBottom: 8,
                  borderLeft: "3px solid var(--status-warn)", background: "var(--bg-sunken)" };
 const caution = { marginTop: 4, fontSize: 12, lineHeight: 1.45,
                   color: "var(--ink-secondary)" };

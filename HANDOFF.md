@@ -10,27 +10,25 @@ The account Commercial workspace now has a Company sub-tab for identity/watch se
 
 Validation: all 352 backend tests pass, including 17 Stage 14 adversarial cases (13 from the build, 4 from the post-build review, D-112); frontend lint exits zero (repository-pre-existing warnings remain), the production build succeeds, and the Company and Operations surfaces were exercised in a 1440×1000 rendered browser in dark and light themes with no horizontal overflow. The rendered flow confirmed both events, opened convergence with exact composition, exposed map/source controls and the full watch policy, and showed Operations freshness/review/sync measures. A rapid concurrent navigation pass also remained clean under the request-level SQLite serialization guard.
 
-## Design review backlog (2026-08-03, D-113)
+## Design review mechanical tail — completed (2026-08-03, D-115)
 
-The comprehensive design review fixed all contrast, keyboard, color-semantics, and broken-class
-defects (see D-113). A mechanical long tail remains, none of it release-blocking, all of it
-suited to one focused primitives pass:
+The focused primitives pass following D-113 is complete across 45 frontend files. Numeric/date
+columns now share `.num` (mono, tabular, right-aligned); every rendered table header declares
+`scope="col"` or `scope="row"`; generic save copy names its outcome; and the blocking
+`window.prompt()` flows in Delivery, Library, and Playbook Library are accessible `SlideOver`
+forms. The top-bar capture affordance is secondary so a view can own its one primary action,
+repeated row actions are secondary, and selected-state button groups use `.selected` with
+`aria-pressed` rather than borrowing `.primary`.
 
-- **Mono/right-align sweep:** ~30 hand-rolled tables render dates, currency, seats, and counts
-  in the UI face, left-aligned (§5 wants mono, right-aligned; `Ledger.jsx` is the reference).
-- **`<th scope>` sweep:** ~20 hand-rolled tables lack `scope="col"`/`"row"` (the `Table`
-  primitive does it right; several views were already fixed in this pass).
-- **Copy pass:** generic "Save" labels in ~7 views (incl. QuickEntry, the capture path) should
-  name the outcome (§10); `window.prompt()` dialogs in Delivery/Library/PlaybookLibrary.
-- **Primary-button rationalization:** one primary per screen — the topbar "Log interaction"
-  primary plus per-view/per-row primaries breaks it broadly; `.primary`-as-selected-state
-  toggles should become `SegTabs`.
-- **Off-scale spacing/type long tail:** ~80 instances of 5/9/10/14/18px in views; raw 10px
-  labels in graph/timeline/waterfall; local form-scaffold objects that drop the Plex family on
-  selects (ten views define their own `Field`/`sel` constants).
-- **Component consolidation:** shared Loading and Empty usage (~44 hand-rolled "Loading…"
-  divs), palette listbox/option semantics, AgeChip misapplied to future dates
-  (Checklists due dates, find-by dates) wants a due-in formatter.
+Shared `Loading` and `DueChip` treatments replace the repeated view scaffolds and the future-date
+misread in checklists/find-by dates. Form controls inherit the application face globally; palette
+results expose combobox/listbox/option semantics; the recorded off-scale spacing patterns and raw
+10px graph/timeline/waterfall labels are gone. Static guards find no missing table scopes, blocking
+prompts, generic Save/Submit/OK labels, or handoff-listed off-scale spacing. Validation: 352 backend
+tests pass; frontend lint exits zero (the repository's pre-existing warnings remain); production
+build succeeds. A fresh rendered both-theme pass was not captured because this session exposed no
+in-app browser target; D-113's preceding full-app both-theme audit remains the latest rendered
+evidence, and this limitation is tooling evidence rather than a claim that a new visual pass ran.
 
 ## What this is
 

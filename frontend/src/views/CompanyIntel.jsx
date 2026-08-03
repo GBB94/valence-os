@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, useToast } from "../ui";
+import { AgeChip, Empty, Loading, useToast } from "../ui";
 
 const emptyProfile = { legal_name: "", aliases: [], listing_status: "private", identifiers: [],
   watch_tier: "standard", source_include: [], source_exclude: [], topic_include: [], topic_exclude: [],
@@ -34,7 +34,7 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
     finally { setBusy(false); }
   }
 
-  if (!data) return <div className="subtle">Loading company intelligence…</div>;
+  if (!data) return <Loading what="company intelligence" />;
   if (!data.company) return <ProfileSetup accountId={accountId} onSaved={refresh} />;
   const proposed = data.events.filter((e) => e.status === "proposed");
   const confirmed = data.events.filter((e) => e.status === "confirmed");
@@ -80,7 +80,7 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
     <div className="card">
       <div className="card-h"><h3>Active convergence</h3></div>
       {!data.convergences.some((x) => x.status === "active") ? <div className="rowmeta" style={{ padding: 14 }}>No independently sourced target has two qualifying event kinds.</div> :
-        data.convergences.filter((x) => x.status === "active").map((x) => <div key={x.id} style={{ padding: 14, borderTop: "1px solid var(--line-hairline)" }}>
+        data.convergences.filter((x) => x.status === "active").map((x) => <div key={x.id} style={{ padding: 16, borderTop: "1px solid var(--line-hairline)" }}>
           <div><span className="badge">◆ active</span> {x.target_kind}</div><div className="rowmeta" style={{ marginTop: 5 }}>{x.explanation}</div>
         </div>)}
     </div>
@@ -88,7 +88,7 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
     <div className="card">
       <div className="card-h"><h3>Hiring facts</h3><div className="spacer" /><span className="rowmeta">posting-level, never a score</span></div>
       {!data.hiring.length ? <div className="rowmeta" style={{ padding: 14 }}>No active posting observations.</div> : data.hiring.map((p) =>
-        <div key={p.id} style={{ padding: 14, borderTop: "1px solid var(--line-hairline)" }}>
+        <div key={p.id} style={{ padding: 16, borderTop: "1px solid var(--line-hairline)" }}>
           {p.title} <span className="badge">{p.state}</span><div className="rowmeta">{p.function_label} · {p.region_label} · last seen {p.last_seen_on} <AgeChip date={p.last_seen_on} /></div>
         </div>)}
     </div>
@@ -142,7 +142,7 @@ function Event({ event, busy, onConfirm, onDismiss, targets, onChanged }) {
       ? <span className="rowmeta">{event.occurred_on} <AgeChip date={event.occurred_on} /></span>
       : <span className="unknown-chip"><span className="unknown-hatch" aria-hidden="true" />date unknown</span>}</div>
     <div style={{ marginTop: 9 }}>{event.summary}</div>
-    {evidence && <blockquote style={{ margin: "10px 0 0", padding: "9px 12px", borderLeft: "3px solid var(--line-strong)", background: "var(--bg-sunken)" }}>
+    {evidence && <blockquote style={{ margin: "12px 0 0", padding: "8px 12px", borderLeft: "3px solid var(--line-strong)", background: "var(--bg-sunken)" }}>
       <div>“{evidence.excerpt}”</div>
       <div className="rowmeta" style={{ marginTop: 5 }}>{evidence.publisher} · {evidence.published_on
         ? <>{evidence.published_on} <AgeChip date={evidence.published_on} /></>
@@ -191,7 +191,7 @@ function ProfileSetup({ accountId, onSaved, initial }) {
     try { await api.putCompanyWatch(accountId, form); toast("Company identity and watch policy saved"); onSaved(); }
     catch (e) { toast(e.message, "err"); }
   }
-  return <div className="card" style={{ padding: 18, maxWidth: 720 }}>
+  return <div className="card" style={{ padding: 16, maxWidth: 720 }}>
     <h2>Set up company intelligence</h2>
     <p className="subtle">Link this account to a canonical company before importing public artifacts. Identity is separate from the CRM account.</p>
     <label>Legal company name<input value={form.legal_name} onChange={(e) => setForm({ ...form, legal_name: e.target.value })} placeholder="Synthetic company name" /></label>

@@ -39,12 +39,12 @@ export default function Waterfall({ accountId }) {
       <div style={{ padding: 12 }}>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={rows} margin={{ top: 20, right: 10, left: 10, bottom: 30 }}>
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--ink-secondary)" }} interval={0} angle={-12} textAnchor="end" height={50} />
-            <YAxis tickFormatter={(v) => "$" + (v / 1000) + "k"} tick={{ fontSize: 11, fill: "var(--ink-secondary)" }} />
+            <XAxis dataKey="name" tick={{ fontSize: "var(--t-micro)", fill: "var(--ink-secondary)" }} interval={0} angle={-12} textAnchor="end" height={50} />
+            <YAxis tickFormatter={(v) => "$" + (v / 1000) + "k"} tick={{ fontSize: "var(--t-micro)", fill: "var(--ink-secondary)" }} />
             <Bar dataKey="base" stackId="a" fill="transparent" />
             <Bar dataKey="delta" stackId="a" radius={[2, 2, 0, 0]}>
               {rows.map((r, i) => <Cell key={i} fill={COLOR[r.kind]} />)}
-              <LabelList dataKey="display" position="top" formatter={money} className="mono" style={{ fontSize: 10, fill: "var(--ink-secondary)" }} />
+              <LabelList dataKey="display" position="top" formatter={money} className="mono" style={{ fontSize: "var(--t-micro)", fill: "var(--ink-secondary)" }} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

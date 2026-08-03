@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { useToast, fmtDate } from "../ui";
+import { Loading, useToast, fmtDate } from "../ui";
 
 const TYPE_LABEL = { confirmed_fact: "fact", internal_interpretation: "interpretation", open_hypothesis: "hypothesis", recommended_action: "recommendation" };
 // Evidence type is categorical (fact vs interpretation vs hypothesis vs action), not health —
@@ -33,21 +33,21 @@ export default function QBR({ accounts, accountId, setAccountId, reloadKey }) {
         <button className="btn" onClick={load}>Regenerate</button>
       </div>
 
-      {!q ? <div className="subtle">Loading…</div> : (
+      {!q ? <Loading what="QBR" /> : (
         <>
           <div className="rowmeta" style={{ marginBottom: 4 }}>
             Generated {q.stamp.generated_at} · data current through {q.stamp.data_current_through}.
             {q.stamp.missing_or_stale_sources.length > 0 && <span style={{ color: "var(--status-warn)" }}> ⚠ stale/missing: {q.stamp.missing_or_stale_sources.join(", ")}</span>}
           </div>
-          <div className="rowmeta" style={{ marginBottom: 14, color: "var(--ink-tertiary)" }}>{q.excluded_note}</div>
+          <div className="rowmeta" style={{ marginBottom: 16, color: "var(--ink-tertiary)" }}>{q.excluded_note}</div>
 
           <div className="card"><div className="card-h"><h3>Metrics vs targets</h3></div>
-            <table><thead><tr><th>Metric</th><th style={{ width: 120 }}>Value</th><th style={{ width: 100 }}>Target</th><th>Population · through</th></tr></thead>
+            <table><thead><tr><th scope="col">Metric</th><th scope="col" className="num" style={{ width: 120 }}>Value</th><th scope="col" className="num" style={{ width: 100 }}>Target</th><th scope="col">Population · through</th></tr></thead>
               <tbody>
                 {q.metrics.map((m, i) => (
                   <tr key={i}><td>{m.name} <Type t={m.type} /></td>
-                    <td>{m.value === "unknown" ? <span style={{ color: "var(--ink-tertiary)" }}>unknown</span> : fmtNum(m.value)}</td>
-                    <td className="rowmeta">{fmtNum(m.target)}</td>
+                    <td className="num">{m.value === "unknown" ? <span style={{ color: "var(--ink-tertiary)" }}>unknown</span> : fmtNum(m.value)}</td>
+                    <td className="rowmeta num">{fmtNum(m.target)}</td>
                     <td className="rowmeta">{m.population || "—"}{m.current_through ? ` · ${fmtDate(m.current_through)}` : ""}
                       {m.source?.label ? <div>source: {m.source.label}</div> : null}</td></tr>
                 ))}

@@ -6,7 +6,9 @@
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-hover); }
 button { font-family: inherit; font-size: inherit; }
-input, select, textarea { background: var(--bg-surface); color: var(--ink-primary); border-color: var(--line-strong); }
+/* Form controls don't inherit fonts by default; without this, ad hoc selects fall back to the
+   system face instead of Plex. */
+input, select, textarea { background: var(--bg-surface); color: var(--ink-primary); border-color: var(--line-strong); font-family: inherit; font-size: var(--t-body); }
 ::placeholder { color: var(--ink-tertiary); }
 
 /* App shell */
@@ -92,6 +94,9 @@ input, select, textarea { background: var(--bg-surface); color: var(--ink-primar
 :root[data-density="default"] th { padding: 10px 12px; line-height: 16px; }
 .cell-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch; }
 .mono { font-family: var(--font-mono); }
+/* Numeric/date column cells and headers (§5: mono, right-aligned, decimals stack) */
+td.num, th.num { text-align: right; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* Freshness language (§7): age chip + decay ramp + unknown treatment */
 .age { font-family: var(--font-mono); font-size: var(--t-micro); }
@@ -233,6 +238,9 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .btn.ghost:hover { background: var(--bg-hover); }
 .btn.danger { background: var(--status-risk-tint); border-color: var(--status-risk); color: var(--status-risk); }
 .btn.danger:hover { background: var(--status-risk); color: var(--ink-inverse); }
+/* Selected state for small toggle groups (pair with aria-pressed). Never `.primary`:
+   accent fill means "the action this screen exists for", not "currently chosen". */
+.btn.selected { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .actions { display: flex; gap: 8px; align-items: center; }
 .spacer { flex: 1; }

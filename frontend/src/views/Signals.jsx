@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SegTabs, SlideOver, useToast } from "../ui";
+import { AgeChip, Empty, Loading, SegTabs, SlideOver, useToast } from "../ui";
 
 const STATES = [["active", "Active"], ["closed", "History"]];
 
@@ -36,10 +36,10 @@ export default function Signals({ accountId, reloadKey }) {
       <button className="btn small primary" onClick={evaluate}>Evaluate now</button>
     </div>
     <div style={{ marginBottom: "var(--sp-4)" }}><SegTabs tabs={STATES} value={tab} onChange={setTab} kind="chip" /></div>
-    {!episodes ? <div className="subtle">Loading…</div> : shown.length === 0
+    {!episodes ? <Loading what="signals" /> : shown.length === 0
       ? <Empty title={tab === "active" ? "No active signals" : "No signal history"}>Run evaluation after syncing mock sources.</Empty>
       : <div className="card"><table>
-        <thead><tr><th>Signal</th><th>Cell</th><th>State</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Signal</th><th scope="col">Cell</th><th scope="col">State</th><th scope="col">Actions</th></tr></thead>
         <tbody>{shown.map((e) => <tr key={e.id}>
           <td><strong>{e.kind.replace(/_/g, " ")}</strong><div className="rowmeta">{e.explanation}</div>
             <div className="rowmeta">opened <AgeChip date={e.opened_at} />{e.freshness_as_of ? ` · evidence through ${e.freshness_as_of}` : ""}</div></td>
@@ -47,7 +47,7 @@ export default function Signals({ accountId, reloadKey }) {
           <td><span className="badge" style={e.status === "held" ? { color: "var(--status-warn)", borderColor: "var(--status-warn)" } : {}}>{e.status}</span>
             {e.held_reason && <div className="rowmeta">{e.held_reason}</div>}</td>
           <td>{["open", "held"].includes(e.status) && <div className="actions">
-            {e.status === "open" && e.cell_id && <button className="btn small primary" onClick={() => draft(e)}>Draft opportunity</button>}
+            {e.status === "open" && e.cell_id && <button className="btn small" onClick={() => draft(e)}>Draft opportunity</button>}
             {e.status === "open" && !e.adoption_campaign_id &&
               <button className="btn small" onClick={() => setPropose(e)}>Propose campaign</button>}
             {e.adoption_campaign_id && <span className="rowmeta">campaign drafted</span>}
@@ -141,7 +141,7 @@ function ProposeCampaign({ episode, accountId, onClose, onSaved }) {
           </select>
         </label>
         {f.evaluation_design === "pre_post" && (
-          <div className="rowmeta" style={{ marginBottom: 10, color: "var(--ink-secondary)" }}>
+          <div className="rowmeta" style={{ marginBottom: 12, color: "var(--ink-secondary)" }}>
             ▲ This cohort was selected because its reading fell, so some rebound is expected
             without intervention. A comparator absorbs that; pre/post will carry the caution.
           </div>
@@ -152,7 +152,7 @@ function ProposeCampaign({ episode, accountId, onClose, onSaved }) {
   );
 }
 
-const pcLbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
+const pcLbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, fontSize: "var(--t-body)" };
 const pcInput = {
   padding: "6px 8px", borderRadius: "var(--r-sm)",
   border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",

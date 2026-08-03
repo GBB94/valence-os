@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Card, Empty, SegTabs, useToast } from "../ui";
+import { Card, Empty, Loading, SegTabs, useToast } from "../ui";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const day = (offset) => {
@@ -63,9 +63,9 @@ function FeedbackSummary({ accountId, reloadKey }) {
       <table>
         <thead>
           <tr>
-            <th>Theme</th>
-            <th>Status</th>
-            <th>Loop</th>
+            <th scope="col">Theme</th>
+            <th scope="col">Status</th>
+            <th scope="col">Loop</th>
           </tr>
         </thead>
         <tbody>
@@ -284,11 +284,11 @@ function Forecast({ accountId, reloadKey }) {
         <table>
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Category</th>
-              <th>Amount</th>
-              <th>Evidence</th>
-              <th></th>
+              <th scope="col">Period</th>
+              <th scope="col">Category</th>
+              <th scope="col" className="num">Amount</th>
+              <th scope="col">Evidence</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -326,7 +326,7 @@ function Forecast({ accountId, reloadKey }) {
                     </div>
                   )}
                 </td>
-                <td>
+                <td className="num">
                   {e.amount == null
                     ? "—"
                     : `${e.amount.toLocaleString()} ${e.currency} ${e.price_basis}`}
@@ -551,10 +551,10 @@ function Asks({ accountId, reloadKey, onChanged }) {
         <table>
           <thead>
             <tr>
-              <th>Need</th>
-              <th>Needed by</th>
-              <th>Status</th>
-              <th></th>
+              <th scope="col">Need</th>
+              <th scope="col" className="num">Needed by</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -570,7 +570,7 @@ function Asks({ accountId, reloadKey, onChanged }) {
                       : ""}
                   </div>
                 </td>
-                <td>{r.needed_by}</td>
+                <td className="num">{r.needed_by}</td>
                 <td>{r.status.replace("_", " ")}</td>
                 <td>
                   <div className="actions">
@@ -824,17 +824,17 @@ function Reviews({ accountId, reloadKey }) {
           <table>
             <thead>
               <tr>
-                <th>Review</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Generate</th>
+                <th scope="col">Review</th>
+                <th scope="col" className="num">Date</th>
+                <th scope="col">Status</th>
+                <th scope="col">Generate</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.review_type}</td>
-                  <td>{r.held_on || r.scheduled_on || "—"}</td>
+                  <td className="num">{r.held_on || r.scheduled_on || "—"}</td>
                   <td>{r.status}</td>
                   <td>
                     <div className="actions">
@@ -1159,7 +1159,7 @@ function Coverage({ accountId, reloadKey }) {
   if (!data)
     return (
       <Card>
-        <div style={{ padding: 14 }}>Loading coverage…</div>
+        <Loading what="coverage" />
       </Card>
     );
   return (
@@ -1197,11 +1197,11 @@ function Coverage({ accountId, reloadKey }) {
           <table>
             <thead>
               <tr>
-                <th>Person</th>
-                <th>Role</th>
-                <th>Coverage</th>
-                <th>Responsibilities</th>
-                <th></th>
+                <th scope="col">Person</th>
+                <th scope="col">Role</th>
+                <th scope="col">Coverage</th>
+                <th scope="col">Responsibilities</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

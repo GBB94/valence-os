@@ -8,7 +8,7 @@
    chart shares a card with it. Pool amounts are plain figures in a table, not a waterfall. */
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast } from "../ui";
+import { Empty, Loading, SlideOver, useToast } from "../ui";
 
 const POOL_KINDS = [
   ["recovered_vendor_spend", "Recovered vendor spend"],
@@ -43,7 +43,7 @@ export default function Funding({ accountId, reloadKey }) {
   const after = () => { setPanel(null); setTick((t) => t + 1); };
 
   if (!accountId) return <Empty title="No account selected">Pick an account.</Empty>;
-  if (!data) return <div className="subtle" style={{ padding: 12 }}>Loading…</div>;
+  if (!data) return <Loading what="funding" />;
 
   const fm = data.fiscal_map;
 
@@ -143,7 +143,7 @@ export default function Funding({ accountId, reloadKey }) {
           </Empty>
         ) : data.ask_calendars.map((cal) => (
           <div key={cal.id} style={{ borderTop: "1px solid var(--line-hairline)" }}>
-            <div style={{ padding: "10px 12px 4px" }}>
+            <div style={{ padding: "8px 12px 4px" }}>
               <strong>{cal.name}</strong>
               <span className="rowmeta"> · closes {cal.target_close_date}</span>
               {cal.late_steps > 0 && (
@@ -317,7 +317,7 @@ function FiscalPanel({ accountId, current, onClose, onSaved }) {
           <label style={{ ...lbl, flex: 1 }}>by
             <input value={f.confirmed_by} onChange={set("confirmed_by")} style={sel} /></label>
         </div>
-        <button className="btn small primary" type="submit" style={{ marginTop: 8 }}>Save</button>
+        <button className="btn small primary" type="submit" style={{ marginTop: 8 }}>Save fiscal calendar</button>
       </form>
     </SlideOver>
   );
@@ -356,7 +356,7 @@ function CalendarPanel({ accountId, onClose, onSaved }) {
 }
 
 const th = { textAlign: "left", fontWeight: 400, color: "var(--ink-tertiary)", width: 200 };
-const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
+const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, fontSize: "var(--t-body)" };
 const sel = {
   padding: "6px 8px", borderRadius: "var(--r-sm)",
   border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",

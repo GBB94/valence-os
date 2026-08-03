@@ -50,7 +50,7 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
           Import
           <input type="file" accept="application/json" style={{ display: "none" }} onChange={importFile} />
         </label>
-        <button className="btn primary" onClick={() => setAdding((v) => !v)}>New account</button>
+        <button className={"btn" + (adding ? " selected" : "")} aria-pressed={adding} onClick={() => setAdding((v) => !v)}>New account</button>
       </div>
 
       <div style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Book"], ["analytics", "Portfolio analytics"], ["internal", "Internal"]]} value={view} onChange={setView} /></div>
@@ -58,7 +58,7 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
       {view === "internal" ? <PortfolioInternal onOpen={onOpen} /> : view === "analytics" ? <PortfolioAnalytics /> : <>
 
       {adding && (
-        <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
           <div className="grid2">
             <div className="field">
               <label>Name <span className="req">*</span></label>
@@ -82,14 +82,14 @@ export default function Accounts({ accounts, onOpen, onChanged }) {
         ) : (
           <table>
             <thead>
-              <tr><th>Account</th><th>Context</th><th style={{ width: 90 }}>Programs</th></tr>
+              <tr><th scope="col">Account</th><th scope="col">Context</th><th scope="col" className="num" style={{ width: 90 }}>Programs</th></tr>
             </thead>
             <tbody>
               {accounts.map((a) => (
                 <tr key={a.id} className="clickable" onClick={() => onOpen(a.id)}>
                   <td><strong>{a.name}</strong></td>
                   <td className="subtle">{a.short_context || <span className="rowmeta">—</span>}</td>
-                  <td className="rowmeta">{a.program_count ?? "—"}</td>
+                  <td className="rowmeta num">{a.program_count ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

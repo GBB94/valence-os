@@ -3,7 +3,7 @@
    sourced joint fields, so probability and competitive notes cannot leak. */
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate } from "../ui";
+import { Empty, Loading, SlideOver, useToast, fmtDate } from "../ui";
 
 export default function Growth({ accountId, reloadKey }) {
   const toast = useToast();
@@ -25,7 +25,7 @@ export default function Growth({ accountId, reloadKey }) {
   useEffect(() => { load(); }, [accountId, reloadKey, tick]);
   const after = () => { setPanel(null); setTick((n) => n + 1); };
 
-  if (!data) return <div className="subtle" style={{ padding: 12 }}>Loading…</div>;
+  if (!data) return <Loading what="growth plan" />;
   const { agreements, renewal, growth } = data;
 
   return <>
@@ -39,11 +39,11 @@ export default function Growth({ accountId, reloadKey }) {
           <Stat label="Renewal date" value={fmtDate(renewal.timeline.renewal_date)} detail={renewal.fiscal_map ? "fiscal map overlaid" : "fiscal map missing"} />
         </div>
         <table><tbody>
-          <tr><th style={th}>Value targets</th><td>{Object.entries(renewal.value.counts || {}).map(([k,v]) => `${k.replaceAll("_"," ")} ${v}`).join(" · ") || "—"}</td></tr>
-          <tr><th style={th}>Penetration</th><td>{renewal.penetration.paid_seats?.toLocaleString()} of {renewal.penetration.addressable_seats?.toLocaleString()} seats · {renewal.penetration.basis}</td></tr>
-          <tr><th style={th}>Open risks</th><td>{renewal.risks.length}{renewal.risks[0] ? ` · ${renewal.risks[0].description}` : ""}</td></tr>
-          <tr><th style={th}>Expansion on same paper</th><td>{renewal.eligible_expansions.length} fully qualified of {renewal.opportunities.length} open</td></tr>
-          <tr><th style={th}>Alternative landscape</th><td>{renewal.alternative_landscape || "Not recorded"}</td></tr>
+          <tr><th scope="row" style={th}>Value targets</th><td>{Object.entries(renewal.value.counts || {}).map(([k,v]) => `${k.replaceAll("_"," ")} ${v}`).join(" · ") || "—"}</td></tr>
+          <tr><th scope="row" style={th}>Penetration</th><td>{renewal.penetration.paid_seats?.toLocaleString()} of {renewal.penetration.addressable_seats?.toLocaleString()} seats · {renewal.penetration.basis}</td></tr>
+          <tr><th scope="row" style={th}>Open risks</th><td>{renewal.risks.length}{renewal.risks[0] ? ` · ${renewal.risks[0].description}` : ""}</td></tr>
+          <tr><th scope="row" style={th}>Expansion on same paper</th><td>{renewal.eligible_expansions.length} fully qualified of {renewal.opportunities.length} open</td></tr>
+          <tr><th scope="row" style={th}>Alternative landscape</th><td>{renewal.alternative_landscape || "Not recorded"}</td></tr>
         </tbody></table>
         {(renewal.agreement_gap || renewal.value.gaps.length) && <div className="callout warn" style={{ margin: 12 }}>
           {renewal.agreement_gap || `${renewal.value.gaps.length} value gap(s) need a closure plan before renewal.`}
@@ -63,7 +63,7 @@ export default function Growth({ accountId, reloadKey }) {
           <Bullet value={a.realization.value} target={a.target.target_value} direction={a.target.direction} />
           <div className="actions" style={{ marginTop: 7 }}><span className="rowmeta">current {num(a.realization.value)} · bar {a.target.direction === "at_most" ? "≤" : "≥"} {num(a.target.target_value)} · through {fmtDate(a.realization.current_through)}</span><div className="spacer" />
             {a.event?.status === "fired" && <><span className="badge" style={{ color: "var(--status-warn)" }}>earned · act by {fmtDate(a.event.action_due_on)}</span>
-              <button className="btn small primary" onClick={async () => { try { await api.actionOperationalAgreement(a.event.id); toast("Expansion drafted"); setTick(n=>n+1); } catch(e) { toast(e.message,"err"); } }}>Draft expansion</button></>}
+              <button className="btn small" onClick={async () => { try { await api.actionOperationalAgreement(a.event.id); toast("Expansion drafted"); setTick(n=>n+1); } catch(e) { toast(e.message,"err"); } }}>Draft expansion</button></>}
             {a.event?.status === "actioned" && <span className="badge">actioned</span>}
           </div>
           {a.event?.risk_note && <div className="rowmeta" style={{ color: "var(--status-warn)", marginTop: 5 }}>{a.event.risk_note}</div>}
@@ -78,11 +78,11 @@ export default function Growth({ accountId, reloadKey }) {
           <Bridge rollup={growth.rollup} />
           {!growth.rollup.additive && <div className="callout warn" style={{ marginTop: 10 }}>{growth.rollup.basis} Resolve the overlap before using the bridge.</div>}
         </div>
-        <table><thead><tr><th>Named line</th><th>Seats</th><th>Stage</th><th>Probability assumption</th><th>Ask</th><th>Shared</th></tr></thead><tbody>
+        <table><thead><tr><th scope="col">Named line</th><th scope="col" className="num">Seats</th><th scope="col">Stage</th><th scope="col" className="num">Probability assumption</th><th scope="col" className="num">Ask</th><th scope="col">Shared</th></tr></thead><tbody>
           {growth.lines.map((l) => <tr key={l.id}><td>{l.name}<div className="rowmeta">{l.population}{l.cell_use_case ? ` · ${l.cell_use_case}` : " · grouped line"}{l.budget_owner_name ? ` · ${l.budget_owner_name}` : ""}</div></td>
-            <td>{l.seat_count.toLocaleString()}</td><td><select value={l.status} style={{width:110}} onChange={async e=>{try{await api.patchGrowthPlanLine(l.id,{status:e.target.value});toast("Line stage updated");setTick(n=>n+1);}catch(err){toast(err.message,"err");}}}>{["planned","committed","funded","slipped","declined"].map(s=><option key={s}>{s}</option>)}</select></td>
-            <td>{Math.round(l.probability*100)}%<div className="rowmeta">{l.probability_author} · {fmtDate(l.probability_assessed_on)}</div></td>
-            <td>{fmtDate(l.ask_date)}</td><td><button className="btn small ghost" disabled={!l.source_reference_id}
+            <td className="num">{l.seat_count.toLocaleString()}</td><td><select value={l.status} style={{width:110}} onChange={async e=>{try{await api.patchGrowthPlanLine(l.id,{status:e.target.value});toast("Line stage updated");setTick(n=>n+1);}catch(err){toast(err.message,"err");}}}>{["planned","committed","funded","slipped","declined"].map(s=><option key={s}>{s}</option>)}</select></td>
+            <td className="num">{Math.round(l.probability*100)}%<div className="rowmeta">{l.probability_author} · {fmtDate(l.probability_assessed_on)}</div></td>
+            <td className="num">{fmtDate(l.ask_date)}</td><td><button className="btn small ghost" disabled={!l.source_reference_id}
               onClick={async () => { try { await api.patchGrowthPlanLine(l.id,{client_visible:!l.client_visible}); toast(l.client_visible?"Removed from mutual plan":"Shared to mutual plan"); setTick(n=>n+1); } catch(e){toast(e.message,"err");} }}>{l.client_visible ? "★ shared" : "☆ internal"}</button></td></tr>)}
         </tbody></table>
       </>}
@@ -173,8 +173,8 @@ function LineForm({ data, onClose, onSaved }) {
 }
 
 function Bullet({value,target,direction}) { const scale=Math.max(value||0,target||0,0.0001)*1.15; const pct=n=>`${Math.min(100,(n||0)/scale*100)}%`; const met=value!=null&&(direction==="at_most"?value<=target:value>=target); return <div aria-label={`Current ${num(value)}, target ${num(target)}, ${met?"met":"not met"}`} style={{position:"relative",height:9,background:"var(--data-muted)",borderRadius:5,marginTop:8,border:"1px solid var(--line-hairline)"}}><div style={{position:"absolute",inset:"0 auto 0 0",width:pct(value),background:"var(--data-1)",borderRadius:5}}/><div title="agreed bar" style={{position:"absolute",left:pct(target),top:-3,bottom:-3,width:2,background:"var(--ink-primary)"}}/></div>; }
-function Bridge({rollup}) { const [mode,setMode]=useState("committed"); if(!rollup.additive)return null; const weighted=mode==="weighted"; const uplift=weighted?rollup.probability_weighted_seats:rollup.committed_seats; const gap=weighted?rollup.weighted_gap:rollup.unfunded_gap; const vals=[{l:"Current",v:rollup.current_seats},{l:weighted?"Probability-weighted":"Committed",v:uplift},{l:"Unfunded gap",v:gap}]; return <><div className="actions" style={{marginTop:10}}><button className={`btn small ${!weighted?"primary":"ghost"}`} onClick={()=>setMode("committed")}>Committed</button><button className={`btn small ${weighted?"primary":"ghost"}`} onClick={()=>setMode("weighted")}>Probability-weighted</button><span className="rowmeta">Assumption view; target remains {rollup.target_seats.toLocaleString()} seats.</span></div><div className="grid3" style={{marginTop:8}}>{vals.map(x=><Stat key={x.l} label={x.l} value={x.v?.toLocaleString()??"—"} detail={x.l==="Unfunded gap"?`target ${rollup.target_seats.toLocaleString()}`:"seats"}/>)}</div></>; }
-function Stat({label,value,detail}){return <div style={{padding:10,background:"var(--bg-sunken)",border:"1px solid var(--line-hairline)",borderRadius:"var(--r-md)"}}><div className="rowmeta">{label}</div><div className="mono" style={{fontSize:"var(--t-h2)",fontWeight:500}}>{value}</div><div className="rowmeta">{detail}</div></div>;}
+function Bridge({rollup}) { const [mode,setMode]=useState("committed"); if(!rollup.additive)return null; const weighted=mode==="weighted"; const uplift=weighted?rollup.probability_weighted_seats:rollup.committed_seats; const gap=weighted?rollup.weighted_gap:rollup.unfunded_gap; const vals=[{l:"Current",v:rollup.current_seats},{l:weighted?"Probability-weighted":"Committed",v:uplift},{l:"Unfunded gap",v:gap}]; return <><div className="actions" style={{marginTop:12}}><button className={`btn small ${!weighted?"selected":""}`} aria-pressed={!weighted} onClick={()=>setMode("committed")}>Committed</button><button className={`btn small ${weighted?"selected":""}`} aria-pressed={weighted} onClick={()=>setMode("weighted")}>Probability-weighted</button><span className="rowmeta">Assumption view; target remains {rollup.target_seats.toLocaleString()} seats.</span></div><div className="grid3" style={{marginTop:8}}>{vals.map(x=><Stat key={x.l} label={x.l} value={x.v?.toLocaleString()??"—"} detail={x.l==="Unfunded gap"?`target ${rollup.target_seats.toLocaleString()}`:"seats"}/>)}</div></>; }
+function Stat({label,value,detail}){return <div style={{padding:12,background:"var(--bg-sunken)",border:"1px solid var(--line-hairline)",borderRadius:"var(--r-md)"}}><div className="rowmeta">{label}</div><div className="mono" style={{fontSize:"var(--t-h2)",fontWeight:500}}>{value}</div><div className="rowmeta">{detail}</div></div>;}
 function Field({label,children}){return <div className="field"><label>{label}</label>{children}</div>;}
 const th={width:190,textAlign:"left",paddingLeft:12};
 const num=v=>v==null?"unknown":Number(v).toLocaleString();

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, useToast, AgeChip, fmtDate } from "../ui";
+import { SlideOver, useToast, AgeChip, fmtDate, Loading } from "../ui";
 
 const CAD_LABEL = { manage_closely: "Manage closely", keep_satisfied: "Keep satisfied", keep_informed: "Keep informed", monitor: "Monitor" };
 
@@ -18,7 +18,7 @@ export default function PersonCard({ personId, onClose, onChanged }) {
     api.personCard(personId).then(setCard).catch((e) => toast(e.message, "err"));
   }, [personId, tick]);
 
-  if (!card) return <SlideOver title="Person" onClose={onClose}><div className="subtle">Loading…</div></SlideOver>;
+  if (!card) return <SlideOver title="Person" onClose={onClose}><Loading /></SlideOver>;
 
   const reload = () => { setTick((t) => t + 1); onChanged?.(); };
   const patchRole = async (roleId, body) => {
@@ -53,7 +53,7 @@ export default function PersonCard({ personId, onClose, onChanged }) {
         {/* Roles by program (editable role + layer) */}
         <Section title="Roles by program">
           {card.roles.length === 0 ? <div className="rowmeta">No roles yet.</div> : card.roles.map((r) => (
-            <div key={r.role_id} className="card" style={{ padding: 10, marginBottom: 6 }}>
+            <div key={r.role_id} className="card" style={{ padding: 12, marginBottom: 6 }}>
               <div className="rowmeta" style={{ marginBottom: 4 }}>{r.program_name}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <select value={r.role} onChange={(e) => patchRole(r.role_id, { role: e.target.value })} style={sel}>
@@ -191,11 +191,11 @@ function EditRow({ label, value, onSave }) {
       {editing ? (
         <div style={{ display: "flex", gap: 6 }}>
           <input value={v} onChange={(e) => setV(e.target.value)} autoFocus style={{ flex: 1, height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" }} />
-          <button className="btn small primary" onClick={() => { onSave(v); setEditing(false); }}>Save</button>
+          <button className="btn small" onClick={() => { onSave(v); setEditing(false); }}>Save {label.toLowerCase()}</button>
           <button className="btn small" onClick={() => setEditing(false)}>Cancel</button>
         </div>
       ) : (
-        <div style={{ fontSize: 13 }}>{value || <span className="rowmeta">—</span>}
+        <div style={{ fontSize: "var(--t-body)" }}>{value || <span className="rowmeta">—</span>}
           <button className="btn small" style={{ marginLeft: 8 }} onClick={() => setEditing(true)}>Edit</button>
         </div>
       )}
@@ -203,4 +203,4 @@ function EditRow({ label, value, onSave }) {
   );
 }
 
-const sel = { height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)", fontSize: 12 };
+const sel = { height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)", fontSize: "var(--t-small)" };

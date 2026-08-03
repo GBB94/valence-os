@@ -85,8 +85,8 @@ export default function Extraction({ accounts, accountId, setAccountId, reloadKe
         </select>
       </div>
       <div className="actions" style={{ marginBottom: 8 }}>
-        <button className={"btn small" + (mode === "auto" ? " primary" : "")} onClick={() => setMode("auto")}>Auto</button>
-        <button className={"btn small" + (mode === "manual" ? " primary" : "")} onClick={() => setMode("manual")}>Manual (local LLM)</button>
+        <button className={"btn small" + (mode === "auto" ? " selected" : "")} aria-pressed={mode === "auto"} onClick={() => setMode("auto")}>Auto</button>
+        <button className={"btn small" + (mode === "manual" ? " selected" : "")} aria-pressed={mode === "manual"} onClick={() => setMode("manual")}>Manual (local LLM)</button>
         {mode === "auto" && (
           <>
             <span className="rowmeta">backend:</span>
@@ -185,7 +185,7 @@ const ProposalRow = forwardRef(function ProposalRow({ p, programId, people, sele
   const editable = mt === "create_commitment" || mt === "fill_placeholder" || mt === "create_deployment_moment";
 
   return (
-    <div onClick={onFocusRow} style={{ padding: "10px 12px", borderBottom: "1px solid var(--line-hairline)", opacity: done ? 0.55 : 1,
+    <div onClick={onFocusRow} style={{ padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)", opacity: done ? 0.55 : 1,
       borderLeft: selected ? "3px solid var(--accent)" : "3px solid transparent", background: selected ? "var(--bg-selected)" : undefined }}>
       <div className="actions">
         <span className="badge">{LABEL[mt] || mt}</span>

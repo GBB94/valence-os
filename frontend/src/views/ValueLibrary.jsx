@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, useToast } from "../ui";
+import { Loading, SlideOver, useToast } from "../ui";
 
 const TIERS = ["anecdote", "client_quote", "measured_operational", "correlated_business"];
 const VIS = ["internal", "client_working", "qbr_exec", "externally_referenceable"];
@@ -35,10 +35,10 @@ export default function ValueLibrary({ accounts, accountId, setAccountId, reload
 
       <div className="card">
         <div className="card-h"><h3>Value stories</h3></div>
-        {!stories ? <div className="subtle" style={{ padding: 12 }}>Loading…</div> :
+        {!stories ? <Loading what="value stories" /> :
           positive.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No value stories yet.</div> : (
           <table>
-            <thead><tr><th>Outcome</th><th style={{ width: 150 }}>Evidence tier</th><th style={{ width: 130 }}>Visibility</th></tr></thead>
+            <thead><tr><th scope="col">Outcome</th><th scope="col" style={{ width: 150 }}>Evidence tier</th><th scope="col" style={{ width: 130 }}>Visibility</th></tr></thead>
             <tbody>
               {positive.map((s) => (
                 <tr key={s.id}>
@@ -84,7 +84,7 @@ function AddStory({ accountId, onClose, onSaved }) {
   }
   return (
     <SlideOver title="Add value story" onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Add</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Add value story</button></>}>
       <div className="field"><label>Outcome <span className="req">*</span></label><textarea value={f.outcome} onChange={set("outcome")} autoFocus /></div>
       <div className="field"><label>Tags</label><input value={f.tags} onChange={set("tags")} placeholder="comma,separated" /></div>
       <div className="grid2">

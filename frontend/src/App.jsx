@@ -237,7 +237,7 @@ function Shell() {
         <div className="topbar">
           <Breadcrumb nav={nav} accounts={accounts} go={setNav} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
-          <button className="btn primary small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
+          <button className="btn small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
           <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
           <div style={{ position: "relative" }}>
             <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">

@@ -18,7 +18,7 @@
    * D-70 ADJACENCY. This is a status surface, so no financial chart shares its card. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SlideOver, Unknown, useToast } from "../ui";
+import { AgeChip, Empty, Loading, SlideOver, Unknown, useToast } from "../ui";
 
 // state -> (glyph, hue token, tint token, ink). `hue` tints the fill and the border; `ink`
 // is what the glyph is drawn in.
@@ -83,7 +83,7 @@ export default function Whitespace({ accountId, reloadKey }) {
   }
 
   if (!accountId) return <Empty title="No account selected">Pick an account to see its map.</Empty>;
-  if (!map) return <div className="subtle" style={{ padding: 12 }}>Loading…</div>;
+  if (!map) return <Loading what="whitespace map" />;
 
   if (!map.partition) {
     return (<>
@@ -296,11 +296,11 @@ function CellButton({ slot, row, onOpen }) {
         <span aria-hidden="true" style={{ color: `var(${st.ink})`, fontSize: 13, lineHeight: 1 }}>
           {st.glyph}
         </span>
-        <span style={{ fontSize: 11, fontWeight: 500 }}>{cell.state_label}</span>
+        <span style={{ fontSize: "var(--t-micro)", fontWeight: 500 }}>{cell.state_label}</span>
       </span>
       {/* --ink-tertiary (the .rowmeta default) drops to 4.1:1 against a tinted cell, so the
           density line steps up to --ink-secondary rather than inheriting. */}
-      <span className="rowmeta" style={{ fontSize: 10, color: "var(--ink-secondary)" }}>
+      <span className="rowmeta" style={{ fontSize: "var(--t-micro)", color: "var(--ink-secondary)" }}>
         {cell.paid_seats > 0 ? `${cell.paid_seats.toLocaleString()} paid` : "—"}
         {density?.suppressed ? " · suppressed" : density?.value != null ? ` · ${pct(density.value)}` : ""}
       </span>
@@ -387,7 +387,7 @@ function CellPanel({ cellId, accountId, onClose, onChanged }) {
     } catch (err) { toast(err.message, "err"); }
   }
 
-  if (!cell) return <SlideOver title="Cell" onClose={onClose}><div className="subtle">Loading…</div></SlideOver>;
+  if (!cell) return <SlideOver title="Cell" onClose={onClose}><Loading /></SlideOver>;
   const st = STATE_STYLE[cell.state];
 
   return (
@@ -527,7 +527,7 @@ function CellPanel({ cellId, accountId, onClose, onChanged }) {
       <h4 style={{ ...h4, marginTop: 20 }}>Nearest playbook learning</h4>
       {!matches?.cross_account_eligible ? <div className="rowmeta">{matches?.reason}</div> :
         matches.matches.length === 0 ? <div className="rowmeta">No learned motion for this global use case yet.</div> :
-        matches.matches.slice(0, 5).map((entry) => <div className="card" key={entry.id} style={{ padding: 10, marginBottom: 8 }}>
+        matches.matches.slice(0, 5).map((entry) => <div className="card" key={entry.id} style={{ padding: 12, marginBottom: 8 }}>
           <div><strong>{entry.motion_run}</strong> <span className="badge">{entry.transition_to}</span></div>
           <div className="rowmeta">{entry.match_reason} · {entry.account_name} · {entry.transitioned_on}</div>
           {entry.what_worked && <div style={{ marginTop: 5 }}>{entry.what_worked}</div>}
@@ -568,9 +568,9 @@ function PopulationSetup({ accountId, partition, segments = [], onClose, onChang
   }
   return <SlideOver title="Population setup" onClose={onClose}>
     {partition && <div className="actions" style={{ marginBottom: 12 }}>
-      <button className={`btn small ${mode === "segment" ? "primary" : ""}`} onClick={() => setMode("segment")}>Add segment</button>
-      <button className={`btn small ${mode === "use_case" ? "primary" : ""}`} onClick={() => setMode("use_case")}>Add use case</button>
-      <button className={`btn small ${mode === "view" ? "primary" : ""}`} onClick={() => setMode("view")}>Add composite view</button>
+      <button className={`btn small ${mode === "segment" ? "selected" : ""}`} aria-pressed={mode === "segment"} onClick={() => setMode("segment")}>Add segment</button>
+      <button className={`btn small ${mode === "use_case" ? "selected" : ""}`} aria-pressed={mode === "use_case"} onClick={() => setMode("use_case")}>Add use case</button>
+      <button className={`btn small ${mode === "view" ? "selected" : ""}`} aria-pressed={mode === "view"} onClick={() => setMode("view")}>Add composite view</button>
     </div>}
     <form onSubmit={save}>
       {mode === "partition" && <>
@@ -606,7 +606,7 @@ function PopulationSetup({ accountId, partition, segments = [], onClose, onChang
           </label>)}
         </div>
       </>}
-      <button className="btn small primary" type="submit">Save</button>
+      <button className="btn small primary" type="submit">{mode === "segment" ? "Add segment" : mode === "use_case" ? "Add use case" : "Add composite view"}</button>
     </form>
   </SlideOver>;
 }
@@ -629,8 +629,8 @@ const emptyCell = {
   color: "var(--ink-tertiary)", cursor: "pointer",
 };
 const legendWrap = {
-  display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center",
-  padding: "10px 12px", borderTop: "1px solid var(--line-hairline)",
+  display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
+  padding: "8px 12px", borderTop: "1px solid var(--line-hairline)",
 };
 const legendItem = { display: "inline-flex", alignItems: "center", gap: 5 };
 const sel = {
@@ -645,4 +645,4 @@ const ta = {
 };
 const h4 = { margin: "0 0 6px", fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em",
              color: "var(--ink-tertiary)" };
-const field = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
+const field = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, fontSize: "var(--t-body)" };

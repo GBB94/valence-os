@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Card, Empty, SegTabs, useToast } from "../ui";
+import { Card, Empty, Loading, SegTabs, useToast } from "../ui";
 
 const day = (offset = 0) => {
   const d = new Date();
@@ -102,7 +102,7 @@ function Overview({ data, preview, onOpen, reload }) {
   if (!data)
     return (
       <Card>
-        <div style={{ padding: 14 }}>Loading internal portfolio…</div>
+        <Loading what="internal portfolio" />
       </Card>
     );
   const overdue = data.asks_by_function.reduce(
@@ -160,31 +160,31 @@ function Overview({ data, preview, onOpen, reload }) {
           <table>
             <thead>
               <tr>
-                <th>Function</th>
-                <th>Open</th>
-                <th>Past due</th>
-                <th>Median acknowledgment</th>
-                <th>Median resolution</th>
-                <th>Samples</th>
+                <th scope="col">Function</th>
+                <th scope="col" className="num">Open</th>
+                <th scope="col" className="num">Past due</th>
+                <th scope="col" className="num">Median acknowledgment</th>
+                <th scope="col" className="num">Median resolution</th>
+                <th scope="col" className="num">Samples</th>
               </tr>
             </thead>
             <tbody>
               {data.asks_by_function.map((r) => (
                 <tr key={r.function_id}>
                   <td>{r.function_id}</td>
-                  <td>{r.open}</td>
-                  <td>{r.past_needed_by}</td>
-                  <td>
+                  <td className="num">{r.open}</td>
+                  <td className="num">{r.past_needed_by}</td>
+                  <td className="num">
                     {r.median_acknowledgment_hours == null
                       ? "Insufficient data"
                       : `${r.median_acknowledgment_hours}h`}
                   </td>
-                  <td>
+                  <td className="num">
                     {r.median_resolution_days == null
                       ? "Insufficient data"
                       : `${r.median_resolution_days}d`}
                   </td>
-                  <td>
+                  <td className="num">
                     {r.acknowledged_count} ack · {r.delivered_count} delivered
                   </td>
                 </tr>
@@ -205,11 +205,11 @@ function Overview({ data, preview, onOpen, reload }) {
           <table>
             <thead>
               <tr>
-                <th>Severity / path</th>
-                <th>Function</th>
-                <th>Open</th>
-                <th>Resolved</th>
-                <th>Median hours</th>
+                <th scope="col">Severity / path</th>
+                <th scope="col">Function</th>
+                <th scope="col" className="num">Open</th>
+                <th scope="col" className="num">Resolved</th>
+                <th scope="col" className="num">Median hours</th>
               </tr>
             </thead>
             <tbody>
@@ -219,9 +219,9 @@ function Overview({ data, preview, onOpen, reload }) {
                     {r.severity} · {r.path_type}
                   </td>
                   <td>{r.function_id}</td>
-                  <td>{r.open}</td>
-                  <td>{r.resolved_count}</td>
-                  <td>
+                  <td className="num">{r.open}</td>
+                  <td className="num">{r.resolved_count}</td>
+                  <td className="num">
                     {r.median_resolution_hours == null
                       ? "Insufficient data"
                       : r.median_resolution_hours.toFixed(1)}
@@ -244,26 +244,26 @@ function Overview({ data, preview, onOpen, reload }) {
           <table>
             <thead>
               <tr>
-                <th>Direction</th>
-                <th>Open</th>
-                <th>Closed</th>
-                <th>Completion</th>
-                <th>On time</th>
+                <th scope="col">Direction</th>
+                <th scope="col" className="num">Open</th>
+                <th scope="col" className="num">Closed</th>
+                <th scope="col" className="num">Completion</th>
+                <th scope="col" className="num">On time</th>
               </tr>
             </thead>
             <tbody>
               {data.review_commitments.map((r) => (
                 <tr key={r.commitment_class}>
                   <td>{r.commitment_class.replaceAll("_", " ")}</td>
-                  <td>{r.open}</td>
-                  <td>{r.closed}</td>
-                  <td>
+                  <td className="num">{r.open}</td>
+                  <td className="num">{r.closed}</td>
+                  <td className="num">
                     {r.completion_fraction}
                     {r.completion_rate == null
                       ? " · Insufficient data"
                       : ` · ${Math.round(r.completion_rate * 100)}%`}
                   </td>
-                  <td>
+                  <td className="num">
                     {r.on_time_rate == null
                       ? "Insufficient data"
                       : `${Math.round(r.on_time_rate * 100)}%`}
@@ -310,9 +310,9 @@ function RedOrigins({ validation, reload }) {
       <table>
         <thead>
           <tr>
-            <th>Account</th>
-            <th>Origin</th>
-            <th>Treatment</th>
+            <th scope="col">Account</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Treatment</th>
           </tr>
         </thead>
         <tbody>
@@ -397,19 +397,19 @@ function Calibration({ data }) {
       <table>
         <thead>
           <tr>
-            <th>Period</th>
-            <th>Commit outcomes</th>
-            <th>Best Case outcomes</th>
-            <th>Amount exclusions</th>
+            <th scope="col">Period</th>
+            <th scope="col" className="num">Commit outcomes</th>
+            <th scope="col" className="num">Best Case outcomes</th>
+            <th scope="col" className="num">Amount exclusions</th>
           </tr>
         </thead>
         <tbody>
           {data.forecast_calibration.map((x) => (
             <tr key={x.period.id}>
               <td>{x.period.name}</td>
-              <td>{x.calibration.categories.commit.display}</td>
-              <td>{x.calibration.categories.best_case.display}</td>
-              <td>{x.calibration.amount_exclusions.length}</td>
+              <td className="num">{x.calibration.categories.commit.display}</td>
+              <td className="num">{x.calibration.categories.best_case.display}</td>
+              <td className="num">{x.calibration.amount_exclusions.length}</td>
             </tr>
           ))}
         </tbody>
@@ -428,9 +428,9 @@ function ExecCoverage({ data }) {
       <table>
         <thead>
           <tr>
-            <th>Account</th>
-            <th>Exec sponsor</th>
-            <th>Evidence</th>
+            <th scope="col">Account</th>
+            <th scope="col">Exec sponsor</th>
+            <th scope="col">Evidence</th>
           </tr>
         </thead>
         <tbody>
@@ -546,10 +546,10 @@ function Forecast({ periods, reload, show, setShow }) {
         <table>
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Dates</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th scope="col">Period</th>
+              <th scope="col" className="num">Dates</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -612,9 +612,9 @@ function Coverage({ data, onOpen }) {
       <table>
         <thead>
           <tr>
-            <th>Account</th>
-            <th>Recent internal participants</th>
-            <th>Treatment</th>
+            <th scope="col">Account</th>
+            <th scope="col">Recent internal participants</th>
+            <th scope="col">Treatment</th>
           </tr>
         </thead>
         <tbody>
@@ -792,10 +792,10 @@ function Feedback({ rows, accounts, reload, show, setShow }) {
           <table>
             <thead>
               <tr>
-                <th>Theme</th>
-                <th>Status</th>
-                <th>Accounts</th>
-                <th>Loop</th>
+                <th scope="col">Theme</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="num">Accounts</th>
+                <th scope="col">Loop</th>
               </tr>
             </thead>
             <tbody>
@@ -806,7 +806,7 @@ function Feedback({ rows, accounts, reload, show, setShow }) {
                     <div className="rowmeta">{r.problem_statement}</div>
                   </td>
                   <td>{r.status}</td>
-                  <td>{r.account_count}</td>
+                  <td className="num">{r.account_count}</td>
                   <td>
                     {r.occurrences.filter((x) => x.acknowledged).length}/
                     {r.occurrences.length} acknowledged ·{" "}

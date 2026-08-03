@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { api } from "../api";
-import { useToast, AgeChip } from "../ui";
+import { useToast, AgeChip, DueChip, Loading } from "../ui";
 import PersonCard from "./PersonCard";
 
 // §3.1 the five horizontal bands, top (most senior) to bottom.
@@ -116,14 +116,14 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
           {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <div className="spacer" />
-        <button className={"btn small" + (mode === "network" ? " primary" : "")} onClick={() => setMode("network")}>Network</button>
-        <button className={"btn small" + (mode === "layers" ? " primary" : "")} onClick={() => setMode("layers")}>Layers</button>
-        <button className={"btn small" + (mode === "power_interest" ? " primary" : "")} onClick={() => setMode("power_interest")}>Power–interest</button>
+        <button className={"btn small" + (mode === "network" ? " selected" : "")} aria-pressed={mode === "network"} onClick={() => setMode("network")}>Network</button>
+        <button className={"btn small" + (mode === "layers" ? " selected" : "")} aria-pressed={mode === "layers"} onClick={() => setMode("layers")}>Layers</button>
+        <button className={"btn small" + (mode === "power_interest" ? " selected" : "")} aria-pressed={mode === "power_interest"} onClick={() => setMode("power_interest")}>Power–interest</button>
       </div>
 
       <div className="two-col">
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          {!graph ? <div className="subtle" style={{ padding: 20 }}>Loading…</div> :
+          {!graph ? <Loading what="stakeholder graph" /> :
             graph.nodes.length === 0 ? <div className="empty"><h3>No stakeholders</h3>Add people with roles and set their influence.</div> :
             mode === "network"
               ? <div ref={elRef} style={{ height: 460 }} />
@@ -136,7 +136,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         </div>
         <div>
         {coverage && (
-          <div className="card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="card" style={{ padding: 16, marginBottom: 12 }}>
             <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>Coverage</div>
             <div style={{ fontSize: 13, marginBottom: 4 }}>
               <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong> senior relationships active
@@ -213,7 +213,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 <div className="kv" style={{ marginTop: 10 }}>
                   <dt>Expected role</dt><dd>{(selected.role || "—").replace(/_/g, " ")}</dd>
                   <dt>Expected influence</dt><dd>{selected.expected_influence || "—"}</dd>
-                  <dt>Find by</dt><dd>{selected.find_by_date ? <AgeChip date={selected.find_by_date} /> : "—"}</dd>
+                  <dt>Find by</dt><dd>{selected.find_by_date ? <DueChip date={selected.find_by_date} /> : "—"}</dd>
                 </div>
               </>
             ) : (
@@ -228,7 +228,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                   <dt>Stance</dt><dd>{selected.stance || "—"}</dd>
                   <dt>Influence</dt><dd>{selected.influence || "—"}</dd>
                 </div>
-                <button className="btn small primary" style={{ marginTop: 10 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
+                <button className="btn small" style={{ marginTop: 12 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
               </>
             )
           ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
@@ -249,8 +249,8 @@ function LayerLanes({ nodes, onSelect }) {
     <div style={{ padding: 12 }}>
       {LAYER_ORDER.map((l) => (
         <div key={l} style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--line-hairline)", minHeight: 76 }}>
-          <div style={{ width: 120, flex: "none", fontSize: 11, color: "var(--ink-tertiary)", textTransform: "uppercase", letterSpacing: ".04em" }}>{LAYER_LABEL[l]}</div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "10px 0" }}>
+          <div style={{ width: 120, flex: "none", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)", textTransform: "uppercase", letterSpacing: ".04em" }}>{LAYER_LABEL[l]}</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", padding: "12px 0" }}>
             {byLayer[l].length === 0
               ? <span className="rowmeta" style={{ fontStyle: "italic" }}>— empty band —</span>
               : byLayer[l].map((n) => (
@@ -260,7 +260,7 @@ function LayerLanes({ nodes, onSelect }) {
                     borderRadius: n.is_placeholder ? 3 : "50%",
                     background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`,
                     border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
-                  <div style={{ fontSize: 10, color: "var(--ink-secondary)", marginTop: 2 }}>{(n.is_placeholder ? (n.title || n.name) : n.name).split(" ").slice(0, 2).join(" ")}</div>
+                  <div style={{ fontSize: "var(--t-micro)", color: "var(--ink-secondary)", marginTop: 2 }}>{(n.is_placeholder ? (n.title || n.name) : n.name).split(" ").slice(0, 2).join(" ")}</div>
                 </div>
               ))}
           </div>
@@ -279,8 +279,8 @@ function PowerInterest({ nodes, onSelect }) {
       <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, background: "var(--line-hairline)" }} />
       <Label t="Keep satisfied" x="2%" y="2%" /><Label t="Manage closely" x="70%" y="2%" />
       <Label t="Monitor" x="2%" y="94%" /><Label t="Keep informed" x="70%" y="94%" />
-      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: 10, color: "var(--ink-tertiary)" }}>power (influence) →</div>
-      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: 10, color: "var(--ink-tertiary)" }}>interest (stance) →</div>
+      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>power (influence) →</div>
+      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>interest (stance) →</div>
       {nodes.map((n) => {
         const x = ((n.interest - 1) / 2) * 84 + 8;      // 1..3 -> 8..92%
         const y = 92 - ((n.power - 1) / 2) * 84;         // higher power = higher up
@@ -288,12 +288,12 @@ function PowerInterest({ nodes, onSelect }) {
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
             <div className={n.is_placeholder ? "unknown-hatch" : ""} style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: n.is_placeholder ? 2 : "50%", background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`, border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
-            <div style={{ fontSize: 10, color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
+            <div style={{ fontSize: "var(--t-micro)", color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );
       })}
     </div>
   );
 }
-const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: 10, color: "var(--ink-tertiary)" }}>{t}</div>;
+const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>{t}</div>;
 const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };

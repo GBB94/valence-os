@@ -89,16 +89,16 @@ function WaveTable({ sequence, onSent, onCancel }) {
   if (!sequence.waves.length) return <div className="rowmeta comms-empty-row">No waves yet.</div>;
   return (
     <table className="comms-table">
-      <thead><tr><th>Wave</th><th>Audience and message</th><th>Expected</th><th>State</th><th>Actions</th></tr></thead>
+      <thead><tr><th scope="col" className="num">Wave</th><th scope="col">Audience and message</th><th scope="col" className="num">Expected</th><th scope="col">State</th><th scope="col">Actions</th></tr></thead>
       <tbody>{sequence.waves.map((wave) => (
         <tr key={wave.id}>
-          <td><strong>{wave.wave_number}</strong>{wave.channel && <div className="rowmeta">{wave.channel}</div>}</td>
+          <td className="num"><strong>{wave.wave_number}</strong>{wave.channel && <div className="rowmeta">{wave.channel}</div>}</td>
           <td>{wave.message}<div className="rowmeta">{wave.population || wave.audience || "Audience not modeled"}</div></td>
-          <td>{wave.expected_send_on ? fmtDate(wave.expected_send_on) : <span className="unknown-fill">unknown</span>}
+          <td className="num">{wave.expected_send_on ? fmtDate(wave.expected_send_on) : <span className="unknown-fill">unknown</span>}
             {wave.date_provisional && <div className="rowmeta">provisional · follows prior send</div>}</td>
           <td><Status status={wave.status} />{wave.sent_at && <div><AgeChip date={wave.sent_at} /></div>}</td>
           <td className="actions-cell">{wave.status === "planned" && <>
-            <button className="btn small primary" onClick={() => onSent(wave)}>Record sent</button>
+            <button className="btn small" onClick={() => onSent(wave)}>Record sent</button>
             <button className="btn small ghost" onClick={() => onCancel(wave)}>Cancel</button>
           </>}</td>
         </tr>
@@ -113,11 +113,11 @@ function SessionTable({ sequence, onAttendee }) {
     <div className="comms-sessions">
       <div className="band-head">Sessions</div>
       <table className="comms-table">
-        <thead><tr><th>Session</th><th>When</th><th>Attendance</th><th>Actions</th></tr></thead>
+        <thead><tr><th scope="col">Session</th><th scope="col" className="num">When</th><th scope="col">Attendance</th><th scope="col">Actions</th></tr></thead>
         <tbody>{sequence.sessions.map((event) => (
           <tr key={event.id}>
             <td><strong>{event.title}</strong><div className="rowmeta">{event.purpose.replace(/_/g, " ")}</div></td>
-            <td>{fmtDate(event.starts_at)} <AgeChip date={event.starts_at} /></td>
+            <td className="num">{fmtDate(event.starts_at)} <AgeChip date={event.starts_at} /></td>
             <td><Attendance value={event.attendance} /></td>
             <td className="actions-cell"><button className="btn small" onClick={() => onAttendee(event)}>Record attendee</button></td>
           </tr>
@@ -169,9 +169,10 @@ function Editor({ panel, programId, populations, onClose, onSaved }) {
     setBusy(false);
   }
   const titles = { sequence: "New communication sequence", wave: "Add planned wave", session: "Add live session", attendee: "Record attendee", sequenceCancel: "Cancel communication sequence" };
+  const saveLabels = { sequence: "Save sequence", wave: "Save wave", session: "Save session", attendee: "Record attendee", sequenceCancel: "Cancel sequence" };
   return (
     <SlideOver title={titles[panel.kind]} onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy} onClick={save}>Save</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy} onClick={save}>{saveLabels[panel.kind] || "Save record"}</button></>}>
       {panel.kind === "sequence" && <>
         <Field label="Sequence name"><input autoFocus value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Purpose"><textarea value={form.purpose} onChange={(e) => set("purpose", e.target.value)} /></Field>

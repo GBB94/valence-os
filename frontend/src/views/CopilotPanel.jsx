@@ -222,7 +222,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
               <button className="collapsible-head" aria-expanded={details} onClick={() => setDetails((value) => !value)}>
                 {details ? "▾" : "▸"} How this was assembled
               </button>
-              {details && <div style={{ padding: "0 14px 14px" }}>
+              {details && <div style={{ padding: "0 16px 16px" }}>
                 <div><strong>Readers:</strong> {(run.readers || []).join(", ") || "none"}</div>
                 <div><strong>Retrieved:</strong> {run.sources?.length || 0} snapshots · <strong>Excluded:</strong> {run.excluded?.length || 0}</div>
                 <div><strong>Resolved:</strong> {run.resolved_entities?.length ? run.resolved_entities.map((entity) =>

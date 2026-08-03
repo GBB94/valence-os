@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { api } from "../api";
-import { SlideOver, useToast, fmtDate, Unknown, AgeChip } from "../ui";
+import { Loading, SlideOver, useToast, fmtDate, Unknown, AgeChip } from "../ui";
 
 // Metrics scoreboard (Section 6b): 5-second read, number/target/delta, freshness stamp,
 // stale = unknown (enforced server-side). Plus benchmarks and the CSV import adapter.
@@ -26,7 +26,7 @@ export default function Metrics({ reloadKey }) {
     catch (e) { toast(e.message, "err"); }
   }
 
-  if (!sb) return <div className="subtle">Loading…</div>;
+  if (!sb) return <Loading what="metrics" />;
 
   return (
     <div>
@@ -77,10 +77,10 @@ export default function Metrics({ reloadKey }) {
       <div className="card">
         {benchmarks.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No benchmarks.</div> : (
           <table>
-            <thead><tr><th>Benchmark</th><th style={{ width: 90 }}>Value</th><th>Population · period</th><th>Source · version</th></tr></thead>
+            <thead><tr><th scope="col">Benchmark</th><th scope="col" className="num" style={{ width: 90 }}>Value</th><th scope="col">Population · period</th><th scope="col">Source · version</th></tr></thead>
             <tbody>
               {benchmarks.map((b) => (
-                <tr key={b.id}><td>{b.name}</td><td>{fmtNum(b.value, b.unit)}</td>
+                <tr key={b.id}><td>{b.name}</td><td className="num">{fmtNum(b.value, b.unit)}</td>
                   <td className="rowmeta">{b.population} · {b.period}</td>
                   <td className="rowmeta">{b.source} · v{b.version}</td></tr>
               ))}
@@ -95,14 +95,14 @@ export default function Metrics({ reloadKey }) {
           <h2>Recent imports</h2>
           <div className="card">
             <table>
-              <thead><tr><th>Adapter</th><th style={{ width: 70 }}>Rows</th><th style={{ width: 110 }}>Status</th><th style={{ width: 130 }}>Through</th><th style={{ width: 90 }}></th></tr></thead>
+              <thead><tr><th scope="col">Adapter</th><th scope="col" className="num" style={{ width: 70 }}>Rows</th><th scope="col" style={{ width: 110 }}>Status</th><th scope="col" className="num" style={{ width: 130 }}>Through</th><th scope="col" style={{ width: 90 }}>Actions</th></tr></thead>
               <tbody>
                 {ops.import_batches.map((b) => (
                   <tr key={b.id}>
                     <td>{b.adapter}<div className="rowmeta">{b.source_label || ""}</div></td>
-                    <td className="rowmeta">{b.row_count}</td>
+                    <td className="rowmeta num">{b.row_count}</td>
                     <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{b.status}</span></td>
-                    <td className="rowmeta">{fmtDate(b.current_through)}</td>
+                    <td className="rowmeta num">{fmtDate(b.current_through)}</td>
                     <td>{b.status === "committed" && <button className="btn small ghost" onClick={() => rollback(b.id)}>Roll back</button>}</td>
                   </tr>
                 ))}

@@ -10,7 +10,7 @@
    QBR. A reader who cannot see which rule set produced a document cannot trust it. */
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SegTabs, SlideOver, useToast } from "../ui";
+import { AgeChip, Empty, Loading, SegTabs, SlideOver, useToast } from "../ui";
 
 const KINDS = [
   ["pre_call_brief", "Pre-call brief", "Internal. Who is in the room, what is open, what to raise."],
@@ -81,7 +81,7 @@ export default function Artifacts({ accounts, accountId, programId, setAccountId
         </div>
         <div className="rowmeta" style={{ padding: "0 12px 8px" }}>{meta[2]}</div>
 
-        {!preview ? <div className="subtle" style={{ padding: 12 }}>Loading…</div> : (
+        {!preview ? <Loading what="artifact preview" /> : (
           <>
             {preview.stamp?.missing_or_stale_sources?.length > 0 && (
               <div style={gapBar} role="note">
@@ -235,7 +235,7 @@ export function DocPanel({ doc, onClose, onChanged }) {
                    placeholder="your name" />
           </label>
           <div className="actions" style={{ marginTop: 8 }}>
-            <button className="btn small primary" onClick={() => move("reviewed")}>Mark reviewed</button>
+            <button className="btn small" onClick={() => move("reviewed")}>Mark reviewed</button>
             <button className="btn small" onClick={() => move("sent")}>Mark sent</button>
             <button className="btn small ghost" onClick={() => move("discarded")}>Discard</button>
           </div>
@@ -244,7 +244,7 @@ export function DocPanel({ doc, onClose, onChanged }) {
         <>
           <div className="rowmeta">Reviewed by {doc.reviewed_by} on {doc.reviewed_on}.</div>
           <div className="actions" style={{ marginTop: 8 }}>
-            <button className="btn small primary" onClick={() => move("sent")}>Mark sent</button>
+            <button className="btn small" onClick={() => move("sent")}>Mark sent</button>
             <button className="btn small ghost" onClick={() => move("discarded")}>Discard</button>
           </div>
         </>
@@ -360,23 +360,23 @@ function Markdown({ text, style }) {
         {items.map((it, n) => <li key={n} style={{ marginBottom: 3 }}>{inline(it)}</li>)}</ul>);
       continue;
     }
-    out.push(<p key={key++} style={{ margin: "0 0 10px" }}>{inline(line)}</p>);
+    out.push(<p key={key++} style={{ margin: "0 0 12px" }}>{inline(line)}</p>);
     i++;
   }
   return <div style={style}>{out}</div>;
 }
 
 const md = {
-  padding: "14px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--ink-primary)",
+  padding: "16px", fontSize: "var(--t-body)", lineHeight: 1.55, color: "var(--ink-primary)",
   background: "var(--bg-sunken)", borderTop: "1px solid var(--line-hairline)",
   maxHeight: "55vh", overflow: "auto",
 };
 const quote = {
-  margin: "0 0 12px", padding: "6px 10px", borderLeft: "3px solid var(--status-warn)",
+  margin: "0 0 12px", padding: "6px 12px", borderLeft: "3px solid var(--status-warn)",
   color: "var(--ink-secondary)", fontSize: 12,
 };
 const h4 = {
-  margin: "18px 0 6px", fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em",
+  margin: "20px 0 6px", fontSize: "var(--t-small)", textTransform: "uppercase", letterSpacing: ".04em",
   color: "var(--ink-tertiary)",
 };
 const gapBar = { padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)" };

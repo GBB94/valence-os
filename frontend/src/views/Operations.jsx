@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, useToast, fmtDate } from "../ui";
+import { AgeChip, Loading, useToast, fmtDate } from "../ui";
 
 // Operations screen (Module P): say when the tool is broken without reading server logs.
 export default function Operations({ reloadKey }) {
@@ -24,7 +24,7 @@ export default function Operations({ reloadKey }) {
     loadStyles();
     loadCopilotOps();
   }, [reloadKey, loadStyles, loadCopilotOps, toast]);
-  if (!ops) return <div className="subtle">Loading…</div>;
+  if (!ops) return <Loading what="operations" />;
 
   return (
     <div>
@@ -35,7 +35,7 @@ export default function Operations({ reloadKey }) {
         <div className="card" style={{ padding: 12 }}>
           <div className="rowmeta" style={{ textTransform: "uppercase" }}>Job worker</div>
           <div>{ops.job_worker}</div>
-          <div className="rowmeta" style={{ marginTop: 10, textTransform: "uppercase" }}>Audit events</div>
+          <div className="rowmeta" style={{ marginTop: 12, textTransform: "uppercase" }}>Audit events</div>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{ops.audit_events.toLocaleString()}</div>
         </div>
         <div className="card" style={{ padding: 12 }}>
@@ -55,13 +55,13 @@ export default function Operations({ reloadKey }) {
             {Object.entries(ops.company_intelligence?.sync_totals || {}).map(([key, value]) => <span className="badge" key={key}>{key} · {value}</span>)}
           </div><div className="rowmeta" style={{ marginTop: 6 }}>Active convergence: {ops.company_intelligence?.active_convergences || 0}</div></div>
         </div>
-        {!!ops.company_intelligence?.source_freshness?.length && <table><thead><tr><th>Source class</th><th>Latest retrieval</th><th>Documents</th><th>Retracted</th></tr></thead>
-          <tbody>{ops.company_intelligence.source_freshness.map((row) => <tr key={row.source_class}><td>{row.source_class.replaceAll("_", " ")}</td><td>{fmtDate(row.latest_retrieval)} <AgeChip date={row.latest_retrieval} /></td><td className="mono">{row.documents}</td><td className="mono">{row.retracted}</td></tr>)}</tbody></table>}
+        {!!ops.company_intelligence?.source_freshness?.length && <table><thead><tr><th scope="col">Source class</th><th scope="col" className="num">Latest retrieval</th><th scope="col" className="num">Documents</th><th scope="col" className="num">Retracted</th></tr></thead>
+          <tbody>{ops.company_intelligence.source_freshness.map((row) => <tr key={row.source_class}><td>{row.source_class.replaceAll("_", " ")}</td><td className="num">{fmtDate(row.latest_retrieval)} <AgeChip date={row.latest_retrieval} /></td><td className="num">{row.documents}</td><td className="num">{row.retracted}</td></tr>)}</tbody></table>}
       </div>
 
       <h2>Campaign learning</h2>
       <div className="card" aria-label="Portfolio campaign learning">
-        {!learning ? <div className="rowmeta" style={{ padding: 12 }}>Loading campaign learning…</div> : <>
+        {!learning ? <Loading what="campaign learning" /> : <>
           <div className="grid2" style={{ padding: 12 }}>
             <div><div className="rowmeta">Campaigns by state</div>
               <div className="chiprow">{Object.entries(learning.by_state || {}).map(([key, value]) =>
@@ -75,10 +75,10 @@ export default function Operations({ reloadKey }) {
               ? " insufficient data" : ` median ${learning.time_to_first_evidence?.median_days} days`}
             <span className="rowmeta"> · n={learning.time_to_first_evidence?.n || 0}; count and denominator, never a percentage</span>
           </div>
-          {!!learning.by_intervention_kind?.length && <table><thead><tr><th>Intervention</th><th>Observed</th><th>Appeared to help</th><th>Failed / did not help</th></tr></thead>
+          {!!learning.by_intervention_kind?.length && <table><thead><tr><th scope="col">Intervention</th><th scope="col" className="num">Observed</th><th scope="col" className="num">Appeared to help</th><th scope="col" className="num">Failed / did not help</th></tr></thead>
             <tbody>{learning.by_intervention_kind.map((row) => <tr key={row.intervention_kind}>
-              <td>{row.intervention_kind.replaceAll("_", " ")}</td><td>{row.interventions_observed}</td>
-              <td>{row.helped}</td><td>{row.failed}</td></tr>)}</tbody></table>}
+              <td>{row.intervention_kind.replaceAll("_", " ")}</td><td className="num">{row.interventions_observed}</td>
+              <td className="num">{row.helped}</td><td className="num">{row.failed}</td></tr>)}</tbody></table>}
           <div className="rowmeta" style={{ padding: 12 }}>
             Started without baseline: {learning.started_without_baseline?.length || 0} · without sponsor: {learning.started_without_sponsor?.length || 0} · evidence quiet: {learning.evidence_quiet_past_checkpoint?.length || 0} · repeated shapes: {learning.repeated_shapes?.length || 0}. No account or person ranking; no health score.
           </div>
@@ -100,10 +100,10 @@ export default function Operations({ reloadKey }) {
         <details style={{ padding: "0 12px 12px" }}><summary>Release thresholds</summary>
           <div className="rowmeta" style={{ marginTop: 6 }}>{Object.entries(ops.copilot?.thresholds || {})
             .map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`).join(" · ")}</div></details>
-        {!!configs.length && <table><thead><tr><th>Version set</th><th>State</th><th>Evaluated</th><th>Release control</th></tr></thead>
+        {!!configs.length && <table><thead><tr><th scope="col">Version set</th><th scope="col">State</th><th scope="col" className="num">Evaluated</th><th scope="col">Release control</th></tr></thead>
           <tbody>{configs.map((config) => <tr key={config.id}>
             <td><div>{config.label}</div><div className="rowmeta">{config.model_version} · {config.prompt_version} · {config.retrieval_version} · {config.validator_version}</div></td>
-            <td><span className="badge">{config.status}</span></td><td>{config.evaluated_at?.slice(0, 10) || "not evaluated"}</td>
+            <td><span className="badge">{config.status}</span></td><td className="num">{config.evaluated_at?.slice(0, 10) || "not evaluated"}</td>
             <td>{config.status === "passed" ? <button className="btn small" onClick={async () => {
               try { await api.activateCopilotConfiguration(config.id); await loadCopilotOps(); toast("Evaluated configuration activated."); }
               catch (error) { toast(error.message, "err"); }
@@ -147,9 +147,9 @@ export default function Operations({ reloadKey }) {
 
       <h2>Writing style versions</h2>
       <div className="card">
-        {styles.length > 0 && <table><thead><tr><th>Name</th><th>Audience</th><th>Version</th><th>State</th></tr></thead>
+        {styles.length > 0 && <table><thead><tr><th scope="col">Name</th><th scope="col">Audience</th><th scope="col" className="num">Version</th><th scope="col">State</th></tr></thead>
           <tbody>{styles.map((profile) => <tr key={profile.id}><td>{profile.name}</td><td>{profile.audience.replaceAll("_", " ")}</td>
-            <td>{profile.version}</td><td>{profile.is_active ? "active" : "superseded"}</td></tr>)}</tbody></table>}
+            <td className="num">{profile.version}</td><td>{profile.is_active ? "active" : "superseded"}</td></tr>)}</tbody></table>}
         <form className="actions" style={{ padding: 12, flexWrap: "wrap" }} onSubmit={async (event) => {
           event.preventDefault();
           try {
@@ -169,9 +169,9 @@ export default function Operations({ reloadKey }) {
       <h2>Source freshness</h2>
       <div className="card">
         {ops.source_freshness.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No metric sources.</div> : (
-          <table><thead><tr><th>Metric</th><th style={{ width: 150 }}>Current through</th><th style={{ width: 100 }}>State</th></tr></thead>
+          <table><thead><tr><th scope="col">Metric</th><th scope="col" className="num" style={{ width: 150 }}>Current through</th><th scope="col" style={{ width: 100 }}>State</th></tr></thead>
             <tbody>{ops.source_freshness.map((f, i) => (
-              <tr key={i}><td>{f.metric}</td><td className="rowmeta">{fmtDate(f.current_through)} <AgeChip date={f.current_through} /></td>
+              <tr key={i}><td>{f.metric}</td><td className="rowmeta num">{fmtDate(f.current_through)} <AgeChip date={f.current_through} /></td>
                 <td>{f.stale ? <span style={{ color: "var(--status-warn)" }}>⚠ stale</span> : <span style={{ color: "var(--status-ok)" }}>fresh</span>}</td></tr>
             ))}</tbody></table>
         )}
@@ -180,11 +180,11 @@ export default function Operations({ reloadKey }) {
       <h2>Import batches</h2>
       <div className="card">
         {ops.import_batches.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No imports yet.</div> : (
-          <table><thead><tr><th>Adapter</th><th style={{ width: 70 }}>Rows</th><th style={{ width: 120 }}>Status</th><th style={{ width: 140 }}>Created</th></tr></thead>
+          <table><thead><tr><th scope="col">Adapter</th><th scope="col" className="num" style={{ width: 70 }}>Rows</th><th scope="col" style={{ width: 120 }}>Status</th><th scope="col" className="num" style={{ width: 140 }}>Created</th></tr></thead>
             <tbody>{ops.import_batches.map((b) => (
-              <tr key={b.id}><td>{b.adapter}</td><td className="rowmeta">{b.row_count}</td>
+              <tr key={b.id}><td>{b.adapter}</td><td className="rowmeta num">{b.row_count}</td>
                 <td><span className="badge" style={b.status === "rolled_back" ? { borderColor: "var(--status-risk)", color: "var(--status-risk)" } : {}}>{b.status}</span></td>
-                <td className="rowmeta">{b.created_at?.slice(0, 10)}</td></tr>
+                <td className="rowmeta num">{b.created_at?.slice(0, 10)}</td></tr>
             ))}</tbody></table>
         )}
         {ops.failed_or_rolled_back > 0 && <div className="rowmeta" style={{ padding: "8px 12px", color: "var(--status-risk)" }}>{ops.failed_or_rolled_back} rolled-back batch(es).</div>}
@@ -192,9 +192,9 @@ export default function Operations({ reloadKey }) {
 
       <h2>Internal operating records</h2>
       <div className="card">
-        <table><thead><tr><th>Record type</th><th style={{ width: 120 }}>Rows</th></tr></thead>
+        <table><thead><tr><th scope="col">Record type</th><th scope="col" className="num" style={{ width: 120 }}>Rows</th></tr></thead>
           <tbody>{(ops.internal_record_counts || []).map((r) => <tr key={r.record_type}>
-            <td>{r.record_type.replaceAll("_", " ")}</td><td>{r.count ?? "migration missing"}</td>
+            <td>{r.record_type.replaceAll("_", " ")}</td><td className="num">{r.count ?? "migration missing"}</td>
           </tr>)}</tbody></table>
       </div>
 

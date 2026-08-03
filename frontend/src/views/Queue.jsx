@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
+import { Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
 
 // Portfolio home — the ranked, explainable attention queue (Module A).
 export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
@@ -17,7 +17,7 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged }) {
 
   const after = () => { setSnoozing(null); setResolving(null); load(); onChanged?.(); };
 
-  if (!q) return <div className="subtle">Loading…</div>;
+  if (!q) return <Loading what="attention queue" />;
 
   const bands = BANDS.map((b) => ({ ...b, items: q.items.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
 

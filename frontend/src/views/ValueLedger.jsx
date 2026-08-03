@@ -6,7 +6,7 @@
    percentage over a handful of targets implies precision the sample cannot support). */
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Empty, SlideOver, Unknown, useToast } from "../ui";
+import { AgeChip, Empty, Loading, SlideOver, Unknown, useToast } from "../ui";
 
 // Status -> (glyph, hue). Same rule as the heatmap: never state by color alone.
 const REALIZATION = {
@@ -36,7 +36,7 @@ export default function ValueLedger({ accountId, reloadKey }) {
   useEffect(() => { load(); }, [accountId, reloadKey, tick]);
 
   if (!accountId) return <Empty title="No account selected">Pick an account.</Empty>;
-  if (!led) return <div className="subtle" style={{ padding: 12 }}>Loading…</div>;
+  if (!led) return <Loading what="value ledger" />;
 
   return (
     <>
@@ -314,11 +314,11 @@ function TargetEvidence({ target, onClose, onSaved }) {
 }
 
 const countsBar = {
-  display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center",
+  display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
   padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)",
 };
 const countChip = { display: "inline-flex", alignItems: "center", gap: 5 };
-const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
+const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, fontSize: "var(--t-body)" };
 const sel = {
   padding: "6px 8px", borderRadius: "var(--r-sm)",
   border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",

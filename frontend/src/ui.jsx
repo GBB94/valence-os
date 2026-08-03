@@ -231,6 +231,24 @@ export function AgeChip({ date, days }) {
   return <span className={"age age-" + bucketFor(ageDays(date))} title={date ? `as of ${fmtDate(date)}` : undefined}>{ageLabel(date)}</span>;
 }
 
+// Forward-looking counterpart to AgeChip. AgeChip clamps future dates to "today", which
+// silently misreads a due date or find-by date; this renders "in Nd" (or overdue via the
+// stale treatment) instead. Same mono/micro form, no decay ramp — the future doesn't age.
+export function DueChip({ date }) {
+  if (!date) return null;
+  const due = new Date(date.slice(0, 10) + "T00:00:00");
+  if (isNaN(due)) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((due.getTime() - today.getTime()) / 86400000);
+  const label = days < 0 ? `${-days}d over` : days === 0 ? "today" : days < 21 ? `in ${days}d` : days < 84 ? `in ${Math.round(days / 7)}w` : `in ${Math.round(days / 30)}mo`;
+  return <span className={"age " + (days < 0 ? "age-stale" : "age-fresh")} title={`due ${fmtDate(date)}`}>{label}</span>;
+}
+
+// The one Loading treatment: quiet, left-aligned, consistent copy.
+export function Loading({ what }) {
+  return <div className="subtle" style={{ padding: 12 }}>Loading{what ? ` ${what}` : ""}…</div>;
+}
+
 // The unknown treatment: cross-hatched tint + "Unknown" + the age chip that explains why.
 // For a metric-derived indicator whose inputs passed their freshness threshold — never a
 // carried-forward last value (§7, and the trust boundary in CLAUDE.md).
@@ -300,20 +318,22 @@ export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount,
       <div className="palette">
         <div className="card" style={{ boxShadow: "var(--shadow-panel)", overflow: "hidden" }}>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
-            placeholder="Type a command or search…"
-            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 14px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
-          <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            placeholder="Type a command or search…" role="combobox" aria-expanded="true" aria-autocomplete="list"
+            aria-controls="palette-listbox" aria-activedescendant={items[sel] ? `palette-opt-${sel}` : undefined}
+            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 16px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
+          <div style={{ maxHeight: 360, overflowY: "auto" }} role="listbox" id="palette-listbox" aria-label="Commands and results">
             {items.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No matches.</div> :
               items.map((it, i) => (
                 <div key={it.kind + it.label + i} onMouseEnter={() => setSel(i)} onClick={it.run}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", cursor: "pointer",
+                  role="option" id={`palette-opt-${i}`} aria-selected={i === sel}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", cursor: "pointer",
                     background: i === sel ? "var(--accent-tint)" : "transparent" }}>
                   <span style={{ flex: 1, fontSize: "var(--t-body)", color: i === sel ? "var(--accent)" : "var(--ink-primary)" }}>{(it.label || "").slice(0, 64)}</span>
                   <span className="rowmeta">{it.hint}</span>
                 </div>
               ))}
           </div>
-          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
+          <div className="rowmeta" style={{ padding: "6px 16px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
         </div>
       </div>
     </>

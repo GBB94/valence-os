@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast, fmtDate } from "../ui";
+import { Empty, Loading, useToast, fmtDate } from "../ui";
 
 // Mutual action plan (Section 5N) — client-facing joint plan assembled from items the
 // operator has promoted (client_visible). Internal items never appear, by construction.
@@ -37,18 +37,18 @@ export default function MutualActionPlan({ accounts, accountId, setAccountId, re
         {map && <> · current through {map.stamp.data_current_through}</>}
       </div>
 
-      {!map ? <div className="subtle">Loading…</div> : map.items.length === 0 ? (
+      {!map ? <Loading what="mutual action plan" /> : map.items.length === 0 ? (
         <div className="placeholder">Nothing shared to this plan yet. Star a commitment, task, or milestone on the Execution board to add it.</div>
       ) : (
         <div className="card">
           <table>
-            <thead><tr><th>What</th><th style={{ width: 130 }}>Owner</th><th style={{ width: 110 }}>Due</th><th style={{ width: 110 }}>Status</th><th style={{ width: 160 }}>Program</th></tr></thead>
+            <thead><tr><th scope="col">What</th><th scope="col">Owner</th><th scope="col" className="num" style={{ width: 110 }}>Due</th><th scope="col" style={{ width: 110 }}>Status</th><th scope="col" style={{ width: 160 }}>Program</th></tr></thead>
             <tbody>
               {map.items.map((it, i) => (
                 <tr key={i}>
                   <td><span className="badge" style={{ marginRight: 6 }}>{it.type}</span>{it.what}</td>
                   <td className="rowmeta">{it.owner || "—"}</td>
-                  <td className="rowmeta">{fmtDate(it.due)}</td>
+                  <td className="rowmeta num">{fmtDate(it.due)}</td>
                   <td className="rowmeta">{it.status}</td>
                   <td className="rowmeta">{it.program || "—"}</td>
                 </tr>

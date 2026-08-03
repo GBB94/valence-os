@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, Empty, SlideOver, useToast, fmtDate, AgeChip } from "../ui";
+import { PhaseBadge, Empty, Loading, SlideOver, useToast, fmtDate, AgeChip } from "../ui";
 
 const STATUS_LABEL = { on_track: "on track", at_risk: "at risk", off_track: "off track", unknown: "unknown" };
 const STATUS_DOT = { on_track: "ok", at_risk: "warn", off_track: "risk", unknown: "" };
@@ -53,7 +53,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
     } catch (e) { toast(e.message, "err"); }
   }
 
-  if (!acct) return <div className="subtle">Loading…</div>;
+  if (!acct) return <Loading what="account" />;
 
   return (
     <div>
@@ -67,7 +67,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
       </div>
       <div className="subtle" style={{ marginBottom: 10 }}>{acct.short_context}</div>
 
-      <div className="two-col" style={{ gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 720 }}>
+      <div className="two-col" style={{ gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 720 }}>
         <StatusCard dim="delivery" label="Delivery / value" acct={acct} onEdit={() => setEditStatus("delivery")} />
         <StatusCard dim="commercial" label="Commercial" acct={acct} onEdit={() => setEditStatus("commercial")} />
       </div>
@@ -99,7 +99,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
                   </div>
                 </div>
                 <div className="actions">
-                  <button className="btn primary small" onClick={createProgram}>Create</button>
+                  <button className="btn small" onClick={createProgram}>Create program</button>
                   <button className="btn small" onClick={() => setAddingProgram(false)}>Cancel</button>
                 </div>
               </div>
@@ -108,7 +108,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
               <Empty title="No programs yet">Add the first deployment or commercial motion.</Empty>
             ) : (
               <table>
-                <thead><tr><th>Program</th><th style={{width:130}}>Phase</th><th style={{width:110}}>Region</th></tr></thead>
+                <thead><tr><th scope="col">Program</th><th scope="col" style={{width:130}}>Phase</th><th scope="col" style={{width:110}}>Region</th></tr></thead>
                 <tbody>
                   {acct.programs.map((p) => (
                     <tr key={p.id} className="clickable" onClick={() => onOpenProgram(p.id)}>
@@ -128,11 +128,11 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
               <Empty title="No interactions logged">Use “Log interaction” to capture your first call.</Empty>
             ) : (
               <table>
-                <thead><tr><th style={{width:96}}>Date</th><th style={{width:80}}>Type</th><th>Summary</th></tr></thead>
+                <thead><tr><th scope="col" className="num" style={{width:96}}>Date</th><th scope="col" style={{width:80}}>Type</th><th scope="col">Summary</th></tr></thead>
                 <tbody>
                   {acct.interactions.map((it) => (
                     <tr key={it.id}>
-                      <td><AgeChip date={it.occurred_on} /></td>
+                      <td className="num"><AgeChip date={it.occurred_on} /></td>
                       <td><span className="badge">{it.type}</span></td>
                       <td>{it.summary || <span className="rowmeta">—</span>}
                         {it.program_id ? null : <span className="tag-internal" style={{borderColor:'var(--ink-tertiary)',color:'var(--ink-tertiary)'}}>account-level</span>}
@@ -152,7 +152,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
             <Empty title="No people yet">People are added per program with a role.</Empty>
           ) : (
             <table>
-              <thead><tr><th>Name</th><th>Title</th></tr></thead>
+              <thead><tr><th scope="col">Name</th><th scope="col">Title</th></tr></thead>
               <tbody>
                 {acct.people.map((p) => (
                   <tr key={p.id}>
