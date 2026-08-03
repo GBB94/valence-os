@@ -1,6 +1,6 @@
 # Valence OS — Design Guide
 ### Visual system and screen architecture — the standing design authority for the shipped frontend
-*v4 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6, `UX-FOUNDATION-SPEC.md`, and `CLAUDE.md` · revised after the full-app adversarial design review and UX foundation pass (D-113/D-114/D-116)*
+*v5 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6, `UX-FOUNDATION-SPEC.md`, and `CLAUDE.md` · revised after the full-app adversarial design review, UX foundation pass, and restrained depth polish (D-113/D-114/D-116/D-124)*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **This guide supersedes §6 of the scoping doc and the navigation the current build inherited from the §5 module list.** Where the two disagree, this document wins. The scoping doc's design section was written before anything existed; this one is written against a working app, so it replaces rather than supplements. The one-color-mode line and the one-destination-per-module structure are both explicitly retired here.
 
-**Status (v4).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. v3 corrected the guide against the audited implementation; v4 closes the URL-addressability debt and makes `UX-FOUNDATION-SPEC.md` the additive authority for saved views and the staged path toward a decision-oriented account workspace.
+**Status (v5).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. v3 corrected the guide against the audited implementation; v4 closed the URL-addressability debt and made `UX-FOUNDATION-SPEC.md` the additive authority for saved views and the staged path toward a decision-oriented account workspace. v5 adds a restrained depth layer: tokenized ambient light, inset surface highlights, precise control shadows, and expo-out interaction timing. It explicitly does **not** adopt global animated blobs, parallax, glass cards, or cursor spotlights outside the stakeholder canvas.
 
 **What still holds, and why.**
 
@@ -23,7 +23,7 @@
 
 **The subject.** One operator running a small number of very large, very consequential accounts. The work is remembering, noticing, and deciding. The tool's job is to make the state of an account legible in seconds and to make capture so fast it never gets skipped.
 
-**The thesis: an instrument, not a dashboard.** Consumer dashboards persuade. This one reports. It should feel like a well-made measuring device: quiet housing, precise readouts, nothing decorative competing with the data. Confidence comes from typographic discipline and exact alignment, not from cards, gradients, and shadows.
+**The thesis: an instrument, not a dashboard.** Consumer dashboards persuade. This one reports. It should feel like a well-made measuring device: quiet housing, precise readouts, nothing decorative competing with the data. Confidence comes first from typographic discipline and exact alignment. A static ambient wash, a restrained top-edge highlight, and control-level depth may make the housing feel more finished; none may become a second subject beside the data.
 
 **The signature.** Two things carry the identity, and nothing else is allowed to shout.
 
@@ -137,13 +137,20 @@ Define these once in `tokens.css` — **it is the canonical source**. The blocks
   /* Surfaces */
   --bg-app:        #F6F7F9;
   --bg-surface:    #FFFFFF;
+  --bg-elevated:   #FFFFFF;
+  --bg-translucent: rgba(255,255,255,.88);
   --bg-sunken:     #EFF1F4;
   --bg-hover:      #F2F4F7;
   --bg-selected:   #EEEEFC;
+  --surface-highlight: rgba(255,255,255,.72);
+  --surface-highlight-subtle: rgba(255,255,255,.34);
+  --ambient-page: rgba(58,52,196,.035);
+  --ambient-graph: rgba(58,52,196,.10);
 
   /* Lines */
   --line-hairline: #E3E6EB;
   --line-strong:   #CDD2DA;
+  --line-hover:    #B8BEC8;
 
   /* Ink */
   --ink-primary:   #14161C;
@@ -181,8 +188,11 @@ Define these once in `tokens.css` — **it is the canonical source**. The blocks
 
   /* Radii and elevation */
   --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.80);
+  --shadow-control: 0 1px 2px rgba(20,22,28,.06), inset 0 1px 0 rgba(255,255,255,.72);
+  --shadow-primary: 0 0 0 1px rgba(58,52,196,.12), 0 4px 12px rgba(58,52,196,.16), inset 0 1px 0 rgba(255,255,255,.20);
   --shadow-panel: 0 1px 2px rgba(20,22,28,.05), 0 12px 32px rgba(20,22,28,.10);
 }
 ```
@@ -195,12 +205,19 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 [data-theme="dark"] {
   --bg-app:        #0E1013;
   --bg-surface:    #16191E;
+  --bg-elevated:   #191C22;
+  --bg-translucent: rgba(22,25,30,.88);
   --bg-sunken:     #101317;
   --bg-hover:      #1D2127;
   --bg-selected:   #191A33;  /* matches accent-tint so active-nav accent text clears 4.5:1 */
+  --surface-highlight: rgba(255,255,255,.040);
+  --surface-highlight-subtle: rgba(255,255,255,.022);
+  --ambient-page: rgba(124,116,240,.085);
+  --ambient-graph: rgba(124,116,240,.18);
 
   --line-hairline: #262B33;
   --line-strong:   #363C46;
+  --line-hover:    #4A515D;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
@@ -231,6 +248,9 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
   --data-4: #C9C5FB;
   --data-muted: #454B55;
 
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.055);
+  --shadow-control: 0 1px 2px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.060);
+  --shadow-primary: 0 0 0 1px rgba(124,116,240,.22), 0 4px 12px rgba(124,116,240,.18), inset 0 1px 0 rgba(255,255,255,.16);
   --shadow-panel: 0 1px 2px rgba(0,0,0,.40), 0 12px 32px rgba(0,0,0,.50);
 }
 ```
@@ -241,7 +261,7 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 
 - Green, amber, and red appear only to encode state. Never for emphasis, never for branding, never on a chart other than the budget waterfall.
 - The waterfall is the single documented exception. Because the app is a tabbed workspace with a sticky status header, strict screen-level separation is impossible; the enforceable rule is that **no status indicator appears inside the same card or panel as a financial chart**. Enforce this in the layout, not in a comment. (Narrowed from "same screen" — D-70.)
-- Elevation is rare. Tables, cards, and panels separate with hairlines. Only the slide-over, the command palette, and toasts get a shadow.
+- Outer elevation is rare. Tables, cards, and panels separate with hairlines and may share the single tokenized inset top-edge highlight. Secondary controls use the shared compact control shadow; the one primary action may use the restrained accent shadow. Only the slide-over, command palette, and toasts receive panel-scale outer elevation.
 - Tints back badges and selected rows only. Never tint a large surface.
 - **`--status-unknown` is a fill-and-hatch hue, never ink.** It fails 4.5:1 as text or as a glyph on every surface in both themes. Neutral and no-signal states draw their glyphs, counts, and labels in `--ink-secondary`; the unknown hue appears only in tints, hatches, and marks paired with a label. (This was buried in §8's whitespace notes in v2, and exactly the surfaces that hadn't read §8 violated it.)
 - **`--accent` and `--data-1` share a value by design, and the distinction is semantic.** Data encodings (chart series, timeline markers, reference lines) must reference `--data-*`; interactive affordances must reference `--accent`. The pixels match today; the tokens must not be swapped, or a future palette change silently recolors one as the other.
@@ -301,7 +321,7 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 
 ### Cards and panels
 
-Hairline border, `--r-md`, `--bg-surface`, 16px padding, no shadow. A card groups; it does not decorate. More than four cards on a screen usually means it wanted a table.
+Hairline border, `--r-md`, `--bg-surface`, 16px padding, no outer shadow. The shared inset top-edge highlight may add surface definition in both themes; view code never invents its own glow. A card groups; it does not decorate. More than four cards on a screen usually means it wanted a table.
 
 ### Buttons
 
@@ -312,7 +332,7 @@ Hairline border, `--r-md`, `--bg-surface`, 16px padding, no shadow. A card group
 | Ghost | In-row and toolbar actions | transparent, `--ink-secondary`, hover `--bg-hover` |
 | Danger | Destructive only | `--status-risk` on `--status-risk-tint`; filled only inside a confirm dialog |
 
-One primary per screen maximum; row-level and repeated actions are secondary or ghost, never primary, and `.primary` is never a selected-state for toggle groups — that is what `SegTabs` is for. Labels are verbs naming the outcome: "Log interaction," "Convert to commitment," "Promote to plan." Never "Submit," never "OK." Inline navigation rendered as a link uses the `.linklike` button class — a bare `<a onClick>` is not keyboard-reachable and is a violation, not a shorthand.
+One primary per screen maximum; row-level and repeated actions are secondary or ghost, never primary, and `.primary` is never a selected-state for toggle groups — that is what `SegTabs` is for. The shared button primitive owns the inset highlight, restrained primary-action shadow, hover border, and `0.98` pressed scale; view code does not reproduce them. Labels are verbs naming the outcome: "Log interaction," "Convert to commitment," "Promote to plan." Never "Submit," never "OK." Inline navigation rendered as a link uses the `.linklike` button class — a bare `<a onClick>` is not keyboard-reachable and is a violation, not a shorthand.
 
 ### Inputs
 
@@ -394,10 +414,12 @@ All inherit the tokens; none introduce a palette.
 ```css
 --dur-fast: 120ms;
 --dur-med:  180ms;
+--dur-standard: 240ms;
 --ease: cubic-bezier(0.2, 0, 0, 1);
+--ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
 ```
 
-Slide-overs translate from the right. The palette fades and scales from 0.98. Theme changes are instant, with no crossfade. Nothing else animates: no page transitions, no staggered reveals, no skeleton shimmer beyond a single quiet pulse. `prefers-reduced-motion` drops everything to opacity-only.
+Slide-overs translate from the right. The palette fades and scales from 0.98. Buttons and filter controls may transition color, border, shadow, and a `0.98` pressed scale using the shared expo-out token. The stakeholder canvas alone may move a soft cursor spotlight because it is the system's expressive surface. Theme changes are instant, with no crossfade. There are no page transitions, staggered reveals, floating background blobs, card lift, parallax, or skeleton shimmer beyond a single quiet pulse. `prefers-reduced-motion` collapses every transition and animation to effectively instant.
 
 ---
 

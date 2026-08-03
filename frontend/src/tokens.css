@@ -32,13 +32,20 @@
   /* Surfaces */
   --bg-app:        #F6F7F9;
   --bg-surface:    #FFFFFF;
+  --bg-elevated:   #FFFFFF;
+  --bg-translucent: rgba(255,255,255,.88);
   --bg-sunken:     #EFF1F4;
   --bg-hover:      #F2F4F7;
   --bg-selected:   #EEEEFC;
+  --surface-highlight: rgba(255,255,255,.72);
+  --surface-highlight-subtle: rgba(255,255,255,.34);
+  --ambient-page: rgba(58,52,196,.035);
+  --ambient-graph: rgba(58,52,196,.10);
 
   /* Lines */
   --line-hairline: #E3E6EB;
   --line-strong:   #CDD2DA;
+  --line-hover:    #B8BEC8;
 
   /* Ink */
   --ink-primary:   #14161C;
@@ -77,8 +84,11 @@
 
   /* Radii and elevation */
   --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.80);
+  --shadow-control: 0 1px 2px rgba(20,22,28,.06), inset 0 1px 0 rgba(255,255,255,.72);
+  --shadow-primary: 0 0 0 1px rgba(58,52,196,.12), 0 4px 12px rgba(58,52,196,.16), inset 0 1px 0 rgba(255,255,255,.20);
   --shadow-panel: 0 1px 2px rgba(20,22,28,.05), 0 12px 32px rgba(20,22,28,.10);
 
   /* Spacing scale (4px base) — the only permitted spacing values */
@@ -109,7 +119,9 @@
   /* Motion */
   --dur-fast: 120ms;
   --dur-med:  180ms;
+  --dur-standard: 240ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---- Dark --------------------------------------------------------------------------- */
@@ -118,12 +130,19 @@
 
   --bg-app:        #0E1013;
   --bg-surface:    #16191E;
+  --bg-elevated:   #191C22;
+  --bg-translucent: rgba(22,25,30,.88);
   --bg-sunken:     #101317;
   --bg-hover:      #1D2127;
   --bg-selected:   #191A33;   /* matches accent-tint so active-nav accent text clears 4.5:1 */
+  --surface-highlight: rgba(255,255,255,.040);
+  --surface-highlight-subtle: rgba(255,255,255,.022);
+  --ambient-page: rgba(124,116,240,.085);
+  --ambient-graph: rgba(124,116,240,.18);
 
   --line-hairline: #262B33;
   --line-strong:   #363C46;
+  --line-hover:    #4A515D;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
@@ -154,6 +173,9 @@
   --data-4: #C9C5FB;
   --data-muted: #454B55;
 
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.055);
+  --shadow-control: 0 1px 2px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.060);
+  --shadow-primary: 0 0 0 1px rgba(124,116,240,.22), 0 4px 12px rgba(124,116,240,.18), inset 0 1px 0 rgba(255,255,255,.16);
   --shadow-panel: 0 1px 2px rgba(0,0,0,.40), 0 12px 32px rgba(0,0,0,.50);
 }
 

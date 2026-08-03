@@ -19,6 +19,17 @@ const STANCE_SHAPE = { supporter: "ellipse", skeptic: "diamond", unconverted: "r
 const PLACEHOLDER_VAR = "--status-unknown";
 const PLACEHOLDER_SHAPE = "hexagon";
 
+function trackCanvasSpotlight(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty("--spot-x", `${event.clientX - bounds.left}px`);
+  event.currentTarget.style.setProperty("--spot-y", `${event.clientY - bounds.top}px`);
+}
+
+function resetCanvasSpotlight(event) {
+  event.currentTarget.style.setProperty("--spot-x", "50%");
+  event.currentTarget.style.setProperty("--spot-y", "42%");
+}
+
 export default function StakeholderGraph({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
   const [detail, setDetail] = useState(null);
@@ -113,10 +124,10 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
     <div className="stakeholder-workspace">
       <div className="actions stakeholder-toolbar">
         <div className="stakeholder-title"><div className="page-eyebrow">Relationship intelligence</div><h1>Stakeholder map</h1></div>
-        <select value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }} style={sel}>
+        <select className="stakeholder-select" value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
-        <select value={programId} onChange={(e) => setProgramId(e.target.value)} style={sel}>
+        <select className="stakeholder-select" value={programId} onChange={(e) => setProgramId(e.target.value)}>
           <option value="">all programs</option>
           {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
@@ -131,7 +142,8 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
           {!graph ? <Loading what="stakeholder graph" /> :
             graph.nodes.length === 0 ? <div className="empty"><h3>No stakeholders</h3>Add people with roles and set their influence.</div> :
             mode === "network"
-              ? <div ref={elRef} className="stakeholder-graph" />
+              ? <div ref={elRef} className="stakeholder-graph"
+                  onPointerMove={trackCanvasSpotlight} onPointerLeave={resetCanvasSpotlight} />
               : mode === "layers"
                 ? <LayerLanes nodes={graph.nodes} onSelect={setSelected} />
                 : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
@@ -303,4 +315,3 @@ function PowerInterest({ nodes, onSelect }) {
   );
 }
 const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>{t}</div>;
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };
