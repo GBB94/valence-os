@@ -56,14 +56,18 @@ export function PhaseBadge({ phase }) {
 }
 
 // Screen header: title, optional right-aligned meta, optional action cluster.
-export function PageHeader({ title, meta, children }) {
+export function PageHeader({ title, meta, eyebrow, subtitle, children }) {
   return (
-    <div className="actions" style={{ marginBottom: 12 }}>
-      <h1>{title}</h1>
+    <header className="page-header">
+      <div className="page-header-copy">
+        {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
+        <h1>{title}</h1>
+        {subtitle && <div className="page-subtitle">{subtitle}</div>}
+      </div>
       <div className="spacer" />
-      {meta && <span className="rowmeta">{meta}</span>}
+      {meta && <span className="page-meta">{meta}</span>}
       {children}
-    </div>
+    </header>
   );
 }
 

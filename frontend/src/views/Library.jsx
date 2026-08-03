@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, Empty, Loading, useToast, fmtDate } from "../ui";
+import { SlideOver, Empty, Loading, useToast, PageHeader } from "../ui";
 import PlaybookLibrary from "./PlaybookLibrary";
 
 // Files & context library (Section 5O): link-first, searchable, tagged list of source
@@ -26,26 +26,24 @@ export default function Library({ reloadKey }) {
   const allTags = data?.all_tags || [];
 
   return (
-    <div>
-      <div className="actions" style={{ marginBottom: 12 }}>
-        <h1>Files &amp; context</h1>
-        <div className="spacer" />
+    <div className="library-page">
+      <PageHeader title="Files & context" eyebrow="Source library"
+        subtitle="Original references, exact citations, and reusable account context."
+        meta={data ? `${data.sources.length} source${data.sources.length === 1 ? "" : "s"}` : "Loading sources"}>
         <button className="btn primary" onClick={() => setAdding(true)}>Add link</button>
-      </div>
-      <div className="actions" style={{ marginBottom: 12 }}>
-        <input placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, maxWidth: 360, height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 12px" }} />
-        <select value={type} onChange={(e) => setType(e.target.value)} style={{ height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px" }}>
+      </PageHeader>
+      <div className="actions library-filters">
+        <input aria-label="Search source library" placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select aria-label="Filter sources by type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">all types</option>
           {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
         </select>
-        <select value={tag} onChange={(e) => setTag(e.target.value)} disabled={allTags.length === 0} style={{ height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px" }}>
+        <select aria-label="Filter sources by tag" value={tag} onChange={(e) => setTag(e.target.value)} disabled={allTags.length === 0}>
           <option value="">all tags</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
-      <div className="rowmeta" style={{ marginBottom: 12 }}>Link-first: pointers to originals, not copies. Tag to group across accounts; click a row's tags to edit.</div>
-
-      <div className="card">
+      <div className="card library-table">
         {!data ? <Loading what="library" /> :
           data.sources.length === 0 ? <Empty title="No files yet">Add a link to a deck, transcript, or CRM record.</Empty> : (
           <table>
@@ -53,7 +51,7 @@ export default function Library({ reloadKey }) {
             <tbody>
               {data.sources.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.label}{s.locator ? <span className="rowmeta"> · {s.locator}</span> : null}
+                  <td><strong className="source-title">{s.label}</strong>{s.locator ? <span className="rowmeta"> · {s.locator}</span> : null}
                     {s.accounts.length ? <div className="rowmeta">{s.accounts.join(", ")}</div> : null}</td>
                   <td><span className="badge">{TYPE_LABEL[s.type] || s.type}</span></td>
                   <td>
@@ -62,12 +60,12 @@ export default function Library({ reloadKey }) {
                         s.tag_list.map((t) => <span key={t} className="badge" style={{ marginRight: 3 }}>{t}</span>)}
                     </button>
                   </td>
-                  <td className="rowmeta">
+                  <td className="rowmeta"><div className="citation-list">
                     {s.citation_count === 0 ? "—" : s.citations.slice(0, 3).map((c, i) => (
-                      <span key={i}>{i ? " · " : ""}<span className="badge" style={{ marginRight: 3 }}>{c.object_type}</span>{(c.label || "").slice(0, 24)}</span>
+                      <span className="citation-item" key={i}><span className="badge">{c.object_type}</span>{(c.label || "").slice(0, 24)}</span>
                     ))}
                     {s.citation_count > 3 && <span> +{s.citation_count - 3}</span>}
-                  </td>
+                  </div></td>
                   <td>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">open ↗</a> : <span className="rowmeta">no link</span>}</td>
                 </tr>
               ))}

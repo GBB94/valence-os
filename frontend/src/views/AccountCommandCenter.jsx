@@ -14,6 +14,11 @@ const LENSES = [
   ["prepare", "Prepare"],
   ["leadership", "Leadership"],
 ];
+const LENS_COPY = {
+  operate: ["Daily operating view", "Changes, actions, and the next account moment"],
+  prepare: ["Meeting preparation", "People, open threads, and evidence for the conversation"],
+  leadership: ["Leadership review", "Movement, exposure, forecast, and explicit asks"],
+};
 const PROGRAM_PHASES = ["foundation", "launch", "programmatic", "expansion", "renewal", "closed"];
 
 function sentence(value) {
@@ -111,9 +116,9 @@ function UpcomingRows({ items, onOpenTarget }) {
   );
 }
 
-function Section({ title, meta, action, children, className = "" }) {
+function Section({ title, meta, action, children, className = "", tone = "neutral" }) {
   return (
-    <Card className={`command-section${className ? ` ${className}` : ""}`}>
+    <Card className={`command-section command-tone-${tone}${className ? ` ${className}` : ""}`}>
       <div className="card-h">
         <div>
           <h3>{title}</h3>
@@ -137,6 +142,7 @@ function OperateLens({ data, firstVisit, reviewing, onMarkReviewed, onOpenTarget
       <div className="command-main stack">
         <Section
           title="Since last review"
+          tone="accent"
           meta={reviewMeta}
           action={<button className="btn small" disabled={reviewing} onClick={onMarkReviewed}
             aria-label={`Mark changes reviewed through ${data.stamp.data_current_through}`}>
@@ -147,20 +153,20 @@ function OperateLens({ data, firstVisit, reviewing, onMarkReviewed, onOpenTarget
             emptyBody="No material confirmed changes have been recorded since this scope was reviewed."
             onOpenTarget={onOpenTarget} />
         </Section>
-        <Section title="Needs action" meta="Deterministic rules · overdue, blocked, or due within seven days">
+        <Section title="Needs action" tone="risk" meta="Deterministic rules · overdue, blocked, or due within seven days">
           <AttentionRows items={data.attention} onOpenTarget={onOpenTarget} />
         </Section>
-        <Section title="Since last visit" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
+        <Section title="Since last visit" tone="quiet" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
           <ActivityRows items={data.changes_since_visit} emptyTitle={firstVisit ? "Visit baseline set" : "Nothing new since your last visit"}
             emptyBody={firstVisit ? "New material changes will appear here on your next visit." : "The review cursor is separate; this only tracks browser visits."}
             onOpenTarget={onOpenTarget} />
         </Section>
       </div>
       <aside className="command-side stack">
-        <Section title="Next on account" meta="Confirmed future events">
+        <Section title="Next on account" tone="accent" meta="Confirmed future events">
           <UpcomingRows items={data.upcoming} onOpenTarget={onOpenTarget} />
         </Section>
-        <Section title="Current point of view" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
+        <Section title="Current point of view" tone="quiet" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
           {data.operator_view ? (
             <div className="command-pov">
               <p>{data.operator_view.body}</p>
@@ -290,16 +296,18 @@ export default function AccountCommandCenter({
   </Card>;
   if (!data) return <Loading what="command center" />;
   const omitted = data.stamp.omitted || [];
+  const lensCopy = LENS_COPY[activeLens];
   return (
     <div className="command-center">
       <header className="command-center-head">
-        <div>
-          <h1>{data.account.name}</h1>
-          <div className="subtle">{data.account.short_context || "Account operating command center"}</div>
+        <div className="command-heading-copy">
+          <div className="page-eyebrow">{data.account.name} · command center</div>
+          <h1>{lensCopy[0]}</h1>
+          <div className="page-subtitle">{lensCopy[1]}</div>
         </div>
         <div className="spacer" />
         <div className="actions command-head-actions">
-          <span className="rowmeta">Current through {whenLabel(data.stamp.data_current_through)}</span>
+          <span className="freshness-stamp"><span>Current through</span>{whenLabel(data.stamp.data_current_through)}</span>
           <button className="btn" onClick={exportAccount}>Export</button>
           <button className="btn" onClick={() => setAddingProgram(true)}>New program</button>
           <button className="btn primary" onClick={() => onQuickEntry(accountId)}>Log interaction</button>

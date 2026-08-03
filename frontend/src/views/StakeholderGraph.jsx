@@ -78,8 +78,11 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
       style: [
         { selector: "node", style: {
           "background-color": "data(color)", shape: "data(shape)", width: "data(size)", height: "data(size)",
-          label: "data(label)", "font-size": 10, color: labelColor, "text-valign": "bottom",
-          "text-margin-y": 3, "border-width": 1, "border-color": nodeBorder } },
+          label: "data(label)", "font-size": 12, "font-weight": 500, color: labelColor,
+          "text-valign": "bottom", "text-margin-y": 4,
+          "text-background-color": nodeBorder, "text-background-opacity": 0.9,
+          "text-background-padding": 4, "text-background-shape": "roundrectangle",
+          "border-width": 2, "border-color": nodeBorder } },
         // placeholders (§3): dashed border marks a position that isn't a confirmed person yet
         { selector: 'node[dashed="dashed"]', style: {
           "border-width": 2, "border-color": v("--status-unknown"), "border-style": "dashed" } },
@@ -91,7 +94,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": relColor, "target-arrow-color": relColor } },
         { selector: 'edge[type="sponsors"]', style: { "line-style": "dotted", "line-color": relColor, "target-arrow-color": relColor } },
       ],
-      layout: { name: "breadthfirst", directed: true, spacingFactor: 1.3, padding: 20 },
+      layout: graph.edges.length
+        ? { name: "breadthfirst", directed: true, spacingFactor: 1.15, padding: 48 }
+        : { name: "grid", avoidOverlap: true, padding: 72 },
     });
     cy.on("tap", "node", (evt) => {
       const n = graph.nodes.find((x) => x.id === evt.target.id());
@@ -105,9 +110,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   const programs = detail?.programs ?? [];
 
   return (
-    <div>
-      <div className="actions" style={{ marginBottom: 14 }}>
-        <h1>Stakeholder map</h1>
+    <div className="stakeholder-workspace">
+      <div className="actions stakeholder-toolbar">
+        <div className="stakeholder-title"><div className="page-eyebrow">Relationship intelligence</div><h1>Stakeholder map</h1></div>
         <select value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }} style={sel}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
@@ -122,30 +127,31 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
       </div>
 
       <div className="two-col">
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card stakeholder-canvas">
           {!graph ? <Loading what="stakeholder graph" /> :
             graph.nodes.length === 0 ? <div className="empty"><h3>No stakeholders</h3>Add people with roles and set their influence.</div> :
             mode === "network"
-              ? <div ref={elRef} style={{ height: 460 }} />
+              ? <div ref={elRef} className="stakeholder-graph" />
               : mode === "layers"
                 ? <LayerLanes nodes={graph.nodes} onSelect={setSelected} />
                 : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
-          <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
+          <div className="rowmeta stakeholder-legend">
             Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · ⬡ dashed = unidentified position · solid = reports-to, dashed = influences, dotted = sponsors.
           </div>
         </div>
         <div>
         {coverage && (
-          <div className="card" style={{ padding: 16, marginBottom: 12 }}>
-            <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>Coverage</div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>
-              <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong> senior relationships active
-              <span className="rowmeta"> (touched ≤21d)</span>
+          <div className="card stakeholder-coverage">
+            <div className="page-eyebrow">Relationship coverage</div>
+            <div className="coverage-primary">
+              <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong>
+              <span>senior relationships active<small>touched within 21 days</small></span>
             </div>
-            <div style={{ fontSize: 13, marginBottom: 8 }}>
-              Business case: {coverage.multithreaded
+            <div className={`coverage-callout ${coverage.multithreaded ? "is-healthy" : "is-warning"}`}>
+              <span className={`state-mark ${coverage.multithreaded ? "ok" : "warn"}`} />
+              <span>Business case is {coverage.multithreaded
                 ? <span style={{ color: "var(--status-ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
-                : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a 2nd owner</span>}
+                : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a second owner</span>}</span>
             </div>
             {coverage.placeholder_count > 0 && (
               <div style={{ fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
@@ -154,8 +160,8 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
               </div>
             )}
             {coverage.cadence_compliance != null && (
-              <div style={{ fontSize: 13, marginBottom: 8 }}>
-                Cadence compliance: <strong>{coverage.cadence_compliance}%</strong>
+              <div className="coverage-metric">
+                <span>Cadence compliance</span><strong>{coverage.cadence_compliance}%</strong>
                 <span className="rowmeta"> ({coverage.cadence_overdue_count} overdue)</span>
               </div>
             )}
@@ -201,7 +207,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             ))}
           </div>
         )}
-        <div className="card" style={{ padding: 14 }}>
+        <div className="card stakeholder-detail">
           {selected ? (
             selected.is_placeholder ? (
               <>
@@ -231,7 +237,8 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 <button className="btn small" style={{ marginTop: 12 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
               </>
             )
-          ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
+          ) : <div className="stakeholder-detail-empty"><span className="stakeholder-detail-mark" />
+            <strong>Select a stakeholder</strong><span>Inspect role, stance, influence, and the full relationship record.</span></div>}
         </div>
         </div>
       </div>

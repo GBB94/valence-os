@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, Loading, SlideOver, useToast } from "../ui";
+import { Badge, Empty, Loading, SlideOver, useToast } from "../ui";
 
 export default function PlaybookLibrary({ reloadKey }) {
   const toast = useToast();
@@ -15,9 +15,10 @@ export default function PlaybookLibrary({ reloadKey }) {
     try { await api.promotePlaybookMessage(entry.id, {}); toast("Message promoted to the messaging library"); refresh(); }
     catch (e) { toast(e.message, "err"); }
   }
-  return <div style={{ marginTop: 20 }}>
-    <div className="actions" style={{ marginBottom: 12 }}><div>
-      <h2 style={{ margin: 0 }}>Expansion playbook</h2>
+  return <section className="playbook-section">
+    <div className="actions playbook-head"><div>
+      <div className="page-eyebrow">Expansion playbook</div>
+      <h2>Learned motions</h2>
       <div className="rowmeta">Structured learning from Proven, Penetrated, and Declined transitions.</div>
     </div><div className="spacer" />{data && <span className="rowmeta">{data.pending.length} prompts waiting</span>}</div>
 
@@ -42,7 +43,7 @@ export default function PlaybookLibrary({ reloadKey }) {
           {data.entries.map((entry) => <tr key={entry.id}>
             <td><strong>{entry.use_case}</strong>{entry.audience_tags.length ? ` · ${entry.audience_tags.map((t) => t.name).join(", ")}` : ""}
               <div className="rowmeta">{entry.account_name} · {entry.motion_run}</div></td>
-            <td>{entry.transition_to}<div className="rowmeta">{entry.duration_days == null ? "duration unknown" : `${entry.duration_days} days`} · {entry.transitioned_on}</div></td>
+            <td><Badge className={`outcome-${entry.transition_to}`}>{entry.transition_to}</Badge><div className="rowmeta">{entry.duration_days == null ? "duration unknown" : `${entry.duration_days} days`} · {entry.transitioned_on}</div></td>
             <td>{entry.message_summary || entry.what_worked || "—"}<div className="rowmeta">{entry.what_differently || ""}</div></td>
             <td className="rowmeta"><div className="actions" style={{ flexWrap: "wrap" }}>
               {entry.play_definition_id ? <span className="badge">play</span> : entry.transition_to !== "declined" &&
@@ -55,7 +56,7 @@ export default function PlaybookLibrary({ reloadKey }) {
     </div>
     {capture && <CaptureEntry transition={capture} onClose={() => setCapture(null)} onSaved={refresh} />}
     {promoting && <PromotePlay entry={promoting} onClose={() => setPromoting(null)} onSaved={refresh} />}
-  </div>;
+  </section>;
 }
 
 function PromotePlay({ entry, onClose, onSaved }) {

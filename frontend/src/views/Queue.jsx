@@ -57,10 +57,9 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
 
   return (
     <div>
-      <PageHeader title="Today" meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · as of ${q.as_of}`} />
-      <div className="rowmeta" style={{ marginBottom: 14 }}>
-        Ranked by rule, grouped by urgency, and every item explains itself. This screen exists to be emptied.
-      </div>
+      <PageHeader title="Today" eyebrow="Attention queue"
+        subtitle="Ranked by urgency, with the reason and next move kept together."
+        meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · ${q.as_of}`} />
 
       <SavedViewBar model={views}>
         <label className="view-filter">
@@ -82,9 +81,10 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
       ) : (
         bands.map((b) => (
           <div key={b.key} style={{ marginBottom: 18 }}>
-            <div className="band-head"><span className={"state-mark " + b.band} /> {b.label} <span className="rowmeta">{b.items.length}</span></div>
-            <div className="card">
-              <Table columns={[{ width: 2, pad: 0 }, { label: "What needs you" }, { label: "Account", width: 160 }, { label: "Age", width: 76 }, { label: "", width: 150 }]}>
+            <div className={`band-head band-head-${b.band}`}><span className={"state-mark " + b.band} />
+              <span>{b.label}</span><span className="band-count">{b.items.length}</span></div>
+            <div className="card attention-table">
+              <Table columns={[{ width: 2, pad: 0 }, { label: "What needs you" }, { label: "Account", width: 190 }, { label: "Timing", width: 104 }, { label: "", width: 168 }]}>
                 {b.items.map((it) => <QueueRow key={it.key} it={it} band={b.band} onOpenAccount={onOpenAccount} onSnooze={() => setSnoozing(it)} onResolve={() => setResolving(it)} />)}
               </Table>
             </div>
@@ -132,10 +132,9 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
     <tr>
       <td className={"rail-cell band-" + band} style={{ padding: 0 }}></td>
       <td>
-        <div className="cell-title">{it.title}</div>
-        <div className="rowmeta">
-          {it.because} <span style={{ color: "var(--accent)" }}>{it.next_action}</span>
-        </div>
+        <div className="cell-title queue-item-title">{it.title}</div>
+        <div className="queue-reason">{it.because}</div>
+        <div className="queue-next">→ {it.next_action}</div>
       </td>
       <td>
         {it.account_id && it.account_name
@@ -143,7 +142,7 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
           : <span className="rowmeta">Portfolio</span>}
         {it.program_name ? <div className="rowmeta">{it.program_name}</div> : null}
       </td>
-      <td><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>
+      <td className="queue-timing"><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>
       <td>
         <div className="actions">
           <button className="btn small" onClick={onSnooze}>Snooze</button>
