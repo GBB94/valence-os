@@ -1,6 +1,6 @@
 # Valence OS account command center and unified activity specification
 
-**Status:** Draft Release 2 implementation specification, 2026-08-03
+**Status:** Slice 2.0 implemented; Slices 2.1–2.4 specified, 2026-08-03
 
 **Parent authority:** `UX-FOUNDATION-SPEC.md`
 
@@ -169,6 +169,7 @@ Every item has:
   "display_at": "2026-07-29T14:00:00Z",
   "recorded_at": "2026-07-31T09:12:00Z",
   "temporal_kind": "occurred",
+  "temporal_precision": "datetime",
   "direction": "past",
   "materiality": "material",
   "status": null,
@@ -183,11 +184,12 @@ Every item has:
 
 Contract rules:
 
-- `display_at` controls chronology. It is the business occurrence, effective, due, or scheduled time.
+- `display_at` controls chronology. It is the business occurrence, effective, due, or scheduled time. Contractual and due dates remain ISO dates rather than being fabricated into UTC instants.
 - `recorded_at` controls “since” comparisons. It is when Valence learned or recorded the event.
 - `temporal_kind` is one of `occurred`, `effective`, `recorded`, `scheduled`, or `due`; the UI prints the distinction.
+- `temporal_precision` is `date` or `datetime` and must match `display_at`. A source without a timezone does not gain one during normalization.
 - `direction` is derived relative to the server's stamped `as_of`, never the browser clock.
-- `stream` is one of `customer`, `internal`, or `external`. Planning is temporal state, not a stream: a future customer meeting remains customer activity, not an unrelated fourth category.
+- `stream` is one of `customer`, `internal`, `external`, or `unknown`. Planning is temporal state, not a stream: a future customer meeting remains customer activity, not an unrelated fourth category. An interaction without resolvable participants stays unknown rather than being guessed into customer or internal activity.
 - `state` is one of `confirmed`, `proposed`, `superseded`, `retracted`, `dismissed`, `invalidated`, or `unknown`. Proposed items are visibly proposed and excluded from confirmed-fact summaries.
 - `materiality` is `material` or `context`. It comes from an explicit adapter rule, never a model score.
 - `reason` explains why the item appears or why it is material.

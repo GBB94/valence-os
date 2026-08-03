@@ -74,6 +74,8 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 
 **UX foundation Release 1 — implemented:** canonical `/today`, `/accounts`, account-tab/program, `/library`, and `/operations` routes now survive refresh and support Back/Forward; production deep links fall back to the SPA without masking missing assets or unknown APIs. Today and the Accounts Book have built-in and named browser-local saved views, search/filter controls, and modified-state feedback. The Accounts Book now exposes delivery and commercial status directly. Authority: `UX-FOUNDATION-SPEC.md`; decision: D-116.
 
+**Account command center Release 2 — foundation implemented:** account Overview routes now support canonical Operate/Prepare/Leadership lens state and Prepare-only meeting focus alongside program scope; lens/visit preferences are versioned and browser-local; the shared segmented-tab primitive has a complete keyboard contract; and the rebuildable typed activity projection is exercised by its first canonical interaction adapter. The complete Operate read model and UI are the next slice. Authority: `ACCOUNT-COMMAND-CENTER-SPEC.md`; decisions: D-117/D-118.
+
 | Phase | Delivered |
 |---|---|
 | **v0.1 capture** | accounts, programs, people, per-program stakeholder roles (dated + evidenced stance), 30-second interaction quick entry, capture inbox |

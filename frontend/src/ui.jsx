@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useId, useRef } from "react";
 import { api } from "./api";
+import { nextTabKey } from "./segTabs";
 
 // Canvas/SVG charts can't use CSS var() in attributes — resolve the token to a concrete color,
 // and re-render when the theme flips so both themes render correctly (DESIGN-GUIDE §8).
@@ -67,12 +68,25 @@ export function PageHeader({ title, meta, children }) {
 }
 
 // Segmented tabs (inner selectors, filter groups). tabs: [[key, label, count?], …]
-export function SegTabs({ tabs, value, onChange, kind = "tab" }) {
+export function SegTabs({ tabs, value, onChange, kind = "tab", ariaLabel = "Section", id, panelId }) {
   const cls = kind === "chip" ? "filter-chip" : "tab";
+  const autoId = useId();
+  const baseId = id || `seg-tabs-${autoId.replaceAll(":", "")}`;
+  const refs = useRef(new Map());
+  function onKeyDown(event) {
+    const next = nextTabKey(tabs, value, event.key);
+    if (!next) return;
+    event.preventDefault();
+    onChange(next);
+    requestAnimationFrame(() => refs.current.get(next)?.focus());
+  }
   return (
-    <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist">
+    <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist"
+      aria-label={ariaLabel} onKeyDown={onKeyDown}>
       {tabs.map(([key, label, count]) => (
-        <button key={key} role="tab" aria-selected={value === key}
+        <button key={key} id={`${baseId}-${key}-tab`} role="tab" aria-selected={value === key}
+          aria-controls={panelId} tabIndex={value === key ? 0 : -1}
+          ref={(node) => { if (node) refs.current.set(key, node); else refs.current.delete(key); }}
           className={cls + (value === key ? " active" : "")} onClick={() => onChange(key)}>
           {label}{count != null && <span className="chip-count">{count}</span>}
         </button>

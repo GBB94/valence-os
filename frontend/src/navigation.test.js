@@ -16,6 +16,37 @@ test("account routes preserve tab and program scope", () => {
   assert.equal(navigationUrl(nav), "/accounts/acct-1/commercial?program=program-2");
 });
 
+test("account Overview preserves lens and meeting focus canonically", () => {
+  const nav = parseNavigation({
+    pathname: "/accounts/acct-1/overview",
+    search: "?program=program-2&lens=prepare&meeting=meeting-3",
+  });
+  assert.deepEqual(nav, {
+    dest: "account", accountId: "acct-1", tab: "overview", programId: "program-2",
+    lens: "prepare", meetingId: "meeting-3",
+  });
+  assert.equal(navigationUrl(nav),
+    "/accounts/acct-1/overview?program=program-2&lens=prepare&meeting=meeting-3");
+  assert.equal(navigationUrl({
+    dest: "account", accountId: "acct-1", tab: "overview", lens: "leadership",
+  }), "/accounts/acct-1/overview?lens=leadership");
+});
+
+test("lens state fails closed outside Overview and meetings require Prepare", () => {
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/overview", search: "?lens=operate&meeting=meeting-3",
+  }), { dest: "account", accountId: "acct-1", tab: "overview", lens: "operate" });
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/overview", search: "?lens=invalid&meeting=meeting-3",
+  }), { dest: "account", accountId: "acct-1", tab: "overview" });
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/ledger", search: "?lens=prepare&meeting=meeting-3",
+  }), { dest: "account", accountId: "acct-1", tab: "ledger" });
+  assert.equal(navigationUrl({
+    dest: "account", accountId: "acct-1", tab: "ledger", lens: "prepare", meetingId: "meeting-3",
+  }), "/accounts/acct-1/ledger");
+});
+
 test("invalid tabs and routes fail closed", () => {
   assert.deepEqual(parseNavigation({ pathname: "/accounts/acct-1/not-a-tab", search: "" }), {
     dest: "account", accountId: "acct-1", tab: "overview",

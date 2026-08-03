@@ -1,6 +1,6 @@
 # Valence OS UX foundation specification
 
-**Status:** Release 1 implemented; Release 2 detailed in `ACCOUNT-COMMAND-CENTER-SPEC.md`; Release 3 directional, 2026-08-03
+**Status:** Release 1 and Release 2 Slice 2.0 implemented; later Release 2 slices detailed in `ACCOUNT-COMMAND-CENTER-SPEC.md`; Release 3 directional, 2026-08-03
 **Authority:** Additive to `DESIGN-GUIDE.md`; trust and data boundaries in `CLAUDE.md` remain unchanged.  
 **Scope:** Navigation, reusable portfolio views, account orientation, and the migration path toward a decision-oriented workspace.
 

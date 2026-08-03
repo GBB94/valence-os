@@ -1,3 +1,5 @@
+import { isCommandCenterLens } from "./accountCommandCenter.js";
+
 export const WORKSPACE_TABS = [
   ["overview", "Overview"],
   ["ledger", "Ledger"],
@@ -32,7 +34,15 @@ export function parseNavigation(locationLike) {
   if (first === "accounts" && accountId && segments.length <= 3) {
     const tab = WORKSPACE_TAB_KEYS.has(rawTab) ? rawTab : "overview";
     const programId = cleanPreference(search.get("program"));
-    return { dest: "account", accountId, tab, ...(programId ? { programId } : {}) };
+    const lens = tab === "overview" && isCommandCenterLens(search.get("lens"))
+      ? search.get("lens") : undefined;
+    const meetingId = lens === "prepare" ? cleanPreference(search.get("meeting")) : undefined;
+    return {
+      dest: "account", accountId, tab,
+      ...(programId ? { programId } : {}),
+      ...(lens ? { lens } : {}),
+      ...(meetingId ? { meetingId } : {}),
+    };
   }
 
   if (GLOBAL_DESTINATIONS.has(first) && segments.length === 1) {
@@ -56,7 +66,12 @@ export function navigationUrl(nav) {
   if (nav.dest === "operations") return "/operations";
   if (nav.dest === "account" && nav.accountId) {
     const tab = WORKSPACE_TAB_KEYS.has(nav.tab) ? nav.tab : "overview";
-    const search = nav.programId ? `?program=${encodeURIComponent(nav.programId)}` : "";
+    const params = new URLSearchParams();
+    if (nav.programId) params.set("program", nav.programId);
+    const lens = tab === "overview" && isCommandCenterLens(nav.lens) ? nav.lens : undefined;
+    if (lens) params.set("lens", lens);
+    if (lens === "prepare" && cleanPreference(nav.meetingId)) params.set("meeting", nav.meetingId);
+    const search = params.size ? `?${params}` : "";
     return `/accounts/${encodeURIComponent(nav.accountId)}/${tab}${search}`;
   }
   return "/today";
