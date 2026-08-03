@@ -46,6 +46,7 @@ PRIORITY = {
     "feedback_resolution": 2,
     # Stage 7 episodes. Customer pull and confirmed org facts outrank vendor-push timing.
     "campaign_evidence_gap": 3,   # Stage 11.1 §5.3 — one item per campaign, never per child
+    "comms_sequence_overdue": 3,  # Stage 13 — one item per sequence, never per late wave
     "expansion_signal": 2,
     "org_change_confirmed": 2,
     "land_and_leave": 2,
@@ -580,6 +581,17 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             age_days=_days_since(gap["scheduled_on"], today) or 0,
             due_date=gap["scheduled_on"], next_action=gap["next_action"]))
 
+    # Stage 13 — a late sequence is one operational problem even when several waves are late.
+    # The service derives dates from actual predecessor sends; no scheduler or send action runs.
+    from . import adoption_comms as _adoption_comms
+    for gap in _adoption_comms.attention_items(conn, today):
+        items.append(_item(
+            "comms_sequence_overdue", "comms_sequence", gap["sequence_id"],
+            gap["updated_at"], accounts.get(gap["account_id"], {}),
+            title=gap["title"], because=gap["because"],
+            age_days=_days_since(gap["due_on"], today), due_date=gap["due_on"],
+            next_action=gap["next_action"]))
+
     return items
 
 
@@ -637,6 +649,7 @@ def _object_table(object_type: str) -> str:
         "internal_ask": "internal_asks", "escalation": "escalation_instances",
         "product_feedback_occurrence": "product_feedback_occurrences",
         "adoption_campaign": "adoption_campaigns",
+        "comms_sequence": "comms_sequences",
     }[object_type]
 
 

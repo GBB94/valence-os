@@ -151,6 +151,13 @@ tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transpare
 .rail-cell.band-warn { background: var(--status-warn); }
 .rail-cell.band-neutral { background: var(--line-strong); }
 
+.comms-sequence { border-top: 1px solid var(--line-hairline); }
+.comms-sequence-head { padding: var(--sp-5); }
+.comms-table { border-top: 1px solid var(--line-hairline); }
+.comms-empty-row, .comms-sessions { padding: var(--sp-5); }
+.comms-sessions .comms-table { margin: 0 calc(var(--sp-5) * -1) calc(var(--sp-5) * -1); width: calc(100% + var(--sp-5) * 2); }
+.actions-cell { text-align: right; white-space: nowrap; }
+
 /* Collapsible section */
 .collapsible { border: 1px solid var(--line-hairline); border-radius: var(--r-md); background: var(--bg-surface); }
 .collapsible-head { width: 100%; text-align: left; border: 0; background: none; padding: 10px 12px; font-size: var(--t-body); color: var(--ink-primary); cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 8px; }

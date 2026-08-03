@@ -232,6 +232,7 @@ export const TYPE_LABEL = {
   whitespace_cell: "whitespace cell", value_target: "value target", funding_pool: "funding pool",
   operational_agreement: "operational agreement", growth_plan_line: "growth plan line",
   signal_episode: "signal", calendar_event: "calendar", org_change_flag: "org change",
+  comms_sequence: "comms sequence",
 };
 
 // Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.

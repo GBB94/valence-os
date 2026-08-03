@@ -2,7 +2,7 @@
 
 An internal, **single-editor** web app for running a handful of very deep Fortune-100 accounts end to end — the execution ledger, stakeholders, commercial motion, evidence, and generated outputs in one place. Built for an Engagement Manager at Valence (who sells *Nadia*, an AI coaching product) to live in daily and brief the team in minutes.
 
-> **Context / source of truth.** Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10 under `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md`. `ADOPTION-CAMPAIGN-SPEC.md` and `ACCOUNT-COPILOT-SPEC.md` are the accepted **Stage 11** and **Stage 12** authorities; current implementation status is tracked in `HANDOFF.md`. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth where the additive specs are silent. The standing rules are in `CLAUDE.md`, the Stage-0 paper model is in `stage-0/`, and non-obvious decisions are logged newest-first in `decisions.md`. All repository data is **mock/synthetic**. **One gate remains: build everything, connect nothing real** until Valence approves hosting and data handling.
+> **Context / source of truth.** Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10 under `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md`. `ADOPTION-CAMPAIGN-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, and `ADOPTION-COMMS-SPEC.md` are the accepted **Stage 11–13** authorities; current implementation status is tracked in `HANDOFF.md`. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth where the additive specs are silent. The standing rules are in `CLAUDE.md`, the Stage-0 paper model is in `stage-0/`, and non-obvious decisions are logged newest-first in `decisions.md`. All repository data is **mock/synthetic**. **One gate remains: build everything, connect nothing real** until Valence approves hosting and data handling.
 
 ## What it is (the one-paragraph tour)
 Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into execution records. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** covers layers, buying-committee roles, cadence, relationship health, champion development, influence paths, executive alignment, messaging, and meeting dynamics. Mock communications flow through a job table and shared association engine. **Commercial** adds a reconciled whitespace map, explicit row seat inventory, value targets, funding pools, fiscal timing, and atomic back-scheduled asks to opportunities and contracts. Aggregate cohort **metrics** keep stable segment/view identity; stale evidence renders *unknown*. Generators produce editable, review-gated pre-call briefs, expansion business cases, value reviews/QBRs, champion kits, kickoff decks, and schedulable weekly drafts, with PPTX/PDF export. Client-facing output is promotion- and source-gated by construction; nothing is auto-sent. Visualizations include the stakeholder graph and a currency-safe budget waterfall. **AI** remains pluggable (offline mock, local LLM, or Claude API) and proposes structured updates for per-item acceptance. A recurring **signals engine** turns fresh usage bars, client pull, calendar moments, confirmed org changes, champion coverage, and account growth into explainable episodes; mock calendar, enrichment, and HRIS-shaped adapters exercise the flow without connecting real systems.
@@ -36,7 +36,7 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (322 tests)
+- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (334 tests)
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
@@ -46,6 +46,7 @@ EXPANSION-ENGINE-SPEC.md    completed Stages 5.5–9 expansion authority
 INTERNAL-OPS-SPEC.md        Implemented Stage 10 internal operating layer authority
 ADOPTION-CAMPAIGN-SPEC.md   Accepted Stage 11 authority — adoption campaigns (status in HANDOFF.md)
 ACCOUNT-COPILOT-SPEC.md     Accepted Stage 12 authority — grounded account copilot (status in HANDOFF.md)
+ADOPTION-COMMS-SPEC.md      Accepted Stage 13 authority — comms waves and cohort attendance
 Valence-OS-Scoping-Doc.md   the original source of truth (v3.2)
 CLAUDE.md                   standing rules (trust boundaries, data rules, design)
 DESIGN-GUIDE.md             standing design authority (supersedes scoping-doc §6)
@@ -58,7 +59,7 @@ backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py,
                             jobs.py, onboarding.py, people_core.py, cadence.py, ingestion.py,
                             association.py, people_analytics.py, output_gen.py, queue.py …
-  migrations/               0001…0034 landed; Stages 10–12 are complete
+  migrations/               0001…0035 landed; Stages 10–13 are complete
   tests/                    pytest (per-slice/-stage + full acceptance script)
 frontend/src/               React views (one per module/tab) + api.js + tokens.css
 ```
@@ -104,8 +105,9 @@ Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholde
 | **10 · Internal operating layer** | account-level commitment provenance; period forecast locks/submissions/calibration; internal asks and snapshotted escalation chains; review/status governance and bidirectional no-surprises reporting; roster/coverage briefs; sourced cross-account product feedback and internal analytics (migrations 0026–0030) |
 | **11 · Adoption campaigns** | cohort-scoped intervention plans, comparable locked baselines, explicit cautions, signal conversion, canonical Today integration, immutable retrospectives, and portfolio learning (migrations 0031–0033) |
 | **12 · Account Copilot** | deterministic mock-only scoped analyst; frozen claim sources; reviewed change cursors; canonical weekly planning; bounded follow-ups/entity resolution; previewed internal drafts; correction review; executable golden activation/rollback controls (migration 0034) |
+| **13 · Adoption comms and sessions** | planned communication sequences over canonical comms entries; explicit immutable send facts; webinar/office-hours linkage; privacy-safe cohort attendance and one sequence-level Today item (migration 0035) |
 
-**Phase 3 feature-complete build — complete through Stage 12.** Production-mode items remain gated on the open §12 decisions and hosting approval. See `HANDOFF.md` for the current handoff.
+**Phase 3 feature-complete build — complete through Stage 13.** Production-mode items remain gated on the open §12 decisions and hosting approval. See `HANDOFF.md` for the current handoff.
 
 **Stage 10 — implemented and externally adversarially reviewed.** `INTERNAL-OPS-SPEC.md` adds the internal operating layer: forecast, asks/escalations, reviews/reporting, roster/coverage, product feedback, and honest portfolio analytics. Migration 0030 closes the external review's leadership-report, forecast-unit, calibration, no-surprises, navigation, policy, Today, and usability findings. All external delivery remains disabled.
 

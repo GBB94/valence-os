@@ -96,6 +96,10 @@ _SOURCES = [
                                   "FROM adoption_campaign_barriers b "
                                   "JOIN adoption_campaigns c ON c.id=b.campaign_id "
                                   "WHERE b.archived=0"),
+    ("comms_sequence", "SELECT s.id,p.account_id,s.program_id,s.name AS title,"
+                       "COALESCE(s.name,'')||' '||COALESCE(s.purpose,'') AS body "
+                       "FROM comms_sequences s JOIN programs p ON p.id=s.program_id "
+                       "WHERE s.archived=0"),
     ("population_segment", "SELECT id, account_id, NULL, name AS title, "
                            "COALESCE(name,'')||' '||COALESCE(business_unit,'')||' '||COALESCE(region,'') AS body "
                            "FROM population_segments WHERE archived=0"),

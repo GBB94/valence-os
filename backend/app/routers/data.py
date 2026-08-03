@@ -323,7 +323,7 @@ def operations(conn: sqlite3.Connection = Depends(get_conn)):
                        "copilot_runs", "copilot_run_sources", "copilot_claims",
                        "copilot_feedback", "copilot_feedback_reviews",
                        "copilot_configurations", "copilot_entity_aliases",
-                       "writing_style_profiles")
+                       "writing_style_profiles", "comms_sequences")
     internal_counts = []
     for table in internal_tables:
         try:

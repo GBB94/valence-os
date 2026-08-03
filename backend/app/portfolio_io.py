@@ -39,7 +39,7 @@ _INSERT_ORDER = [
     "account_reviews", "account_review_participants", "operator_views",
     "tasks", "commitments", "decisions", "risks", "issues", "milestones",
     "expansion_opportunities", "contract_versions", "phase_gates", "phase_gate_items",
-    "deployment_moments", "comms_entries", "compliance_items", "scope_changes",
+    "deployment_moments", "compliance_items", "scope_changes",
     "value_stories", "relationship_edges", "recovered_spend",
     # 0012-0016 — onboarding, people intelligence, ingestion, relationships
     "checklist_items", "advocacy_events", "comm_messages", "association_hints",
@@ -49,6 +49,8 @@ _INSERT_ORDER = [
     "population_partitions", "population_segments", "population_views",
     "copilot_entity_aliases",
     "population_view_segments", "population_view_tags", "population_headcount_observations",
+    # 0035 — sequences precede their canonical comms waves; population precedes audience FKs.
+    "comms_sequences", "comms_entries",
     "metric_observations", "whitespace_cells", "pull_signals", "cell_state_history", "cell_evidence_links",
     "value_targets", "value_target_evidence",
     "funding_pools", "fiscal_maps", "ask_calendars", "ask_calendar_steps", "revenue_events",
@@ -103,6 +105,8 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     for tbl in ("stakeholder_roles", "tasks", "risks", "issues",
                 "milestones", "deployment_moments", "comms_entries", "compliance_items", "scope_changes"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE program_id IN ({pq})", pids) if pids else []
+    t["comms_sequences"] = _all(
+        conn, f"SELECT * FROM comms_sequences WHERE program_id IN ({pq})", pids) if pids else []
     # Direct account scope is authoritative for these generalized ledgers; program-only
     # filtering silently dropped internal review commitments and decisions.
     for tbl in ("commitments", "decisions"):

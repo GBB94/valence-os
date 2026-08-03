@@ -26,6 +26,7 @@ import Extraction from "./views/Extraction";
 import Plays from "./views/Plays";
 import Internal from "./views/Internal";
 import CopilotPanel from "./views/CopilotPanel";
+import AdoptionComms from "./views/AdoptionComms";
 
 export default function App() {
   return (
@@ -201,7 +202,8 @@ function Shell() {
       ask_change: "internal", internal_roster: "internal", escalation: "internal",
       product_feedback: "internal", product_feedback_occurrence: "internal",
       signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
-      adoption_campaign: "plan", campaign_change: "plan", generated_document: "outputs",
+      adoption_campaign: "plan", campaign_change: "plan", comms_sequence: "plan",
+      generated_document: "outputs",
       commitment_change: "ledger", decision_change: "ledger", risk_change: "ledger",
       issue_change: "ledger", task_change: "ledger", milestone_change: "ledger",
       program: "overview", account: "overview",
@@ -464,6 +466,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
           <div className="stack">
             <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
             <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            <AdoptionComms accountId={accountId} programId={programId} reloadKey={reloadKey} />
             <Campaigns accountId={accountId} reloadKey={reloadKey} />
             {selProgram
               ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />

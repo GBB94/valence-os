@@ -412,6 +412,57 @@ class CommsCreate(BaseModel):
     status: Literal["planned", "sent", "cancelled"] = "planned"
 
 
+class CommsSequenceCreate(BaseModel):
+    program_id: str
+    name: str = Field(min_length=1)
+    purpose: Optional[str] = None
+    moment_id: Optional[str] = None
+
+
+class CommsSequenceCancel(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+class CommsWaveCreate(BaseModel):
+    moment_id: Optional[str] = None
+    audience: Optional[str] = None
+    message: str = Field(min_length=1)
+    sender: Optional[str] = None
+    channel: Optional[Channel] = None
+    send_date: Optional[str] = None
+    wave_number: int = Field(ge=1)
+    follows_entry_id: Optional[str] = None
+    offset_days: Optional[int] = Field(default=None, ge=0)
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def wave_shape(self):
+        if self.segment_id and self.view_id:
+            raise ValueError("use a segment or view, not both")
+        if bool(self.follows_entry_id) != (self.offset_days is not None):
+            raise ValueError("a predecessor and offset_days must be supplied together")
+        return self
+
+
+class CommsWavePatch(BaseModel):
+    moment_id: Optional[str] = None
+    audience: Optional[str] = None
+    message: Optional[str] = Field(default=None, min_length=1)
+    sender: Optional[str] = None
+    channel: Optional[Channel] = None
+    send_date: Optional[str] = None
+    wave_number: Optional[int] = Field(default=None, ge=1)
+    follows_entry_id: Optional[str] = None
+    offset_days: Optional[int] = Field(default=None, ge=0)
+    segment_id: Optional[str] = None
+    view_id: Optional[str] = None
+
+
+class CommsWaveSent(BaseModel):
+    sent_at: Optional[str] = None
+
+
 ComplianceLane = Literal["it_security", "legal_dpo", "works_council", "channel_setup",
                          "localization_qa", "trust_comms", "hr_boundary"]
 ComplianceStatus = Literal["not_started", "in_progress", "complete", "blocked", "not_applicable"]
@@ -716,12 +767,33 @@ class CalendarEventCreate(BaseModel):
     account_id: str
     program_id: Optional[str] = None
     cell_id: Optional[str] = None
-    purpose: Literal["kickoff", "governance", "qbr", "deployment_moment", "other"] = "other"
+    purpose: Literal["kickoff", "governance", "qbr", "deployment_moment", "webinar",
+                     "office_hours", "other"] = "other"
     title: str = Field(min_length=1)
     starts_at: str
     ends_at: Optional[str] = None
     location: Optional[str] = None
     organizer_email: Optional[str] = None
+
+
+class CommsSessionCreate(BaseModel):
+    comms_sequence_id: str
+    invited_by_entry_id: Optional[str] = None
+    purpose: Literal["webinar", "office_hours"]
+    title: str = Field(min_length=1)
+    starts_at: str
+    ends_at: Optional[str] = None
+    location: Optional[str] = None
+    organizer_email: Optional[str] = None
+
+
+class AttendeeRecord(BaseModel):
+    person_id: Optional[str] = None
+    name: Optional[str] = None
+    email: str = Field(min_length=3)
+    response_status: Literal["accepted", "declined", "tentative", "needs_action", "unknown"] = "unknown"
+    attendance_status: Literal["invited", "attended", "no_show", "unknown"] = "unknown"
+    attendance_scope: Literal["audience", "facilitator", "observer", "unknown"] = "unknown"
 
 
 class SignalDismiss(BaseModel):

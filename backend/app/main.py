@@ -19,7 +19,7 @@ from .routers import (
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
     stage9 as stage9_router, viz, internal_forecast, internal_asks, internal_reviews,
-    internal_reporting, internal_roster, product_feedback,
+    internal_reporting, internal_roster, product_feedback, adoption_comms,
 )
 
 
@@ -106,6 +106,7 @@ app.include_router(internal_reviews.router)
 app.include_router(internal_reporting.router)
 app.include_router(internal_roster.router)
 app.include_router(product_feedback.router)
+app.include_router(adoption_comms.router)
 
 
 @app.get("/api/health")

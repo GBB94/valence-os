@@ -37,11 +37,25 @@ def test_export_restore_roundtrip_into_clean_db():
                                              "responsible_party_id": client_p["id"], "internal_owner_id": owner["id"], "due_date": "2026-08-15"})
             c.post("/api/risks", json={"program_id": p["id"], "description": "works council may slip", "is_blocker": True})
             c.post("/api/expansions", json={"account_id": a["id"], "name": "3k seats", "target_seats": 3000})
+            partition = c.post("/api/population-partitions", json={
+                "account_id": a["id"], "total_fte": 500}).json()
+            segment = c.post("/api/population-segments", json={
+                "partition_id": partition["id"], "name": "Manager cohort", "headcount": 200}).json()
+            sequence = c.post("/api/comms-sequences", json={
+                "program_id": p["id"], "name": "Manager launch"}).json()
+            wave = c.post(f"/api/comms-sequences/{sequence['id']}/waves", json={
+                "message": "Join the manager clinic", "wave_number": 1,
+                "segment_id": segment["id"], "send_date": "2026-08-10"}).json()
+            c.post("/api/comms-sessions", json={
+                "comms_sequence_id": sequence["id"], "invited_by_entry_id": wave["id"],
+                "purpose": "webinar", "title": "Manager clinic",
+                "starts_at": "2026-08-12T15:00:00+00:00"})
             bundle = c.get(f"/api/accounts/{a['id']}/export").json()
 
         assert bundle["format"] == "valence-os-account-export/1"
         assert bundle["counts"]["programs"] == 1 and bundle["counts"]["commitments"] == 1
         assert bundle["counts"]["persons"] == 2  # client + referenced Valence owner
+        assert bundle["counts"]["comms_sequences"] == 1
 
         # --- fresh clean DB: account absent, then restore ---
         os.environ["VALENCE_OS_DB"] = db2
@@ -57,6 +71,9 @@ def test_export_restore_roundtrip_into_clean_db():
             # the referenced Valence owner came across too, so the commitment resolves its owner name
             acct_exec = c2.get(f"/api/accounts/{a['id']}/execution").json()
             assert acct_exec["commitments"][0]["internal_owner_name"] == "Sam"
+            restored_sequences = c2.get(f"/api/accounts/{a['id']}/comms-sequences").json()["sequences"]
+            assert restored_sequences[0]["waves"][0]["population"] == "Manager cohort"
+            assert restored_sequences[0]["sessions"][0]["title"] == "Manager clinic"
             # re-importing the same bundle now conflicts (account exists)
             assert c2.post("/api/accounts/import", json=bundle).status_code == 409
     finally:

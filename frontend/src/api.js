@@ -353,6 +353,19 @@ export const api = {
   addCampaignPlanLink: (id, b) => req("POST", `/api/campaigns/${id}/plan`, b),
   addCampaignCheckpoint: (id, b) => req("POST", `/api/campaigns/${id}/checkpoints`, b),
 
+  // Stage 13 — planned communication waves and privacy-safe session attendance
+  commsSequences: (accountId) => req("GET", `/api/accounts/${accountId}/comms-sequences`),
+  commsSequence: (id) => req("GET", `/api/comms-sequences/${id}`),
+  createCommsSequence: (b) => req("POST", "/api/comms-sequences", b),
+  cancelCommsSequence: (id, reason) => req("POST", `/api/comms-sequences/${id}/cancel`, { reason }),
+  createCommsWave: (id, b) => req("POST", `/api/comms-sequences/${id}/waves`, b),
+  patchCommsWave: (id, b) => req("PATCH", `/api/comms-waves/${id}`, b),
+  markCommsWaveSent: (id, sentAt = null) => req("POST", `/api/comms-waves/${id}/sent`, { sent_at: sentAt }),
+  cancelCommsWave: (id) => req("POST", `/api/comms-waves/${id}/cancel`, {}),
+  createCommsSession: (b) => req("POST", "/api/comms-sessions", b),
+  recordSessionAttendee: (id, b) => req("PUT", `/api/calendar-events/${id}/attendees`, b),
+  sessionAttendance: (id) => req("GET", `/api/calendar-events/${id}/attendance`),
+
   proposeCampaignFromSignal: (episodeId, b) =>
     req("POST", `/api/signal-episodes/${episodeId}/propose-campaign`, b),
   attachEpisodeToCampaign: (episodeId, campaignId) =>

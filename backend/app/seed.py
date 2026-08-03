@@ -845,6 +845,49 @@ def _seed_stage11_demo(conn):
        "knowledge.',?,?)", (ts, ts))
 
 
+def _seed_stage13_demo(conn):
+    """A complete synthetic wave/session readout for the Plan panel."""
+    if not conn.execute("SELECT 1 FROM programs WHERE id='prog-tv-global'").fetchone():
+        return
+    ts = now_utc()
+    today = _dt.date.fromisoformat(ts[:10])
+    day = lambda offset: (today + _dt.timedelta(days=offset)).isoformat()
+    ex = conn.execute
+    ex("INSERT OR IGNORE INTO comms_sequences "
+       "(id,program_id,name,purpose,created_at,updated_at) VALUES "
+       "('comms-seq-tv-launch','prog-tv-global','DACH manager reinforcement',"
+       "'Invite managers to the clinic, remind them, and reinforce afterward.',?,?)", (ts, ts))
+    ex("INSERT OR IGNORE INTO comms_entries "
+       "(id,program_id,audience,message,sender,channel,send_date,status,sequence_id,wave_number,"
+       "segment_id,sent_at,created_at,updated_at) VALUES "
+       "('comms-wave-tv-1','prog-tv-global','DACH manufacturing managers',"
+       "'Join the manager clinic before the review cycle opens.','Engagement team','email',?,"
+       "'sent','comms-seq-tv-launch',1,'seg-tv-dach',?, ?,?)",
+       (day(-10), day(-10) + "T14:00:00+00:00", ts, ts))
+    ex("INSERT OR IGNORE INTO comms_entries "
+       "(id,program_id,audience,message,sender,channel,status,sequence_id,wave_number,"
+       "follows_entry_id,offset_days,segment_id,created_at,updated_at) VALUES "
+       "('comms-wave-tv-2','prog-tv-global','DACH manufacturing managers',"
+       "'A concise reminder with the worked example.','Engagement team','email','planned',"
+       "'comms-seq-tv-launch',2,'comms-wave-tv-1',3,'seg-tv-dach',?,?)", (ts, ts))
+    ex("INSERT OR IGNORE INTO calendar_events "
+       "(id,account_id,program_id,direction,purpose,title,starts_at,ends_at,location,"
+       "comms_sequence_id,invited_by_entry_id,created_at,updated_at) VALUES "
+       "('cal-tv-manager-clinic','acc-terravance','prog-tv-global','written','webinar',"
+       "'DACH manager clinic',?,?, 'Virtual room','comms-seq-tv-launch','comms-wave-tv-1',?,?)",
+       (day(-6) + "T15:00:00+00:00", day(-6) + "T16:00:00+00:00", ts, ts))
+    for n in range(25):
+        status = "attended" if n < 19 else "no_show"
+        ex("INSERT OR IGNORE INTO calendar_event_attendees "
+           "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+           "VALUES ('cal-tv-manager-clinic',?,?, 'accepted',?,?, 'audience')",
+           (f"Synthetic manager {n + 1}", f"manager-{n + 1}@example.test", status, ts))
+    ex("INSERT OR IGNORE INTO calendar_event_attendees "
+       "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+       "VALUES ('cal-tv-manager-clinic','Synthetic facilitator','facilitator@example.test',"
+       "'accepted','attended',?,'facilitator')", (ts,))
+
+
 def main():
     reset = "--reset" in sys.argv
     if reset:
@@ -887,6 +930,8 @@ def main():
         _seed_stage6_demo(conn)
         # Stage 11 — one active and one completed adoption campaign.
         _seed_stage11_demo(conn)
+        # Stage 13 — planned comms waves and a privacy-safe session attendance readout.
+        _seed_stage13_demo(conn)
         # Stage 7.5 — qualification, operational agreement, renewal, and growth thesis.
         _seed_stage75_demo(conn)
         # Stage 10 — five-account internal operating proof.
