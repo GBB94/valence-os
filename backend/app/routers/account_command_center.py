@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 
-from .. import account_activity, account_command_center, account_prepare
+from .. import account_activity, account_command_center, account_leadership, account_prepare
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api/accounts", tags=["account-command-center"])
@@ -90,6 +90,17 @@ def prepare(
 ):
     return account_prepare.build_meeting_prep(
         conn, account_id, program_id=program_id, meeting_id=meeting_id
+    )
+
+
+@router.get("/{account_id}/command-center/leadership")
+def leadership(
+    account_id: str,
+    program_id: str | None = None,
+    conn: sqlite3.Connection = Depends(get_conn),
+):
+    return account_leadership.build_leadership_review(
+        conn, account_id, program_id=program_id
     )
 
 

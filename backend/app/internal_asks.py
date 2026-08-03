@@ -22,6 +22,15 @@ TRANSITIONS = {
 
 def create_ask(conn: sqlite3.Connection, account_id: str, values: dict) -> dict:
     repo.get_row(conn, "accounts", account_id)
+    for field in ("requested_by_person_id", "requested_from_person_id", "current_owner_person_id"):
+        if not values.get(field):
+            continue
+        person = conn.execute(
+            "SELECT id FROM persons WHERE id=? AND archived=0 "
+            "AND (affiliation='valence' OR account_id=?)", (values[field], account_id),
+        ).fetchone()
+        if not person:
+            raise HTTPException(422, f"{field.replace('_', ' ')} is not available in this account")
     data = {"account_id": account_id, **values, "status": "raised"}
     try:
         row = repo.insert(conn, "internal_asks", data, object_type="internal_ask")

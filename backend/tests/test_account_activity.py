@@ -342,3 +342,227 @@ def test_prepare_selects_scoped_meeting_without_guessing_attendees(client):
     empty = client.get(f"/api/accounts/{empty_account['id']}/command-center/prepare")
     assert empty.status_code == 200 and empty.json()["selected_meeting"] is None
     assert empty.json()["evidence_gaps"][0]["kind"] == "meeting_not_recorded"
+
+
+def test_leadership_review_is_scoped_governed_and_read_only(client):
+    account = client.post("/api/accounts", json={"name": "Leadership Synthetic"}).json()
+    other_account = client.post("/api/accounts", json={"name": "Other Leadership"}).json()
+    program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Europe", "phase": "launch",
+    }).json()
+    other_program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Americas", "phase": "foundation",
+    }).json()
+    customer = client.post("/api/persons", json={
+        "name": "Leadership Buyer", "account_id": account["id"], "affiliation": "client",
+    }).json()
+    operator = client.post("/api/persons", json={
+        "name": "Leadership Operator", "affiliation": "valence",
+    }).json()
+    other_person = client.post("/api/persons", json={
+        "name": "Other Account Person", "account_id": other_account["id"], "affiliation": "client",
+    }).json()
+    function = next(item for item in client.get("/api/internal-functions").json() if item["name"] == "Other")
+    bad_person_ask = client.post(f"/api/accounts/{account['id']}/internal-asks", json={
+        "need": "Cross-account request", "success_condition": "Must be rejected",
+        "requested_by_person_id": operator["id"], "requested_from_person_id": other_person["id"],
+        "needed_by": utc_day(1),
+    })
+    assert bad_person_ask.status_code == 422
+    ask = client.post(f"/api/accounts/{account['id']}/internal-asks", json={
+        "need": "Choose the recovery tradeoff", "success_condition": "Decision recorded",
+        "ask_type": "executive", "requested_by_person_id": operator["id"],
+        "requested_from_function_id": function["id"], "current_owner_person_id": operator["id"],
+        "needed_by": utc_day(-1),
+    }).json()
+    escalation = client.post(f"/api/internal-asks/{ask['id']}/escalations", json={
+        "severity": "high",
+    })
+    assert escalation.status_code == 201, escalation.text
+    other_ask = client.post(f"/api/accounts/{other_account['id']}/internal-asks", json={
+        "need": "Other account secret", "success_condition": "Do not disclose",
+        "requested_by_person_id": operator["id"], "requested_from_function_id": function["id"],
+        "needed_by": utc_day(1),
+    }).json()
+    cross_account_status = client.post(f"/api/accounts/{account['id']}/status-assessments", json={
+        "dimension": "commercial", "value": "off_track", "rationale": "Needs leadership",
+        "recovery_owner_person_id": operator["id"], "recovery_action": "Choose a path",
+        "recovery_due_on": utc_day(2), "leadership_ask_id": other_ask["id"],
+        "assessed_on": utc_day(),
+    })
+    assert cross_account_status.status_code == 422
+    commercial = client.post(f"/api/accounts/{account['id']}/status-assessments", json={
+        "dimension": "commercial", "value": "off_track", "rationale": "Pricing path is blocked",
+        "recovery_owner_person_id": operator["id"], "recovery_action": "Bring two options",
+        "recovery_due_on": utc_day(2), "leadership_ask_id": ask["id"],
+        "assessed_on": utc_day(),
+    })
+    assert commercial.status_code == 201, commercial.text
+    delivery = client.post(f"/api/accounts/{account['id']}/status-assessments", json={
+        "dimension": "delivery", "value": "at_risk", "rationale": "Sequence is compressed",
+        "recovery_owner_person_id": operator["id"], "recovery_action": "Re-sequence launch",
+        "recovery_due_on": utc_day(3), "assessed_on": utc_day(),
+    })
+    assert delivery.status_code == 201, delivery.text
+
+    client.post(f"/api/accounts/{account['id']}/operator-views", json={
+        "body": "Growth remains possible if leadership settles the recovery path.",
+        "assessed_on": utc_day(),
+    })
+    review = client.post(f"/api/accounts/{account['id']}/reviews", json={
+        "review_type": "monthly", "scheduled_on": utc_day(5),
+        "chair_person_id": operator["id"],
+    })
+    assert review.status_code == 201, review.text
+
+    period = client.post("/api/forecast-periods", json={
+        "name": "Leadership quarter", "starts_on": utc_day(-10), "ends_on": utc_day(60),
+        "cadence": "custom",
+    }).json()
+    opportunity = client.post("/api/expansions", json={
+        "account_id": account["id"], "name": "Europe expansion",
+        "budget_owner_person_id": customer["id"],
+    }).json()
+    forecast = client.post(f"/api/forecast-periods/{period['id']}/entries", json={
+        "account_id": account["id"], "opportunity_id": opportunity["id"],
+        "category": "pipeline", "amount": 120000, "currency": "USD", "price_basis": "arr",
+        "assessed_on": utc_day(), "expected_decision_date": utc_day(20),
+    }).json()
+    moved_forecast = client.post(f"/api/forecast-entries/{forecast['id']}/category", json={
+        "category": "best_case", "driver": "Leadership confirmed the evaluation path",
+    })
+    assert moved_forecast.status_code == 200, moved_forecast.text
+
+    client.post("/api/interactions", json={
+        "account_id": account["id"], "program_id": program["id"], "type": "meeting",
+        "occurred_on": utc_day(), "summary": "Europe decision review",
+        "participant_ids": [customer["id"], operator["id"]],
+    })
+    client.post("/api/interactions", json={
+        "account_id": account["id"], "program_id": other_program["id"], "type": "meeting",
+        "occurred_on": utc_day(), "summary": "Americas secret movement",
+        "participant_ids": [operator["id"]],
+    })
+    selected_decision = client.post("/api/decisions", json={
+        "account_id": account["id"], "program_id": program["id"],
+        "description": "Sequence Europe first", "decided_on": utc_day(),
+    }).json()
+    direct_decision = client.post("/api/decisions", json={
+        "account_id": account["id"], "description": "Keep the annual envelope",
+        "decided_on": utc_day(),
+    }).json()
+    other_decision = client.post("/api/decisions", json={
+        "account_id": account["id"], "program_id": other_program["id"],
+        "description": "Americas private decision", "decided_on": utc_day(),
+    }).json()
+
+    selected_risk = client.post("/api/risks", json={
+        "program_id": program["id"], "description": "Europe launch blocker",
+        "severity": "high", "is_blocker": True,
+    }).json()
+    client.post("/api/risks", json={
+        "program_id": other_program["id"], "description": "Americas private blocker",
+        "severity": "high", "is_blocker": True,
+    })
+    selected_milestone = client.post("/api/milestones", json={
+        "program_id": program["id"], "name": "Europe readiness",
+        "target_date": utc_day(8), "at_risk": True,
+    }).json()
+    client.post("/api/milestones", json={
+        "program_id": other_program["id"], "name": "Americas private milestone",
+        "target_date": utc_day(8), "at_risk": True,
+    })
+    selected_commitment = client.post("/api/commitments", json={
+        "account_id": account["id"], "program_id": program["id"],
+        "description": "Confirm Europe sponsor", "responsible_party_id": customer["id"],
+        "internal_owner_id": operator["id"], "due_date": utc_day(7),
+    }).json()
+    client.post("/api/commitments", json={
+        "account_id": account["id"], "program_id": other_program["id"],
+        "description": "Americas private commitment", "responsible_party_id": customer["id"],
+        "internal_owner_id": operator["id"], "due_date": utc_day(7),
+    })
+    selected_meeting = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": program["id"], "purpose": "governance",
+        "title": "Europe leadership meeting", "starts_at": f"{utc_day(4)}T15:00:00+00:00",
+    }).json()
+    client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": other_program["id"], "purpose": "governance",
+        "title": "Americas private meeting", "starts_at": f"{utc_day(4)}T16:00:00+00:00",
+    })
+    contract = client.post("/api/contracts", json={
+        "account_id": account["id"], "version_label": "leadership-v1",
+        "renewal_date": utc_day(45), "notice_period_days": 30,
+    })
+    assert contract.status_code == 201, contract.text
+
+    before_documents = client.get("/api/documents", params={"account_id": account["id"]}).json()
+    before_checkpoints = client.app.state.conn.execute(
+        "SELECT COUNT(*) FROM account_change_checkpoints WHERE account_id=?", (account["id"],)
+    ).fetchone()[0]
+    response = client.get(f"/api/accounts/{account['id']}/command-center/leadership", params={
+        "program_id": program["id"],
+    })
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["scope"]["governed_facts"] == "account-wide"
+    statuses = {item["dimension"]: item for item in data["standing"]["statuses"]}
+    assert statuses["commercial"]["value"] == "off_track"
+    assert statuses["commercial"]["leadership_response"]["id"] == ask["id"]
+    assert statuses["delivery"]["recovery_owner"] == operator["name"]
+    assert data["standing"]["forecast"][0]["id"] == forecast["id"]
+    assert data["standing"]["forecast"][0]["evidence_supported"] is False
+
+    movement_sources = {(item["source_type"], item["source_id"]) for item in data["movement"]}
+    assert ("decision", selected_decision["id"]) in movement_sources
+    assert ("decision", direct_decision["id"]) in movement_sources
+    assert ("decision", other_decision["id"]) not in movement_sources
+    assert any(item["summary"] == "Europe decision review" for item in data["movement"])
+    assert all(item.get("summary") != "Americas secret movement" for item in data["movement"])
+
+    stuck_ids = {item["id"] for item in data["stuck"]}
+    assert f"risk:{selected_risk['id']}" in stuck_ids
+    assert f"milestone:{selected_milestone['id']}" in stuck_ids
+    assert f"internal_ask:{ask['id']}" in stuck_ids
+    assert f"forecast:{forecast['id']}:evidence" in stuck_ids
+    assert all("Americas private" not in item["title"] for item in data["stuck"])
+    assert data["needs"][0]["id"] == ask["id"]
+    assert data["needs"][0]["escalations"][0]["severity"] == "high"
+    assert data["needs"][0]["next_action"]
+
+    near_ids = {item["id"] for item in data["near_term"]}
+    assert f"commitment:{selected_commitment['id']}" in near_ids
+    assert f"calendar:{selected_meeting['id']}" in near_ids
+    assert f"review:{review.json()['id']}" in near_ids
+    assert any(item["kind"] == "contract notice" for item in data["near_term"])
+    assert all("Americas private" not in item["title"] for item in data["near_term"])
+    assert data["operator_view"]["body"].startswith("Growth remains possible")
+    assert data["review_trail"][0]["participants"] == [operator["name"]]
+    assert other_ask["id"] not in str(data)
+    assert client.get("/api/documents", params={"account_id": account["id"]}).json() == before_documents
+    after_checkpoints = client.app.state.conn.execute(
+        "SELECT COUNT(*) FROM account_change_checkpoints WHERE account_id=?", (account["id"],)
+    ).fetchone()[0]
+    assert after_checkpoints == before_checkpoints
+
+
+def test_leadership_names_missing_stale_and_missed_contract_evidence(client):
+    account = client.post("/api/accounts", json={"name": "Leadership Gaps"}).json()
+    client.post(f"/api/accounts/{account['id']}/operator-views", json={
+        "body": "This point of view is intentionally old.", "assessed_on": utc_day(-40),
+    })
+    contract = client.post("/api/contracts", json={
+        "account_id": account["id"], "version_label": "gap-v1",
+        "renewal_date": utc_day(10), "notice_period_days": 30,
+    })
+    assert contract.status_code == 201, contract.text
+
+    response = client.get(f"/api/accounts/{account['id']}/command-center/leadership")
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert {item["value"] for item in data["standing"]["statuses"]} == {"unknown"}
+    assert data["standing"]["forecast"] == []
+    stuck_ids = {item["id"] for item in data["stuck"]}
+    assert {"status:delivery:missing", "status:commercial:missing", "forecast:missing"} <= stuck_ids
+    assert any(item_id.startswith("operator_view:") and item_id.endswith(":stale") for item_id in stuck_ids)
+    assert f"contract:{contract.json()['id']}:notice-overdue" in stuck_ids

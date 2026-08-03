@@ -56,6 +56,12 @@ export const api = {
     const qs = p.toString();
     return req("GET", `/api/accounts/${id}/pre-call-brief${qs ? "?" + qs : ""}`);
   },
+  leadershipReview: (id, { programId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center/leadership${qs ? "?" + qs : ""}`);
+  },
   accountActivity: (id, filters = {}) => {
     const p = new URLSearchParams();
     const keys = {

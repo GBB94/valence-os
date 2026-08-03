@@ -64,6 +64,21 @@ def list_operator_views(conn: sqlite3.Connection, account_id: str) -> list[dict]
 
 def assess_status(conn: sqlite3.Connection, account_id: str, values: dict) -> dict:
     account = repo.get_row(conn, "accounts", account_id)
+    if values.get("recovery_owner_person_id"):
+        owner = conn.execute(
+            "SELECT id FROM persons WHERE id=? AND archived=0 "
+            "AND (affiliation='valence' OR account_id=?)",
+            (values["recovery_owner_person_id"], account_id),
+        ).fetchone()
+        if not owner:
+            raise HTTPException(422, "recovery owner is not available in this account")
+    if values.get("leadership_ask_id"):
+        leadership_ask = conn.execute(
+            "SELECT id FROM internal_asks WHERE id=? AND account_id=? AND archived=0",
+            (values["leadership_ask_id"], account_id),
+        ).fetchone()
+        if not leadership_ask:
+            raise HTTPException(422, "leadership ask is not available in this account")
     criteria_id = values.get("criteria_version_id")
     if not criteria_id:
         row = conn.execute("SELECT id FROM status_criteria_versions WHERE dimension=? AND account_id IS NULL AND archived=0 ORDER BY effective_on DESC LIMIT 1", (values["dimension"],)).fetchone()

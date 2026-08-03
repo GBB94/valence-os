@@ -362,10 +362,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, .8fr);
   gap: var(--sp-5); align-items: start;
 }
-.leadership-grid {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-5); align-items: start;
-}
 .command-section { overflow: hidden; }
 .command-section .card-h { align-items: flex-start; }
 .command-section-meta { margin-top: var(--sp-2); }
@@ -425,12 +421,49 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .prepare-preview-person { padding: var(--sp-4) var(--sp-5); }
 .prepare-preview-person + .prepare-preview-person { margin-top: var(--sp-3); }
 
+/* Leadership lens — governed posture first, then movement, exposure, asks, and review trail. */
+.leadership-scope {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-5);
+}
+.leadership-scope .actions { flex-wrap: wrap; justify-content: flex-end; }
+.leadership-statuses {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line-hairline);
+}
+.leadership-status { padding: var(--sp-5) var(--sp-6); min-width: 0; }
+.leadership-status + .leadership-status { border-left: 1px solid var(--line-hairline); }
+.leadership-status > p { min-height: 42px; line-height: 1.5; }
+.leadership-recovery {
+  display: grid; grid-template-columns: 1.5fr 1fr auto; gap: var(--sp-4);
+  padding: var(--sp-4); margin: var(--sp-4) 0; background: var(--bg-sunken);
+  border: 1px solid var(--line-hairline); border-radius: var(--r-sm);
+}
+.leadership-recovery .ctx-k, .leadership-next .ctx-k { display: block; margin-bottom: var(--sp-2); }
+.leadership-response { margin: var(--sp-4) 0; }
+.leadership-table-wrap { overflow-x: auto; }
+.leadership-table-wrap table { min-width: 920px; }
+.leadership-columns {
+  display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(310px, .75fr);
+  gap: var(--sp-5); align-items: start;
+}
+.leadership-need { padding: var(--sp-5); border-bottom: 1px solid var(--line-hairline); }
+.leadership-need:last-child { border-bottom: 0; }
+.leadership-next { margin-top: var(--sp-4); padding: var(--sp-4); background: var(--bg-sunken); border-radius: var(--r-sm); }
+.leadership-escalations { margin-top: var(--sp-4); flex-wrap: wrap; }
+.leadership-need > .btn { margin-top: var(--sp-4); }
+.leadership-review-trail { border-top: 1px solid var(--line-hairline); padding: 0 var(--sp-5) var(--sp-5); }
+.leadership-review-trail article { padding: var(--sp-4) 0; border-bottom: 1px solid var(--line-hairline); }
+.leadership-review-trail article:last-child { border-bottom: 0; }
+.leadership-review-trail .btn { margin-top: var(--sp-3); }
+
 @media (max-width: 1000px) {
-  .command-grid, .leadership-grid { grid-template-columns: minmax(0, 1fr); }
+  .command-grid, .leadership-columns { grid-template-columns: minmax(0, 1fr); }
   .command-center-head { flex-wrap: wrap; }
   .command-center-head .spacer { display: none; }
   .command-head-actions { width: 100%; justify-content: flex-start; }
   .prepare-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .leadership-statuses { grid-template-columns: minmax(0, 1fr); }
+  .leadership-status + .leadership-status { border-left: 0; border-top: 1px solid var(--line-hairline); }
 }
 
 @media (max-width: 640px) {
@@ -442,4 +475,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .prepare-selector .card-h { align-items: stretch; flex-direction: column; }
   .prepare-selector select { max-width: none; width: 100%; }
   .prepare-identity { grid-template-columns: minmax(0, 1fr); }
+  .leadership-scope { align-items: flex-start; flex-direction: column; }
+  .leadership-scope .actions { justify-content: flex-start; }
+  .leadership-recovery { grid-template-columns: minmax(0, 1fr); }
 }

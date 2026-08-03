@@ -6,6 +6,7 @@ import {
 import {
   readLastVisit, resolveCommandCenterLens, writeLastVisit, writePreferredLens,
 } from "../accountCommandCenter";
+import LeadershipReview from "./LeadershipReview";
 import MeetingPrepare from "./MeetingPrepare";
 
 const LENSES = [
@@ -175,31 +176,6 @@ function OperateLens({ data, firstVisit, reviewing, onMarkReviewed, onOpenTarget
   );
 }
 
-function LeadershipLens({ data, onOpenTarget, onOpenCopilot }) {
-  return (
-    <div className="leadership-grid">
-      <Section title="What moved" meta="Material changes since review">
-        <ActivityRows items={data.changes_since_review} emptyTitle="No material movement"
-          emptyBody="The reviewed position remains current." onOpenTarget={onOpenTarget} />
-      </Section>
-      <Section title="What is stuck" meta="Blockers and near-term exposure">
-        <AttentionRows items={data.attention} onOpenTarget={onOpenTarget} />
-      </Section>
-      <Section title="What I need" meta="Leadership-ready follow-through">
-        <div className="command-pov">
-          {data.operator_view?.body
-            ? <p>{data.operator_view.body}</p>
-            : <p className="subtle">No operator point of view is recorded yet.</p>}
-          <div className="actions">
-            <button className="btn small" onClick={() => onOpenTarget({ tab: "internal" })}>Open internal asks</button>
-            {onOpenCopilot && <button className="btn small ghost" onClick={() => onOpenCopilot("draft", "Draft a concise leadership update for this account")}>Draft update</button>}
-          </div>
-        </div>
-      </Section>
-    </div>
-  );
-}
-
 function NewProgram({ accountId, onClose, onCreated }) {
   const toast = useToast();
   const [name, setName] = useState("");
@@ -344,7 +320,8 @@ export default function AccountCommandCenter({
         {activeLens === "prepare" && <MeetingPrepare accountId={accountId} programId={programId}
           meetingId={meetingId} onMeetingChange={onMeetingChange} onOpenTarget={onOpenTarget}
           onQuickEntry={onQuickEntry} onOpenCopilot={onOpenCopilot} />}
-        {activeLens === "leadership" && <LeadershipLens data={data} onOpenTarget={onOpenTarget} onOpenCopilot={onOpenCopilot} />}
+        {activeLens === "leadership" && <LeadershipReview accountId={accountId} programId={programId}
+          reloadKey={reloadKey} onOpenTarget={onOpenTarget} onOpenCopilot={onOpenCopilot} />}
       </div>
 
       {addingProgram && <NewProgram accountId={accountId} onClose={() => setAddingProgram(false)} onCreated={onSaved} />}

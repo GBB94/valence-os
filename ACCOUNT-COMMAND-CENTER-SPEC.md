@@ -1,6 +1,6 @@
 # Valence OS account command center and unified activity specification
 
-**Status:** Slices 2.0–2.2 implemented; Slices 2.3–2.4 specified, 2026-08-03
+**Status:** Slices 2.0–2.3 implemented; Slice 2.4 specified, 2026-08-03
 
 **Parent authority:** `UX-FOUNDATION-SPEC.md`
 
@@ -119,7 +119,7 @@ For a selected meeting, the order is:
 
 The implemented version filters recent context to attendee relationships supported by the native record, excludes the baseline last-touch interaction, names partial activity coverage, and falls back to an explicit evidence gap when a relationship cannot be established. Meeting selection and brief preview are reads: opening Prepare never creates a document, sends a brief, or mutates canonical records.
 
-### 5.3 Leadership — thin first, complete second
+### 5.3 Leadership — implemented
 
 Leadership presents the same facts as an internal review, not a second forecast system. Its order is:
 
@@ -130,7 +130,7 @@ Leadership presents the same facts as an internal review, not a second forecast 
 5. **Near-term commitments** — the next account review, renewal/notice dates, material meetings, and commitments.
 6. **Point of view and review trail** — latest operator view and account-review provenance, with links to Internal rather than duplicated editing controls.
 
-The initial thin version can reuse the existing `team_update` concepts (`what_moved`, `what_is_stuck`, `what_i_need`) at account scope. It must not reuse its client-safe field restriction as an internal completeness claim; the Leadership lens needs an explicit internal source allowlist.
+The implemented version uses an explicit internal source allowlist. Governed statuses, forecast, asks/escalations, contract dates, point of view, and account reviews remain visibly account-wide; movement, blockers, milestones, meetings, and commitments obey the selected program scope while retaining direct account records. Missing or unsupported inputs become named evidence gaps. Opening Leadership and drafting through Copilot are explicit, separate actions; opening the lens performs no write and creates or sends no update.
 
 ## 6. Unified activity read model
 
@@ -448,6 +448,17 @@ Required states:
 - Recent context is attendee-related only where a canonical relationship supports it, and the baseline last-touch interaction is not repeated as a change.
 - Open threads, evidence gaps, and brief eligibility are deterministic and scoped to the selected account and program.
 - Opening Prepare and previewing a pre-call brief perform no write, generation, send, or document persistence.
+
+### Leadership
+
+- Delivery and commercial remain independent governed statuses with dated rationale, recovery ownership/action/date, and any recorded leadership response.
+- Active forecast entries expose their recorded category, units, period, probability, unresolved conditions, and deterministic evidence support; no composite health score is introduced.
+- Movement uses the explicit review cursor or named 30-day fallback and includes only the internal allowlist of confirmed, material events.
+- Program scope excludes another program's movement, blockers, milestones, meetings, and commitments while preserving direct account records and clearly labeled account-wide facts.
+- Stuck work includes blockers, overdue commitments and asks, at-risk milestones, unsupported forecast calls, stale/missing point of view, and missed contract notice or renewal dates.
+- Active asks name the requested party/function, owner, deadline, escalation state, and explicit next action.
+- Cross-account person and leadership-ask references fail closed, and another account's labels never enter the response.
+- Opening Leadership performs no checkpoint, document, draft, send, or other mutation.
 
 ### Trust and regression
 
