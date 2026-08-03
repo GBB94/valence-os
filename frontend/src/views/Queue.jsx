@@ -89,7 +89,7 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
         </div>
       </td>
       <td>
-        <a onClick={() => onOpenAccount(it.account_id)} style={{ cursor: "pointer" }}>{it.account_name}</a>
+        <button className="linklike" onClick={() => onOpenAccount(it.account_id)}>{it.account_name}</button>
         {it.program_name ? <div className="rowmeta">{it.program_name}</div> : null}
       </td>
       <td><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>

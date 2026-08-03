@@ -21,7 +21,9 @@ const POOL_KINDS = [
 const POOL_STATUS = ["potential", "confirmed", "committed", "exhausted", "unavailable"];
 // Status glyphs, never color alone.
 const POOL_GLYPH = {
-  potential: ["○", "--status-unknown"], confirmed: ["◐", "--status-warn"],
+  // "Potential" is a neutral state: neutral ink, not --status-unknown, which fails 4.5:1
+  // as a glyph (the Whitespace map sets the same precedent for its neutral states).
+  potential: ["○", "--ink-secondary"], confirmed: ["◐", "--status-warn"],
   committed: ["●", "--status-ok"], exhausted: ["✕", "--status-risk"],
   unavailable: ["✕", "--status-risk"],
 };
@@ -356,7 +358,7 @@ function CalendarPanel({ accountId, onClose, onSaved }) {
 const th = { textAlign: "left", fontWeight: 400, color: "var(--ink-tertiary)", width: 200 };
 const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
 const sel = {
-  padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
-  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  padding: "6px 8px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",
   color: "var(--ink-primary)",
 };

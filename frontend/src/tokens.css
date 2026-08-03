@@ -43,7 +43,8 @@
   /* Ink */
   --ink-primary:   #14161C;
   --ink-secondary: #565D6B;
-  --ink-tertiary:  #6B717C;   /* darkened for 4.5:1 as 11px meta text (was #868D9B, 3.33) */
+  --ink-tertiary:  #646A75;   /* darkened for 4.5:1 on every light surface incl. --bg-sunken
+                                 and the tints (was #6B717C, 4.34 on sunken; originally #868D9B) */
   --ink-inverse:   #FFFFFF;
 
   /* Accent (interaction only, never state) */

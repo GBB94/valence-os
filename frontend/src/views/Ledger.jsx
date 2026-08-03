@@ -126,7 +126,8 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
               <thead><tr><th style={{ width: 96 }}>Type</th><th>What</th><th style={{ width: 120 }}>State</th><th style={{ width: 64 }}>Age</th></tr></thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}>
+                  <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}
+                      tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelKey(r.key); } }}>
                     <td><Badge>{KIND_LABEL[r.kind]}</Badge></td>
                     <td>
                       <div className="cell-title">{r.title}</div>

@@ -382,7 +382,7 @@ const h4 = {
 const gapBar = { padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)" };
 const lbl = { display: "flex", flexDirection: "column", gap: 4, marginTop: 12, fontSize: 13 };
 const sel = {
-  padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
-  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  padding: "6px 8px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",
   color: "var(--ink-primary)",
 };

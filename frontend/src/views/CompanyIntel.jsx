@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast } from "../ui";
+import { AgeChip, Empty, useToast } from "../ui";
 
 const emptyProfile = { legal_name: "", aliases: [], listing_status: "private", identifiers: [],
   watch_tier: "standard", source_include: [], source_exclude: [], topic_include: [], topic_exclude: [],
@@ -89,7 +89,7 @@ export default function CompanyIntel({ accountId, reloadKey, openCopilot }) {
       <div className="card-h"><h3>Hiring facts</h3><div className="spacer" /><span className="rowmeta">posting-level, never a score</span></div>
       {!data.hiring.length ? <div className="rowmeta" style={{ padding: 14 }}>No active posting observations.</div> : data.hiring.map((p) =>
         <div key={p.id} style={{ padding: 14, borderTop: "1px solid var(--line-hairline)" }}>
-          {p.title} <span className="badge">{p.state}</span><div className="rowmeta">{p.function_label} · {p.region_label} · last seen {p.last_seen_on}</div>
+          {p.title} <span className="badge">{p.state}</span><div className="rowmeta">{p.function_label} · {p.region_label} · last seen {p.last_seen_on} <AgeChip date={p.last_seen_on} /></div>
         </div>)}
     </div>
 
@@ -138,11 +138,15 @@ function Event({ event, busy, onConfirm, onDismiss, targets, onChanged }) {
     } catch (e) { toast(e.message, "err"); }
   }
   return <article style={{ padding: 16, borderTop: "1px solid var(--line-hairline)" }}>
-    <div className="actions"><Status value={event.status} /><span className="badge">{event.direction === "contraction" ? "▼" : event.direction === "expansion" ? "▲" : "—"} {event.kind_label}</span><div className="spacer" /><span className="rowmeta">{event.occurred_on || "date unknown"}</span></div>
+    <div className="actions"><Status value={event.status} /><span className="badge">{event.direction === "contraction" ? "▼" : event.direction === "expansion" ? "▲" : "—"} {event.kind_label}</span><div className="spacer" />{event.occurred_on
+      ? <span className="rowmeta">{event.occurred_on} <AgeChip date={event.occurred_on} /></span>
+      : <span className="unknown-chip"><span className="unknown-hatch" aria-hidden="true" />date unknown</span>}</div>
     <div style={{ marginTop: 9 }}>{event.summary}</div>
     {evidence && <blockquote style={{ margin: "10px 0 0", padding: "9px 12px", borderLeft: "3px solid var(--line-strong)", background: "var(--bg-sunken)" }}>
       <div>“{evidence.excerpt}”</div>
-      <div className="rowmeta" style={{ marginTop: 5 }}>{evidence.publisher} · {evidence.published_on || "publication date unknown"} · {evidence.locator}</div>
+      <div className="rowmeta" style={{ marginTop: 5 }}>{evidence.publisher} · {evidence.published_on
+        ? <>{evidence.published_on} <AgeChip date={evidence.published_on} /></>
+        : "publication date unknown"} · {evidence.locator}</div>
     </blockquote>}
     {event.status === "proposed" && <div className="actions" style={{ marginTop: 10 }}>
       <button className="btn small" disabled={busy} onClick={onConfirm}>Confirm event</button>

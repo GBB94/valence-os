@@ -170,9 +170,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                     <div key={l} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                       <span>{LAYER_LABEL[l]}</span>
                       <span>
-                        <span style={{ color: "var(--status-ok)" }}>{a}</span> ·{" "}
-                        <span style={{ color: "var(--status-warn)" }}>{s}</span> ·{" "}
-                        <span style={{ color: "var(--status-unknown)" }}>{ph}</span>
+                        <span style={{ color: "var(--status-ok)" }}>{a} active</span> ·{" "}
+                        <span style={{ color: "var(--status-warn)" }}>{s} stale</span> ·{" "}
+                        <span style={{ color: "var(--ink-secondary)" }}>{ph} placeholder</span>
                       </span>
                     </div>
                   );

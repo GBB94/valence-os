@@ -119,7 +119,8 @@ input, select, textarea { background: var(--bg-surface); color: var(--ink-primar
 .chip-count { font-size: var(--t-micro); color: var(--ink-tertiary); font-family: var(--font-mono); }
 .filter-chip.active .chip-count { color: var(--accent); }
 .ledger { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; align-items: start; }
-.ledger-list { overflow: hidden; }
+/* Scroll, never clip: at split-screen widths a hidden overflow silently amputates columns. */
+.ledger-list { overflow-x: auto; }
 .ledger-detail { min-height: 240px; padding: 16px; position: sticky; top: 16px; }
 tbody tr.sel { background: var(--bg-selected); }
 tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
@@ -187,7 +188,10 @@ tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transpare
 
 /* Typography */
 h1 { font-size: var(--t-h2); font-weight: 600; letter-spacing: -.015em; margin: 0 0 2px; }
-h2 { font-size: var(--t-body); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-tertiary); margin: 24px 0 8px; }
+h2 { font-size: var(--t-body); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-tertiary); margin: 24px 0 8px; }
+/* Explicit heading weights: weight 700 is never used and no 700 face is loaded, so a bare
+   heading left to the browser's `bold` must not be the thing deciding how it renders. */
+h3, h4 { font-weight: 600; }
 .subtle { color: var(--ink-secondary); }
 .crumb { color: var(--ink-tertiary); font-size: var(--t-small); margin-bottom: 10px; }
 .crumb button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; }
@@ -258,6 +262,23 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .copilot-source-fields dd { margin: 0; overflow-wrap: anywhere; }
 .copilot-draft-preview .copilot-answer { padding: 0 12px 4px; max-height: 260px; overflow: auto; }
 
+/* Keyboard focus (DESIGN-GUIDE §11): a visible accent ring on every interactive element,
+   in both themes. Text inputs get the border+ring treatment instead of a doubled outline. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Motion (§9/§11): reduced motion drops everything to effectively instant. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Forms */
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-tertiary); margin-bottom: 4px; }
@@ -278,6 +299,22 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 /* Toast */
 .toast { position: fixed; bottom: 20px; left: 20px; background: var(--toast-bg); color: var(--toast-fg); padding: 9px 16px; border-radius: var(--r-md); font-size: var(--t-body); z-index: 60; box-shadow: var(--shadow-panel); }
 .toast.err { background: var(--status-risk); color: var(--ink-inverse); }
+
+/* Link-styled button — keyboard-reachable inline navigation (never a bare <a onClick>) */
+.linklike { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: inherit; font-family: inherit; text-align: left; }
+.linklike:hover { color: var(--accent-hover); }
+
+/* Three-stat row (sibling of .grid2) */
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* Callout — a quiet bordered note; the text carries the meaning, the tint only frames it */
+.callout { border: 1px solid var(--line-strong); border-left: 3px solid var(--line-strong); border-radius: var(--r-sm); background: var(--bg-sunken); padding: 10px 12px; font-size: var(--t-body); }
+.callout.warn { border-left-color: var(--status-warn); background: var(--status-warn-tint); }
+
+/* Suppressed/withheld value — the §7 unknown treatment as an inline chip */
+.unknown-fill { display: inline-flex; flex-direction: column; gap: 2px; font-size: var(--t-small); color: var(--ink-secondary);
+  background: var(--status-unknown-tint); border: 1px solid var(--line-hairline); border-radius: var(--r-sm); padding: 2px 8px;
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, var(--bg-surface) 5px, var(--bg-surface) 6px); }
 
 /* Empty / placeholder */
 .empty { text-align: left; color: var(--ink-tertiary); padding: 28px 4px; }

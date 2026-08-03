@@ -141,15 +141,35 @@ export function Empty({ title, children }) {
 }
 
 // --- Slide-over (detail/quick-entry; never a blocking modal for routine work) ---
+// Keyboard contract (DESIGN-GUIDE §11): Escape closes, Tab cycles inside, and focus
+// returns to wherever the operator was standing when the panel opened.
 export function SlideOver({ title, onClose, children, footer }) {
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    const opener = document.activeElement;
+    closeRef.current?.focus();
+    const key = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key !== "Tab") return;
+      const focusable = [...(panelRef.current?.querySelectorAll(
+        'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])') || [])];
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("keydown", key); if (opener?.focus) opener.focus(); };
+  }, [onClose]);
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <aside className="slideover" role="dialog" aria-label={title}>
+      <aside className="slideover" role="dialog" aria-modal="true" aria-label={title} ref={panelRef}>
         <header>
           <h1>{title}</h1>
           <div className="spacer" />
-          <button className="btn ghost" onClick={onClose}>Close</button>
+          <button className="btn ghost" onClick={onClose} ref={closeRef}>Close</button>
         </header>
         <div className="body">{children}</div>
         {footer && <footer>{footer}</footer>}

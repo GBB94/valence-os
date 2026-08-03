@@ -10,6 +10,28 @@ The account Commercial workspace now has a Company sub-tab for identity/watch se
 
 Validation: all 352 backend tests pass, including 17 Stage 14 adversarial cases (13 from the build, 4 from the post-build review, D-112); frontend lint exits zero (repository-pre-existing warnings remain), the production build succeeds, and the Company and Operations surfaces were exercised in a 1440×1000 rendered browser in dark and light themes with no horizontal overflow. The rendered flow confirmed both events, opened convergence with exact composition, exposed map/source controls and the full watch policy, and showed Operations freshness/review/sync measures. A rapid concurrent navigation pass also remained clean under the request-level SQLite serialization guard.
 
+## Design review backlog (2026-08-03, D-113)
+
+The comprehensive design review fixed all contrast, keyboard, color-semantics, and broken-class
+defects (see D-113). A mechanical long tail remains, none of it release-blocking, all of it
+suited to one focused primitives pass:
+
+- **Mono/right-align sweep:** ~30 hand-rolled tables render dates, currency, seats, and counts
+  in the UI face, left-aligned (§5 wants mono, right-aligned; `Ledger.jsx` is the reference).
+- **`<th scope>` sweep:** ~20 hand-rolled tables lack `scope="col"`/`"row"` (the `Table`
+  primitive does it right; several views were already fixed in this pass).
+- **Copy pass:** generic "Save" labels in ~7 views (incl. QuickEntry, the capture path) should
+  name the outcome (§10); `window.prompt()` dialogs in Delivery/Library/PlaybookLibrary.
+- **Primary-button rationalization:** one primary per screen — the topbar "Log interaction"
+  primary plus per-view/per-row primaries breaks it broadly; `.primary`-as-selected-state
+  toggles should become `SegTabs`.
+- **Off-scale spacing/type long tail:** ~80 instances of 5/9/10/14/18px in views; raw 10px
+  labels in graph/timeline/waterfall; local form-scaffold objects that drop the Plex family on
+  selects (ten views define their own `Field`/`sel` constants).
+- **Component consolidation:** shared Loading and Empty usage (~44 hand-rolled "Loading…"
+  divs), palette listbox/option semantics, AgeChip misapplied to future dates
+  (Checklists due dates, find-by dates) wants a due-in formatter.
+
 ## What this is
 
 Valence OS is an internal, single-editor web app for one Valence Engagement Manager to run a few very deep Fortune-100 accounts end to end. `Valence-OS-Scoping-Doc.md` is the original foundation; the completed Phase 3 and Expansion Engine specs and the additive Stage 10 Internal Ops spec deliberately extend it. `CLAUDE.md` defines the current authority chain and binding trust boundaries.

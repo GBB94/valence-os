@@ -93,7 +93,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
                   <td><button className="btn small ghost" onClick={() => setPanel({ kind: "qualification", xo: x })}>
                     {x.qualification.filled_count}/5 {x.qualification.fully_qualified ? "filled" : "risk"}</button></td>
                   <td>{x.status === "closed"
-                    ? <span><span className="dot ok" /> {x.outcome}</span>
+                    ? <span><span className={"dot" + (x.outcome === "won" ? " ok" : x.outcome === "lost" ? " risk" : "")} /> {x.outcome}</span>
                     : <span className="rowmeta">open</span>}
                     {x.status === "closed" && x.outcome_reason ? <div className="rowmeta">{x.outcome_reason}</div> : null}
                   </td>

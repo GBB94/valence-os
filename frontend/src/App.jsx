@@ -118,6 +118,16 @@ function Shell() {
   useEffect(() => {
     try { localStorage.setItem("valence-rail", railCollapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [railCollapsed]);
+  useEffect(() => {
+    // DESIGN-GUIDE §11: split-screen at ~900px collapses the rail to icons. Auto-collapse on
+    // entering a narrow viewport; the operator can still re-expand explicitly.
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 1000px)");
+    const apply = () => { if (mq.matches) setRailCollapsed(true); };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const refreshNotifs = useCallback(async () => {
     try { setNotifs(await api.notifications()); } catch { /* ignore */ }
@@ -231,7 +241,7 @@ function Shell() {
           <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
           <div style={{ position: "relative" }}>
             <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">
-              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--status-risk)", fontWeight: 600 }}>{notifs.unread}</span>}
+              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, fontWeight: 600 }}>{notifs.unread}</span>}
             </button>
             {showNotifs && (
               <Card style={{ position: "absolute", right: 0, top: 34, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
@@ -519,7 +529,7 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
       {ren && (
         <div className="ctx-stat">
           <span className="ctx-k">Renewal</span>
-          <span className="ctx-v" style={ren.warn ? { color: "var(--status-warn)" } : undefined}>{ren.text}</span>
+          <span className="ctx-v" style={ren.warn ? { color: "var(--status-warn)" } : undefined}>{ren.warn ? "▲ " : ""}{ren.text}</span>
           <span className="rowmeta mono">{fmtDate(renewal)}</span>
         </div>
       )}

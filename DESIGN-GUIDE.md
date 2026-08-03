@@ -1,6 +1,6 @@
 # Valence OS — Design Guide
-### Visual system, screen architecture, and redesign brief for the frontend
-*v2 · July 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6 and `CLAUDE.md`*
+### Visual system and screen architecture — the standing design authority for the shipped frontend
+*v3 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6 and `CLAUDE.md` · revised after the full-app adversarial design review (D-113/D-114)*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **This guide supersedes §6 of the scoping doc and the navigation the current build inherited from the §5 module list.** Where the two disagree, this document wins. The scoping doc's design section was written before anything existed; this one is written against a working app, so it replaces rather than supplements. The one-color-mode line and the one-destination-per-module structure are both explicitly retired here.
 
-Treat the presentation layer as open. Information architecture, navigation, screen composition, layout, tokens, typography, components, iconography, empty and error states, interface copy, and the presentation of the visualizations are all yours to redesign. Do not preserve an existing arrangement because it is what got built. Layout restructuring is the primary motivation for this work, not a side effect of it.
+**Status (v3).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. Where this guide and the shipped code disagreed, v3 resolves each case explicitly — either the guide was corrected to the audited, deliberate implementation (token values, control heights, panel width), or the gap is named below as open debt rather than silently restated as fact.
 
 **What still holds, and why.**
 
@@ -51,7 +51,9 @@ Operations       jobs, imports, backups, index health (bottom of rail, quiet)
 
 ### 2.2 The account workspace
 
-One screen per account. A persistent context header, then a tab strip. Tabs are destinations within the URL so they are linkable and back-button-able, but they never reload the header.
+One screen per account. A persistent context header, then a tab strip that never reloads the header.
+
+> **Open debt (v3):** tabs were specified as URL destinations — linkable and back-button-able — and the build keeps navigation in memory instead, so refresh loses your place and the back button does nothing. The requirement stands; it is unimplemented, not retired. Until it lands, do not describe navigation as linkable.
 
 | Tab | Merges today's modules | The question it answers |
 |---|---|---|
@@ -66,6 +68,8 @@ One screen per account. A persistent context header, then a tab strip. Tabs are 
 Program scoping is a filter inside the workspace, not a separate branch of the navigation tree. A program selector sits in the context header; choosing one filters every tab. This matters because an F100 account is genuinely multi-program, and the old model forced you to choose between account-level and program-level views before you knew which one you needed.
 
 The seven tabs above are the recommended arrangement, not a ceiling. If building them surfaces a better grouping, take it and say why. The test is whether a question the operator actually asks can be answered without visiting two tabs.
+
+As built, the workspace carries an eighth tab — **Internal** (Stage 10 forecasting, asks, reviews) — and the busiest tabs subdivide with a `SegTabs` strip (Commercial: Whitespace, Value ledger, Funding, Signals, Company, Growth & renewal, Pipeline & contracts). A new surface almost always becomes a sub-tab of an existing tab, not a ninth tab; a ninth tab requires the same justification as a new top-level destination.
 
 ### 2.3 The Ledger merge (the most consequential change)
 
@@ -91,7 +95,7 @@ The default state of every screen shows the answer, not the raw material. Depth 
 
 ## 3. Space, grid, and shell
 
-**Spacing scale.** 4px base. Use only 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, exposed as `--sp-1` through `--sp-10`. No arbitrary values anywhere.
+**Spacing scale.** 4px base. Use only 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, exposed as `--sp-1` through `--sp-11`. The scale governs **space** — padding, margins, gaps. It does not govern fixed component dimensions (rail, top bar, control heights, panel widths), which are named once below and in `tokens.css`/`index.css`, nor the derived table paddings computed to hit the 32px/40px row heights. Off-scale spacing in a view is a violation; a new fixed dimension requires naming it here.
 
 ```
 ┌──────────┬──────────────────────────────────────────────────────┐
@@ -106,15 +110,15 @@ The default state of every screen shows the answer, not the raw material. Depth 
 │ Library  │                                                       │
 │ ───────  │  content, 24px gutters, full width                    │
 │ Ops      │                          ┌────────────────────────┐   │
-│          │                          │ slide-over 520px       │   │
+│          │                          │ slide-over 480px       │   │
 └──────────┴──────────────────────────┴────────────────────────┴───┘
 ```
 
-- **Left rail, 240px**, collapsible to 56px icons, state persisted. Active item uses `--bg-selected` with a 2px accent bar on the leading edge, never a filled pill.
+- **Left rail, 240px**, collapsible to 56px icons, state persisted, and auto-collapsing below 1000px viewport width (the §11 split-screen case); the operator can re-expand explicitly. Active item uses `--bg-selected` with a 2px accent bar on the leading edge, never a filled pill.
 - **Top bar, 48px**, does not scroll away. Holds breadcrumb, global search, the capture affordance, the density toggle, and the theme toggle.
 - **Context header**, sticky beneath the top bar, present on every account tab. Account name, program selector, both statuses with their assessed dates, renewal countdown, phase. This is the ten-second read and it must never require scrolling to find.
 - **Content**, full width, 24px gutters, no centered max-width container. This is a data tool on a large screen. Prose blocks inside panels cap their own measure at roughly 70 characters.
-- **Slide-over, 520px**, right side, `--shadow-panel`, scrim at 12 percent ink. Used for detail views everywhere except the Ledger, which uses master-detail. Blocking modals are reserved for destructive confirmation only.
+- **Slide-over, 480px** (as built; v2 said 520 — the narrower panel won on split-screen widths), right side, `--shadow-panel`, scrim from `--scrim`. Used for detail views everywhere except the Ledger, which uses master-detail. Keyboard contract is non-negotiable: Escape closes, Tab cycles inside, focus returns to the opener (`SlideOver` in `ui.jsx` implements it — never hand-roll a panel). Blocking modals are reserved for destructive confirmation only; `window.prompt()` is never acceptable.
 
 ---
 
@@ -122,7 +126,7 @@ The default state of every screen shows the answer, not the raw material. Depth 
 
 Cool graphite neutrals with a single ink-indigo accent. The accent deliberately avoids the green, amber, and red families, because those are reserved for status and an interactive control must never be confusable with a state.
 
-Define these once in `tokens.css`. After this work, nothing in the app may use a raw hex value.
+Define these once in `tokens.css` — **it is the canonical source**. The blocks below mirror it for reference and carry the post-audit corrections (several v2 values failed the §11 floor this guide itself imposes). Nothing in the app may use a raw hex value outside that file. If this guide and `tokens.css` ever disagree, `tokens.css` plus the audit win, and this guide gets corrected in the same change.
 
 ### 4.1 Light (default)
 
@@ -142,7 +146,7 @@ Define these once in `tokens.css`. After this work, nothing in the app may use a
   /* Ink */
   --ink-primary:   #14161C;
   --ink-secondary: #565D6B;
-  --ink-tertiary:  #868D9B;
+  --ink-tertiary:  #646A75;  /* v2's #868D9B was 3.33:1 — under the floor as meta text */
   --ink-inverse:   #FFFFFF;
 
   /* Accent (interaction only, never state) */
@@ -152,9 +156,9 @@ Define these once in `tokens.css`. After this work, nothing in the app may use a
   --accent-ring:   rgba(58, 52, 196, 0.35);
 
   /* Status (state only, never decoration) */
-  --status-ok:           #1F8A54;
+  --status-ok:           #167544;  /* darkened from v2's #1F8A54 to clear 4.5:1 on tint */
   --status-ok-tint:      #E6F4EC;
-  --status-warn:         #B26B00;
+  --status-warn:         #8A5500;  /* darkened from v2's #B26B00 for the same reason */
   --status-warn-tint:    #FBF0DF;
   --status-risk:         #C0392F;
   --status-risk-tint:    #FBEAE8;
@@ -191,19 +195,19 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
   --bg-surface:    #16191E;
   --bg-sunken:     #101317;
   --bg-hover:      #1D2127;
-  --bg-selected:   #1E1F3D;
+  --bg-selected:   #191A33;  /* matches accent-tint so active-nav accent text clears 4.5:1 */
 
   --line-hairline: #262B33;
   --line-strong:   #363C46;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
-  --ink-tertiary:  #6F7784;
+  --ink-tertiary:  #838A98;  /* v2's #6F7784 was 3.90:1 — under the floor as meta text */
   --ink-inverse:   #0E1013;
 
   --accent:        #7C74F0;
   --accent-hover:  #948DF5;
-  --accent-tint:   #1E1F3D;
+  --accent-tint:   #191A33;  /* darkened so accent text on it clears 4.5:1 (v2: #1E1F3D, 4.26) */
   --accent-ring:   rgba(124, 116, 240, 0.40);
 
   --status-ok:           #3FB37F;
@@ -237,6 +241,8 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 - The waterfall is the single documented exception. Because the app is a tabbed workspace with a sticky status header, strict screen-level separation is impossible; the enforceable rule is that **no status indicator appears inside the same card or panel as a financial chart**. Enforce this in the layout, not in a comment. (Narrowed from "same screen" — D-70.)
 - Elevation is rare. Tables, cards, and panels separate with hairlines. Only the slide-over, the command palette, and toasts get a shadow.
 - Tints back badges and selected rows only. Never tint a large surface.
+- **`--status-unknown` is a fill-and-hatch hue, never ink.** It fails 4.5:1 as text or as a glyph on every surface in both themes. Neutral and no-signal states draw their glyphs, counts, and labels in `--ink-secondary`; the unknown hue appears only in tints, hatches, and marks paired with a label. (This was buried in §8's whitespace notes in v2, and exactly the surfaces that hadn't read §8 violated it.)
+- **`--accent` and `--data-1` share a value by design, and the distinction is semantic.** Data encodings (chart series, timeline markers, reference lines) must reference `--data-*`; interactive affordances must reference `--accent`. The pixels match today; the tokens must not be swapped, or a future palette change silently recolors one as the other.
 
 ---
 
@@ -274,7 +280,7 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 | Account name | 26px | 600 | 32px | -0.02em | sentence |
 | Scoreboard metric | 32px mono | 500 | 36px | -0.02em | numerals |
 
-**Non-negotiables.** `font-variant-numeric: tabular-nums` globally, and mono for anything in a column of numbers, a date, a duration, a seat count, a currency figure, or an ID. Weight 700 is never used; hierarchy comes from size, color, and space. Sentence case everywhere except the 11px eyebrow. One number format per column, decimals included.
+**Non-negotiables.** `font-variant-numeric: tabular-nums` globally, and mono for anything in a column of numbers, a date, a duration, a seat count, a currency figure, or an ID. Weight 700 is never used; hierarchy comes from size, color, and space. Because no 700 face is even loaded, headings must set their weight explicitly in CSS (`h1`–`h4` at 600) — a bare heading element left to the browser's `bold` is a bug, not a style. Sentence case everywhere except the 11px eyebrow. One number format per column, decimals included.
 
 ---
 
@@ -282,7 +288,7 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 
 ### Tables (the primary surface)
 
-- Two densities, **compact 32px** and **default 40px** rows, driven by the top-bar toggle and persisted. Default is compact.
+- Two densities, **compact 32px** and **comfortable 40px** rows (`data-density` `compact|default`), driven by the top-bar toggle and persisted. Compact is the default.
 - Header row: 11px uppercase eyebrow, `--ink-secondary`, sticky on scroll, 1px `--line-strong` beneath. Header alignment always matches its column's content.
 - Rows separated by 1px `--line-hairline`. No vertical rules, no zebra striping.
 - Text left, numbers and dates right, nothing centered. Right-aligned columns use mono so decimals stack.
@@ -299,12 +305,12 @@ Hairline border, `--r-md`, `--bg-surface`, 16px padding, no shadow. A card group
 
 | Variant | Use | Style |
 |---|---|---|
-| Primary | The one action the screen exists for | `--accent` fill, `--ink-inverse`, `--r-sm`, 13px/500, 28px compact |
+| Primary | The one action the screen exists for | `--accent` fill, `--ink-inverse`, `--r-sm`, 13px/500, 30px (26px in `.small`) |
 | Secondary | Everything else | `--bg-surface`, `--line-strong` border, `--ink-primary` |
 | Ghost | In-row and toolbar actions | transparent, `--ink-secondary`, hover `--bg-hover` |
 | Danger | Destructive only | `--status-risk` on `--status-risk-tint`; filled only inside a confirm dialog |
 
-One primary per screen maximum. Labels are verbs naming the outcome: "Log interaction," "Convert to commitment," "Promote to plan." Never "Submit," never "OK."
+One primary per screen maximum; row-level and repeated actions are secondary or ghost, never primary, and `.primary` is never a selected-state for toggle groups — that is what `SegTabs` is for. Labels are verbs naming the outcome: "Log interaction," "Convert to commitment," "Promote to plan." Never "Submit," never "OK." Inline navigation rendered as a link uses the `.linklike` button class — a bare `<a onClick>` is not keyboard-reachable and is a violation, not a shorthand.
 
 ### Inputs
 
@@ -345,6 +351,8 @@ Build this once as a small set of components and use it everywhere.
 
 **The unknown treatment.** When a metric-derived indicator's inputs pass their freshness threshold, it does not show its last value in green. It shows a cross-hatched tint (`--status-unknown-tint` with a 45-degree 1px hatch), the label "Unknown," and the age chip explaining why. Manually assessed delivery and commercial statuses behave differently, per the doc: they keep their color but gain a dotted outline and an age chip once past the 30-day reassessment interval.
 
+**The cross-hatch carries a second meaning: withheld.** Suppressed cohorts under the privacy floor, attendance the system refuses to guess (Stage 13), and coverage the sources cannot support (Stage 14) render with the same hatch (`.unknown-chip`, `.unknown-fill`) and always with the reason in text. Stale and withheld are deliberately the same weight — both mean "do not read a value here" — and the reason text is what distinguishes them. A withheld value rendered as plain prose is a defect, not a simplification.
+
 **The attention rail.** On Today, each row carries a 2px leading edge colored by **urgency band** (the queue's ranking band, which is what the operator scans by — trigger class proved too granular to read as a color). Beside it, the reason renders as 11px plain text, because the doc requires every item to explain itself and a colored bar explains nothing.
 
 ---
@@ -368,6 +376,14 @@ All inherit the tokens; none introduce a palette.
 - **Suppressed cells** (cohort below the account's minimum size) use the standard cross-hatched unknown treatment with the reason, never a zero.
 - **Semantic table**, `scope`-associated row and column headers, arrow-key cell navigation, and a per-cell accessible name reading population, use case, state, paid seats, and density — the map is usable without seeing it.
 - **D-70 extends here:** the heatmap is a status surface, so the budget waterfall never shares its card or panel.
+
+**Evidence and grounding surfaces (Stages 12–14).** The copilot, campaign measurement, and company-intelligence work introduced a shared visual vocabulary; it is authority now, not convention:
+
+- **Evidence coverage is a word, never a number.** `supported / partial / conflicted / insufficient` render as badges (color + label). A numeric confidence badge, score, or percentage of certainty is prohibited anywhere in the app — the Stage 12 rule generalized.
+- **Citations** are mono chips (`[p001]`) attached to the bullet they support; a factual line without one does not ship. Source rows expose the snapshot fields behind the claim.
+- **Span quotes** — an exact public-source excerpt — render as a bordered blockquote carrying publisher, date (with age chip), and locator. The quote is evidence; it never restyles as decoration.
+- **Proposal lifecycle glyphs**: `◇ proposed · ● confirmed · × dismissed · ! invalidated`, always glyph *and* label. Proposed records are visually review material and never blend into confirmed content.
+- **The outside-in marker** (`⚑ n` on whitespace headers) is annotation, never state: it must not alter cell hue, glyph, or derived state, must be focusable, and must carry its summaries in the accessible name — hover-only tooltips cannot be the sole path to content.
 
 ---
 
@@ -394,16 +410,18 @@ Copy is design material and moves with this work. Buttons name the outcome, and 
 Ship none of this without all of it.
 
 - 4.5:1 contrast minimum on every text and icon pairing, audited separately in light and dark, including every tint-on-surface combination.
-- Visible keyboard focus on every interactive element, verified by tabbing through each screen in both themes.
+- Visible keyboard focus on every interactive element, verified by tabbing through each screen in both themes. The mechanism is global and lives in `index.css`: `:focus-visible` gets a 2px `--accent` outline, and text inputs swap it for the accent border + 3px `--accent-ring`. A component that suppresses it must replace it with something at least as visible.
 - No state conveyed by color alone; every status pairs color with a shape or a label.
 - Real semantic tables (`table`, `thead`, `th` with `scope`) so assistive tech gets the relationships. Full keyboard operation of Today, the Ledger, and the palette.
 - No flash of incorrect theme on load.
-- `prefers-reduced-motion` and `color-scheme` both honored.
-- Readable at 1280px and usable split-screen beside a video call at roughly 900px, where the rail collapses to icons. This is not a phone app.
+- `prefers-reduced-motion` and `color-scheme` both honored — the reduce block in `index.css` collapses every transition and animation to effectively instant; `color-scheme` is set per theme in `tokens.css`.
+- Readable at 1280px and usable split-screen beside a video call at roughly 900px, where the rail auto-collapses to icons (below 1000px; the operator can re-expand). Containers scroll horizontally when content is genuinely wider — `overflow: hidden` that clips table columns is a defect. This is not a phone app.
 
 ---
 
 ## 12. Work order
+
+**Historical — Phases A–H shipped.** Retained because the discipline it encodes (independently revertible steps, tests green throughout, before/after both-theme screenshots) is the template for any future visual work. The §11 audit is now executable rather than aspirational: the D-113 review walked every screen's computed styles in both themes programmatically — contrast ratios, overflow, focus — and that is the standing verification method for any change that touches tokens or shared components.
 
 One phase per pull request, each independently revertible, tests green at every step. Capture before-and-after screenshots of Today, an account Overview, the Ledger, and the graph, in both themes from Phase B onward.
 

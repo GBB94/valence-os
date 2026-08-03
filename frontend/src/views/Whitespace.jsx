@@ -327,7 +327,10 @@ function Legend() {
 function OutsideMarker({ events }) {
   if (!events?.length) return null;
   const title = events.map((event) => event.summary).join("\n");
-  return <span className="badge" title={title} aria-label={`${events.length} confirmed outside-in event${events.length === 1 ? "" : "s"}`}
+  // Focusable, and the aria-label carries the summaries themselves: the content must not
+  // exist only behind a hover-only title tooltip.
+  return <span className="badge" title={title} tabIndex={0}
+    aria-label={`${events.length} confirmed outside-in event${events.length === 1 ? "" : "s"}: ${title.replaceAll("\n", "; ")}`}
     style={{ marginLeft: 6, whiteSpace: "nowrap" }}>⚑ {events.length}</span>;
 }
 
@@ -617,11 +620,11 @@ const reconBar = {
 };
 const cellBtn = {
   width: "100%", display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start",
-  padding: "7px 8px", borderRadius: "var(--radius-sm, 4px)", border: "1px solid",
+  padding: "7px 8px", borderRadius: "var(--r-sm)", border: "1px solid",
   cursor: "pointer", textAlign: "left", color: "var(--ink-primary)",
 };
 const emptyCell = {
-  width: "100%", padding: "7px 8px", borderRadius: "var(--radius-sm, 4px)",
+  width: "100%", padding: "7px 8px", borderRadius: "var(--r-sm)",
   border: "1px dashed var(--line-hairline)", background: "transparent",
   color: "var(--ink-tertiary)", cursor: "pointer",
 };
@@ -631,13 +634,13 @@ const legendWrap = {
 };
 const legendItem = { display: "inline-flex", alignItems: "center", gap: 5 };
 const sel = {
-  padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
-  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  padding: "6px 8px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",
   color: "var(--ink-primary)",
 };
 const ta = {
-  width: "100%", padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
-  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  width: "100%", padding: "6px 8px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",
   color: "var(--ink-primary)", fontFamily: "inherit", fontSize: 13,
 };
 const h4 = { margin: "0 0 6px", fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em",

@@ -79,7 +79,7 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
               <div style={{ position: "relative", flex: 1, height: 46 }}>
                 {/* lane baseline + today marker */}
                 <div style={{ position: "absolute", top: 23, left: 0, right: 0, height: 1, background: "var(--line-hairline)" }} />
-                <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--accent)", opacity: 0.5 }} title="today" />
+                <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--data-1)", opacity: 0.5 }} title="today" />
                 {markers.filter((m) => m.lane === lane).sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
                   <div key={i} style={{ position: "absolute", left: pct(m.date), top: 23, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
                     <Marker kind={m.kind} status={m.status} />
@@ -92,11 +92,12 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
             </div>
           ))}
           <div className="rowmeta" style={{ marginTop: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <span><Marker kind="milestone" /> milestone (green=complete)</span>
+            <span><Marker kind="milestone" status="complete" /> milestone complete</span>
+            <span><Marker kind="milestone" /> milestone due</span>
             <span><Marker kind="moment" /> deployment moment</span>
             <span><Marker kind="comms" /> comms</span>
             <span><Marker kind="renewal" /> renewal</span>
-            <span style={{ color: "var(--accent)" }}>│ today</span>
+            <span style={{ color: "var(--data-1)" }}>│ today</span>
           </div>
         </div>
       )}
@@ -106,10 +107,13 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
 
 function Marker({ kind, status }) {
   if (kind === "milestone") {
-    const c = status === "complete" ? "var(--status-ok)" : "var(--status-warn)";
-    return <span style={{ display: "inline-block", width: 12, height: 12, background: c, transform: "rotate(45deg)", verticalAlign: "middle" }} />;
+    // Complete = filled, due = hollow: the shape difference carries the state, never hue alone.
+    const done = status === "complete";
+    return <span style={{ display: "inline-block", width: 12, height: 12, transform: "rotate(45deg)", verticalAlign: "middle",
+      background: done ? "var(--status-ok)" : "transparent",
+      border: done ? "0" : "2px solid var(--status-warn)", boxSizing: "border-box" }} />;
   }
-  if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--accent)", verticalAlign: "middle" }} />;
+  if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--data-1)", verticalAlign: "middle" }} />;
   if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--data-2)", verticalAlign: "middle" }} />;
   return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--ink-secondary)", verticalAlign: "middle" }} />;
 }

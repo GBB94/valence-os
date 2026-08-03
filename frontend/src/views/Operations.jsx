@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { useToast, fmtDate } from "../ui";
+import { AgeChip, useToast, fmtDate } from "../ui";
 
 // Operations screen (Module P): say when the tool is broken without reading server logs.
 export default function Operations({ reloadKey }) {
@@ -56,7 +56,7 @@ export default function Operations({ reloadKey }) {
           </div><div className="rowmeta" style={{ marginTop: 6 }}>Active convergence: {ops.company_intelligence?.active_convergences || 0}</div></div>
         </div>
         {!!ops.company_intelligence?.source_freshness?.length && <table><thead><tr><th>Source class</th><th>Latest retrieval</th><th>Documents</th><th>Retracted</th></tr></thead>
-          <tbody>{ops.company_intelligence.source_freshness.map((row) => <tr key={row.source_class}><td>{row.source_class.replaceAll("_", " ")}</td><td>{fmtDate(row.latest_retrieval)}</td><td>{row.documents}</td><td>{row.retracted}</td></tr>)}</tbody></table>}
+          <tbody>{ops.company_intelligence.source_freshness.map((row) => <tr key={row.source_class}><td>{row.source_class.replaceAll("_", " ")}</td><td>{fmtDate(row.latest_retrieval)} <AgeChip date={row.latest_retrieval} /></td><td className="mono">{row.documents}</td><td className="mono">{row.retracted}</td></tr>)}</tbody></table>}
       </div>
 
       <h2>Campaign learning</h2>
@@ -171,7 +171,7 @@ export default function Operations({ reloadKey }) {
         {ops.source_freshness.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No metric sources.</div> : (
           <table><thead><tr><th>Metric</th><th style={{ width: 150 }}>Current through</th><th style={{ width: 100 }}>State</th></tr></thead>
             <tbody>{ops.source_freshness.map((f, i) => (
-              <tr key={i}><td>{f.metric}</td><td className="rowmeta">{fmtDate(f.current_through)}</td>
+              <tr key={i}><td>{f.metric}</td><td className="rowmeta">{fmtDate(f.current_through)} <AgeChip date={f.current_through} /></td>
                 <td>{f.stale ? <span style={{ color: "var(--status-warn)" }}>⚠ stale</span> : <span style={{ color: "var(--status-ok)" }}>fresh</span>}</td></tr>
             ))}</tbody></table>
         )}

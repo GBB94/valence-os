@@ -379,7 +379,7 @@ function Metric({ label, value }) {
     <Card>
       <div style={{ padding: 14 }}>
         <div className="rowmeta">{label}</div>
-        <div style={{ fontSize: "var(--t-display)", fontWeight: 650 }}>
+        <div className="metric-value">
           {value}
         </div>
       </div>

@@ -320,7 +320,7 @@ const countsBar = {
 const countChip = { display: "inline-flex", alignItems: "center", gap: 5 };
 const lbl = { display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, fontSize: 13 };
 const sel = {
-  padding: "6px 8px", borderRadius: "var(--radius-sm, 4px)",
-  border: "1px solid var(--line-hairline)", background: "var(--surface-1, transparent)",
+  padding: "6px 8px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--line-hairline)", background: "var(--bg-surface)",
   color: "var(--ink-primary)",
 };
