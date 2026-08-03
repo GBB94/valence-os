@@ -1,6 +1,6 @@
 # Valence OS account command center and unified activity specification
 
-**Status:** Slices 2.0–2.1 implemented; Slices 2.2–2.4 specified, 2026-08-03
+**Status:** Slices 2.0–2.2 implemented; Slices 2.3–2.4 specified, 2026-08-03
 
 **Parent authority:** `UX-FOUNDATION-SPEC.md`
 
@@ -104,7 +104,7 @@ Rules:
 - Marking changes reviewed advances only the visible account/program scope and only to the response's frozen `data_current_through` timestamp, never to the client clock at click time.
 - A section can say “No material changes since …” only after all required adapters succeeded. Partial coverage names the omitted sources.
 
-### 5.2 Prepare — thin first, complete second
+### 5.2 Prepare — implemented
 
 Prepare starts with the next upcoming associated meeting. The operator may select another upcoming or recently completed meeting from the account calendar. With no meeting selected or available, it shows a meeting selector and an explicit no-associated-meeting state; it does not fabricate an agenda.
 
@@ -117,7 +117,7 @@ For a selected meeting, the order is:
 5. **Evidence gaps** — stale, missing, conflicted, or insufficient inputs that would weaken the conversation.
 6. **Suggested preparation actions** — explicit buttons to log an interaction, open the existing deterministic pre-call brief, or open Copilot with a meeting-preparation intent. Nothing runs automatically.
 
-The first thin version may omit attendee-filtered change synthesis and show account-level recent activity instead, but it must label that wider scope. Meeting identity, attendee resolution, open threads, and evidence gaps are required before Prepare is considered complete.
+The implemented version filters recent context to attendee relationships supported by the native record, excludes the baseline last-touch interaction, names partial activity coverage, and falls back to an explicit evidence gap when a relationship cannot be established. Meeting selection and brief preview are reads: opening Prepare never creates a document, sends a brief, or mutates canonical records.
 
 ### 5.3 Leadership — thin first, complete second
 
@@ -438,6 +438,16 @@ Required states:
 - A program-scoped review cannot clear changes from another program or direct account-level changes.
 - Last visit advances only after a successful command-center read and remains independent of explicit review.
 - Account-scoped Copilot review and command-center review share the same latest durable checkpoint.
+
+### Prepare
+
+- With no explicit selection, the next upcoming associated meeting is selected; otherwise the latest recent meeting is used.
+- Program scope includes direct account meetings but excludes meetings owned by other programs.
+- An explicit out-of-scope meeting fails closed without disclosing the other meeting and is removed from the URL.
+- Unknown invitees remain unknown; attendee identity, stakeholder role, stance, and last touch are never inferred from names or email text.
+- Recent context is attendee-related only where a canonical relationship supports it, and the baseline last-touch interaction is not repeated as a change.
+- Open threads, evidence gaps, and brief eligibility are deterministic and scoped to the selected account and program.
+- Opening Prepare and previewing a pre-call brief perform no write, generation, send, or document persistence.
 
 ### Trust and regression
 

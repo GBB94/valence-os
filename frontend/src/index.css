@@ -395,11 +395,42 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .command-load-error { padding: var(--sp-5); }
 .command-load-error .empty { padding-top: var(--sp-4); }
 
+/* Prepare lens — meeting identity first, then people/context/threads/gaps. */
+.prepare-selector select {
+  max-width: min(620px, 60vw); height: 30px; border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm); padding: 0 var(--sp-4); background: var(--bg-surface);
+}
+.prepare-identity {
+  display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(5, minmax(120px, 1fr));
+  gap: var(--sp-6); padding: var(--sp-6); border-bottom: 1px solid var(--line-hairline);
+}
+.prepare-actions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-4); padding: var(--sp-5) var(--sp-6);
+}
+.prepare-source-link { display: inline-flex; align-items: center; }
+.prepare-table-wrap { overflow-x: auto; }
+.prepare-table-wrap table { min-width: 820px; }
+.prepare-stance { margin-top: var(--sp-2); }
+.prepare-gaps { display: flex; flex-direction: column; }
+.prepare-gap {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--sp-4);
+  align-items: start; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--line-hairline);
+}
+.prepare-gap:last-child { border-bottom: 0; }
+.prepare-gap .unknown-hatch { margin-top: var(--sp-2); }
+.prepare-inline-callout { margin: var(--sp-5); }
+.prepare-preview-section { margin-top: var(--sp-6); }
+.prepare-preview-section h2 { margin-top: 0; }
+.prepare-preview-section ul { margin: var(--sp-4) 0 0; padding-left: var(--sp-7); }
+.prepare-preview-person { padding: var(--sp-4) var(--sp-5); }
+.prepare-preview-person + .prepare-preview-person { margin-top: var(--sp-3); }
+
 @media (max-width: 1000px) {
   .command-grid, .leadership-grid { grid-template-columns: minmax(0, 1fr); }
   .command-center-head { flex-wrap: wrap; }
   .command-center-head .spacer { display: none; }
   .command-head-actions { width: 100%; justify-content: flex-start; }
+  .prepare-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
@@ -408,4 +439,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .command-row-time { min-width: auto; text-align: left; }
   .command-date { width: auto; }
   .command-row > .btn { margin-left: auto; }
+  .prepare-selector .card-h { align-items: stretch; flex-direction: column; }
+  .prepare-selector select { max-width: none; width: 100%; }
+  .prepare-identity { grid-template-columns: minmax(0, 1fr); }
 }

@@ -42,6 +42,20 @@ export const api = {
     const qs = p.toString();
     return req("GET", `/api/accounts/${id}/command-center${qs ? "?" + qs : ""}`);
   },
+  meetingPrep: (id, { programId = "", meetingId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (meetingId) p.set("meeting_id", meetingId);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center/prepare${qs ? "?" + qs : ""}`);
+  },
+  meetingBrief: (id, { programId = "", personIds = [] } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (personIds.length) p.set("person_ids", personIds.join(","));
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/pre-call-brief${qs ? "?" + qs : ""}`);
+  },
   accountActivity: (id, filters = {}) => {
     const p = new URLSearchParams();
     const keys = {

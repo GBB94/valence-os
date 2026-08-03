@@ -220,3 +220,125 @@ def test_activity_and_operate_endpoints_expose_coverage_attention_and_truth_stat
         "program_id": program["id"],
     }).json()
     assert all(item["program_id"] is None for item in after["changes_since_review"])
+
+
+def test_prepare_selects_scoped_meeting_without_guessing_attendees(client):
+    account = client.post("/api/accounts", json={"name": "Prepare Synthetic"}).json()
+    program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Europe", "phase": "launch",
+    }).json()
+    other_program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Americas", "phase": "foundation",
+    }).json()
+    customer = client.post("/api/persons", json={
+        "name": "Dana Customer", "email": "dana@example.com",
+        "account_id": account["id"], "affiliation": "client",
+    }).json()
+    owner = client.post("/api/persons", json={
+        "name": "Val Owner", "email": "owner@valence.example", "affiliation": "valence",
+    }).json()
+    role = client.post("/api/stakeholder-roles", json={
+        "program_id": program["id"], "person_id": customer["id"], "role": "program_owner",
+        "stance": "supporter", "stance_assessed_on": utc_day(-2),
+        "stance_evidence_note": "Confirmed in governance", "cares_about": "launch readiness",
+    })
+    assert role.status_code == 201, role.text
+    client.post("/api/interactions", json={
+        "account_id": account["id"], "program_id": program["id"], "type": "call",
+        "occurred_on": utc_day(-5), "summary": "Resolved the rollout sequence",
+        "participant_ids": [customer["id"]],
+    })
+    meeting = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": program["id"], "purpose": "qbr",
+        "title": "Europe governance review", "starts_at": f"{utc_day(2)}T15:00:00+00:00",
+        "ends_at": f"{utc_day(2)}T16:00:00+00:00", "location": "Video",
+        "organizer_email": "owner@valence.example",
+    }).json()
+    # General calendar attendees arrive through the read-only calendar adapter; the Stage 13
+    # attendee endpoint deliberately accepts only cohort webinar/office-hours outcomes.
+    with client.app.state.conn:
+        client.app.state.conn.execute(
+            "INSERT INTO calendar_event_attendees "
+            "(event_id,person_id,name,email,response_status,attendance_status,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (meeting["id"], customer["id"], customer["name"], "dana@example.com",
+             "accepted", "invited", meeting["created_at"]),
+        )
+        client.app.state.conn.execute(
+            "INSERT INTO calendar_event_attendees "
+            "(event_id,person_id,name,email,response_status,attendance_status,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (meeting["id"], owner["id"], owner["name"], "owner@valence.example",
+             "accepted", "invited", meeting["created_at"]),
+        )
+        client.app.state.conn.execute(
+            "INSERT INTO calendar_event_attendees "
+            "(event_id,person_id,name,email,response_status,attendance_status,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (meeting["id"], None, "Mystery Guest", "mystery@example.com",
+             "unknown", "unknown", meeting["created_at"]),
+        )
+    commitment = client.post("/api/commitments", json={
+        "account_id": account["id"], "program_id": program["id"],
+        "description": "Confirm QBR decision", "responsible_party_id": customer["id"],
+        "internal_owner_id": owner["id"], "due_date": utc_day(1),
+    })
+    assert commitment.status_code == 201, commitment.text
+    blocker = client.post("/api/risks", json={
+        "program_id": program["id"], "description": "Executive agenda is blocked",
+        "severity": "high", "is_blocker": True,
+    })
+    assert blocker.status_code == 201, blocker.text
+
+    other_meeting = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": other_program["id"], "purpose": "other",
+        "title": "Americas review", "starts_at": f"{utc_day(3)}T15:00:00+00:00",
+    }).json()
+    response = client.get(f"/api/accounts/{account['id']}/command-center/prepare", params={
+        "program_id": program["id"],
+    })
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["selected_meeting"]["id"] == meeting["id"]
+    assert {row["id"] for row in data["meetings"]} == {meeting["id"]}
+    attendees = {row["email"]: row for row in data["attendees"]}
+    assert attendees["dana@example.com"]["association_state"] == "resolved"
+    assert attendees["dana@example.com"]["role"]["effective_role"] == "program_owner"
+    assert attendees["dana@example.com"]["last_meaningful_touch"]["summary"].startswith("Resolved")
+    assert attendees["mystery@example.com"]["association_state"] == "unknown"
+    assert attendees["mystery@example.com"]["person_id"] is None
+    assert data["brief_person_ids"] == [customer["id"]]
+    assert data["context_window"]["starts_on"] == utc_day(-5)
+    assert data["context_window"]["basis"].startswith("earliest last meaningful touch")
+    assert any(item["source_type"] == "commitment" for item in data["recent_context"])
+    assert all(item["summary"] != "Resolved the rollout sequence" for item in data["recent_context"])
+    assert {row["kind"] for row in data["open_threads"]} >= {"commitment", "risk"}
+    assert "unknown_attendee" in {gap["kind"] for gap in data["evidence_gaps"]}
+    assert client.get("/api/documents", params={"account_id": account["id"]}).json() == []
+
+    account_meeting = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "purpose": "governance", "title": "Account governance",
+        "starts_at": f"{utc_day(4)}T15:00:00+00:00",
+    }).json()
+    direct_account_scope = client.get(
+        f"/api/accounts/{account['id']}/command-center/prepare",
+        params={"program_id": program["id"], "meeting_id": account_meeting["id"]},
+    )
+    assert direct_account_scope.status_code == 200
+    assert direct_account_scope.json()["selected_meeting"]["program_id"] is None
+
+    out_of_scope = client.get(
+        f"/api/accounts/{account['id']}/command-center/prepare",
+        params={"program_id": program["id"], "meeting_id": other_meeting["id"]},
+    )
+    assert out_of_scope.status_code == 422
+    brief = client.get(f"/api/accounts/{account['id']}/pre-call-brief", params={
+        "program_id": program["id"], "person_ids": customer["id"],
+    })
+    assert brief.status_code == 200 and [row["person_id"] for row in brief.json()["attendees"]] == [customer["id"]]
+    assert client.get("/api/documents", params={"account_id": account["id"]}).json() == []
+
+    empty_account = client.post("/api/accounts", json={"name": "No Meetings Synthetic"}).json()
+    empty = client.get(f"/api/accounts/{empty_account['id']}/command-center/prepare")
+    assert empty.status_code == 200 and empty.json()["selected_meeting"] is None
+    assert empty.json()["evidence_gaps"][0]["kind"] == "meeting_not_recorded"

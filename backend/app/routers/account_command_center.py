@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 
-from .. import account_activity, account_command_center
+from .. import account_activity, account_command_center, account_prepare
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api/accounts", tags=["account-command-center"])
@@ -78,6 +78,18 @@ def command_center(
             raise HTTPException(422, "recorded_after must be an ISO-8601 UTC timestamp") from exc
     return account_command_center.build_command_center(
         conn, account_id, program_id=program_id, recorded_after=recorded_after
+    )
+
+
+@router.get("/{account_id}/command-center/prepare")
+def prepare(
+    account_id: str,
+    program_id: str | None = None,
+    meeting_id: str | None = None,
+    conn: sqlite3.Connection = Depends(get_conn),
+):
+    return account_prepare.build_meeting_prep(
+        conn, account_id, program_id=program_id, meeting_id=meeting_id
     )
 
 

@@ -210,6 +210,14 @@ function Shell() {
       meetingId: lens === "prepare" ? n.meetingId : undefined,
     }), { replace });
   }, [go]);
+  const setCommandCenterMeeting = useCallback((meetingId, { replace = false } = {}) => {
+    go((n) => ({
+      ...n,
+      tab: "overview",
+      lens: "prepare",
+      meetingId: meetingId || undefined,
+    }), { replace });
+  }, [go]);
   const setProgramFilter = useCallback((programId, options) => {
     go((n) => ({ ...n, programId: programId || undefined }), options);
   }, [go]);
@@ -340,6 +348,7 @@ function Shell() {
             reloadKey={reloadKey}
             setTab={setTab}
             setCommandCenterLens={setCommandCenterLens}
+            setCommandCenterMeeting={setCommandCenterMeeting}
             setProgramFilter={setProgramFilter}
             openAccount={openAccount}
             onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
@@ -472,7 +481,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, reloadKey, setTab, setCommandCenterLens, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -515,7 +524,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
       <div className="content">
         {tab === "overview" && (
           <AccountCommandCenter accountId={accountId} programId={programId} lens={lens} meetingId={meetingId}
-            reloadKey={reloadKey} onLensChange={setCommandCenterLens}
+            reloadKey={reloadKey} onLensChange={setCommandCenterLens} onMeetingChange={setCommandCenterMeeting}
             onOpenTarget={(target) => setTab(target?.tab || "overview")}
             onQuickEntry={(aid) => onQuickEntry(aid, programId)} onSaved={onSaved}
             onOpenCopilot={openCopilot} />

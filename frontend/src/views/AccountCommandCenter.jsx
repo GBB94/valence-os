@@ -6,6 +6,7 @@ import {
 import {
   readLastVisit, resolveCommandCenterLens, writeLastVisit, writePreferredLens,
 } from "../accountCommandCenter";
+import MeetingPrepare from "./MeetingPrepare";
 
 const LENSES = [
   ["operate", "Operate"],
@@ -174,29 +175,6 @@ function OperateLens({ data, firstVisit, reviewing, onMarkReviewed, onOpenTarget
   );
 }
 
-function PrepareLens({ data, meetingId, onOpenTarget }) {
-  const meetings = data.upcoming.filter((item) => item.source_type === "calendar");
-  return (
-    <div className="command-grid">
-      <div className="command-main stack">
-        <Section title="Upcoming meetings" meta={meetingId ? "Meeting link preserved in this view" : "Choose the next customer moment"}>
-          <UpcomingRows items={meetings} onOpenTarget={onOpenTarget} />
-        </Section>
-        <Section title="What changed" meta="Material changes that may alter the conversation">
-          <ActivityRows items={data.changes_since_review} emptyTitle="No new material changes"
-            emptyBody="The last reviewed position is still current." onOpenTarget={onOpenTarget} />
-        </Section>
-      </div>
-      <aside className="command-side stack">
-        <Section title="Open loops" meta="Items to settle before the meeting">
-          <AttentionRows items={data.attention} onOpenTarget={onOpenTarget} />
-        </Section>
-        <div className="callout">Attendee context, meeting objectives, and a governed briefing artifact are the next Prepare increment.</div>
-      </aside>
-    </div>
-  );
-}
-
 function LeadershipLens({ data, onOpenTarget, onOpenCopilot }) {
   return (
     <div className="leadership-grid">
@@ -258,7 +236,7 @@ function NewProgram({ accountId, onClose, onCreated }) {
 
 export default function AccountCommandCenter({
   accountId, programId, lens, meetingId, reloadKey, onLensChange, onQuickEntry,
-  onOpenTarget, onSaved, onOpenCopilot,
+  onMeetingChange, onOpenTarget, onSaved, onOpenCopilot,
 }) {
   const toast = useToast();
   const activeLens = useMemo(() => resolveCommandCenterLens(lens, window.localStorage), [lens]);
@@ -363,7 +341,9 @@ export default function AccountCommandCenter({
         className="command-panel">
         {activeLens === "operate" && <OperateLens data={data} firstVisit={!priorVisit} reviewing={reviewing}
           onMarkReviewed={markReviewed} onOpenTarget={onOpenTarget} />}
-        {activeLens === "prepare" && <PrepareLens data={data} meetingId={meetingId} onOpenTarget={onOpenTarget} />}
+        {activeLens === "prepare" && <MeetingPrepare accountId={accountId} programId={programId}
+          meetingId={meetingId} onMeetingChange={onMeetingChange} onOpenTarget={onOpenTarget}
+          onQuickEntry={onQuickEntry} onOpenCopilot={onOpenCopilot} />}
         {activeLens === "leadership" && <LeadershipLens data={data} onOpenTarget={onOpenTarget} onOpenCopilot={onOpenCopilot} />}
       </div>
 
