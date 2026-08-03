@@ -1,6 +1,6 @@
 # Valence OS account command center and unified activity specification
 
-**Status:** Slices 2.0–2.3 implemented; Slice 2.4 specified, 2026-08-03
+**Status:** Release 2 Slices 2.0–2.4 implemented, 2026-08-03
 
 **Parent authority:** `UX-FOUNDATION-SPEC.md`
 
@@ -243,9 +243,11 @@ Query parameters:
 
 - `program_id`
 - repeatable `stream`
+- repeatable `source_type`
 - repeatable `event_kind`
 - `state`
 - `direction=past|future|all`
+- `materiality=material|context`
 - `recorded_after`
 - `display_from`, `display_to`
 - `cursor`, `limit` (default 50, maximum 200)
@@ -262,9 +264,13 @@ Response:
     "omitted": []
   },
   "items": [],
-  "next_cursor": null
+  "next_cursor": null,
+  "facets": {},
+  "matched_count": 0
 }
 ```
+
+The stamp also returns `projection_duration_ms` plus one `adapter_metrics` entry per requested adapter with status, item count, and duration. These are read evidence, not persisted telemetry or an SLA. Facets describe the complete scoped projection before active filters, so a filter control cannot disappear merely because it is selected.
 
 Cursor ordering is `(display_at DESC, recorded_at DESC, id DESC)` for past activity and `(display_at ASC, recorded_at ASC, id ASC)` for future activity. Filter validation fails closed with 422. An invalid program or one outside the account returns 422.
 
@@ -414,6 +420,15 @@ Required states:
 - Record source coverage and query cost.
 - Reassess whether materialization or the five-job navigation is justified by measured behavior.
 
+Implemented evidence:
+
+- Ledger retains its mutable **Records** view and adds an **Activity** subview over the typed projection. No ninth account tab or parallel editor is introduced.
+- Activity exposes scoped stream, source, state, direction, and materiality filters; local search is explicitly limited to loaded pages; effective and recorded time remain separately visible; partial coverage is named; and every row opens its native record.
+- A source interaction and records created from it retain distinct activity IDs but render as one keyboard-operable expandable group when both are loaded.
+- Adapter coverage, item count, and elapsed projection time are returned per read. A 30-run read-only sample across all five seeded accounts (150 projections, ten adapters) measured 0.089 ms median, 0.235 ms p95, and 1.988 ms maximum, with 17 items on the largest account.
+- Those measurements do not justify materialization. The projection remains query-time and rebuildable; reconsider only with representative evidence of sustained latency or lock contention, not a speculative scale concern.
+- The five-job navigation remains directional. No product-usage evidence currently shows that replacing the eight established tabs would reduce task switching or improve completion, so Release 2 preserves the taxonomy and gathers experience through the Ledger subview.
+
 ## 14. Acceptance criteria
 
 ### Shared command center
@@ -459,6 +474,16 @@ Required states:
 - Active asks name the requested party/function, owner, deadline, escalation state, and explicit next action.
 - Cross-account person and leadership-ask references fail closed, and another account's labels never enter the response.
 - Opening Leadership performs no checkpoint, document, draft, send, or other mutation.
+
+### Activity consumer and evidence review
+
+- Records retains all existing capture, conversion, close/resolve, and mutual-plan actions; Activity is a read-only sibling view.
+- Activity filters fail closed, facets remain scoped, same-day datetime range filtering is correct, and future/past ordering follows the documented tuple.
+- Cursor pages concatenate to the same stable order as one unpaginated response, and `matched_count` remains the pre-cursor total.
+- Direct account records remain visible in a program filter while another program's records remain absent.
+- Every adapter reports covered/omitted state, item count, and elapsed duration; an adapter failure produces explicit partial coverage rather than a qualified-empty success.
+- Interaction groups never merge distinct facts: origin and derived rows retain stable IDs, native targets, temporal semantics, and independent selection.
+- Current measurements and the absence of usage evidence support neither a materialized activity table nor the five-job navigation rewrite.
 
 ### Trust and regression
 

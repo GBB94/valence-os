@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Callable, Iterable
 from datetime import date, datetime, timedelta, timezone
+from time import perf_counter_ns
 from typing import Literal
 
 from fastapi import HTTPException
@@ -97,11 +98,15 @@ class ActivityItem(BaseModel):
     actor: str | None = None
     owner: str | None = None
     participants: list[ActivityParticipant] = Field(default_factory=list)
+    group_id: str | None = None
+    group_role: Literal["origin", "derived"] | None = None
     source_reference: ActivitySourceReference | None = None
     native_target: ActivityNativeTarget
 
     @model_validator(mode="after")
     def validate_times(self):
+        if bool(self.group_id) != bool(self.group_role):
+            raise ValueError("group_id and group_role must be present together")
         try:
             if self.temporal_precision == "date":
                 if len(self.display_at) != 10:
@@ -125,11 +130,22 @@ class ActivityStamp(BaseModel):
     as_of: str
     coverage: list[str]
     omitted: list[str]
+    projection_duration_ms: float = Field(ge=0)
+    adapter_metrics: list["ActivityAdapterMetric"]
 
     @field_validator("generated_at", "data_current_through", "as_of")
     @classmethod
     def utc_timestamps(cls, value: str) -> str:
         return _validate_utc_timestamp(value)
+
+
+class ActivityAdapterMetric(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: str
+    status: Literal["covered", "omitted"]
+    item_count: int = Field(ge=0)
+    duration_ms: float = Field(ge=0)
 
 
 class ActivityProjection(BaseModel):
@@ -296,15 +312,27 @@ def project_account_activity(
     if unknown:
         raise ValueError(f"unknown activity adapter(s): {', '.join(unknown)}")
 
+    started = perf_counter_ns()
     coverage: list[str] = []
     omitted: list[str] = []
+    metrics: list[ActivityAdapterMetric] = []
     items: list[ActivityItem] = []
     for name in requested:
+        adapter_started = perf_counter_ns()
         try:
-            items.extend(_ADAPTERS[name](conn, query))
+            adapter_items = list(_ADAPTERS[name](conn, query))
+            items.extend(adapter_items)
             coverage.append(name)
+            metrics.append(ActivityAdapterMetric(
+                adapter=name, status="covered", item_count=len(adapter_items),
+                duration_ms=round((perf_counter_ns() - adapter_started) / 1_000_000, 3),
+            ))
         except sqlite3.Error:
             omitted.append(name)
+            metrics.append(ActivityAdapterMetric(
+                adapter=name, status="omitted", item_count=0,
+                duration_ms=round((perf_counter_ns() - adapter_started) / 1_000_000, 3),
+            ))
     items.sort(key=lambda item: (item.display_at, item.recorded_at, item.id), reverse=True)
     return ActivityProjection(
         stamp=ActivityStamp(
@@ -313,6 +341,8 @@ def project_account_activity(
             as_of=stamp,
             coverage=coverage,
             omitted=omitted,
+            projection_duration_ms=round((perf_counter_ns() - started) / 1_000_000, 3),
+            adapter_metrics=metrics,
         ),
         items=items,
     )
@@ -392,6 +422,8 @@ def interaction_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list
             materiality="material" if meaningful else "context",
             reason=reason,
             participants=participants,
+            group_id=f"interaction:{row['id']}",
+            group_role="origin",
             source_reference=_source_reference(conn, row["source_reference_id"]),
             native_target=ActivityNativeTarget(
                 tab="ledger", record_type="interaction", record_id=row["id"]
@@ -457,6 +489,8 @@ def _execution_created(
         status=status,
         reason=reason,
         owner=owner,
+        group_id=(f"interaction:{row['source_interaction_id']}" if row.get("source_interaction_id") else None),
+        group_role=("derived" if row.get("source_interaction_id") else None),
         native_target=ActivityNativeTarget(
             tab="ledger", record_type=source_type, record_id=row["id"]
         ),
@@ -552,6 +586,8 @@ def execution_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[A
             temporal_precision=precision, direction=_direction(value, query.as_of), materiality="material",
             status=row["status"], reason="A governed decision was recorded",
             actor=decider["name"] if decider else None,
+            group_id=(f"interaction:{row['source_interaction_id']}" if row.get("source_interaction_id") else None),
+            group_role=("derived" if row.get("source_interaction_id") else None),
             source_reference=_source_reference(conn, row.get("source_reference_id")),
             native_target=ActivityNativeTarget(tab="ledger", record_type="decision", record_id=row["id"]),
         ))

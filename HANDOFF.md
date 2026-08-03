@@ -2,7 +2,7 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
-## Account command center Release 2 — Slices 2.0–2.3 implemented (2026-08-03, D-117–D-121)
+## Account command center Release 2 — implemented (2026-08-03, D-117–D-122)
 
 Account Overview is now one addressable Operate/Prepare/Leadership command center over a shared account/program scope. Operate is complete: it separates material changes since durable review from browser-local changes since visit, exposes deterministic overdue/blocker/status/ask/review attention with reasons, orders confirmed upcoming account moments, and shows the latest dated operator point of view. Sections default to five rows, name partial adapter coverage, retain exact temporal and trust state, and link back to native workspace tabs. Export, capture, program creation, People/Plan reachability, and governed status editing remain available.
 
@@ -12,7 +12,9 @@ Leadership is complete as a read-only internal review, not a second forecast or 
 
 The typed query-time projection now covers interactions, execution, status assessments, forecast transitions, internal asks, account reviews/operator views, calendar, deployment moments, communications, and company events. It remains rebuildable and structurally excludes raw notes. Proposed company events retain proposed state and cannot enter material change summaries. One append-only table stores per-actor account/program review checkpoints; a frozen server stamp prevents client-clock drift, equivalent UTC timestamp forms are idempotent, and account-scoped Copilot review advances the same cursor only when it is newer. Program review cannot clear another program or direct account activity. Export/restore includes the checkpoints.
 
-Validation: all 361 backend tests and 14 frontend unit tests pass; frontend lint exits zero with the repository's existing warnings; the production build succeeds. The in-app browser exposed no target, so no fresh both-theme rendered pass is claimed. `ACCOUNT-COMMAND-CENTER-SPEC.md` remains the authority; Slice 2.4 activity-consumer/evidence review is next.
+Slice 2.4 completes the consumer/evidence loop without changing taxonomy. Ledger now has a Records/Activity subview: Records preserves capture, conversion, closure, and mutual-plan actions; Activity is a read-only cross-source chronology with scoped stream/source/state/direction/materiality filters, explicitly loaded-page search, stable cursor pagination, separate effective and recorded time, native provenance, and partial-coverage states. Interaction origins and records created from them remain distinct facts inside an expandable group. The API returns scoped facets, pre-cursor matched count, and per-adapter status/item/time measurements. A read-only 30-run sample over all five seeded accounts (150 projections, ten adapters) measured 0.089 ms median, 0.235 ms p95, and 1.988 ms max, with 17 items on the largest account. There is no evidence for a materialized activity table. There is also no product-usage evidence for replacing the eight established tabs with the directional five-job model, so both changes remain deferred until measured behavior justifies them.
+
+Validation: all 363 backend tests and 14 frontend unit tests pass; frontend lint exits zero with the repository's existing warnings; the production build succeeds. The in-app browser exposed no target, so no fresh both-theme rendered pass is claimed. `ACCOUNT-COMMAND-CENTER-SPEC.md` remains the Release 2 authority; Release 3 stays directional rather than implicitly authorized.
 
 ## UX foundation Release 1 — implemented (2026-08-03, D-116)
 

@@ -66,6 +66,7 @@ export const api = {
     const p = new URLSearchParams();
     const keys = {
       programId: "program_id", recordedAfter: "recorded_after", eventKind: "event_kind",
+      sourceType: "source_type",
       displayFrom: "display_from", displayTo: "display_to", nextCursor: "cursor",
     };
     Object.entries(filters).forEach(([key, value]) => {

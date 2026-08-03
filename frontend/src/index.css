@@ -144,6 +144,20 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Scroll, never clip: at split-screen widths a hidden overflow silently amputates columns. */
 .ledger-list { overflow-x: auto; }
 .ledger-detail { min-height: 240px; padding: 16px; position: sticky; top: 16px; }
+.ledger-view-body { padding-top: var(--sp-5); }
+.activity-evidence { display: flex; align-items: flex-start; gap: var(--sp-5); justify-content: space-between; }
+.activity-diagnostics { max-width: 70%; text-align: right; }
+.activity-diagnostics summary { color: var(--accent); cursor: pointer; font-size: var(--t-small); }
+.activity-adapters { margin-top: var(--sp-3); flex-wrap: wrap; justify-content: flex-end; }
+.activity-filters { margin-bottom: 0; }
+.activity-filters .view-filter { flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+.activity-filters .view-filter input { min-width: 200px; }
+.activity-list table { min-width: 760px; }
+.activity-title { flex-wrap: wrap; }
+.activity-group-toggle { margin-left: auto; }
+.activity-linked-row td:first-child { padding-left: var(--sp-7); }
+.activity-linked-row { background: var(--bg-sunken); }
+.activity-ledger .ledger-detail .btn { margin-top: var(--sp-5); }
 tbody tr.sel { background: var(--bg-selected); }
 tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 tr.unknown-row td { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, var(--status-unknown-tint) 5px, var(--status-unknown-tint) 6px); }
@@ -464,6 +478,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .prepare-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .leadership-statuses { grid-template-columns: minmax(0, 1fr); }
   .leadership-status + .leadership-status { border-left: 0; border-top: 1px solid var(--line-hairline); }
+  .ledger { grid-template-columns: minmax(0, 1fr); }
+  .ledger-detail { position: static; }
+  .activity-evidence { flex-direction: column; }
+  .activity-diagnostics { max-width: none; text-align: left; }
+  .activity-adapters { justify-content: flex-start; }
 }
 
 @media (max-width: 640px) {

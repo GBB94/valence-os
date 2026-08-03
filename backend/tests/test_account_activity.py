@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app import account_activity
 from app.account_activity import ActivityItem, adapter_names, project_account_activity
 from conftest import utc_day
 
@@ -220,6 +221,137 @@ def test_activity_and_operate_endpoints_expose_coverage_attention_and_truth_stat
         "program_id": program["id"],
     }).json()
     assert all(item["program_id"] is None for item in after["changes_since_review"])
+
+
+def test_activity_filters_facets_metrics_and_cursor_order_are_stable(client):
+    account = client.post("/api/accounts", json={"name": "Activity Consumer"}).json()
+    program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Europe", "phase": "launch",
+    }).json()
+    other_program = client.post("/api/programs", json={
+        "account_id": account["id"], "name": "Americas", "phase": "foundation",
+    }).json()
+    customer = client.post("/api/persons", json={
+        "name": "Activity Customer", "account_id": account["id"], "affiliation": "client",
+    }).json()
+    colleague = client.post("/api/persons", json={
+        "name": "Activity Colleague", "affiliation": "valence",
+    }).json()
+    created_interactions = {}
+    for summary, participant_ids, meaningful, selected_program in (
+        ("Customer material", [customer["id"]], True, program["id"]),
+        ("Internal context", [colleague["id"]], False, program["id"]),
+        ("Direct account material", [customer["id"]], True, None),
+        ("Other program hidden", [customer["id"]], True, other_program["id"]),
+    ):
+        created_interactions[summary] = client.post("/api/interactions", json={
+            "account_id": account["id"], "program_id": selected_program,
+            "occurred_on": utc_day(-1), "type": "call", "summary": summary,
+            "meaningful_touch": meaningful, "participant_ids": participant_ids,
+        }).json()
+    linked_commitment = client.post("/api/commitments", json={
+        "account_id": account["id"], "program_id": program["id"],
+        "description": "Follow through from the customer touch",
+        "responsible_party_id": customer["id"], "internal_owner_id": colleague["id"],
+        "due_date": utc_day(4),
+        "source_interaction_id": created_interactions["Customer material"]["id"],
+    })
+    assert linked_commitment.status_code == 201, linked_commitment.text
+    early = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": program["id"], "purpose": "governance",
+        "title": "Earlier meeting", "starts_at": f"{utc_day(2)}T10:00:00+00:00",
+    }).json()
+    late = client.post("/api/calendar-events", json={
+        "account_id": account["id"], "program_id": program["id"], "purpose": "qbr",
+        "title": "Later meeting", "starts_at": f"{utc_day(3)}T10:00:00+00:00",
+    }).json()
+
+    base_params = [
+        ("program_id", program["id"]), ("direction", "past"),
+        ("source_type", "interaction"),
+    ]
+    full = client.get(f"/api/accounts/{account['id']}/activity", params=[*base_params, ("limit", "200")])
+    assert full.status_code == 200, full.text
+    body = full.json()
+    assert body["matched_count"] == 3
+    assert body["facets"]["source_types"]["interaction"] == 3
+    assert body["facets"]["source_types"]["calendar"] == 2
+    assert body["stamp"]["projection_duration_ms"] >= 0
+    assert len(body["stamp"]["adapter_metrics"]) == len(adapter_names())
+    interaction_metric = next(
+        item for item in body["stamp"]["adapter_metrics"] if item["adapter"] == "interaction"
+    )
+    assert interaction_metric["status"] == "covered" and interaction_metric["item_count"] == 3
+    assert interaction_metric["duration_ms"] >= 0
+    assert all("Other program hidden" not in str(item) for item in body["items"])
+    grouped_response = client.get(f"/api/accounts/{account['id']}/activity", params=[
+        ("program_id", program["id"]), ("direction", "all"),
+        ("source_type", "interaction"), ("source_type", "commitment"), ("limit", "200"),
+    ]).json()
+    group_id = f"interaction:{created_interactions['Customer material']['id']}"
+    grouped = [item for item in grouped_response["items"] if item.get("group_id") == group_id]
+    assert {item["group_role"] for item in grouped} == {"origin", "derived"}
+    assert {item["source_type"] for item in grouped} == {"interaction", "commitment"}
+
+    first = client.get(f"/api/accounts/{account['id']}/activity", params=[*base_params, ("limit", "2")]).json()
+    assert first["next_cursor"] and first["matched_count"] == 3
+    second = client.get(f"/api/accounts/{account['id']}/activity", params=[
+        *base_params, ("limit", "2"), ("cursor", first["next_cursor"]),
+    ]).json()
+    assert second["matched_count"] == 3 and second["next_cursor"] is None
+    assert [item["id"] for item in [*first["items"], *second["items"]]] == [
+        item["id"] for item in body["items"]
+    ]
+
+    context = client.get(f"/api/accounts/{account['id']}/activity", params=[
+        *base_params, ("materiality", "context"),
+    ]).json()
+    assert [item["summary"] for item in context["items"]] == ["Internal context"]
+    customer_only = client.get(f"/api/accounts/{account['id']}/activity", params=[
+        *base_params, ("stream", "customer"),
+    ]).json()
+    assert {item["summary"] for item in customer_only["items"]} == {
+        "Customer material", "Direct account material",
+    }
+
+    future = client.get(f"/api/accounts/{account['id']}/activity", params=[
+        ("program_id", program["id"]), ("direction", "future"),
+        ("source_type", "calendar"),
+    ]).json()
+    assert [item["source_id"] for item in future["items"]] == [early["id"], late["id"]]
+    assert client.get(f"/api/accounts/{account['id']}/activity", params={
+        "event_kind": "invented_transition",
+    }).status_code == 422
+    assert client.get(f"/api/accounts/{account['id']}/activity", params={
+        "display_from": "not-a-date",
+    }).status_code == 422
+    assert client.get(f"/api/accounts/{account['id']}/activity", params={
+        "display_from": utc_day(2), "display_to": utc_day(1),
+    }).status_code == 422
+    same_day = client.get(f"/api/accounts/{account['id']}/activity", params={
+        "direction": "future", "source_type": "calendar",
+        "display_from": utc_day(2), "display_to": utc_day(2),
+    })
+    assert [item["source_id"] for item in same_day.json()["items"]] == [early["id"]]
+    assert client.get(f"/api/accounts/{account['id']}/activity", params={
+        "source_type": "invented_source",
+    }).status_code == 422
+
+
+def test_activity_partial_coverage_names_omitted_adapter_and_cost(client, monkeypatch):
+    account = client.post("/api/accounts", json={"name": "Partial Activity"}).json()
+
+    def unavailable_adapter(_conn, _query):
+        raise sqlite3.OperationalError("synthetic adapter outage")
+
+    monkeypatch.setitem(account_activity._ADAPTERS, "calendar", unavailable_adapter)
+    response = client.get(f"/api/accounts/{account['id']}/activity")
+    assert response.status_code == 200, response.text
+    stamp = response.json()["stamp"]
+    assert "calendar" in stamp["omitted"] and "calendar" not in stamp["coverage"]
+    metric = next(item for item in stamp["adapter_metrics"] if item["adapter"] == "calendar")
+    assert metric["status"] == "omitted" and metric["item_count"] == 0
+    assert metric["duration_ms"] >= 0
 
 
 def test_prepare_selects_scoped_meeting_without_guessing_attendees(client):
