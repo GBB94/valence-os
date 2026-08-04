@@ -218,11 +218,53 @@ export const SECTION_HELP = {
   },
 };
 
-// One ⓘ beside a sub-tab strip, describing the currently active sub-tab.
-export function SectionHelp({ group, active }) {
+// Human labels for the active sub-tab, so the panel title reads "Value ledger", not "ledger".
+const SECTION_LABELS = {
+  commercial: { whitespace: "Whitespace", ledger: "Value ledger", funding: "Funding",
+    signals: "Signals", company: "Company", growth: "Growth & renewal", pipeline: "Pipeline & contracts" },
+  people: { map: "Map", champions: "Champions", influence: "Influence", exec: "Exec alignment",
+    changes: "Org changes", messaging: "Messaging" },
+  ledgerView: { records: "Records", activity: "Activity" },
+  internal: { forecast: "Forecast", asks: "Asks", reviews: "Reviews", coverage: "Coverage" },
+  accountsBook: { accounts: "Book", analytics: "Portfolio analytics", internal: "Internal" },
+  outputs: { artifacts: "Artifacts", qbr: "QBR", team: "Team update", map: "Mutual action plan" },
+};
+
+// "About this page" — a labeled disclosure beside a sub-tab strip that opens a panel explaining
+// the active sub-tab. A click-to-open panel (not a hover tooltip) is more discoverable and
+// touch-friendly; it closes on Escape or an outside click, and the label reads the active tab so
+// the affordance is never a mystery.
+export function SectionHelp({ group, active, label }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const panelId = useId();
+  useEffect(() => { setOpen(false); }, [active]);   // switching sub-tabs closes a stale panel
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); } };
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
+  }, [open]);
   const text = SECTION_HELP[group]?.[active];
   if (!text) return null;
-  return <Tooltip text={text} />;
+  const activeLabel = label || SECTION_LABELS[group]?.[active] || null;
+  return (
+    <span className="about-page" ref={ref}>
+      <button type="button" className="about-page-btn" aria-expanded={open} aria-controls={panelId}
+        onClick={() => setOpen((v) => !v)}>
+        <span className="about-page-icon" aria-hidden="true">i</span>
+        About this page
+      </button>
+      {open && (
+        <span className="about-page-panel" id={panelId} role="region" aria-label="About this page">
+          {activeLabel && <strong className="about-page-title">{activeLabel}</strong>}
+          <span>{text}</span>
+        </span>
+      )}
+    </span>
+  );
 }
 
 // Stance = categorical (D-67): color from the data family + a shape, matching the graph, so it

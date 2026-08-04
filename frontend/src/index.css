@@ -111,8 +111,31 @@ input, select, textarea {
   display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--line-hairline);
 }
 .tabstrip.inner { position: static; padding: 0; background: none; border-bottom: 1px solid var(--line-hairline); }
-/* A sub-tab strip with its one contextual help ⓘ sitting just after it. */
+/* A sub-tab strip with its "About this page" disclosure just after it. */
 .subtab-strip { display: flex; align-items: center; gap: var(--sp-4); }
+
+/* "About this page" — a labeled disclosure button opening a panel below it. */
+.about-page { position: relative; display: inline-flex; }
+.about-page-btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  border: 1px solid var(--line-strong); background: var(--bg-surface); color: var(--ink-secondary);
+  border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-4); height: 26px;
+  font-size: var(--t-small); font-family: inherit; cursor: pointer;
+}
+.about-page-btn:hover { background: var(--bg-hover); color: var(--ink-primary); }
+.about-page-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+.about-page-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+  border-radius: 50%; border: 1px solid currentColor; font-size: var(--t-micro); font-weight: 600; line-height: 1;
+}
+.about-page-panel {
+  position: absolute; top: 30px; left: 0; width: 320px; max-width: 80vw; z-index: 55;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  background: var(--bg-surface); border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-panel); padding: var(--sp-5) var(--sp-5);
+}
+.about-page-title { font-size: var(--t-small); color: var(--ink-primary); }
+.about-page-panel > span { font-size: var(--t-small); line-height: 1.45; color: var(--ink-secondary); }
 .tab {
   border: 0; background: none; color: var(--ink-secondary); cursor: pointer; font-size: var(--t-body);
   padding: 10px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit;
