@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, Loading, SegTabs, SlideOver, useToast, fmtDate } from "../ui";
+import { Empty, Loading, SectionHelp, SegTabs, SlideOver, useToast, fmtDate } from "../ui";
 import Waterfall from "./Waterfall";
 import Whitespace from "./Whitespace";
 import ValueLedger from "./ValueLedger";
@@ -66,8 +66,9 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
         <div className="spacer" />
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="subtab-strip" style={{ marginBottom: 16 }}>
         <SegTabs tabs={SUBTABS} value={sub} onChange={(value) => onSectionChange?.(value)} />
+        <SectionHelp group="commercial" active={sub} />
       </div>
 
       {sub === "whitespace" && <Whitespace accountId={accountId} reloadKey={reloadKey} />}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
+import { ToastProvider, fmtDate, Tooltip, SectionHelp, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
 import Accounts from "./views/Accounts";
 import AccountCommandCenter from "./views/AccountCommandCenter";
 import ProgramDetail from "./views/ProgramDetail";
@@ -62,7 +62,7 @@ const INFO = {
   today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
   library: "Link-first, tagged, searchable source references and files, with the records that cite each. Points to originals, never copies.",
   operations: "System health for this single-editor tool: imports, data freshness, backups, search-index health, and the plays engine.",
-  overview: "The account command center: operate the day, prepare for the next customer moment, or frame the leadership view without losing account context.",
+  overview: "The account command center. Switch among three lenses without losing scope: Operate for what changed and what needs you, Prepare to organize the next meeting, Leadership for movement, forecast, and asks.",
   ledger: "One chronological record of everything on this account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture.",
   people: "The stakeholder network — stance, influence, relationships, and who has not been touched. Every assessment carries a date and evidence.",
   plan: "What is scheduled and what is gating: timeline, deployment moments, phase gates, and compliance lanes.",
@@ -655,8 +655,9 @@ function OutputsTab({ accounts, accountId, programId, setAcct, reloadKey }) {
   const [which, setWhich] = useState("artifacts");
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
+      <div className="subtab-strip" style={{ marginBottom: 12 }}>
         <SegTabs tabs={[["artifacts", "Artifacts"], ["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
+        <SectionHelp group="outputs" active={which} />
       </div>
       {which === "artifacts" && <Artifacts accounts={accounts} accountId={accountId}
         programId={programId} setAccountId={setAcct} reloadKey={reloadKey} />}

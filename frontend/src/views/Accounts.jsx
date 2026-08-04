@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SegTabs, rowActivation, useToast } from "../ui";
+import { Empty, SectionHelp, SegTabs, rowActivation, useToast } from "../ui";
 import Onboarding from "./Onboarding";
 import PortfolioAnalytics from "./PortfolioAnalytics";
 import PortfolioInternal from "./PortfolioInternal";
@@ -100,7 +100,7 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
         <button className={"btn" + (adding ? " selected" : "")} aria-pressed={adding} onClick={() => setAdding((v) => !v)}>New account</button>
       </div>
 
-      <div style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Book"], ["analytics", "Portfolio analytics"], ["internal", "Internal"]]} value={view} onChange={setView} /></div>
+      <div className="subtab-strip" style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Book"], ["analytics", "Portfolio analytics"], ["internal", "Internal"]]} value={view} onChange={setView} /><SectionHelp group="accountsBook" active={view} /></div>
 
       {view === "internal" ? <PortfolioInternal onOpen={onOpen} /> : view === "analytics" ? <PortfolioAnalytics /> : <>
 

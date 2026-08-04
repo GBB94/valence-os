@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, Loading, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
+import { Empty, Loading, SectionHelp, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
 import ConvertPanel from "./ConvertPanel";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
@@ -56,8 +56,11 @@ function activityWhen(value) {
 export default function Ledger({ accountId, programId, reloadKey, onChanged, onOpenTarget, focusedRecordId }) {
   const [view, setView] = useState("records");
   return <div>
-    <SegTabs id="ledger-views" ariaLabel="Ledger view" value={view} onChange={setView}
-      tabs={[["records", "Records"], ["activity", "Activity"]]} />
+    <div className="subtab-strip">
+      <SegTabs id="ledger-views" ariaLabel="Ledger view" value={view} onChange={setView}
+        tabs={[["records", "Records"], ["activity", "Activity"]]} />
+      <SectionHelp group="ledgerView" active={view} />
+    </div>
     <div className="ledger-view-body">
       {view === "records"
         ? <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} focusedRecordId={focusedRecordId} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SegTabs, useToast, AgeChip, Empty, Loading, fmtDate } from "../ui";
+import { SectionHelp, SegTabs, useToast, AgeChip, Empty, Loading, fmtDate } from "../ui";
 import StakeholderGraph from "./StakeholderGraph";
 import PersonCard from "./PersonCard";
 import OrgChanges from "./OrgChanges";
@@ -18,8 +18,9 @@ export default function People({ accounts, accountId, setAccountId, reloadKey })
   const [sub, setSub] = useState("map");
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
+      <div className="subtab-strip" style={{ marginBottom: 12 }}>
         <SegTabs tabs={TABS} value={sub} onChange={setSub} />
+        <SectionHelp group="people" active={sub} />
       </div>
       {sub === "map" && <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAccountId} reloadKey={reloadKey} />}
       {sub === "champions" && <Champions accountId={accountId} reloadKey={reloadKey} />}

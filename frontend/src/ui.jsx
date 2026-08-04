@@ -174,6 +174,57 @@ export function Tooltip({ text, children, label = "i" }) {
   );
 }
 
+// Sub-tab help (DESIGN-GUIDE §10 voice: the job, not the contents). Keyed by SECTION_HELP group
+// then active sub-tab. Rendered as one ⓘ beside a SegTabs strip via <SectionHelp>, reusing the
+// accessible Tooltip so the explanation is never hover-only.
+export const SECTION_HELP = {
+  commercial: {
+    whitespace: "The reconciled seat map: where the product is landed, proven, blocked, or white space, by population and use case. The first question is where the next seats live.",
+    ledger: "Value targets and the outcomes that back them — the proof a renewal or expansion is defensible. Stale evidence renders unknown, never carried forward.",
+    funding: "Where the money would come from: funding pools, fiscal timing, and the back-scheduled asks that must clear before a budget window closes.",
+    signals: "Recurring, explainable episodes — client pull, calendar moments, confirmed org changes, coverage gaps — that say an account moved and why.",
+    company: "Outside-in intelligence: what the company said and did publicly, mapped to rows, columns, and stakeholders. Proposal-first and span-cited; nothing is assumed true.",
+    growth: "The renewal and expansion motion over time — growth-plan lines, seat and price assumptions, and the ask dates that gate them.",
+    pipeline: "Expansion opportunities with a staged budget state, and contract versions with your operational overlay. The waterfall shows what has to be true to fund the next seats.",
+  },
+  people: {
+    map: "The stakeholder network — layers, buying-committee roles, stance, and influence. Every assessment carries a date and an evidence note.",
+    champions: "Champion development: who is advocating, at what stage, and where a second champion is missing before the first one leaves.",
+    influence: "Who moves whom — reporting, sponsorship, and influence paths — so a message reaches the person who can actually decide.",
+    exec: "Executive alignment: which of our leaders is paired with which of theirs, and where an exec relationship is exposed.",
+    changes: "Confirmed organizational changes — arrivals, departures, title moves — proposal-first from the enrichment adapter, and their succession impact.",
+    messaging: "The message that lands with each layer and role: what they care about and the value framed for them, kept professional.",
+  },
+  ledgerView: {
+    records: "Capture, convert, and close the account's execution — interactions and the commitments, tasks, decisions, risks, and issues that came out of them.",
+    activity: "A read-only chronology across every source on one time axis, with recorded time and effective time kept distinct. Opening a row lands on its native record.",
+  },
+  internal: {
+    forecast: "Forecast calls as append-only category transitions, with the evidence that supports each — not a second source of truth.",
+    asks: "Explicit asks of leadership and internal functions, with an owner, a needed-by date, and a state, so nothing sits unowned.",
+    reviews: "Governed internal account reviews: the point-of-view record, its assessed date, and the review trail behind a status.",
+    coverage: "Colleague coverage across the portfolio — who is exposed and where a relationship has no backup.",
+  },
+  accountsBook: {
+    accounts: "The portfolio at a glance — delivery and commercial status per account, filterable and sortable, each row a way into the workspace.",
+    analytics: "Portfolio-level analytics across accounts: honest aggregates, never a composite health score.",
+    internal: "The internal operating layer across the whole book — forecast, asks, and coverage rolled up.",
+  },
+  outputs: {
+    artifacts: "Generated, review-gated documents — pre-call briefs, business cases, kits, decks. Editable before anything leaves the tool.",
+    qbr: "The quarterly business review generator. Client-facing output includes only affirmatively promoted records.",
+    team: "The weekly internal team update — what moved, what is stuck, and what is needed — assembled from account facts.",
+    map: "The client-facing mutual action plan: shared steps and owners, with only promoted fields visible to the client.",
+  },
+};
+
+// One ⓘ beside a sub-tab strip, describing the currently active sub-tab.
+export function SectionHelp({ group, active }) {
+  const text = SECTION_HELP[group]?.[active];
+  if (!text) return null;
+  return <Tooltip text={text} />;
+}
+
 // Stance = categorical (D-67): color from the data family + a shape, matching the graph, so it
 // reads without color and never as health. ● supporter / ◆ skeptic / ▮ unconverted.
 export function StanceLabel({ stance }) {

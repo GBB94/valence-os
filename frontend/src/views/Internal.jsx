@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Card, Empty, Loading, SegTabs, useToast } from "../ui";
+import { Card, Empty, Loading, SectionHelp, SegTabs, useToast } from "../ui";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const day = (offset) => {
@@ -13,6 +13,7 @@ export default function Internal({ accountId, reloadKey, onChanged }) {
   const [section, setSection] = useState("forecast");
   return (
     <div className="stack">
+      <div className="subtab-strip">
       <SegTabs
         tabs={[
           ["forecast", "Forecast"],
@@ -23,6 +24,8 @@ export default function Internal({ accountId, reloadKey, onChanged }) {
         value={section}
         onChange={setSection}
       />
+      <SectionHelp group="internal" active={section} />
+      </div>
       {section === "forecast" && (
         <Forecast accountId={accountId} reloadKey={reloadKey} />
       )}
