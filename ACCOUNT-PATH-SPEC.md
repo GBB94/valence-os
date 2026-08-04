@@ -346,6 +346,27 @@ Allow explicitly promoted milestones, commitments, and suitable requirements to 
 
 Instrument whether operators open the recommended item, complete or snooze it, clear current-phase requirements, and reach gates on time. Use this evidence to refine deterministic priority rules. Do not optimize toward clicks alone.
 
+### 9.1 Dependency and review order
+
+Reviewers should evaluate the initiative in this order:
+
+1. **Core product decisions:** sections 1–8 — conditions, sequence, actions, truth boundaries, multi-program behavior, and Operate hierarchy.
+2. **Immediate release:** Slices 1–2 — these can be approved and built independently because they are read-only and migration-free.
+3. **Adjacent-contract alignment:** Slice 3 against the approved pillar/playbook contract; Slice 4 against the approved propose-and-accept contract.
+4. **Governance model:** Slice 5 after Slices 3–4 stabilize, because evidence, linking, and phase advancement depend on their canonical identities.
+5. **External projection:** Slice 6 after client-safe fields and evidence rules exist.
+6. **Evaluation:** the Slice 7 telemetry adapter can be scaffolded after Slice 2, but full metrics and rule refinement should follow Slice 5.
+
+The review should explicitly resolve these implementation gates:
+
+- Whether the pillar contract supplies versioned playbook instances or Account Path must add that capability to the same canonical model.
+- The exact allowlist of canonical fields that transcript/email proposals may update.
+- Whether the typed relationship tables proposed in Slice 5 already exist in the pillar model or must be added.
+- Whether requirement summaries belong in the client-facing Mutual Action Plan at all; the safe default is no until affirmatively approved.
+- Whether Slice 7 initially persists local product events or uses a non-persistent adapter during usability validation.
+
+None of these gates should block Slices 1–2. A review outcome for each later slice should be recorded as `approved`, `approved with conditions`, `revise`, or `defer`, with the owning specification named for every condition.
+
 ## 10. Slice 1 detailed specification — Execution Path read model
 
 ### 10.1 Endpoint
@@ -744,7 +765,725 @@ The long-term requirement model must support evidence links rather than copying 
 
 Later slices may require an additive join model that links native actions to requirements, milestones, gates, and pillars. Any such join must link existing records rather than create a generic replacement action object.
 
-## 13. Migration and compatibility strategy
+## 13. Slice 3 detailed specification — Playbook and pillar integration
+
+### 13.1 Entry gate and ownership
+
+Slice 3 begins only after the adjacent pillar-scorecard specification approves:
+
+- Stable pillar and requirement keys.
+- Requirement states and applicability semantics.
+- Account-wide versus program-specific scope.
+- Evidence and freshness rules.
+- Versioning and override behavior.
+
+That specification owns the canonical taxonomy and persistence model. Account Path owns how those accepted states become a readable execution plan. If the adjacent contract uses different names, Account Path adapts at the service boundary; it must not create a competing pillar table or translate the same condition into a second manually maintained status.
+
+### 13.2 Minimum canonical capabilities
+
+Regardless of final table names, the approved model must support these capabilities:
+
+1. **Versioned definitions** — a pillar and requirement definition has a stable key, version, label, purpose, default scope, and definition of done.
+2. **Versioned playbooks** — an onboarding, adoption, expansion, renewal, or other plan template pins an ordered set of requirement definitions and relative timing rules.
+3. **Plan instances** — an account or program explicitly instantiates a playbook version. Later template edits do not silently rewrite the active plan.
+4. **Applicability** — each instantiated requirement is required, optional, or not applicable; not applicable requires a reason and actor.
+5. **Derived state** — state is computed from accepted records and evidence wherever possible. Manual assessment, if allowed by the pillar contract, is separately labeled and dated.
+6. **Evidence links** — evidence references canonical objects rather than copying their content.
+7. **Exceptions** — waivers and overrides preserve who, when, and why.
+8. **Ordering and timing** — requirements can be associated with a lifecycle phase, relative date rule, milestone, or gate.
+9. **Upgrade history** — applying a newer playbook version is an explicit reviewed action with a recorded diff.
+
+### 13.3 Playbook structure
+
+A playbook requirement should expose this normalized contract to Account Path:
+
+```json
+{
+  "instance_id": "reqinst-bluepeak-metric",
+  "definition_key": "success.metric_of_record",
+  "pillar_key": "outcomes",
+  "label": "Metric of record agreed",
+  "scope": {"account_id": "acc-bluepeak", "program_id": "prog-bluepeak-launch"},
+  "phase": "foundation",
+  "requirement_level": "required",
+  "state": "not_started",
+  "state_reason": "No accepted metric definition is linked",
+  "definition_of_done": "A named metric, owner, baseline, and reporting cadence are accepted",
+  "due_rule": {"anchor": "kickoff", "offset_days": 14},
+  "due_date": "2026-08-14",
+  "evidence": [],
+  "suggested_action": {
+    "title": "Confirm the metric of record with the program sponsor",
+    "native_type": "task"
+  },
+  "playbook": {"key": "enterprise-launch", "version": 2},
+  "updated_at": "2026-08-04T14:30:00Z"
+}
+```
+
+`suggested_action` is a template, not an open Task. It is eligible for the `Prepare for the next gate` empty-state recommendation but is not mixed into `you_own` until accepted into a native record.
+
+### 13.4 Plan instantiation
+
+The pillar/playbook service should expose a governed operation equivalent to:
+
+`POST /api/accounts/{account_id}/plan-instances`
+
+Input:
+
+- Playbook key and version.
+- Optional program scope.
+- Anchor type and date, normally kickoff, launch, contract start, or renewal.
+- Explicitly excluded optional requirements.
+
+Behavior:
+
+- Validate account/program ownership.
+- Reject duplicate active instances for the same playbook and scope unless the request is an explicit version upgrade.
+- Resolve relative dates once at instantiation while preserving the original rule.
+- Return a preview diff before an upgrade applies.
+- Record the selected version, actor, anchor, and exclusions.
+- Never mark requirements complete during instantiation merely because old checklist text looks similar.
+
+The existing guided onboarding flow may call this operation after the approved model lands. Until then it continues seeding existing milestones and checklist items.
+
+### 13.5 Checklist compatibility migration
+
+Migration is conservative and reviewable:
+
+1. Match existing `checklist_items.template_key` to stable requirement keys using an explicit mapping file.
+2. Match only exact known keys; never fuzzy-match labels.
+3. Create plan instances pinned to the migration playbook version.
+4. Carry due dates and `na` reasons when they are structurally supported.
+5. Translate `done` into `recorded_complete`, not `evidenced`, unless accepted supporting evidence exists.
+6. Keep unmatched checklist items readable as legacy requirements.
+7. Produce a per-account migration report: mapped, unmatched, ambiguous, and evidence missing.
+8. Make the migration idempotent and safe to rerun.
+
+Do not delete `checklist_items` in this slice. Removal requires a separate deprecation decision after all readers and exports use the canonical requirement contract.
+
+### 13.6 Account Path integration
+
+The Execution Path service adds a pillar/playbook adapter that:
+
+- Groups incomplete requirements by current phase and pillar.
+- Includes required current-phase conditions before optional or future conditions.
+- Exposes explicit evidence and freshness gaps.
+- Provides suggested actions separately from canonical work.
+- Deduplicates a requirement when a linked native Task or Commitment already represents its next step.
+- Preserves account-wide requirements in selected program scope.
+- Reports pillar coverage independently from canonical execution coverage.
+
+Account essentials shows at most three current-phase gaps. `View all` opens a focused requirements view in Plan; it does not introduce a new Account Overview editing surface.
+
+### 13.7 Requirement detail experience
+
+Opening a requirement shows a side panel with:
+
+- Requirement label and pillar.
+- Why it matters in the current phase.
+- State and state reason.
+- Definition of done.
+- Due date and original relative rule.
+- Accepted evidence and source links.
+- Missing evidence.
+- Linked Tasks, Commitments, Milestones, and Gate.
+- Applicability/waiver history.
+- `Create action` when a supported suggested action exists.
+- `Add evidence` and `Mark not applicable` only through governed flows.
+
+Do not expose a generic status dropdown that can overwrite a derived evidence state.
+
+### 13.8 Creating an action from a requirement
+
+`Create action` opens a prefilled native Task or Commitment form. The operator can edit:
+
+- Title/description.
+- Internal owner.
+- Responsible customer party when creating a Commitment.
+- Due date.
+- Program scope.
+- Source interaction/reference where available.
+
+Saving creates the native record and a requirement-action link in Slice 5. Until Slice 5 lands, the UI can create the native action and return to the requirement, but it must not claim a durable link exists.
+
+### 13.9 Slice 3 acceptance criteria
+
+- A program can instantiate an approved playbook version from a kickoff anchor.
+- Relative dates resolve correctly and preserve their source rules.
+- Editing a template does not mutate an existing plan instance.
+- Account and program requirements remain independently scoped.
+- Current-phase required gaps appear in Account essentials in stable order.
+- Suggested actions are visually distinct from open Tasks and Commitments.
+- A completed legacy checklist item is not falsely labeled evidenced.
+- Not-applicable requirements record a reason and actor.
+- An upgrade preview shows additions, removals, timing changes, and definition changes before applying.
+- Failed or partial pillar coverage cannot suppress canonical execution work.
+
+### 13.10 Slice 3 tests
+
+- Playbook instantiation and duplicate prevention.
+- Relative date anchors and boundary dates.
+- Version pinning and upgrade preview/application.
+- Account/program scope validation.
+- Required/optional/not-applicable ordering.
+- Derived versus manual state labeling.
+- Exact-key checklist migration, unmatched records, and idempotency.
+- Evidence-safe compatibility status.
+- Execution Path adapter dedupe and partial coverage.
+- Requirement detail accessibility and native-action prefill.
+
+## 14. Slice 4 detailed specification — Transcript and email proposals
+
+### 14.1 Entry gate and reuse
+
+Slice 4 begins after the adjacent propose-and-accept specification approves its canonical proposal shape. It must reuse the existing security boundary:
+
+- Inputs are treated as data, never instructions.
+- Extraction runs record model and prompt versions.
+- Every proposal retains a source span or source reference.
+- Strict schemas validate allowed mutations.
+- Nothing writes without explicit human acceptance.
+- Accepted proposals point to the created or updated canonical object.
+
+Existing `extraction_runs`, `extraction_proposals`, acceptance endpoints, rejection endpoints, and audit behavior remain the compatibility foundation. The approved proposal contract may replace or widen them, but Account Path must not add a second inbox.
+
+### 14.2 Supported proposal intents
+
+The long-term contract must distinguish intent from native target:
+
+- `create` — create a Task, Commitment, Milestone, Risk, Issue, Decision, requirement exception, deployment moment, or other allowlisted record.
+- `update` — propose a change to an allowlisted canonical field.
+- `link` — connect existing records, such as evidence to a requirement or an action to a milestone.
+- `close` — propose governed completion with the native closure payload.
+- `no_change` — record that extracted content matches current state; normally hidden from the operator.
+
+Slice 4 initially enables create and allowlisted update intents. Link and close intents remain behind Slice 5 because they depend on governed relationship and completion contracts.
+
+### 14.3 Proposal response contract
+
+Account Path consumes a normalized proposal shape:
+
+```json
+{
+  "id": "proposal-789",
+  "account_id": "acc-bluepeak",
+  "program_id": "prog-bluepeak-launch",
+  "source": {
+    "kind": "interaction",
+    "id": "int-456",
+    "label": "Jul 31 onboarding call",
+    "span": "Aisha will send the HR calendar by Friday"
+  },
+  "intent": "create",
+  "target_type": "commitment",
+  "payload": {
+    "description": "Send the HR calendar",
+    "responsible_party_id": "person-aisha",
+    "internal_owner_id": "person-zach",
+    "due_date": "2026-08-07"
+  },
+  "status": "proposed",
+  "confidence": "high",
+  "match_candidates": [],
+  "created_target": null,
+  "created_at": "2026-08-04T14:30:00Z"
+}
+```
+
+Confidence is supporting metadata, not an acceptance shortcut or ranking signal.
+
+### 14.4 Account proposal inbox
+
+Add or adapt a read endpoint equivalent to:
+
+`GET /api/accounts/{account_id}/proposed-updates?program_id={program_id}&source_interaction_id={interaction_id}&status=proposed`
+
+The response groups proposals by source and then target type. It includes exact source provenance, validation warnings, and duplicate/match candidates.
+
+Account Path uses only:
+
+- Proposed count for the current scope.
+- Up to three proposals from the latest interaction.
+- A link to review all proposals.
+
+The complete review experience remains in the existing Extraction/Inbox workflow or its approved successor.
+
+### 14.5 Review interactions
+
+Each proposal supports:
+
+- **Accept** — applies the validated payload through the native service and records the created/updated object.
+- **Edit and accept** — edits only allowlisted payload fields, revalidates, then applies in one transaction.
+- **Reject** — records rejection without changing canonical state.
+- **Open source** — opens the interaction or source reference at the supporting span where possible.
+- **Use existing** — links the proposal to a confirmed duplicate/match and records that resolution without creating another record.
+
+There is no one-click “Accept all” in the first release. A later batch flow may accept a selected set only after every item independently validates and the entire batch preview is visible.
+
+### 14.6 Duplicate and conflict handling
+
+Before acceptance, perform deterministic matching within the same account/program scope:
+
+1. Exact source proposal already accepted.
+2. Exact normalized target type and description/title.
+3. Same responsible party/owner and due date for Tasks or Commitments.
+4. Same canonical field with a newer accepted value.
+5. Same milestone name and target date.
+
+Possible matches are suggestions, not automatic merges. A conflict must show current value, proposed value, source dates, and available resolutions. Older evidence never silently overwrites a newer accepted record.
+
+Acceptance is idempotent. Repeating an accepted request returns the created/updated target or a stable conflict; it never creates a duplicate.
+
+### 14.7 Accepted action placement
+
+After acceptance:
+
+- Created Tasks and Commitments enter the appropriate Account Path group after refresh.
+- Accepted records linked to the latest interaction appear under From latest interaction.
+- The proposal disappears from the proposed preview but remains in proposal history.
+- The next-move engine reruns using the canonical record; the proposal itself is never ranked.
+- The provenance chip continues pointing to the original source.
+
+### 14.8 Email-specific boundaries
+
+Email ingestion must preserve:
+
+- Message identity and thread identity.
+- Sender, recipients, sent time, and account/program association confidence.
+- Quoted-text boundaries so repeated thread history does not produce duplicate proposals.
+- Attachment/source references when they support a proposal.
+- Explicit low-confidence association review before account state can be changed.
+
+An unassociated or low-confidence email remains in the capture/association inbox and cannot enter Account Path as account work.
+
+### 14.9 Error and concurrency behavior
+
+- Validation errors remain attached to the proposal and explain the required correction.
+- If the target changed after proposal creation, acceptance returns a conflict preview rather than overwriting it.
+- Accept/edit/reject controls disable while a request is pending.
+- Two concurrent accept attempts create at most one canonical target.
+- Partial failure in the proposal adapter does not block canonical Account Path content.
+
+### 14.10 Slice 4 acceptance criteria
+
+- Latest-interaction proposals are visibly separate from accepted work.
+- Every proposal shows exact source provenance.
+- Accept creates or updates one allowlisted canonical record transactionally.
+- Edit and accept revalidates the edited payload.
+- Reject creates no canonical record.
+- Use existing resolves a duplicate without creating another object.
+- Accepted call actions appear in the correct owner group and latest-interaction section.
+- Low-confidence account association cannot mutate account state.
+- Repeated acceptance is idempotent.
+- Proposed items never influence Next best move until accepted.
+
+### 14.11 Slice 4 tests
+
+- Strict schema rejection and allowlisted mutation coverage.
+- Per-item accept, edit-and-accept, reject, and use-existing.
+- Source-span and audit provenance.
+- Duplicate and stale-field conflict detection.
+- Transaction rollback and concurrent idempotency.
+- Program/account association boundaries.
+- Quoted email deduplication.
+- Latest-interaction proposal/accepted placement.
+- Proposal adapter partial failure.
+- Keyboard and screen-reader review flow.
+
+## 15. Slice 5 detailed specification — Evidence, relationships, and governed advancement
+
+### 15.1 Decision
+
+Add explicit, additive relationship records rather than inferring durable dependencies from matching text. Do not introduce a replacement “plan item” object.
+
+The preferred relational model is narrow and typed:
+
+1. **Requirement-action links** — connect a requirement instance to a native Task or Commitment with `advances`, `blocks`, or `follow_up_for` semantics.
+2. **Requirement-evidence links** — owned by the pillar contract; connect a requirement to accepted supporting records.
+3. **Milestone-action links** — connect a Milestone to Tasks or Commitments that advance or block it.
+4. **Gate-requirement links** — connect a Phase Gate to required or optional requirement instances.
+5. **Program phase events** — append-only history of proposed, completed, waived, or rejected phase transitions.
+
+Separate tables are preferred over a fully polymorphic graph because SQLite cannot enforce foreign keys across arbitrary object-type/id pairs. If the approved pillar model already supplies equivalent typed relations, reuse it.
+
+### 15.2 Relationship integrity
+
+Every link operation must:
+
+- Validate account and program scope on both sides.
+- Reject links to archived or unsupported records.
+- Enforce one active identical relationship.
+- Record actor, timestamp, and optional source reference.
+- Preserve link history through archival rather than destructive deletion when the relationship influenced a gate or transition.
+- Prevent a requirement from using its own suggested action as evidence of completion.
+
+Links are explicit operator actions or accepted proposals. The service may suggest likely links, but text similarity never becomes a durable relationship without acceptance.
+
+### 15.3 Evidence rules
+
+Evidence adapters may support:
+
+- Canonical account/program fields with recorded provenance.
+- Decisions.
+- Stakeholder roles and accepted relationship evidence.
+- Metric definitions, observations, value targets, and value stories.
+- Interactions and source references.
+- Tasks/Commitments only when their governed closure proves the requirement condition.
+- Documents and artifacts with source identity.
+
+Each requirement definition declares its allowed evidence types and evaluation rule. Unsupported evidence can be attached as context but cannot change derived state.
+
+Evidence state recalculates at read time or through a rebuildable projection. Retraction, supersession, staleness, or archival of evidence removes its support and can return a requirement to an evidence-gap state.
+
+### 15.4 Definition-of-done evaluators
+
+Use deterministic evaluators for common requirement shapes:
+
+- `field_present` — a specific accepted canonical field is populated.
+- `role_present` — a required stakeholder role exists and meets freshness/evidence rules.
+- `record_exists` — an allowlisted canonical record exists in scope.
+- `record_closed` — a linked native action has valid governed closure.
+- `metric_ready` — metric definition, baseline, owner, and cadence are present.
+- `milestone_complete` — linked Milestone meets its native completion contract.
+- `all_of` / `any_of` — explicit composition of other deterministic evaluators.
+- `manual_evidence_review` — accepted evidence requires a dated reviewer decision where automation cannot establish sufficiency.
+
+Evaluator versions are recorded. Changing an evaluator produces a preview of affected requirement states before rollout.
+
+### 15.5 Gate readiness
+
+Add a read operation equivalent to:
+
+`GET /api/programs/{program_id}/phase-readiness`
+
+It returns:
+
+- Canonical current phase.
+- Proposed next phase.
+- Required gate requirements and states.
+- Blocking program Risks/Issues.
+- Open linked actions.
+- Missing or stale evidence.
+- Passed, blocked, ready, or insufficient-data readiness.
+- Coverage and evaluator versions.
+
+`ready` means the evidence satisfies the approved gate contract; it does not advance the phase.
+
+### 15.6 Governed phase advancement
+
+Add a command equivalent to:
+
+`POST /api/programs/{program_id}/phase-transitions`
+
+Input includes expected current phase, requested next phase, readiness version/stamp, actor, and optional override.
+
+Rules:
+
+- Normal advancement follows the approved phase graph one step at a time.
+- The command rejects stale readiness stamps.
+- A ready transition records the phase event and updates the canonical program phase in one transaction.
+- An override requires a reason and explicit authority; it records unmet requirements and never marks them evidenced.
+- Waiving a gate is distinct from completing its requirements.
+- Opening Account Path or becoming ready never auto-advances phase.
+- Phase history is append-only and visible in Plan and Leadership review provenance.
+
+### 15.7 Successor-action closure
+
+When an operator resolves or snoozes a surfaced action:
+
+- Native closure rules remain authoritative.
+- If the work is not actually finished, the flow can link a successor Task or Commitment.
+- The previous item records its closure/snooze reason through the existing governed flow.
+- The requirement or milestone remains open until its evaluator is satisfied.
+- The next-move engine reruns after the transaction.
+
+This prevents “Resolve” from becoming a way to hide incomplete account work.
+
+### 15.8 UI changes
+
+- Requirement details show linked actions and evidence.
+- Action details show the requirement, milestone, or gate they advance.
+- The path exposes `Ready to advance`, `Blocked`, or `Evidence missing` with reasons.
+- A phase-advance dialog shows every required condition and the exact override consequences.
+- Timeline dependency lines appear only for explicit milestone/action relationships and remain visually secondary.
+- The Next best move reason can now say `Unblocks Launch gate` only when an accepted explicit relation supports the claim.
+
+### 15.9 Slice 5 acceptance criteria
+
+- Cross-account and cross-program links are rejected.
+- A native action can advance a requirement without becoming evidence merely by being open.
+- Valid governed closure can satisfy a requirement only when its evaluator allows it.
+- Retracted or stale evidence recalculates requirement state.
+- Phase readiness names every unmet condition and coverage gap.
+- Ready state never auto-advances the program.
+- Phase transition is atomic, version-checked, and append-only in history.
+- Overrides record actor, reason, unmet requirements, and evidence state without falsifying completion.
+- Next best move claims gate impact only from explicit relationships.
+
+### 15.10 Slice 5 tests
+
+- Typed relationship scope and uniqueness constraints.
+- Link archival/history behavior.
+- Each evaluator type and evaluator version changes.
+- Evidence retraction, supersession, and staleness.
+- Gate readiness under complete, blocked, and partial coverage.
+- Atomic phase transition and stale-readiness rejection.
+- Override and waiver semantics.
+- Successor-action behavior.
+- Explicit-relation ranking reason.
+- Timeline and detail-panel accessibility.
+
+## 16. Slice 6 detailed specification — Shared plans and generated outputs
+
+### 16.1 Decision
+
+Extend the existing Mutual Action Plan and generated outputs through affirmative promotion and narrow safe projections. Do not expose the internal Account Path screen, pillar diagnostics, proposal inbox, or evidence-gap reasoning directly to customers.
+
+Client visibility remains opt-in per record. A record cannot become client-visible without an accepted source under the existing trust boundary.
+
+### 16.2 Shareable content
+
+Initially allow:
+
+- Promoted Milestones.
+- Promoted customer/Valence Commitments.
+- Promoted Tasks appropriate for joint execution.
+- Promoted value targets and growth-plan lines already supported by their native contracts.
+- Approved requirement summaries only after the pillar model supplies a client-safe label, source, and visibility state.
+
+Never allow:
+
+- Proposed updates.
+- Internal-only Tasks, Risks, Issues, scores, confidence, or ranking reasons.
+- Stakeholder stance, internal political notes, budget tactics, or competitive notes.
+- Requirement evidence that is not independently client-visible.
+- Waiver/override rationale unless explicitly authored for sharing.
+- Raw transcripts, emails, or source spans.
+
+### 16.3 Client-safe requirement projection
+
+If requirements become shareable, the canonical instance needs:
+
+- `client_visible` default false.
+- A client-safe label or confirmation that the canonical label is safe.
+- Client-facing owner where relevant.
+- Target date/window.
+- Simple status: not started, in progress, complete, blocked, or not applicable.
+- At least one accepted source or jointly acknowledged record.
+
+Internal definition-of-done logic, evidence diagnostics, and suggested actions remain excluded by construction.
+
+### 16.4 Promotion workflow
+
+Promotion uses the existing pattern:
+
+1. Open the native item.
+2. Preview exactly what the customer-safe projection will show.
+3. Validate source and scope.
+4. Confirm promotion.
+5. Record audit history.
+
+Demotion is allowed and audited. It removes the item from future shared views without deleting the native record or previous generated artifacts.
+
+### 16.5 Mutual Action Plan response
+
+The shared plan should organize promoted items by program and milestone rather than expose an unstructured mixed table:
+
+- Purpose and data-current-through stamp.
+- Current shared phase/milestone summary.
+- Joint actions grouped by milestone or workstream.
+- Customer owner, Valence owner, due date, and simple status.
+- Confirmed upcoming milestones and decisions.
+- Source label appropriate for external use.
+
+The renderer queries only allowlisted client-visible fields. It must not serialize full database rows and then filter them in the frontend.
+
+### 16.6 Generated outputs
+
+Enrich these outputs only through their existing source and visibility contracts:
+
+- Mutual Action Plan.
+- Client value review/QBR.
+- Internal team update.
+- Leadership review packet.
+- Pre-call brief.
+
+Internal outputs may include Account Path ranking reasons, evidence gaps, and proposal counts when their source rules permit. Client outputs may include only affirmed client-visible projections.
+
+Every generated artifact records:
+
+- Data-current-through.
+- Included source identities.
+- Missing/stale source warnings.
+- Template/version.
+- Whether the content is internal or client-facing.
+
+### 16.7 Preview and leakage testing
+
+Add a server-rendered or backend-projected preview operation. The preview is generated from the same safe projection used by export, preventing the UI preview from differing from the actual artifact.
+
+Automated negative tests seed sensitive internal fields and assert they cannot appear in:
+
+- API responses for shared plans.
+- Markdown/HTML/PDF/PPT output text.
+- Accessibility labels and hidden DOM.
+- Analytics payloads.
+
+### 16.8 Slice 6 acceptance criteria
+
+- Nothing appears in a shared plan without affirmative promotion.
+- Promotion requires supported source provenance.
+- Proposed and internal-only records are excluded by query construction.
+- Shared requirements expose only the approved client-safe projection.
+- Preview and export use the same response contract.
+- Demotion affects future views without rewriting historical artifacts.
+- Multi-program shared plans remain grouped and readable.
+- Every output is stamped and source-traceable.
+
+### 16.9 Slice 6 tests
+
+- Promotion/demotion authorization, source, and scope validation.
+- Client-safe field allowlists.
+- Negative leakage fixtures across API and renderers.
+- Program/milestone grouping and ordering.
+- Output stamps and source manifests.
+- Historical artifact immutability after demotion.
+- Empty and partial shared plans.
+- Accessible external rendering.
+
+## 17. Slice 7 detailed specification — Measurement and refinement
+
+### 17.1 Decision
+
+Measure whether Account Path improves execution without turning behavioral telemetry into account truth. Product events are operational diagnostics and are never read by account status, pillar state, ranking, generated outputs, or customer-facing features.
+
+There is no current general product-telemetry foundation in the repository. Implement a small adapter boundary first so local storage can later be replaced without coupling UI components to a vendor.
+
+### 17.2 Event contract
+
+The telemetry adapter accepts only an enumerated event name and bounded metadata:
+
+```json
+{
+  "event_name": "next_move_opened",
+  "occurred_at": "2026-08-04T14:32:00Z",
+  "session_id": "local-session-id",
+  "account_id": "acc-bluepeak",
+  "program_id": "prog-bluepeak-launch",
+  "properties": {
+    "source_type": "task",
+    "reason_code": "overdue_operator_task",
+    "current_phase": "launch",
+    "scope_mode": "program"
+  }
+}
+```
+
+Do not send titles, descriptions, transcript text, source spans, person names, email addresses, document contents, or free-form notes.
+
+### 17.3 Initial events
+
+- `account_path_viewed`
+- `next_move_opened`
+- `next_move_snoozed`
+- `next_move_completed`
+- `successor_action_created`
+- `execution_group_opened`
+- `program_path_filtered`
+- `requirement_opened`
+- `requirement_action_created`
+- `proposal_review_opened`
+- `proposal_accepted`
+- `proposal_rejected`
+- `phase_readiness_opened`
+- `phase_transition_completed`
+- `execution_native_target_opened`
+- `execution_path_retry`
+
+Event names and property schemas are versioned and validated at the adapter boundary. Unknown events are rejected in development and ignored with a diagnostic in production.
+
+### 17.4 Local implementation
+
+For the current single-editor application, either:
+
+- Persist a minimal `product_events` table with event name, timestamp, pseudonymous local session, account/program identifiers, schema version, and validated JSON properties; or
+- Use an in-memory/local file adapter when persistence would create unnecessary database churn during initial usability validation.
+
+Choose one in the implementation review. In either case:
+
+- Telemetry failure never blocks user work.
+- Events do not enter `audit_events` because opening UI is not a domain mutation.
+- Retention is bounded and documented.
+- Export/import excludes telemetry by default.
+- A local setting can disable measurement.
+
+### 17.5 Evaluation questions
+
+Measure the funnel needed to answer:
+
+1. Does the page produce an eligible explainable next move?
+2. Does the operator open it or choose another action?
+3. Does the action close correctly, create a successor, or get snoozed?
+4. Are customer waits missing internal follow-up owners?
+5. Which requirement gaps recur across accounts?
+6. Do program gates reach ready state before target dates?
+7. Which ranking reason codes are routinely bypassed?
+8. Where do coverage failures prevent a trustworthy answer?
+
+Clicks alone do not define success. Pair telemetry with periodic qualitative review of whether the recommendation was correct and whether the page reduced navigation effort.
+
+### 17.6 Rule refinement process
+
+Ranking changes follow a governed process:
+
+1. Review aggregate reason-code outcomes and qualitative examples.
+2. Write a proposed rule change and expected effect.
+3. Add or update deterministic ranking fixtures.
+4. Compare old and new ordering over seeded mock accounts.
+5. Review surprising changes.
+6. Version the ranking rules and deploy behind a feature flag.
+7. Record the rule version in the Execution Path response and telemetry.
+
+Do not introduce a learned ranking model without a separate product, explainability, privacy, and evaluation specification.
+
+### 17.7 Usability review
+
+Run structured walkthroughs for at least:
+
+- New account immediately after onboarding.
+- Mature multi-program account.
+- Blocked launch.
+- Account waiting on multiple customer owners.
+- Account with incomplete/partial data.
+- Renewal inside the notice window.
+- Narrow split-screen layout.
+- Keyboard-only and reduced-motion use.
+
+For each walkthrough, record time and navigation needed to answer the eight Product outcomes in section 2, plus any misinterpretation of owner, phase, status, or evidence.
+
+### 17.8 Slice 7 acceptance criteria
+
+- Telemetry contains no free-form customer content or person identifiers beyond bounded internal record IDs.
+- Measurement failure cannot block Account Path.
+- Account truth and ranking never read product events.
+- Event and property schemas are validated and versioned.
+- Export/import excludes telemetry by default.
+- Ranking fixtures can compare rule versions deterministically.
+- The usability walkthrough set covers all major account states and accessibility modes.
+- A documented review can distinguish recommendation quality from mere click-through.
+
+### 17.9 Slice 7 tests
+
+- Event allowlist and property-schema validation.
+- Sensitive-property rejection.
+- Disabled/failing telemetry behavior.
+- Retention and export exclusion if persistence is selected.
+- Rule-version response and fixture comparison.
+- No product-event reads from domain/status/output services.
+- Walkthrough acceptance scripts for major states.
+
+## 18. Migration and compatibility strategy
 
 Slices 1–2 require no schema migration.
 
@@ -757,7 +1496,7 @@ When the pillar/playbook contract is approved:
 5. Version future playbook requirements so new templates do not retroactively rewrite active account plans.
 6. Allow explicit account/program overrides and `not_applicable` reasons.
 
-## 14. Rollout and observability
+## 19. Rollout and observability
 
 - Ship Slices 1–2 behind a local feature flag until seeded and multi-program acceptance cases pass.
 - Compare the new Next best move against the existing Needs action ordering on mock accounts.
@@ -777,7 +1516,7 @@ Initial product measures:
 
 These measures diagnose usefulness and data quality; they do not become an account health score.
 
-## 15. End-to-end acceptance scenarios
+## 20. End-to-end acceptance scenarios
 
 ### Scenario A — onboarding call just completed
 
@@ -818,7 +1557,7 @@ These measures diagnose usefulness and data quality; they do not become an accou
 3. The page names insufficient plan evidence and links to Plan/Onboarding.
 4. Existing activity and point-of-view sections continue to render.
 
-## 16. Definition of done
+## 21. Definition of done
 
 The Account Path initiative is complete when:
 
@@ -832,4 +1571,19 @@ The Account Path initiative is complete when:
 8. Today, Prepare, Leadership, Plan, Ledger, and Mutual Action Plan all continue to consume the same canonical records and truth boundaries.
 9. Automated tests cover ranking, scoping, provenance, coverage, native navigation, and read purity.
 
-Slices 1–2 satisfy the immediate release when the migration-free read model and revised Operate UI meet their detailed acceptance criteria. Slices 3–7 remain the approved high-level path and should receive implementation-level addenda only after their adjacent contracts are finalized.
+Slices 1–2 satisfy the immediate release when the migration-free read model and revised Operate UI meet their detailed acceptance criteria. Slices 3–7 now have implementation-level plans, but Slices 3–4 remain gated on approval of their adjacent pillar and propose-and-accept contracts. Any contract differences discovered in that review should update this specification before implementation rather than create compatibility logic between competing models.
+
+## 22. Research and implementation basis
+
+This specification is grounded in:
+
+- Existing Valence OS execution objects, guided onboarding, relative launch templates, phase gates, command-center projections, proposal acceptance, evidence links, and client-visible promotion controls.
+- The separately provided Valence interview archive, especially the phased enterprise rollout, parallel adoption/value-capture workstreams, 30/60/90 planning, stakeholder conversion, and objective completion patterns.
+- [Linear Timeline](https://linear.app/docs/timeline) — keep high-level timeline planning separate from granular action execution.
+- [Linear Project Milestones](https://linear.app/docs/project-milestones) — use milestones as lifecycle checkpoints that organize and filter supporting work.
+- [Linear Project Templates](https://linear.app/docs/project-templates) — seed repeatable projects with predefined milestones and issues.
+- [Asana Project Templates](https://help.asana.com/s/article/project-templates) — anchor reusable task timing to relative project dates.
+- [Gainsight Success Plan Overview](https://support.gainsight.com/gainsight_nxt/Success_Plans/About/Success_Plan_Overview) and [Create Success Plan](https://support.gainsight.com/gainsight_nxt/Success_Plans/User_Guides/Create_Success_Plan) — connect reusable objectives, tasks, owners, due dates, and timelines within the customer record.
+- [Carbon Progress Indicator](https://carbondesignsystem.com/components/progress-indicator/usage/) — distinguish completed, current, future, optional, and error states while avoiding a strict stepper when work is conditional or non-linear.
+
+External products inform the interaction patterns, not the Valence OS truth model. The canonical object boundaries, evidence requirements, proposal approval, program scoping, and client-visibility rules in this specification remain Valence-specific.
