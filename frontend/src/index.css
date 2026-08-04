@@ -273,14 +273,12 @@ h3, h4 { font-weight: 600; }
   transition: border-color var(--dur-standard) var(--ease-expo), box-shadow var(--dur-standard) var(--ease-expo),
     background var(--dur-standard) var(--ease-expo), transform var(--dur-standard) var(--ease-expo);
 }
-/* Stacked cards keep a rhythm when their container provides none. `:where()` drops this to zero
-   specificity so any container that owns its own spacing wins — previously this rule (0,2,0)
-   beat `.stack > * + *` (0,1,0), so stacked cards got 10px where the system says 20px, and 10px
-   is not on the spacing scale. */
-:where(.card + .card) { margin-top: var(--sp-5); }
-/* Row layouts space with `gap`. A sibling margin there pushed every card after the first down,
-   so the peer cards in a row visibly failed to line up. Add new row containers here. */
-:is(.queue-brief, .two-col, .grid2, .grid3, .ledger) > .card { margin-top: 0; }
+/* Cards carry NO sibling margin. A `.card + .card` margin cannot tell a stack from a row, so it
+   leaked into every grid and flex line — offsetting each card after the first and, where the row
+   stretched, shrinking it by the same amount. Enumerating row containers to opt out does not
+   work either: several are unclassed. Containers own their spacing instead — `.stack` for the
+   vertical rhythm, `gap` for rows — which is the rule the rest of the system already follows. */
+.card-stack > .card + .card { margin-top: var(--sp-7); }
 .card .card-h {
   padding: 10px 12px; border-bottom: 1px solid var(--line-hairline);
   display: flex; align-items: center; gap: 8px;

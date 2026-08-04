@@ -27,7 +27,7 @@ export default function Operations({ reloadKey }) {
   if (!ops) return <Loading what="operations" />;
 
   return (
-    <div>
+    <div className="card-stack">
       <h1>Operations</h1>
       <div className="rowmeta" style={{ marginBottom: 14 }}>As of {ops.as_of}. Mock/local mode.</div>
 

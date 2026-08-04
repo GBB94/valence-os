@@ -23,7 +23,7 @@ export default function ValueLibrary({ accounts, accountId, setAccountId, reload
   const negative = (stories || []).filter((s) => s.is_negative);
 
   return (
-    <div>
+    <div className="card-stack">
       <div className="actions" style={{ marginBottom: 14 }}>
         <h1>Value &amp; story library</h1>
         <select value={accountId || ""} onChange={(e) => setAccountId(e.target.value)} style={sel}>

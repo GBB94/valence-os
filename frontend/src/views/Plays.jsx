@@ -35,7 +35,7 @@ export default function Plays({ reloadKey, onChanged }) {
   const completed = runs.filter((r) => r.status === "completed");
 
   return (
-    <div>
+    <div className="card-stack">
       <div className="actions" style={{ marginBottom: 14 }}>
         <h1>Plays</h1>
         <div className="spacer" />
