@@ -553,7 +553,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
         {tab === "ledger" && (
           <div className="stack">
             <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved}
-              onOpenTarget={openWorkspaceTarget} />
+              onOpenTarget={openWorkspaceTarget} focusedRecordId={focusedRecordId} />
             <Collapsible title="Communications (email + recordings)">
               <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
             </Collapsible>

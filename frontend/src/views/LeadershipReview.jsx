@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { AgeChip, Badge, Card, DueChip, Empty, Loading, fmtDate } from "../ui";
+import { AgeChip, Badge, Card, DueChip, Empty, Loading, ageDays, fmtDate } from "../ui";
 
 function words(value) {
   return String(value || "").replaceAll("_", " ");
@@ -44,9 +44,15 @@ function Expandable({ items, empty, render, className = "command-rows" }) {
 
 function StatusCard({ item, onOpenTarget }) {
   const band = { on_track: "ok", at_risk: "warn", off_track: "risk", unknown: "unknown" }[item.value] || "unknown";
+  // DESIGN-GUIDE §7: a manually assessed status past its 30-day reassessment interval keeps its
+  // colour but gains a dotted outline, so an old judgment cannot read as current — least of all
+  // on the leadership surface.
+  const stale = ageDays(item.assessed_on) != null && ageDays(item.assessed_on) > 30;
   return <article className="leadership-status">
     <div className="actions"><span className={`state-mark ${band}`} aria-hidden="true" />
-      <strong>{words(item.dimension)}</strong><Badge>{words(item.value)}</Badge>
+      <strong>{words(item.dimension)}</strong>
+      <Badge className={stale ? "status-stale-outline" : undefined}>{words(item.value)}</Badge>
+      {stale && <span className="rowmeta">reassess</span>}
       <span className="spacer" /><AgeChip date={item.assessed_on} /></div>
     <p>{item.rationale || "No governed rationale is recorded."}</p>
     {(item.recovery_action || item.recovery_owner || item.recovery_due_on) && <div className="leadership-recovery">

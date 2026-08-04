@@ -118,6 +118,17 @@ function Attendees({ items, onOpenTarget }) {
         <div>{words(item.role.effective_role)} · {words(item.role.layer)}</div>
         <div className="actions prepare-stance"><StanceLabel stance={item.role.stance} />
           <AgeChip date={item.role.stance_assessed_on} /></div>
+        {/* An assessment travels with its basis, never the judgment alone (CLAUDE.md §2). */}
+        {item.role.stance && (item.role.stance_evidence_note
+          ? <div className="rowmeta">Because {item.role.stance_evidence_note}</div>
+          : <div className="rowmeta"><span className="unknown-fill">Evidence note not recorded</span></div>)}
+        {item.role.influence && <div className="rowmeta">
+          Influence {item.role.influence}
+          {item.role.influence_assessed_on
+            ? <> as of {fmtDate(item.role.influence_assessed_on)}
+                {item.role.influence_evidence_note ? ` — ${item.role.influence_evidence_note}` : ""}</>
+            : <> · <span className="unknown-fill">not dated</span></>}
+        </div>}
         {item.role.cares_about && <div className="rowmeta">Cares about {item.role.cares_about}</div>}
       </> : <span className="unknown-fill">Not recorded</span>}</td>
       <td>{item.last_meaningful_touch ? <>
@@ -235,9 +246,13 @@ export default function MeetingPrepare({
           <div><div className="ctx-k">Program</div>{meeting.program_name || "Account-level"}</div>
           <div><div className="ctx-k">Location</div>{meeting.location || <span className="unknown-fill">Not recorded</span>}</div>
           <div><div className="ctx-k">Organizer</div>{meeting.organizer_email || <span className="unknown-fill">Not recorded</span>}</div>
+          {/* DESIGN-GUIDE §8: a numeric confidence badge is prohibited. The underlying value is
+              a recorded boolean, so it reads as a word. */}
           <div><div className="ctx-k">Association</div>{meeting.association_confidence == null
-            ? <span className="unknown-fill">Unknown</span>
-            : <span className="mono">{Math.round(meeting.association_confidence * 100)}%</span>}</div>
+            ? <span className="unknown-fill">Not recorded</span>
+            : meeting.association_confidence >= 1
+              ? <span>Confirmed</span>
+              : <span>Not fully confirmed</span>}</div>
         </div>
         <div className="prepare-actions">
           <button className="btn primary" onClick={() => onQuickEntry(accountId)}>Log interaction</button>

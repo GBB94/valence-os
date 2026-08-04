@@ -41,10 +41,12 @@ def activity(
             raise HTTPException(422, "recorded_after must be an ISO-8601 UTC timestamp") from exc
     projection = account_activity.project_account_activity(conn, account_id, program_id=program_id)
     items = projection.items
-    known_event_kinds = {item.event_kind for item in items}
-    unknown_event_kinds = sorted(set(event_kind) - known_event_kinds)
+    # Validate against the vocabulary, never against this account's current rows: a typo is still
+    # rejected, but a legitimate kind that currently matches nothing is an empty page rather than
+    # a 422 that breaks a saved or deep-linked filter.
+    unknown_event_kinds = sorted(set(event_kind) - account_activity.event_kinds(conn))
     if unknown_event_kinds:
-        raise HTTPException(422, f"event_kind is not available in this scope: {', '.join(unknown_event_kinds)}")
+        raise HTTPException(422, f"unknown event_kind: {', '.join(unknown_event_kinds)}")
     for label, value in (("display_from", display_from), ("display_to", display_to)):
         if value:
             try:

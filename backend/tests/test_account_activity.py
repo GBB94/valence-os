@@ -790,3 +790,21 @@ def test_archived_program_checkpoint_still_restores(client):
         for suffix in ("", "-wal", "-shm"):
             try: _os.unlink(path + suffix)
             except FileNotFoundError: pass
+
+
+def test_valid_event_kind_with_no_rows_is_an_empty_page_not_an_error(client):
+    """A saved filter must not start failing when its last matching record closes (D-128)."""
+    c = client
+    account = c.post("/api/accounts", json={"name": "Filter Synthetic"}).json()
+    # A legitimate kind this account currently has no rows for.
+    empty = c.get(f"/api/accounts/{account['id']}/activity",
+                  params={"event_kind": "commitment_closed"})
+    assert empty.status_code == 200, empty.text
+    assert empty.json()["items"] == [] and empty.json()["matched_count"] == 0
+    # A company kind composed from the governed lookup is also legitimate.
+    assert c.get(f"/api/accounts/{account['id']}/activity",
+                 params={"event_kind": "company_m_and_a"}).status_code == 200
+    # A genuine typo is still rejected.
+    typo = c.get(f"/api/accounts/{account['id']}/activity",
+                 params={"event_kind": "invented_transition"})
+    assert typo.status_code == 422 and "unknown event_kind" in typo.text

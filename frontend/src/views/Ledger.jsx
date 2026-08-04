@@ -53,7 +53,7 @@ function activityWhen(value) {
   }).format(instant);
 }
 
-export default function Ledger({ accountId, programId, reloadKey, onChanged, onOpenTarget }) {
+export default function Ledger({ accountId, programId, reloadKey, onChanged, onOpenTarget, focusedRecordId }) {
   const [view, setView] = useState("records");
   return <div>
     <SegTabs id="ledger-views" ariaLabel="Ledger view" value={view} onChange={setView}
@@ -303,6 +303,16 @@ function RecordsLedger({ accountId, programId, reloadKey, onChanged }) {
     rows.forEach((r) => { c[r.kind] = (c[r.kind] || 0) + 1; });
     return c;
   }, [rows]);
+
+  // Arriving from a command-center "Open" selects the record itself rather than dropping the
+  // operator on the tab to find it. Clearing the type filter keeps the row reachable.
+  useEffect(() => {
+    if (!focusedRecordId || !rows.length) return;
+    const match = rows.find((r) => r.raw?.id === focusedRecordId);
+    if (!match) return;
+    setSelKey(match.key);
+    setFilter((current) => (current === "all" || current === match.kind ? current : "all"));
+  }, [focusedRecordId, rows]);
 
   const shown = filter === "all" ? rows : rows.filter((r) => r.kind === filter);
   const selected = shown.find((r) => r.key === selKey) || null;

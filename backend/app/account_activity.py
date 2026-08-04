@@ -212,6 +212,41 @@ def adapter_names() -> tuple[str, ...]:
     return tuple(_ADAPTERS)
 
 
+# Structural kinds the adapters can emit.  Kinds composed from a governed lookup (company event
+# kinds) are added per-connection in event_kinds(); everything else is enumerable here.
+_STATIC_EVENT_KINDS: frozenset[str] = frozenset({
+    "calendar_event_scheduled", "decision_recorded", "deployment_moment_scheduled",
+    "forecast_category_changed", "interaction_recorded", "operator_view_recorded",
+    "status_assessed",
+    *(f"{source}_{transition}"
+      for source in ("commitment", "task", "risk", "issue", "milestone")
+      for transition in ("created", "due", "closed", "resolved", "completed")),
+    *(f"account_review_{status}" for status in ("scheduled", "held", "cancelled")),
+    *(f"communication_{status}" for status in ("planned", "sent", "cancelled")),
+    *(f"internal_ask_{event}" for event in
+      ("created", "started", "delivered", "declined", "reopened", "cancelled", "escalated")),
+})
+
+
+def event_kinds(conn: sqlite3.Connection | None = None) -> frozenset[str]:
+    """The filterable vocabulary, independent of what any one account currently holds.
+
+    Validating a filter against present rows made a legitimate saved or deep-linked filter fail
+    with 422 the moment its last matching record closed; validating against the vocabulary still
+    rejects a genuine typo while letting an empty match be an empty page.
+    """
+    kinds = set(_STATIC_EVENT_KINDS)
+    if conn is not None:
+        try:
+            kinds.update(
+                f"company_{row['key']}" for row in
+                conn.execute("SELECT key FROM company_event_kinds WHERE archived=0")
+            )
+        except sqlite3.Error:
+            pass
+    return frozenset(kinds)
+
+
 def _validate_scope(conn: sqlite3.Connection, account_id: str, program_id: str | None) -> None:
     repo.get_row(conn, "accounts", account_id)
     if not program_id:

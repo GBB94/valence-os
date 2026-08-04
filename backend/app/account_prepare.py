@@ -78,9 +78,13 @@ def _role_for_person(
         "role_id": role["id"], "role": role["role"], "effective_role": effective,
         "role_reason": reason, "layer": people_core.resolved_layer(role),
         "program_id": role["program_id"], "program_name": role["program_name"],
+        # CLAUDE.md §2: a stance or influence rating always traffics with its date AND its
+        # evidence note. Emitting the judgment without its basis is the failure the rule names.
         "stance": role["stance"], "stance_assessed_on": role["stance_assessed_on"],
+        "stance_evidence_note": role["stance_evidence_note"],
         "cares_about": role["cares_about"], "value_for_them": role["value_for_them"],
-        "influence": role["influence"],
+        "influence": role["influence"], "influence_assessed_on": role["graph_assessed_on"],
+        "influence_evidence_note": role["graph_evidence_note"],
     }
 
 
@@ -466,7 +470,9 @@ def build_meeting_prep(
     if selected.get("association_confidence") is None or selected["association_confidence"] < 1:
         gaps.append({
             "kind": "association_confidence", "title": "Calendar association is not fully confirmed",
-            "detail": f"Recorded confidence: {selected.get('association_confidence') if selected.get('association_confidence') is not None else 'unknown'}.",
+            "detail": ("The meeting-to-account association is not recorded."
+                       if selected.get("association_confidence") is None
+                       else "The meeting-to-account association is recorded as not fully confirmed."),
             "native_target": _target("plan", "calendar_event", selected["id"]),
         })
     if not selected.get("source_reference_id"):

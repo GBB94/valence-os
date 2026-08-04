@@ -101,12 +101,24 @@ export function SegTabs({ tabs, value, onChange, kind = "tab", ariaLabel = "Sect
   const autoId = useId();
   const baseId = id || `seg-tabs-${autoId.replaceAll(":", "")}`;
   const refs = useRef(new Map());
+  // Keyboard selection must move focus with it, or a screen reader announces nothing and the
+  // next Tab starts from a stale element. A one-shot rAF loses the race when selecting also
+  // changes the URL (the lens selector), so the focus is re-applied from an effect, which runs
+  // after the commit that re-rendered these buttons.
+  const pendingFocus = useRef(null);
+  useEffect(() => {
+    if (pendingFocus.current !== value) return;
+    pendingFocus.current = null;
+    const node = refs.current.get(value);
+    if (node && document.activeElement !== node) node.focus();
+  }, [value]);
   function onKeyDown(event) {
     const next = nextTabKey(tabs, value, event.key);
     if (!next) return;
     event.preventDefault();
+    pendingFocus.current = next;
     onChange(next);
-    requestAnimationFrame(() => refs.current.get(next)?.focus());
+    refs.current.get(next)?.focus();
   }
   return (
     <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist"

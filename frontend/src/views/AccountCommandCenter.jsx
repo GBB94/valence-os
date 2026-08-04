@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import {
   Badge, Card, Empty, Loading, SegTabs, SlideOver, AgeChip, DueChip, fmtDate, useToast,
@@ -226,6 +226,7 @@ export default function AccountCommandCenter({
   const [error, setError] = useState(null);
   const [priorVisit, setPriorVisit] = useState(null);
   const [reviewing, setReviewing] = useState(false);
+  const stampedScope = useRef(null);
   const [addingProgram, setAddingProgram] = useState(false);
 
   useEffect(() => {
@@ -239,7 +240,15 @@ export default function AccountCommandCenter({
     try {
       const result = await api.commandCenter(accountId, { programId, recordedAfter: visit || "" });
       setData(result);
-      writeLastVisit(window.localStorage, accountId, programId, result.stamp.data_current_through);
+      // The visit cursor advances once per arrival at a scope, not on every refresh. Without
+      // this guard any unrelated capture (which bumps reloadKey) silently emptied "Since your
+      // last visit", and marking changes reviewed advanced it as a side effect — collapsing two
+      // bands the spec defines as independent.
+      const scope = `${accountId}::${programId || ""}`;
+      if (stampedScope.current !== scope) {
+        stampedScope.current = scope;
+        writeLastVisit(window.localStorage, accountId, programId, result.stamp.data_current_through);
+      }
     } catch (error) {
       setError(error.message);
       setData(null);

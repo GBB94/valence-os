@@ -16,13 +16,18 @@ un-exportable. A separate latent bug surfaced during verification: `company_inte
 in local time while SQLite and every other module use UTC, so expiry comparisons disagreed with
 the database every evening in a US timezone.
 
-Known, still open from the same review (not yet fixed): a prohibited numeric confidence percentage
-in Prepare's meeting identity; `native_target.record_id` discarded by `onOpenTarget`, so ~40 "Open"
-buttons land on a tab rather than the record; Prepare's stakeholder payload omitting
-`stance_evidence_note` and emitting `influence` with no assessed date; the lens tablist changing
-selection without moving focus; "Since your last visit" being advanced by unrelated saves; the
-Leadership lens dropping the stale-assessment outline; and a valid `event_kind` filter returning
-422 when the account has no matching row. See D-126's companion findings in the review notes.
+The seven remaining findings from that review are now closed (D-128): the prohibited numeric
+confidence percentage in Prepare, the discarded `native_target.record_id` (Ledger now selects the
+focused record), the stakeholder payload missing its evidence notes, the lens tablist selecting
+without moving focus, "Since your last visit" being advanced by unrelated saves, the Leadership
+lens dropping the stale-assessment outline, and the `event_kind` filter returning 422 when an
+account had no matching row.
+
+**Outstanding (D-129): the contrast auditor is blind to the new gradient surfaces.** The command
+center uses `background-clip: text` headings and `spotlight-surface` gradient cards; the
+computed-style walk used in these reviews reads only `background-color`, so it cannot score them
+and its readings there are artifacts. No automated contrast evidence currently covers those
+surfaces in either theme — a gradient-aware check or a recorded manual audit is still owed.
 
 ## Account command center Release 2 — implemented (2026-08-03, D-117–D-123)
 
