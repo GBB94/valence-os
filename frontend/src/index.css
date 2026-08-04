@@ -273,7 +273,14 @@ h3, h4 { font-weight: 600; }
   transition: border-color var(--dur-standard) var(--ease-expo), box-shadow var(--dur-standard) var(--ease-expo),
     background var(--dur-standard) var(--ease-expo), transform var(--dur-standard) var(--ease-expo);
 }
-.card + .card { margin-top: 10px; }
+/* Stacked cards keep a rhythm when their container provides none. `:where()` drops this to zero
+   specificity so any container that owns its own spacing wins — previously this rule (0,2,0)
+   beat `.stack > * + *` (0,1,0), so stacked cards got 10px where the system says 20px, and 10px
+   is not on the spacing scale. */
+:where(.card + .card) { margin-top: var(--sp-5); }
+/* Row layouts space with `gap`. A sibling margin there pushed every card after the first down,
+   so the peer cards in a row visibly failed to line up. Add new row containers here. */
+:is(.queue-brief, .two-col, .grid2, .grid3, .ledger) > .card { margin-top: 0; }
 .card .card-h {
   padding: 10px 12px; border-bottom: 1px solid var(--line-hairline);
   display: flex; align-items: center; gap: 8px;
@@ -626,7 +633,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* Today — urgency is carried by the band and rail; rows prioritize the decision. */
 .queue-brief {
-  display: grid; grid-template-columns: minmax(220px, 1.35fr) repeat(2, minmax(180px, 1fr));
+  /* Three peer counts read as peers: equal columns, with the primary band distinguished by its
+     surface treatment rather than by being wider. This is what the ≤1000px rule already did. */
+  display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: var(--sp-5); margin: calc(var(--sp-4) * -1) var(--sp-5) var(--sp-6);
   position: relative; z-index: 2;
 }
