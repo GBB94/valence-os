@@ -196,9 +196,12 @@ def _related_source_ids(
             f"SELECT id FROM decisions WHERE account_id=? AND archived=0 "
             f"AND decided_by_id IN ({placeholders})", (account_id, *ids),
         )},
+        # Scoped even though the caller intersects against an account-scoped projection: the
+        # intersection must not be the only thing preventing a cross-account read.
         "calendar": {row["event_id"] for row in conn.execute(
-            f"SELECT DISTINCT event_id FROM calendar_event_attendees "
-            f"WHERE person_id IN ({placeholders})", ids,
+            f"SELECT DISTINCT a.event_id FROM calendar_event_attendees a "
+            f"JOIN calendar_events e ON e.id=a.event_id AND e.archived=0 "
+            f"WHERE e.account_id=? AND a.person_id IN ({placeholders})", (account_id, *ids),
         )},
         "internal_ask": {row["id"] for row in conn.execute(
             f"SELECT id FROM internal_asks WHERE account_id=? AND archived=0 AND "

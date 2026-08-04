@@ -328,7 +328,10 @@ def project_account_activity(
                 adapter=name, status="covered", item_count=len(adapter_items),
                 duration_ms=round((perf_counter_ns() - adapter_started) / 1_000_000, 3),
             ))
-        except sqlite3.Error:
+        except Exception:
+            # Any adapter failure — a SQL error, or a source row that cannot normalize into
+            # ActivityItem (e.g. an empty title, which the column permits) — degrades that one
+            # source to explicit partial coverage.  A failed section never blanks the account.
             omitted.append(name)
             metrics.append(ActivityAdapterMetric(
                 adapter=name, status="omitted", item_count=0,
@@ -382,8 +385,9 @@ def interaction_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list
         participant_rows = conn.execute(
             "SELECT p.id,p.name,p.affiliation FROM interaction_participants ip "
             "JOIN persons p ON p.id=ip.person_id "
-            "WHERE ip.interaction_id=? AND p.archived=0 ORDER BY p.name",
-            (row["id"],),
+            "WHERE ip.interaction_id=? AND p.archived=0 "
+            "AND (p.affiliation='valence' OR p.account_id=?) ORDER BY p.name",
+            (row["id"], query.account_id),
         ).fetchall()
         participants = [ActivityParticipant(**dict(person)) for person in participant_rows]
         if any(person.affiliation == "client" for person in participants):
@@ -441,11 +445,15 @@ def _direction(value: str, as_of: str) -> ActivityDirection:
     return "future" if value[:10] > as_of[:10] else "past"
 
 
-def _person(conn: sqlite3.Connection, person_id: str | None) -> dict | None:
+def _person(conn: sqlite3.Connection, person_id: str | None, account_id: str) -> dict | None:
+    """Resolve a person label, failing closed outside the account (mirrors
+    account_leadership._person_name). A foreign reference resolves to None rather than
+    carrying another account's label into this response."""
     if not person_id:
         return None
     row = conn.execute(
-        "SELECT id,name,affiliation FROM persons WHERE id=? AND archived=0", (person_id,)
+        "SELECT id,name,affiliation FROM persons WHERE id=? AND archived=0 "
+        "AND (affiliation='valence' OR account_id=?)", (person_id, account_id)
     ).fetchone()
     return dict(row) if row else None
 
@@ -542,7 +550,7 @@ def execution_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[A
         commitment_params.append(query.program_id)
     for row in [dict(r) for r in conn.execute(commitment_sql, tuple(commitment_params))]:
         stream: ActivityStream = "customer" if row["commitment_class"] == "client" else "internal"
-        owner = _person(conn, row.get("internal_owner_id"))
+        owner = _person(conn, row.get("internal_owner_id"), query.account_id)
         owner_name = owner["name"] if owner else None
         out.append(_execution_created(
             row=row, source_type="commitment", title="Commitment recorded",
@@ -574,7 +582,7 @@ def execution_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[A
         decision_sql += " AND (program_id=? OR program_id IS NULL)"
         decision_params.append(query.program_id)
     for row in [dict(r) for r in conn.execute(decision_sql, tuple(decision_params))]:
-        decider = _person(conn, row.get("decided_by_id"))
+        decider = _person(conn, row.get("decided_by_id"), query.account_id)
         stream = "customer" if decider and decider["affiliation"] == "client" else "internal" if decider else "unknown"
         value, precision = _temporal(row.get("decided_on") or row["created_at"])
         out.append(ActivityItem(
@@ -601,7 +609,7 @@ def execution_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[A
     }
     for source_type, (table, label_field) in specs.items():
         for row in _scoped_program_rows(conn, table, query):
-            owner = _person(conn, row.get("internal_owner_id"))
+            owner = _person(conn, row.get("internal_owner_id"), query.account_id)
             owner_name = owner["name"] if owner else None
             created_material = (
                 (source_type == "risk" and (row.get("is_blocker") or row.get("severity") == "high"))
@@ -651,7 +659,7 @@ def status_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[Acti
     for row in rows:
         prior = previous.get(row["dimension"])
         changed = prior is not None and prior != row["value"]
-        owner = _person(conn, row.get("recovery_owner_person_id"))
+        owner = _person(conn, row.get("recovery_owner_person_id"), query.account_id)
         out.append(ActivityItem(
             id=f"status_assessment:{row['id']}:recorded", account_id=query.account_id,
             source_type="status_assessment", source_id=row["id"], event_kind="status_assessed",
@@ -697,7 +705,7 @@ def internal_ask_activity(conn: sqlite3.Connection, query: ActivityQuery) -> lis
     ).fetchall()
     out: list[ActivityItem] = []
     for row in rows:
-        owner = _person(conn, row["current_owner_person_id"])
+        owner = _person(conn, row["current_owner_person_id"], query.account_id)
         out.append(ActivityItem(
             id=f"internal_ask:{row['id']}:recorded", account_id=query.account_id,
             source_type="internal_ask", source_id=row["ask_id"],
@@ -724,7 +732,7 @@ def account_review_activity(conn: sqlite3.Connection, query: ActivityQuery) -> l
         value = row.get("held_on") or row.get("scheduled_on") or row["updated_at"]
         temporal_kind: TemporalKind = "occurred" if row["status"] == "held" else "scheduled" if row.get("scheduled_on") else "recorded"
         display_at, precision = _temporal(value)
-        chair = _person(conn, row.get("chair_person_id"))
+        chair = _person(conn, row.get("chair_person_id"), query.account_id)
         out.append(ActivityItem(
             id=f"account_review:{row['id']}:{row['status']}", account_id=query.account_id,
             source_type="account_review", source_id=row["id"], event_kind=f"account_review_{row['status']}",
@@ -763,8 +771,9 @@ def calendar_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[Ac
         row = dict(raw)
         participant_rows = conn.execute(
             "SELECT p.id,p.name,p.affiliation FROM calendar_event_attendees a "
-            "JOIN persons p ON p.id=a.person_id WHERE a.event_id=? AND p.archived=0 ORDER BY p.name",
-            (row["id"],),
+            "JOIN persons p ON p.id=a.person_id WHERE a.event_id=? AND p.archived=0 "
+            "AND (p.affiliation='valence' OR p.account_id=?) ORDER BY p.name",
+            (row["id"], query.account_id),
         ).fetchall()
         participants = [ActivityParticipant(**dict(person)) for person in participant_rows]
         stream: ActivityStream = (
@@ -801,7 +810,7 @@ def deployment_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[
             direction=_direction(row["event_date"], query.as_of),
             materiality="material" if abs((date.fromisoformat(row["event_date"]) - date.fromisoformat(query.as_of[:10])).days) <= 30 else "context",
             status=row["integration_status"], reason="Dated deployment moment",
-            owner=(_person(conn, row.get("client_owner_person_id")) or {}).get("name"),
+            owner=(_person(conn, row.get("client_owner_person_id"), query.account_id) or {}).get("name"),
             native_target=ActivityNativeTarget(tab="plan", record_type="deployment_moment", record_id=row["id"]),
         ))
     return out

@@ -46,6 +46,16 @@ def create_interaction(body: InteractionCreate, conn: sqlite3.Connection = Depen
                      action="create", after=interaction)
 
         for pid in dict.fromkeys(body.participant_ids):  # dedupe, preserve order
+            # A participant must belong to this account (or be a Valence colleague). Accepting a
+            # foreign person put another account's label into this account's activity, and made
+            # the account un-exportable — its bundle referenced a person it does not contain.
+            participant = conn.execute(
+                "SELECT 1 FROM persons WHERE id=? AND archived=0 "
+                "AND (affiliation='valence' OR account_id=?)",
+                (pid, interaction["account_id"]),
+            ).fetchone()
+            if not participant:
+                raise HTTPException(422, "participant belongs to a different account")
             conn.execute(
                 "INSERT OR IGNORE INTO interaction_participants (interaction_id, person_id) VALUES (?,?)",
                 (interaction["id"], pid),

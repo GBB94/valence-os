@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from app import account_activity
 from app.account_activity import ActivityItem, adapter_names, project_account_activity
+from app.db import new_id, now_utc
 from conftest import utc_day
 
 
@@ -698,3 +699,94 @@ def test_leadership_names_missing_stale_and_missed_contract_evidence(client):
     assert {"status:delivery:missing", "status:commercial:missing", "forecast:missing"} <= stuck_ids
     assert any(item_id.startswith("operator_view:") and item_id.endswith(":stale") for item_id in stuck_ids)
     assert f"contract:{contract.json()['id']}:notice-overdue" in stuck_ids
+
+
+# --- Post-review regression cases (D-115) -----------------------------------------------
+# Each of these reproduces a defect found in the Release 2 adversarial review and verified
+# failing against the pre-fix code.
+
+def test_foreign_person_never_labels_another_accounts_activity(client):
+    """A person from another account must not have their name carried into this account."""
+    c = client
+    a = c.post("/api/accounts", json={"name": "Scope Alpha"}).json()
+    b = c.post("/api/accounts", json={"name": "Scope Beta"}).json()
+    foreign = c.post("/api/persons", json={"name": "Foreign Person", "account_id": b["id"],
+                                           "affiliation": "client"}).json()
+    colleague = c.post("/api/persons", json={"name": "Valence Colleague",
+                                             "affiliation": "valence"}).json()
+
+    # The write path refuses the foreign participant outright.
+    rejected = c.post("/api/interactions", json={
+        "account_id": a["id"], "kind": "meeting", "occurred_on": "2026-08-01",
+        "summary": "Sync", "participant_ids": [foreign["id"]]})
+    assert rejected.status_code == 422 and "different account" in rejected.text
+
+    # A Valence colleague is still a legitimate participant.
+    ok = c.post("/api/interactions", json={
+        "account_id": a["id"], "kind": "meeting", "occurred_on": "2026-08-01",
+        "summary": "Sync", "participant_ids": [colleague["id"]]})
+    assert ok.status_code == 201
+
+    # Even if a foreign reference exists in the database, the read path fails closed.
+    with c.app.state.conn as conn:
+        conn.execute("INSERT OR IGNORE INTO interaction_participants (interaction_id,person_id) "
+                     "VALUES (?,?)", (ok.json()["id"], foreign["id"]))
+    for endpoint in ("activity?limit=200", "command-center", "command-center/leadership"):
+        body = c.get(f"/api/accounts/{a['id']}/{endpoint}").text
+        assert "Foreign Person" not in body, endpoint
+    names = [p["name"] for item in c.get(f"/api/accounts/{a['id']}/activity?limit=200").json()["items"]
+             for p in item.get("participants", [])]
+    assert "Valence Colleague" in names
+
+
+def test_unnormalizable_source_row_degrades_to_partial_coverage(client):
+    """A row the column permits but the contract rejects omits one adapter, not the account."""
+    c = client
+    account = c.post("/api/accounts", json={"name": "Degrade Synthetic"}).json()
+    program = c.post("/api/programs", json={"account_id": account["id"], "name": "P"}).json()
+    stamp = utc_day(0)
+    with c.app.state.conn as conn:
+        conn.execute(
+            "INSERT INTO calendar_events(id,account_id,program_id,title,direction,purpose,"
+            "starts_at,created_at,updated_at) VALUES (?,?,?,'','read','qbr',?,?,?)",
+            (new_id(), account["id"], program["id"], f"{stamp}T10:00:00+00:00",
+             now_utc(), now_utc()))
+    for endpoint in ("activity", "command-center", "command-center/leadership",
+                     "command-center/prepare"):
+        assert c.get(f"/api/accounts/{account['id']}/{endpoint}").status_code == 200, endpoint
+    assert "calendar" in c.get(f"/api/accounts/{account['id']}/activity").json()["stamp"]["omitted"]
+
+
+def test_archived_program_checkpoint_still_restores(client):
+    """Archiving a program must not make its account permanently un-restorable."""
+    import json as _json
+    import os as _os
+    import tempfile as _tempfile
+    from app.db import connect, run_migrations
+
+    c = client
+    account = c.post("/api/accounts", json={"name": "Restore Synthetic"}).json()
+    program = c.post("/api/programs", json={"account_id": account["id"], "name": "P"}).json()
+    assert c.post(f"/api/accounts/{account['id']}/change-checkpoints", json={
+        "scope_type": "program", "program_id": program["id"],
+        "reviewed_through": now_utc(), "source_type": "command_center"}).status_code == 201
+    assert c.post(f"/api/programs/{program['id']}/archive").status_code == 204
+    bundle = c.get(f"/api/accounts/{account['id']}/export").json()
+    assert bundle["counts"]["account_change_checkpoints"] == 1
+
+    from app import portfolio_io
+    previous = _os.environ["VALENCE_OS_DB"]
+    fd, path = _tempfile.mkstemp(suffix=".sqlite"); _os.close(fd)
+    try:
+        _os.environ["VALENCE_OS_DB"] = path
+        restored = connect(); run_migrations(restored)
+        portfolio_io.import_account(restored, _json.loads(_json.dumps(bundle)))
+        assert restored.execute(
+            "SELECT COUNT(*) n FROM account_change_checkpoints").fetchone()["n"] == 1
+        assert restored.execute("PRAGMA foreign_key_check").fetchall() == []
+        restored.close()
+    finally:
+        _os.environ["VALENCE_OS_DB"] = previous
+        for suffix in ("", "-wal", "-shm"):
+            try: _os.unlink(path + suffix)
+            except FileNotFoundError: pass

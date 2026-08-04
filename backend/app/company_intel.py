@@ -24,6 +24,12 @@ _ENTAILMENT_STOP = {"about", "after", "again", "announced", "company", "during",
                     "named", "public", "source", "their", "there", "these", "they", "this", "with"}
 
 
+def _today() -> date:
+    """UTC, matching now_utc() and SQLite's date('now'). A local date would disagree with the
+    triggers and with expiry comparisons whenever the local and UTC dates differ."""
+    return date.fromisoformat(now_utc()[:10])
+
+
 def _json(value) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
@@ -518,7 +524,7 @@ def create_link_keyword(conn: sqlite3.Connection, account_id: str, phrase: str,
 
 
 def overlay(conn: sqlite3.Connection, account_id: str) -> dict:
-    today = date.today().isoformat()
+    today = _today().isoformat()
     rows = conn.execute(
         "SELECT l.*,e.summary,e.id event_id,k.direction FROM company_event_links l "
         "JOIN company_events e ON e.id=l.event_id JOIN company_event_kinds k ON k.id=e.kind_id "
@@ -545,7 +551,7 @@ def derive_hiring_events(conn: sqlite3.Connection, account_id: str) -> dict:
         return {"observations": 0, "proposed_events": 0, "event_ids": [], "paused": True}
     minimum = int(watch["hiring_cluster_min"] if watch else 5)
     window = int(watch["hiring_window_days"] if watch else 21)
-    today = date.today(); cutoff = (today - timedelta(days=window)).isoformat(); ts = now_utc()
+    today = _today(); cutoff = (today - timedelta(days=window)).isoformat(); ts = now_utc()
     groups = conn.execute(
         "SELECT function_label,region_label,COUNT(DISTINCT normalized_posting_key) postings_count "
         "FROM hiring_postings WHERE account_id=? AND state='active' AND archived=0 AND last_seen_on>=? "
@@ -604,7 +610,7 @@ def _target(link: sqlite3.Row) -> tuple[str, str]:
 
 def evaluate_convergence(conn: sqlite3.Connection, account_id: str) -> dict:
     repo.get_row(conn, "accounts", account_id)
-    today, ts = date.today().isoformat(), now_utc()
+    today, ts = _today().isoformat(), now_utc()
     watch = conn.execute("SELECT watch_tier,convergence_max_gap_days FROM company_watch_profiles WHERE account_id=? AND archived=0",
                          (account_id,)).fetchone()
     max_gap = int(watch["convergence_max_gap_days"] if watch else 120)

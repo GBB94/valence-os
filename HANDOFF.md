@@ -2,6 +2,28 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Release 2 — adversarial review and critical fixes (2026-08-03, D-126/D-127)
+
+An independent adversarial review of Release 2 found three critical defects, all reproduced
+against a live database before fixing and re-verified after: cross-account person labels leaking
+into account-scoped activity/command-center/leadership responses; a single unnormalizable source
+row (an empty calendar title, which the column permits) taking down every lens with a 500 instead
+of degrading to partial coverage; and migration 0039's checkpoint trigger making an account
+permanently un-restorable once a program was archived. All three are fixed with regression tests
+verified to fail against the pre-fix code. Fixing the leak also closed its root cause — the
+interaction write path accepted a foreign `participant_id`, which additionally made the account
+un-exportable. A separate latent bug surfaced during verification: `company_intel` derived "today"
+in local time while SQLite and every other module use UTC, so expiry comparisons disagreed with
+the database every evening in a US timezone.
+
+Known, still open from the same review (not yet fixed): a prohibited numeric confidence percentage
+in Prepare's meeting identity; `native_target.record_id` discarded by `onOpenTarget`, so ~40 "Open"
+buttons land on a tab rather than the record; Prepare's stakeholder payload omitting
+`stance_evidence_note` and emitting `influence` with no assessed date; the lens tablist changing
+selection without moving focus; "Since your last visit" being advanced by unrelated saves; the
+Leadership lens dropping the stale-assessment outline; and a valid `event_kind` filter returning
+422 when the account has no matching row. See D-126's companion findings in the review notes.
+
 ## Account command center Release 2 — implemented (2026-08-03, D-117–D-123)
 
 Account Overview is now one addressable Operate/Prepare/Leadership command center over a shared account/program scope. Operate is complete: it separates material changes since durable review from browser-local changes since visit, exposes deterministic overdue/blocker/status/ask/review attention with reasons, orders confirmed upcoming account moments, and shows the latest dated operator point of view. Sections default to five rows, name partial adapter coverage, retain exact temporal and trust state, and link back to native workspace tabs. Export, capture, program creation, People/Plan reachability, and governed status editing remain available.
@@ -93,7 +115,7 @@ The §0 pre-existing export/search gaps are closed. The export registry now cove
 
 **Two client-facing QBR defects fixed (2026-07-31, D-82).** `output_gen.qbr` was selecting metric observations with no account scoping — one account's QBR could render another's numbers — and was including open commitments without the `client_visible` promotion filter that `mutual_action_plan` applies. Both are trust-boundary violations in a client-facing generator, and neither was caught by the suite; one existing test was in fact asserting the buggy behavior. Fixed with regression tests verified to fail against the pre-fix code.
 
-**Running backend test count: 352** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
+**Running backend test count: 367** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
 
 ## How to run / seed / test
 
@@ -109,7 +131,7 @@ Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`
 .venv/bin/python -m app.seed --reset      # wipe DB, apply migrations, load mock accounts
 .venv/bin/python -m app.seed              # load into existing DB
 
-# Tests (from backend/) — 352 tests, all green
+# Tests (from backend/) — 367 tests, all green
 .venv/bin/python -m pytest
 
 # Frontend dev (from frontend/) — Vite on :5173, proxies API to :8000
