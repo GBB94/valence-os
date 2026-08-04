@@ -120,7 +120,7 @@ The §0 pre-existing export/search gaps are closed. The export registry now cove
 
 **Two client-facing QBR defects fixed (2026-07-31, D-82).** `output_gen.qbr` was selecting metric observations with no account scoping — one account's QBR could render another's numbers — and was including open commitments without the `client_visible` promotion filter that `mutual_action_plan` applies. Both are trust-boundary violations in a client-facing generator, and neither was caught by the suite; one existing test was in fact asserting the buggy behavior. Fixed with regression tests verified to fail against the pre-fix code.
 
-**Running backend test count: 367** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
+**Running backend test count: 369** (was 67 at Phase 2 close). Backend still requires Python 3.12 (`.venv/bin/python -m pytest`).
 
 ## How to run / seed / test
 
@@ -136,7 +136,7 @@ Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`
 .venv/bin/python -m app.seed --reset      # wipe DB, apply migrations, load mock accounts
 .venv/bin/python -m app.seed              # load into existing DB
 
-# Tests (from backend/) — 367 tests, all green
+# Tests (from backend/) — 369 tests, all green
 .venv/bin/python -m pytest
 
 # Frontend dev (from frontend/) — Vite on :5173, proxies API to :8000

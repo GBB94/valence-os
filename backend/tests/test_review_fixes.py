@@ -138,11 +138,14 @@ def test_a_labelled_date_does_not_also_emit_a_generic_duplicate(client):
     assert [p["label"] for p in bare if p["type"] == "key_date"] == ["Key date"]
 
 
-def test_one_drain_gives_a_failing_job_exactly_one_attempt(client):
+def test_one_drain_gives_a_failing_job_exactly_one_attempt(client, monkeypatch):
     """run_pending documents that a job left queued after a failure waits for the next pass.
     The `seen` guard was checked AFTER run_next returned, so the handler had already run a
     second time — one drain burned two of three attempts."""
     from app import jobs
+    # The subject here is drain accounting (one drain, one attempt), so retries run
+    # immediately; the backoff delay itself is covered in tests/test_jobs.py.
+    monkeypatch.setattr(jobs, "RETRY_BACKOFF_BASE_SECONDS", 0)
     calls = {"n": 0}
 
     @jobs.register("review_flaky")

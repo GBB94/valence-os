@@ -21,11 +21,31 @@ import threading
 import time
 from typing import Any, Callable
 
+from datetime import datetime, timedelta
+
 from .db import connect, new_id, now_utc
 
 # kind -> handler(conn, payload) -> result dict | None
 Handler = Callable[[sqlite3.Connection, dict], "dict | None"]
 HANDLERS: dict[str, Handler] = {}
+
+# Retry backoff. A failed attempt previously went straight back to 'queued' with no
+# scheduled_for, so the next drain retried it immediately — which is harmless against a mock
+# adapter and a hammer against a failing real one. The delay grows per attempt and is capped.
+# Set the base to 0 to restore immediate retries (the tests that assert attempt counts do).
+#
+# When a real HTTP adapter lands, a 429's `Retry-After` should override this for that job:
+# honour the header when present, fall back to _retry_delay_seconds otherwise.
+RETRY_BACKOFF_BASE_SECONDS = 30
+RETRY_BACKOFF_MAX_SECONDS = 900
+
+
+def _retry_delay_seconds(attempts_made: int) -> int:
+    """Exponential backoff: 30s, 60s, 120s … capped at RETRY_BACKOFF_MAX_SECONDS."""
+    if RETRY_BACKOFF_BASE_SECONDS <= 0:
+        return 0
+    delay = RETRY_BACKOFF_BASE_SECONDS * (2 ** max(0, attempts_made - 1))
+    return min(delay, RETRY_BACKOFF_MAX_SECONDS)
 
 
 def register(kind: str) -> Callable[[Handler], Handler]:
@@ -158,10 +178,17 @@ def run_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict
                 _notify(conn, "job_failed",
                         f"Job '{job['kind']}' failed: {exc}", "job", job["id"])
             else:
-                # leave for another attempt
+                # Leave for another attempt, but not immediately: back off so a persistently
+                # failing job cannot be retried on every drain.
+                delay = _retry_delay_seconds(job["attempts"])
+                next_at = (
+                    (datetime.fromisoformat(ts) + timedelta(seconds=delay)).isoformat()
+                    if delay else None
+                )
                 conn.execute(
-                    "UPDATE jobs SET status = 'queued', error = ?, updated_at = ? WHERE id = ?",
-                    (str(exc), ts, job["id"]),
+                    "UPDATE jobs SET status = 'queued', error = ?, scheduled_for = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (str(exc), next_at, ts, job["id"]),
                 )
         return _row(conn, job["id"])
 

@@ -608,6 +608,10 @@ def test_job_retry_and_completed_run_deduplication(client, monkeypatch):
         return original(packet, run)
 
     monkeypatch.setattr(copilot_model, "generate", transient)
+    # This case is about retry-then-succeed, not scheduling: run the retry immediately rather
+    # than waiting out the backoff (covered by tests/test_jobs.py).
+    from app import jobs as jobs_module
+    monkeypatch.setattr(jobs_module, "RETRY_BACKOFF_BASE_SECONDS", 0)
     body = {"scope_type": "account", "account_id": s["a"]["id"],
             "query_text": "Which promises are open?", "idempotency_key": "retry-once"}
     queued = client.post("/api/copilot/runs", json=body).json()
