@@ -60,7 +60,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged, onO
       tabs={[["records", "Records"], ["activity", "Activity"]]} />
     <div className="ledger-view-body">
       {view === "records"
-        ? <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} />
+        ? <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} focusedRecordId={focusedRecordId} />
         : <ActivityTimeline accountId={accountId} programId={programId} reloadKey={reloadKey} onOpenTarget={onOpenTarget} />}
     </div>
   </div>;
@@ -237,7 +237,7 @@ function ActivityDetail({ item, onOpenTarget }) {
   </div>;
 }
 
-function RecordsLedger({ accountId, programId, reloadKey, onChanged }) {
+function RecordsLedger({ accountId, programId, reloadKey, onChanged, focusedRecordId }) {
   const toast = useToast();
   const [exec, setExec] = useState(null);
   const [history, setHistory] = useState(null);
