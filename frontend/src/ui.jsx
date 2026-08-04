@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
 import { nextTabKey } from "./segTabs";
 
@@ -309,7 +310,10 @@ export function SlideOver({ title, onClose, children, footer }) {
     window.addEventListener("keydown", key);
     return () => { window.removeEventListener("keydown", key); if (opener?.focus) opener.focus(); };
   }, [onClose]);
-  return (
+  // Portal to <body> so the panel escapes the account workspace's isolated stacking context
+  // (.main has `isolation: isolate`). Rendered inline, its z-index only ranked within .content,
+  // so the sticky topbar painted over its header. At the body level it clears everything.
+  return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
       <aside className="slideover" role="dialog" aria-modal="true" aria-label={title} ref={panelRef}>
@@ -321,7 +325,8 @@ export function SlideOver({ title, onClose, children, footer }) {
         <div className="body">{children}</div>
         {footer && <footer>{footer}</footer>}
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api";
 import { Badge, Btn, Empty, useToast } from "../ui";
 
@@ -105,7 +106,9 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
   const scopeLabel = scope.scope_type === "portfolio" ? "Portfolio · all accounts"
     : scope.scope_type === "program" ? `${accountName} · selected program` : accountName;
 
-  return (
+  // Portal to <body> so the panel clears the workspace's isolated stacking context; rendered
+  // inline the sticky topbar painted over its header (same fix as the shared SlideOver).
+  return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
       <aside ref={dialogRef} className="slideover copilot-panel" role="dialog" aria-modal="true"
@@ -246,6 +249,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
           </section>}
         </div>
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
