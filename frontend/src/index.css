@@ -642,7 +642,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; align-items: end; column-gap: var(--sp-5);
   background: linear-gradient(145deg, var(--surface-highlight), transparent 56%), var(--bg-glass);
   backdrop-filter: blur(var(--sp-6)) saturate(1.12);
+  /* Rendered as a button: reset the control defaults, keep the card's own type and alignment. */
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
 }
+.queue-brief-card:hover { border-color: var(--line-strong); }
+/* Selected pairs the accent edge with the label change in the card body, never colour alone. */
+.queue-brief-card.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .queue-brief-card strong {
   grid-row: 1 / 3; align-self: center; font-family: var(--font-mono); font-size: var(--t-metric);
   font-weight: 500; letter-spacing: -.04em;

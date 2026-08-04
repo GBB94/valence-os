@@ -51,10 +51,19 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
       .filter(Boolean).some((value) => value.toLowerCase().includes(query));
   });
   const bands = BANDS.map((b) => ({ ...b, items: visibleItems.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
+  // The summary is a navigation control, so its counts ignore the band filter itself — otherwise
+  // selecting one band zeroes the other two and there is no way back to them.
+  const bandScopeItems = q.items.filter((item) => {
+    if (views.state.accountId && item.account_id !== views.state.accountId) return false;
+    if (!query) return true;
+    return [item.title, item.because, item.next_action, item.account_name, item.program_name]
+      .filter(Boolean).some((value) => value.toLowerCase().includes(query));
+  });
   const bandSummary = BANDS.map((band) => ({
     ...band,
-    count: visibleItems.filter((item) => band.match(item.priority)).length,
+    count: bandScopeItems.filter((item) => band.match(item.priority)).length,
   }));
+  const selectBand = (key) => views.setState({ ...views.state, band: views.state.band === key ? "all" : key });
   // Portfolio-level attention (for example, a stale global metric definition) deliberately has
   // no account. It belongs in the queue, but not in an account filter whose labels must be sortable.
   const accountOptions = accountFilterOptions(q.items);
@@ -65,15 +74,21 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
         subtitle="Ranked by urgency, with the reason and next move kept together."
         meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · ${q.as_of}`} />
 
-      <section className="queue-brief" aria-label="Attention summary">
-        {bandSummary.map((band, index) => (
-          <Card as="article" spotlight key={band.key}
-            className={`queue-brief-card queue-brief-${band.band}${index === 0 ? " queue-brief-primary" : ""}`}>
-            <div className="queue-brief-label"><span className={`state-mark ${band.band}`} />{band.label}</div>
-            <strong>{band.count}</strong>
-            <span>{band.count === 1 ? "decision" : "decisions"} in this view</span>
-          </Card>
-        ))}
+      {/* Navigation context per DESIGN-GUIDE §2.5: each band filters the list to itself and
+          toggles back off, so the summary is a control rather than a read-only tile. */}
+      <section className="queue-brief" aria-label="Filter by urgency band">
+        {bandSummary.map((band, index) => {
+          const active = views.state.band === band.key;
+          return (
+            <Card as="button" type="button" spotlight key={band.key}
+              onClick={() => selectBand(band.key)} aria-pressed={active}
+              className={`queue-brief-card queue-brief-${band.band}${index === 0 ? " queue-brief-primary" : ""}${active ? " is-active" : ""}`}>
+              <div className="queue-brief-label"><span className={`state-mark ${band.band}`} />{band.label}</div>
+              <strong>{band.count}</strong>
+              <span>{active ? "showing only these · click to clear" : `${band.count === 1 ? "item" : "items"} to act`}</span>
+            </Card>
+          );
+        })}
       </section>
 
       <SavedViewBar model={views}>

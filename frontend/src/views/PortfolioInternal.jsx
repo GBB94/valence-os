@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Card, Empty, Loading, SegTabs, useToast } from "../ui";
+import { Card, Empty, Loading, SegTabs, rowActivation, useToast } from "../ui";
 
 const day = (offset = 0) => {
   const d = new Date();
@@ -622,7 +622,7 @@ function Coverage({ data, onOpen }) {
             <tr
               key={r.account_id}
               className="clickable"
-              onClick={() => onOpen(r.account_id, "internal")}
+              {...rowActivation(() => onOpen(r.account_id, "internal"))}
             >
               <td>
                 <strong>{r.account_name}</strong>

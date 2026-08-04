@@ -232,6 +232,21 @@ export function SlideOver({ title, onClose, children, footer }) {
   );
 }
 
+// A row that acts as a control must be reachable and operable by keyboard, not just by mouse.
+// Spread onto the <tr>: `<tr className="clickable" {...rowActivation(() => open(id))}>`.
+export function rowActivation(onActivate) {
+  return {
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== event.currentTarget) return;   // let nested controls handle their own keys
+      event.preventDefault();
+      onActivate();
+    },
+  };
+}
+
 export const ROLE_LABELS = {
   champion: "Champion", budget_owner: "Budget owner", program_owner: "Program owner",
   it: "IT", legal_dpo: "Legal / DPO", works_council_contact: "Works council", other: "Other",

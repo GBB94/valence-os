@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { PhaseBadge, Empty, Loading, SlideOver, useToast, fmtDate, AgeChip } from "../ui";
+import { PhaseBadge, Empty, Loading, SlideOver, rowActivation, useToast, fmtDate, AgeChip } from "../ui";
 
 const STATUS_LABEL = { on_track: "on track", at_risk: "at risk", off_track: "off track", unknown: "unknown" };
 const STATUS_DOT = { on_track: "ok", at_risk: "warn", off_track: "risk", unknown: "" };
@@ -111,7 +111,7 @@ export default function AccountDetail({ accountId, onOpenProgram, onQuickEntry, 
                 <thead><tr><th scope="col">Program</th><th scope="col" style={{width:130}}>Phase</th><th scope="col" style={{width:110}}>Region</th></tr></thead>
                 <tbody>
                   {acct.programs.map((p) => (
-                    <tr key={p.id} className="clickable" onClick={() => onOpenProgram(p.id)}>
+                    <tr key={p.id} className="clickable" {...rowActivation(() => onOpenProgram(p.id))}>
                       <td><strong>{p.name}</strong>{p.expansion_hypothesis ? <div className="rowmeta">{p.expansion_hypothesis}</div> : null}</td>
                       <td><PhaseBadge phase={p.phase} /></td>
                       <td className="rowmeta">{p.region || "—"}</td>

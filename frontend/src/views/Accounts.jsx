@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SegTabs, useToast } from "../ui";
+import { Empty, SegTabs, rowActivation, useToast } from "../ui";
 import Onboarding from "./Onboarding";
 import PortfolioAnalytics from "./PortfolioAnalytics";
 import PortfolioInternal from "./PortfolioInternal";
@@ -159,7 +159,7 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
             </thead>
             <tbody>
               {visibleAccounts.map((a) => (
-                <tr key={a.id} className="clickable" onClick={() => onOpen(a.id)}>
+                <tr key={a.id} className="clickable" {...rowActivation(() => onOpen(a.id))}>
                   <td><strong>{a.name}</strong></td>
                   <td className="subtle">{a.short_context || <span className="rowmeta">—</span>}</td>
                   <td><AccountStatus value={a.delivery_status} /></td>
