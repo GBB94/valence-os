@@ -69,7 +69,7 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
   const accountOptions = accountFilterOptions(q.items);
 
   return (
-    <div>
+    <div className="queue-page">
       <PageHeader title="Today" eyebrow="Attention queue" spotlight
         subtitle="Ranked by urgency, with the reason and next move kept together."
         meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · ${q.as_of}`} />
@@ -163,8 +163,8 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
       <td className={"rail-cell band-" + band} style={{ padding: 0 }}></td>
       <td>
         <div className="cell-title queue-item-title">{it.title}</div>
-        <div className="queue-reason">{it.because}</div>
-        <div className="queue-next">→ {it.next_action}</div>
+        <div className="queue-reason"><span className="queue-detail-key">Why</span><span>{it.because}</span></div>
+        <div className="queue-next"><span className="queue-detail-key">Next</span><span>{it.next_action}</span></div>
       </td>
       <td>
         {it.account_id && it.account_name
@@ -174,7 +174,7 @@ function QueueRow({ it, band, onOpenAccount, onSnooze, onResolve }) {
       </td>
       <td className="queue-timing"><AgeChip days={it.age_days} />{it.due_date ? <div className="rowmeta">due {it.due_date}</div> : null}</td>
       <td>
-        <div className="actions">
+        <div className="actions queue-row-actions">
           <button className="btn small" onClick={onSnooze}>Snooze</button>
           <button className="btn small ghost" onClick={onResolve}>Resolve</button>
         </div>

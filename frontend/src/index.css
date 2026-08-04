@@ -630,16 +630,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* Today — urgency is carried by the band and rail; rows prioritize the decision. */
+.queue-page .page-header-feature {
+  min-height: 120px; margin-bottom: var(--sp-6); padding: var(--sp-6) var(--sp-7);
+}
 .queue-brief {
   /* Three peer counts read as peers: equal columns, with the primary band distinguished by its
      surface treatment rather than by being wider. This is what the ≤1000px rule already did. */
   display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: var(--sp-5); margin: calc(var(--sp-4) * -1) var(--sp-5) var(--sp-6);
+  gap: var(--sp-5); margin: 0 0 var(--sp-6);
   position: relative; z-index: 2;
 }
 .queue-brief-card {
-  min-height: 108px; padding: var(--sp-5) var(--sp-6); display: grid;
-  grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; align-items: end; column-gap: var(--sp-5);
+  min-height: 88px; padding: var(--sp-5) var(--sp-6); display: grid;
+  grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center;
+  column-gap: var(--sp-5); row-gap: var(--sp-3);
   background: linear-gradient(145deg, var(--surface-highlight), transparent 56%), var(--bg-glass);
   backdrop-filter: blur(var(--sp-6)) saturate(1.12);
   /* Rendered as a button: reset the control defaults, keep the card's own type and alignment. */
@@ -649,14 +653,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* Selected pairs the accent edge with the label change in the card body, never colour alone. */
 .queue-brief-card.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .queue-brief-card strong {
-  grid-row: 1 / 3; align-self: center; font-family: var(--font-mono); font-size: var(--t-metric);
+  grid-column: 1; grid-row: 2; align-self: center; font-family: var(--font-mono); font-size: var(--t-h1);
   font-weight: 500; letter-spacing: -.04em;
 }
 .queue-brief-label {
+  grid-column: 1 / -1;
   display: flex; align-items: center; gap: var(--sp-3); color: var(--ink-primary);
   font-size: var(--t-small); font-weight: 600; text-transform: uppercase; letter-spacing: .055em;
 }
-.queue-brief-card > span { color: var(--ink-tertiary); font-size: var(--t-small); }
+.queue-brief-card > span {
+  grid-column: 2; grid-row: 2; align-self: center; color: var(--ink-tertiary); font-size: var(--t-small);
+}
 .queue-brief-primary {
   background: linear-gradient(135deg, var(--ambient-surface), transparent 65%),
     linear-gradient(145deg, var(--surface-highlight), transparent 56%), var(--bg-glass);
@@ -681,9 +688,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   max-width: 66ch; color: var(--ink-primary); font-size: var(--t-body-lg);
   font-weight: 500; line-height: 1.35;
 }
-.queue-reason { margin-top: var(--sp-2); color: var(--ink-secondary); line-height: 1.4; }
-.queue-next { margin-top: var(--sp-2); color: var(--accent); font-size: var(--t-small); line-height: 1.4; }
+.queue-reason, .queue-next {
+  display: grid; grid-template-columns: var(--sp-9) minmax(0, 1fr); gap: var(--sp-3);
+  margin-top: var(--sp-2); line-height: 1.4;
+}
+.queue-reason { color: var(--ink-secondary); }
+.queue-next { color: var(--accent); font-size: var(--t-small); }
+.queue-detail-key {
+  color: var(--ink-tertiary); font-family: var(--font-mono); font-size: var(--t-micro);
+  font-weight: 500; letter-spacing: .045em; text-transform: uppercase;
+}
 .queue-timing { color: var(--ink-secondary); font-family: var(--font-mono); }
+.queue-row-actions { justify-content: flex-end; }
 
 /* Account command center — each lens names the job, while section rails signal meaning. */
 .command-center-head { align-items: flex-end; margin-bottom: var(--sp-5); }
