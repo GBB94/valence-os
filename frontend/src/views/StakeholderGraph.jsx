@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { api } from "../api";
-import { useToast, AgeChip, DueChip, Loading } from "../ui";
+import { Card, useToast, AgeChip, DueChip, Loading } from "../ui";
 import PersonCard from "./PersonCard";
 
 // §3.1 the five horizontal bands, top (most senior) to bottom.
@@ -122,7 +122,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
 
   return (
     <div className="stakeholder-workspace">
-      <div className="actions stakeholder-toolbar">
+      <Card as="header" spotlight className="actions stakeholder-toolbar stakeholder-hero">
         <div className="stakeholder-title"><div className="page-eyebrow">Relationship intelligence</div><h1>Stakeholder map</h1></div>
         <select className="stakeholder-select" value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -135,7 +135,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         <button className={"btn small" + (mode === "network" ? " selected" : "")} aria-pressed={mode === "network"} onClick={() => setMode("network")}>Network</button>
         <button className={"btn small" + (mode === "layers" ? " selected" : "")} aria-pressed={mode === "layers"} onClick={() => setMode("layers")}>Layers</button>
         <button className={"btn small" + (mode === "power_interest" ? " selected" : "")} aria-pressed={mode === "power_interest"} onClick={() => setMode("power_interest")}>Power–interest</button>
-      </div>
+      </Card>
 
       <div className="two-col">
         <div className="card stakeholder-canvas">
@@ -153,7 +153,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         </div>
         <div>
         {coverage && (
-          <div className="card stakeholder-coverage">
+          <Card spotlight className="stakeholder-coverage">
             <div className="page-eyebrow">Relationship coverage</div>
             <div className="coverage-primary">
               <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong>
@@ -217,9 +217,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 {s.days_since_touch == null ? <span className="rowmeta">no touch</span> : <AgeChip days={s.days_since_touch} />}
               </div>
             ))}
-          </div>
+          </Card>
         )}
-        <div className="card stakeholder-detail">
+        <Card spotlight className="stakeholder-detail">
           {selected ? (
             selected.is_placeholder ? (
               <>
@@ -251,7 +251,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
             )
           ) : <div className="stakeholder-detail-empty"><span className="stakeholder-detail-mark" />
             <strong>Select a stakeholder</strong><span>Inspect role, stance, influence, and the full relationship record.</span></div>}
-        </div>
+        </Card>
         </div>
       </div>
       {cardPerson && <PersonCard personId={cardPerson} onClose={() => setCardPerson(null)} onChanged={() => setThemeTick((t) => t + 1)} />}

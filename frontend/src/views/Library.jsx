@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, Empty, Loading, useToast, PageHeader } from "../ui";
+import { Card, SlideOver, Empty, Loading, useToast, PageHeader } from "../ui";
 import PlaybookLibrary from "./PlaybookLibrary";
 
 // Files & context library (Section 5O): link-first, searchable, tagged list of source
@@ -27,12 +27,12 @@ export default function Library({ reloadKey }) {
 
   return (
     <div className="library-page">
-      <PageHeader title="Files & context" eyebrow="Source library"
+      <PageHeader title="Files & context" eyebrow="Source library" spotlight
         subtitle="Original references, exact citations, and reusable account context."
         meta={data ? `${data.sources.length} source${data.sources.length === 1 ? "" : "s"}` : "Loading sources"}>
         <button className="btn primary" onClick={() => setAdding(true)}>Add link</button>
       </PageHeader>
-      <div className="actions library-filters">
+      <Card spotlight className="actions library-filters">
         <input aria-label="Search source library" placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select aria-label="Filter sources by type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">all types</option>
@@ -42,7 +42,7 @@ export default function Library({ reloadKey }) {
           <option value="">all tags</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-      </div>
+      </Card>
       <div className="card library-table">
         {!data ? <Loading what="library" /> :
           data.sources.length === 0 ? <Empty title="No files yet">Add a link to a deck, transcript, or CRM record.</Empty> : (

@@ -1,6 +1,6 @@
 # Valence OS — Design Guide
 ### Visual system and screen architecture — the standing design authority for the shipped frontend
-*v5 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6, `UX-FOUNDATION-SPEC.md`, and `CLAUDE.md` · revised after the full-app adversarial design review, UX foundation pass, and restrained depth polish (D-113/D-114/D-116/D-124)*
+*v6 · August 2026 · Companion to `Valence-OS-Scoping-Doc.md` §6, `UX-FOUNDATION-SPEC.md`, and `CLAUDE.md` · revised after the full-app adversarial design review, UX foundation pass, and cinematic-hybrid polish (D-113/D-114/D-116/D-124/D-125)*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **This guide supersedes §6 of the scoping doc and the navigation the current build inherited from the §5 module list.** Where the two disagree, this document wins. The scoping doc's design section was written before anything existed; this one is written against a working app, so it replaces rather than supplements. The one-color-mode line and the one-destination-per-module structure are both explicitly retired here.
 
-**Status (v5).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. v3 corrected the guide against the audited implementation; v4 closed the URL-addressability debt and made `UX-FOUNDATION-SPEC.md` the additive authority for saved views and the staged path toward a decision-oriented account workspace. v5 adds a restrained depth layer: tokenized ambient light, inset surface highlights, precise control shadows, and expo-out interaction timing. It explicitly does **not** adopt global animated blobs, parallax, glass cards, or cursor spotlights outside the stakeholder canvas.
+**Status (v6).** The redesign this guide originally briefed is shipped: the §12 phases are complete and the system below describes the app as built. This document is now the standing authority a session consults *before* changing the frontend, not a brief inviting restructure. v3 corrected the guide against the audited implementation; v4 closed the URL-addressability debt; v5 added restrained depth. v6 accepts a cinematic hybrid: a slow ambient shell, fine noise and grid texture, glass feature surfaces, gradient feature headings, layered shadows, selective cursor spotlights, and one-time panel reveals. Dense tables and repeated operational rows stay quiet, and parallax remains excluded.
 
 **What still holds, and why.**
 
@@ -23,12 +23,12 @@
 
 **The subject.** One operator running a small number of very large, very consequential accounts. The work is remembering, noticing, and deciding. The tool's job is to make the state of an account legible in seconds and to make capture so fast it never gets skipped.
 
-**The thesis: an instrument, not a dashboard.** Consumer dashboards persuade. This one reports. It should feel like a well-made measuring device: quiet housing, precise readouts, nothing decorative competing with the data. Confidence comes first from typographic discipline and exact alignment. A static ambient wash, a restrained top-edge highlight, and control-level depth may make the housing feel more finished; none may become a second subject beside the data.
+**The thesis: a cinematic instrument, not a dashboard.** Consumer dashboards persuade. This one reports. It should feel like a premium desktop tool: atmospheric housing around precise readouts, with the light and depth strongest at navigation, page identity, and decision summaries. Dense evidence stays optically quiet. Confidence still comes first from typographic discipline and exact alignment; atmosphere frames the work and never obscures it.
 
 **The signature.** Two things carry the identity, and nothing else is allowed to shout.
 
 1. **The freshness language** (Section 7). Every record shows its age in the same monospaced form, and everything derived from stale inputs renders as an explicit unknown rather than a carried-forward green. This is the scoping doc's principle 7 made visible, and it is the motif that runs through every screen.
-2. **The stakeholder graph** stays the one full-bleed visual moment. It is the only screen permitted to be visually expressive.
+2. **Selective atmospheric depth.** The shell and one feature surface per major workspace may be expressive. The stakeholder graph remains the richest analytical canvas; tables, rows, citations, and evidence surfaces do not inherit its glow.
 
 **What to avoid.** Do not produce the current default AI-app looks: cream with a warm-clay accent and a high-contrast serif; near-black with one acid accent; or a broadsheet of hairlines and zero-radius columns. Also avoid the generic admin template: rounded white cards floating on gray with drop shadows and a stock blue primary button. If a screen could be dropped into any SaaS product without anyone noticing, it is wrong.
 
@@ -85,7 +85,7 @@ The 30-second rule should be structural, not aspirational. Capture is available 
 
 ### 2.5 Today
 
-A single ranked list, grouped by urgency band rather than by account, with the account name as a column. No cards, no charts, no summary tiles. Every row carries the trigger reason in plain text, its age, its due date, and one primary action inline. Snooze and resolve are row actions. This screen exists to be emptied.
+A single ranked list, grouped by urgency band rather than by account, with the account name as a column. A compact three-band summary names the volume in each urgency band; it is navigation context, not a KPI dashboard, and introduces no score or trend chart. Every row carries the trigger reason in plain text, its age, its due date, and one primary action inline. Snooze and resolve are row actions. This screen exists to be emptied.
 
 Today and the Accounts Book also carry built-in and operator-saved views. Saved views are presentation preferences, not copied account data: they store filters and sort state locally for the current single-editor product, show when the active arrangement has been modified, and fail closed to the built-in default if a referenced custom view is unavailable or corrupt. The reusable contract and team-era migration path are in `UX-FOUNDATION-SPEC.md` §5.2.
 
@@ -135,17 +135,22 @@ Define these once in `tokens.css` — **it is the canonical source**. The blocks
 ```css
 :root {
   /* Surfaces */
-  --bg-app:        #F6F7F9;
+  --bg-app:        #F4F5F8;
   --bg-surface:    #FFFFFF;
   --bg-elevated:   #FFFFFF;
   --bg-translucent: rgba(255,255,255,.88);
+  --bg-glass:      rgba(255,255,255,.72);
   --bg-sunken:     #EFF1F4;
   --bg-hover:      #F2F4F7;
   --bg-selected:   #EEEEFC;
   --surface-highlight: rgba(255,255,255,.72);
   --surface-highlight-subtle: rgba(255,255,255,.34);
   --ambient-page: rgba(58,52,196,.035);
+  --ambient-primary: rgba(58,52,196,.13);
+  --ambient-secondary: rgba(90,79,196,.075);
+  --ambient-tertiary: rgba(63,93,180,.055);
   --ambient-graph: rgba(58,52,196,.10);
+  --ambient-surface: rgba(58,52,196,.095);
 
   /* Lines */
   --line-hairline: #E3E6EB;
@@ -190,6 +195,8 @@ Define these once in `tokens.css` — **it is the canonical source**. The blocks
   --r-sm: 4px;
   --r-md: 8px;
   --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
   --shadow-inset: inset 0 1px 0 rgba(255,255,255,.80);
   --shadow-control: 0 1px 2px rgba(20,22,28,.06), inset 0 1px 0 rgba(255,255,255,.72);
   --shadow-primary: 0 0 0 1px rgba(58,52,196,.12), 0 4px 12px rgba(58,52,196,.16), inset 0 1px 0 rgba(255,255,255,.20);
@@ -203,26 +210,31 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 
 ```css
 [data-theme="dark"] {
-  --bg-app:        #0E1013;
-  --bg-surface:    #16191E;
-  --bg-elevated:   #191C22;
-  --bg-translucent: rgba(22,25,30,.88);
-  --bg-sunken:     #101317;
-  --bg-hover:      #1D2127;
-  --bg-selected:   #191A33;  /* matches accent-tint so active-nav accent text clears 4.5:1 */
-  --surface-highlight: rgba(255,255,255,.040);
-  --surface-highlight-subtle: rgba(255,255,255,.022);
-  --ambient-page: rgba(124,116,240,.085);
-  --ambient-graph: rgba(124,116,240,.18);
+  --bg-app:        #050609;
+  --bg-surface:    #0D0F14;
+  --bg-elevated:   #12151C;
+  --bg-translucent: rgba(8,10,14,.80);
+  --bg-glass:      rgba(14,16,22,.68);
+  --bg-sunken:     #080A0F;
+  --bg-hover:      #151923;
+  --bg-selected:   #191A33;
+  --surface-highlight: rgba(255,255,255,.065);
+  --surface-highlight-subtle: rgba(255,255,255,.032);
+  --ambient-page: rgba(124,116,240,.11);
+  --ambient-primary: rgba(94,106,210,.26);
+  --ambient-secondary: rgba(110,76,198,.14);
+  --ambient-tertiary: rgba(66,99,190,.11);
+  --ambient-graph: rgba(124,116,240,.22);
+  --ambient-surface: rgba(124,116,240,.16);
 
-  --line-hairline: #262B33;
-  --line-strong:   #363C46;
-  --line-hover:    #4A515D;
+  --line-hairline: #20242C;
+  --line-strong:   #303640;
+  --line-hover:    #454D5A;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
   --ink-tertiary:  #838A98;  /* v2's #6F7784 was 3.90:1 — under the floor as meta text */
-  --ink-inverse:   #0E1013;
+  --ink-inverse:   #08090C;
 
   --accent:        #7C74F0;
   --accent-hover:  #948DF5;
@@ -321,13 +333,13 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 
 ### Cards and panels
 
-Hairline border, `--r-md`, `--bg-surface`, 16px padding, no outer shadow. The shared inset top-edge highlight may add surface definition in both themes; view code never invents its own glow. A card groups; it does not decorate. More than four cards on a screen usually means it wanted a table.
+Hairline border, `--r-lg`, layered `--shadow-card`, and a top-edge highlight. Ordinary cards use `--bg-surface`; feature surfaces may use `--bg-glass`, backdrop blur, and a cursor-following radial highlight. Feature use is selective: page identity, lens control, decision summary, learned-motion cards, and relationship analysis. Tables remain opaque and do not lift. View code consumes the shared tokens and `Card spotlight`; it never invents a glow. A card groups; it does not decorate.
 
 ### Buttons
 
 | Variant | Use | Style |
 |---|---|---|
-| Primary | The one action the screen exists for | `--accent` fill, `--ink-inverse`, `--r-sm`, 13px/500, 30px (26px in `.small`) |
+| Primary | The one action the screen exists for | `--accent` fill, `--ink-inverse`, `--r-md`, 13px/500, 30px (26px in `.small`) |
 | Secondary | Everything else | `--bg-surface`, `--line-strong` border, `--ink-primary` |
 | Ghost | In-row and toolbar actions | transparent, `--ink-secondary`, hover `--bg-hover` |
 | Danger | Destructive only | `--status-risk` on `--status-risk-tint`; filled only inside a confirm dialog |
@@ -336,11 +348,11 @@ One primary per screen maximum; row-level and repeated actions are secondary or 
 
 ### Inputs
 
-32px compact, `--line-strong` border, `--r-sm`, 13px. Focus swaps border to `--accent` and adds a 3px ring. Labels above in 11px eyebrow style. Errors beneath in `--status-risk`, stating the next move rather than the failure.
+32px compact, `--line-strong` border, `--r-md`, 13px. Focus swaps border to `--accent` and adds a 3px ring. Labels above in 11px eyebrow style. Errors beneath in `--status-risk`, stating the next move rather than the failure.
 
 ### Badges and chips
 
-11px, 500, `--r-sm`, 2px/6px padding, tint background with matching solid ink. Status badges pair color with shape: filled dot for on track, hollow for at risk, cross-hatched for unknown. State never depends on color alone.
+11px, 500, pill radius, 2px/6px padding, tint background with matching solid ink. Status badges pair color with shape: filled dot for on track, hollow for at risk, cross-hatched for unknown. State never depends on color alone.
 
 ### Empty states
 
@@ -419,7 +431,7 @@ All inherit the tokens; none introduce a palette.
 --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
 ```
 
-Slide-overs translate from the right. The palette fades and scales from 0.98. Buttons and filter controls may transition color, border, shadow, and a `0.98` pressed scale using the shared expo-out token. The stakeholder canvas alone may move a soft cursor spotlight because it is the system's expressive surface. Theme changes are instant, with no crossfade. There are no page transitions, staggered reveals, floating background blobs, card lift, parallax, or skeleton shimmer beyond a single quiet pulse. `prefers-reduced-motion` collapses every transition and animation to effectively instant.
+Slide-overs translate from the right. The palette fades and scales from 0.98. Buttons and filter controls transition color, border, shadow, a restrained shine, and a `0.98` pressed scale using expo-out timing. The shell carries three large, blurred ambient light pools on a slow ten-second loop; feature headers and top-level panels reveal once over 600ms; spotlight surfaces track the pointer; selected feature cards may lift by 2px or less. Dense rows never translate, and there is no scroll parallax, spring motion, continuous text shimmer, or skeleton animation beyond a single quiet pulse. `prefers-reduced-motion` disables ambient movement, cursor tracking, and reveal motion.
 
 ---
 

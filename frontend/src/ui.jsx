@@ -47,8 +47,30 @@ export function Badge({ children, className = "" }) {
   return <span className={"badge" + (className ? " " + className : "")}>{children}</span>;
 }
 
-export function Card({ className = "", children, ...rest }) {
-  return <div className={"card" + (className ? " " + className : "")} {...rest}>{children}</div>;
+function trackSurfaceSpotlight(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty("--surface-spot-x", `${event.clientX - bounds.left}px`);
+  event.currentTarget.style.setProperty("--surface-spot-y", `${event.clientY - bounds.top}px`);
+}
+
+function resetSurfaceSpotlight(event) {
+  event.currentTarget.style.setProperty("--surface-spot-x", "50%");
+  event.currentTarget.style.setProperty("--surface-spot-y", "0%");
+}
+
+export function Card({ as: Component = "div", className = "", children, spotlight = false,
+  onPointerMove, onPointerLeave, ...rest }) {
+  function handlePointerMove(event) {
+    if (spotlight) trackSurfaceSpotlight(event);
+    onPointerMove?.(event);
+  }
+  function handlePointerLeave(event) {
+    if (spotlight) resetSurfaceSpotlight(event);
+    onPointerLeave?.(event);
+  }
+  const classes = `card${spotlight ? " spotlight-surface" : ""}${className ? ` ${className}` : ""}`;
+  return <Component className={classes} onPointerMove={handlePointerMove}
+    onPointerLeave={handlePointerLeave} {...rest}>{children}</Component>;
 }
 
 export function PhaseBadge({ phase }) {
@@ -56,9 +78,11 @@ export function PhaseBadge({ phase }) {
 }
 
 // Screen header: title, optional right-aligned meta, optional action cluster.
-export function PageHeader({ title, meta, eyebrow, subtitle, children }) {
+export function PageHeader({ title, meta, eyebrow, subtitle, children, spotlight = false, className = "" }) {
   return (
-    <header className="page-header">
+    <header className={`page-header${spotlight ? " page-header-feature spotlight-surface" : ""}${className ? ` ${className}` : ""}`}
+      onPointerMove={spotlight ? trackSurfaceSpotlight : undefined}
+      onPointerLeave={spotlight ? resetSurfaceSpotlight : undefined}>
       <div className="page-header-copy">
         {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
         <h1>{title}</h1>

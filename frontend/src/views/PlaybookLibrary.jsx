@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Badge, Empty, Loading, SlideOver, useToast } from "../ui";
+import { Badge, Card, Empty, Loading, SlideOver, useToast } from "../ui";
 
 export default function PlaybookLibrary({ reloadKey }) {
   const toast = useToast();
@@ -22,7 +22,7 @@ export default function PlaybookLibrary({ reloadKey }) {
       <div className="rowmeta">Structured learning from Proven, Penetrated, and Declined transitions.</div>
     </div><div className="spacer" />{data && <span className="rowmeta">{data.pending.length} prompts waiting</span>}</div>
 
-    {data?.pending.length > 0 && <div className="card" style={{ marginBottom: 16 }}>
+    {data?.pending.length > 0 && <Card spotlight className="playbook-pending" style={{ marginBottom: 16 }}>
       <div className="card-h"><h3>Capture the transition</h3></div>
       <table><thead><tr><th scope="col">Shape</th><th scope="col">Transition</th><th scope="col" className="num">When</th><th scope="col">Actions</th></tr></thead><tbody>
         {data.pending.map((row) => <tr key={row.id}>
@@ -32,9 +32,9 @@ export default function PlaybookLibrary({ reloadKey }) {
           <td><button className="btn small" onClick={() => setCapture(row)}>Capture learning</button></td>
         </tr>)}
       </tbody></table>
-    </div>}
+    </Card>}
 
-    <div className="card">
+    <Card spotlight>
       <div className="card-h"><h3>Learned motions</h3><div className="spacer" />
         <span className="rowmeta">exact shape → tag overlap → use case</span></div>
       {!data ? <Loading what="playbook" /> : data.entries.length === 0 ?
@@ -53,7 +53,7 @@ export default function PlaybookLibrary({ reloadKey }) {
             </div></td>
           </tr>)}
         </tbody></table>}
-    </div>
+    </Card>
     {capture && <CaptureEntry transition={capture} onClose={() => setCapture(null)} onSaved={refresh} />}
     {promoting && <PromotePlay entry={promoting} onClose={() => setPromoting(null)} onSaved={refresh} />}
   </section>;

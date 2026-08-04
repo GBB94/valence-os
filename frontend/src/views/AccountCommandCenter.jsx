@@ -118,7 +118,7 @@ function UpcomingRows({ items, onOpenTarget }) {
 
 function Section({ title, meta, action, children, className = "", tone = "neutral" }) {
   return (
-    <Card className={`command-section command-tone-${tone}${className ? ` ${className}` : ""}`}>
+    <Card spotlight className={`command-section command-tone-${tone}${className ? ` ${className}` : ""}`}>
       <div className="card-h">
         <div>
           <h3>{title}</h3>
@@ -299,7 +299,7 @@ export default function AccountCommandCenter({
   const lensCopy = LENS_COPY[activeLens];
   return (
     <div className="command-center">
-      <header className="command-center-head">
+      <Card as="header" spotlight className="command-center-head command-center-hero">
         <div className="command-heading-copy">
           <div className="page-eyebrow">{data.account.name} · command center</div>
           <h1>{lensCopy[0]}</h1>
@@ -312,10 +312,16 @@ export default function AccountCommandCenter({
           <button className="btn" onClick={() => setAddingProgram(true)}>New program</button>
           <button className="btn primary" onClick={() => onQuickEntry(accountId)}>Log interaction</button>
         </div>
-      </header>
+      </Card>
 
-      <SegTabs id="command-center-lenses" panelId="command-center-panel" ariaLabel="Command center focus"
-        tabs={LENSES} value={activeLens} onChange={changeLens} />
+      <div className="command-lens-dock">
+        <div className="command-lens-label">
+          <span>Focus lens</span>
+          <small>Change the command center's operating job</small>
+        </div>
+        <SegTabs id="command-center-lenses" panelId="command-center-panel" ariaLabel="Command center focus"
+          tabs={LENSES} value={activeLens} onChange={changeLens} />
+      </div>
 
       {omitted.length > 0 && <div className="callout warn command-coverage" role="status">
         Partial coverage: {omitted.map(sentence).join(", ")} could not be read. Other sections remain current through {whenLabel(data.stamp.data_current_through)}.

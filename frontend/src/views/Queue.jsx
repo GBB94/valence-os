@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
+import { Card, Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table } from "../ui";
 import { SavedViewBar } from "../SavedViewControls";
 import { useSavedViews } from "../useSavedViews";
 import { accountFilterOptions } from "../queueView";
@@ -51,15 +51,30 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
       .filter(Boolean).some((value) => value.toLowerCase().includes(query));
   });
   const bands = BANDS.map((b) => ({ ...b, items: visibleItems.filter((it) => b.match(it.priority)) })).filter((b) => b.items.length);
+  const bandSummary = BANDS.map((band) => ({
+    ...band,
+    count: visibleItems.filter((item) => band.match(item.priority)).length,
+  }));
   // Portfolio-level attention (for example, a stale global metric definition) deliberately has
   // no account. It belongs in the queue, but not in an account filter whose labels must be sortable.
   const accountOptions = accountFilterOptions(q.items);
 
   return (
     <div>
-      <PageHeader title="Today" eyebrow="Attention queue"
+      <PageHeader title="Today" eyebrow="Attention queue" spotlight
         subtitle="Ranked by urgency, with the reason and next move kept together."
         meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · ${q.as_of}`} />
+
+      <section className="queue-brief" aria-label="Attention summary">
+        {bandSummary.map((band, index) => (
+          <Card as="article" spotlight key={band.key}
+            className={`queue-brief-card queue-brief-${band.band}${index === 0 ? " queue-brief-primary" : ""}`}>
+            <div className="queue-brief-label"><span className={`state-mark ${band.band}`} />{band.label}</div>
+            <strong>{band.count}</strong>
+            <span>{band.count === 1 ? "decision" : "decisions"} in this view</span>
+          </Card>
+        ))}
+      </section>
 
       <SavedViewBar model={views}>
         <label className="view-filter">
@@ -80,7 +95,7 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
         <div className="card"><Empty title="No matching attention">Change this view's account or search filters.</Empty></div>
       ) : (
         bands.map((b) => (
-          <div key={b.key} style={{ marginBottom: 18 }}>
+          <div key={b.key} className="attention-band">
             <div className={`band-head band-head-${b.band}`}><span className={"state-mark " + b.band} />
               <span>{b.label}</span><span className="band-count">{b.items.length}</span></div>
             <div className="card attention-table">
