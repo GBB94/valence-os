@@ -1,5 +1,8 @@
 # Account Path — comprehensive review (Slices 1–7 + Stage 15 foundation)
 
+**Status:** point-in-time review. **Not an authority and not a status source** — `ACCOUNT-PATH-SPEC.md`
+is the authority and `HANDOFF.md` carries current state. Every count and file reference below is as
+of the date given; the suites have grown since.
 **Reviewer:** independent read of the uncommitted work on `punch-4-cleanup`
 **Date:** 2026-08-05
 **Supersedes:** the two incremental reports delivered earlier in this session (Slices 1–6, then Slice 7).

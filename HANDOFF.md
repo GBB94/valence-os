@@ -66,7 +66,10 @@ Still owed and still blocked: the both-theme screenshot pair, now covering the s
 bulk bar as well as the drop zone. Retried on 2026-08-06 and re-confirmed blocked at the capture
 layer, not the app — a trivial static probe page fails the same way (*"Current display surface not
 available for capture"*), so this is an environment limitation for whoever picks it up, not a
-rendering problem to debug. What was verified without it: every new rule resolves from `tokens.css`
+rendering problem to debug. **`design-screenshots/stage-16/VERIFICATION.md` is the record**: the
+probe that localized the failure, the compensating checks, what is still unverified because of it,
+and the table of surfaces to capture when the environment allows. What was verified without it:
+every new rule resolves from `tokens.css`
 and every token used (`--bg-surface`, `--bg-sunken`, `--line-hairline`, `--line-strong`,
 `--shadow-control`, `--ink-primary`, `--ink-secondary`, `--font-mono`, `--t-micro`) is defined in
 both themes, and the mark's three signals (surface lift, left rule, primary-ink weight) are all

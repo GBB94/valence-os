@@ -2,6 +2,34 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Documentation currency pass, and VISIBILITY-SPEC proposed but not in force (2026-08-06)
+
+No code changed. `README.md`, `docs/README.md`, and `CLAUDE.md` had all stopped describing the
+repository somewhere around Stage 14 while the build ran to Stage 16; the counts they carried
+(369 tests, migrations through 0038) were wrong rather than merely old, which is worse in a file a
+fresh session reads first.
+
+- **D-239 — A written spec at the root is a candidate, not a permission.** `VISIBILITY-SPEC.md` and
+  `SURFACE-USAGE-SPEC.md` both sit at the repository root, are internally consistent, and authorize
+  nothing. Two things now say so in the same words — `CLAUDE.md` ("a proposed spec at the root is a
+  candidate, not a permission — the fact that it is written, detailed, and internally consistent is
+  not approval") and a dedicated **not in force** section in `docs/README.md`. The failure mode is
+  specific: an unapproved spec that reads exactly like the eight approved ones is the one a fresh
+  session builds from by mistake. It is fixed by labelling, not by moving the files, because a spec
+  hidden in a subfolder stops being reviewed.
+- **D-240 — `ACCOUNT-PATH-REVIEW.md` is marked not a status source, not just not an authority.** It
+  is a point-in-time read carrying 660 backend / 138 frontend, which were the true counts on its
+  date and are now stale by a hundred tests. Sitting unlabelled at the root among the specs, it
+  reads as current state. The status line names both failure modes because they are separate:
+  `ACCOUNT-PATH-SPEC.md` is the authority, and `HANDOFF.md` carries current state.
+- **D-241 — An absent screenshot pair is recorded where the pairs live, not only in the handoff.**
+  `design-screenshots/stage-16/VERIFICATION.md` exists so the one folder without captures does not
+  read as an oversight. It states the finding first, records the probe that localized the failure to
+  the capture layer (a trivial static page fails identically), lists the compensating checks, and —
+  the part that matters — lists what is **still unverified** as a result: measured contrast, the
+  narrow-viewport split view, focus-visible, horizontal overflow. Compensating verification that
+  does not name its own gaps reads as a substitute for the captures, and it is not one.
+
 ## Account drop zone — Slice 3 built, grounding + accept-all + duplicates (2026-08-06)
 
 `app/proposal_grounding.py`, the §12 duplicate check in `app/intake_drop.py`, `run_id` on
