@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   ESSENTIALS_GAP_CAP,
-  controlsWriteNoState, dueRuleText, essentialsGaps, exceptionHistoryRows, linkedRecords,
+  controlsWriteNoState, dueRuleText, essentialsGaps, evaluatorConfigSentence,
+  exceptionHistoryRows, linkedRecords,
   EXCEPTION_STATUS_LABEL,
-  planStatus, recordedCompleteNote, requirementAxes, requirementControls,
+  planStatus, planVariance, recordedCompleteNote, requirementAxes, requirementControls,
   suppressedRequirements, trackedRequirements,
 } from "./requirementDetail.js";
 
@@ -252,4 +253,156 @@ test("a linked record reads the shape the server actually ships", () => {
   const [odd] = linkedRecords({ ...ROW, linked_action: { type: "sighting", id: "s1" } });
   assert.equal(odd.native_target, null);
   assert.equal(odd.label, "s1");
+});
+
+// --- evaluator configuration (VISIBILITY-SPEC §7.2) ---------------------------------------------
+
+test("the configuration sentence names the evaluator and lists what it was given", () => {
+  const config = evaluatorConfigSentence({
+    evaluator_key: "named_roles_present", evaluator_version: 2,
+    evaluator_config: { min_count: 2, roles: ["champion", "exec_sponsor"], require_assessment: true },
+  });
+  assert.equal(config.lead, "named_roles_present v2");
+  assert.deepEqual(config.operands, [
+    { key: "min_count", label: "min count", value: "2" },
+    { key: "roles", label: "roles", value: "champion, exec_sponsor" },
+    { key: "require_assessment", label: "require assessment", value: "true" },
+  ]);
+});
+
+test("an unallowlisted evaluator still reports what was configured", () => {
+  // This is the case §7.2 exists for. Nothing ran, the pillar degrades to `coverage: partial`,
+  // and until now the screen said only that a state was unknown. The configuration is an input,
+  // so it survives the evaluator's absence and can be read while the reading cannot.
+  const config = evaluatorConfigSentence({
+    evaluator_key: "not_in_the_registry", evaluator_version: 9,
+    evaluator_config: { touch_window_days: 60 },
+    state: "unknown",
+  });
+  assert.equal(config.lead, "not_in_the_registry v9");
+  assert.deepEqual(config.operands, [{ key: "touch_window_days", label: "touch window days", value: "60" }]);
+});
+
+test("the sentence describes the configuration and never the evaluator", () => {
+  // A per-evaluator gloss would be a second statement of what the code does, authored in the
+  // view and free to drift from it — and wrong outright when no evaluator ran. So there is no
+  // lookup table of English descriptions here, and the operands are the raw configured values.
+  const config = evaluatorConfigSentence({
+    evaluator_key: "min_contacts_in_window", evaluator_version: 1,
+    evaluator_config: { min_contacts: 3 },
+  });
+  assert.equal(config.operands[0].value, "3");
+  assert.equal(/check|look|ensur|verif|pass|fail/i.test(JSON.stringify(config)), false);
+});
+
+test("configured values are rendered, not summarised or judged", () => {
+  const config = evaluatorConfigSentence({
+    evaluator_key: "e", evaluator_version: 1,
+    evaluator_config: {
+      empty_list: [], nothing: null, off: false, zero: 0, nested: { a: 1 }, text: "kickoff",
+    },
+  });
+  assert.deepEqual(config.operands.map((o) => o.value),
+    ["none", "none", "false", "0", '{"a":1}', "kickoff"]);
+  // No state word anywhere in the output: a configuration is an input to a reading, never one.
+  for (const key of Object.keys(config.operands[0])) {
+    assert.equal(["state", "freshness", "coverage", "applicability", "met"].includes(key), false);
+  }
+});
+
+test("no evaluator key means no sentence, and no operands means an honest empty one", () => {
+  assert.equal(evaluatorConfigSentence({ evaluator_config: { min_count: 1 } }), null);
+  assert.equal(evaluatorConfigSentence({}), null);
+  assert.equal(evaluatorConfigSentence(null), null);
+  // Configured with nothing is a fact worth stating; it is not the same as no evaluator.
+  assert.deepEqual(evaluatorConfigSentence({ evaluator_key: "e", evaluator_version: 1 }),
+    { lead: "e v1", operands: [] });
+  assert.deepEqual(evaluatorConfigSentence({ evaluator_key: "e", evaluator_version: 1, evaluator_config: [] }),
+    { lead: "e v1", operands: [] });
+});
+
+test("a missing version is omitted rather than guessed at v1", () => {
+  assert.equal(evaluatorConfigSentence({ evaluator_key: "e" }).lead, "e");
+});
+
+// --- plan variance (VISIBILITY-SPEC §6) ---------------------------------------------------------
+
+test("two planning dates are differenced, and the difference reads as a planning fact", () => {
+  const v = planVariance({ due_date: "2026-06-09", recorded_complete_on: "2026-06-22" }, TODAY);
+  assert.equal(v.kind, "delta");
+  assert.equal(v.days, 13);
+  assert.equal(v.text, "Recorded complete 13 days after the planned date.");
+  // Early is the same kind of fact as late, and says so in the same shape.
+  assert.equal(planVariance({ due_date: "2026-06-09", recorded_complete_on: "2026-06-08" }).text,
+    "Recorded complete 1 day before the planned date.");
+  assert.equal(planVariance({ due_date: "2026-06-09", recorded_complete_on: "2026-06-09" }).text,
+    "Recorded complete on the planned date.");
+});
+
+test("a row with no recorded completion produces no delta, whatever the readiness state says", () => {
+  for (const state of ["met", "thin", "unknown", "conflicted", "not_applicable", undefined]) {
+    const v = planVariance({ due_date: "2026-06-09", state, assessed_through: "2026-06-22" }, TODAY);
+    assert.equal(v.kind, "separate", state);
+    assert.equal(v.days, null, state);
+    // The subtraction the spec refuses: `assessed_through` is not a completion date, so the one
+    // pair of dates that would produce "13 days late" here is never formed.
+    assert.equal(/\bdays? (after|before|late)\b/.test(v.text), false, state);
+  }
+});
+
+test("assessed_through is never read, under any label", () => {
+  const v = planVariance({ due_date: "2026-06-09", assessed_through: "2026-06-22" }, TODAY);
+  assert.equal(v.recorded, null);
+  assert.equal(JSON.stringify(v).includes("2026-06-22"), false);
+});
+
+test("the planned date is stated with its age and nothing composed onto it", () => {
+  assert.equal(planVariance({ due_date: "2026-06-09" }, "2026-07-20").text,
+    "Planned for 2026-06-09, 41 days ago");
+  assert.equal(planVariance({ due_date: "2026-08-06" }, "2026-08-04").text,
+    "Planned for 2026-08-06, in 2 days");
+  assert.equal(planVariance({ due_date: TODAY }, TODAY).text, `Planned for ${TODAY}, today`);
+  // Without a reference date the age is unknown, so it is omitted rather than assumed.
+  assert.equal(planVariance({ due_date: "2026-06-09" }).text, "Planned for 2026-06-09");
+  // The age alone, for a surface that already names the date. Same arithmetic, no second date.
+  assert.equal(planVariance({ due_date: "2026-06-09" }, "2026-07-20").age_text, "41 days ago");
+  assert.equal(planVariance({ due_date: "2026-06-09" }, "2026-07-20").age, 41);
+  assert.equal(planVariance({ due_date: "2026-06-09", recorded_complete_on: "2026-06-22" },
+    "2026-07-20").age_text, null);
+});
+
+test("an unresolved anchor yields the unknown treatment, not a relative phrase", () => {
+  const v = planVariance({ due_rule: { anchor: "kickoff", offset_days: 2 } }, TODAY);
+  assert.equal(v.kind, "unknown");
+  assert.equal(v.planned, null);
+  assert.equal(v.text, "No planned date: the kickoff date it is measured from is not set.");
+  // The failure this exists to prevent: an offset promising a time nobody can compute.
+  assert.equal(/\d/.test(v.text), false);
+});
+
+test("a delta carries no tone, because late is not a status", () => {
+  const v = planVariance({ due_date: "2026-06-09", recorded_complete_on: "2026-07-20" }, TODAY);
+  assert.deepEqual(Object.keys(v).sort(),
+    ["age", "age_text", "days", "kind", "planned", "recorded", "text"]);
+  for (const banned of ["tone", "severity", "status", "state", "risk", "variance_pct"]) {
+    assert.equal(banned in v, false, banned);
+  }
+});
+
+test("an unscheduled row with no date states nothing rather than inventing one", () => {
+  const v = planVariance({ state: "thin" }, TODAY);
+  assert.equal(v.kind, "separate");
+  assert.equal(v.text, null);
+  assert.equal(v.planned, null);
+  assert.deepEqual(planVariance(null), {
+    kind: "separate", planned: null, recorded: null, days: null,
+    age: null, age_text: null, text: null,
+  });
+});
+
+test("an unparseable date degrades rather than producing NaN days", () => {
+  const v = planVariance({ due_date: "soon", recorded_complete_on: "2026-06-22" }, TODAY);
+  assert.equal(v.kind, "separate");
+  assert.equal(v.days, null);
+  assert.equal(v.text, "Planned for soon");
 });

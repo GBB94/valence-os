@@ -2,13 +2,66 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## VISIBILITY-SPEC Slices 2–6 — the rest of the spec (2026-08-06, D-259…D-274)
+
+**The whole spec is now built**, on Zach's instruction "please build the visibility spec and then
+we'll move on to surface usage". `CLAUDE.md` names it as in force. **`SURFACE-USAGE-SPEC.md` is the
+next thing and is not started** — it is still proposed, and D-239 applies to it until it is named.
+
+Its governing rule, which everything below is an instance of: **a surface may state a fact and may
+never score it.** No total, no percentage, no ratio, no rate anywhere in these five slices.
+
+**Slice 2 — absence counters.** `app/portfolio_absence.py`, `GET /api/portfolio/absence`,
+`src/portfolioAbsence.js`, `views/AbsenceStrip.jsx` (rendered by `Queue.jsx`). 13 backend, 7 frontend.
+**Slice 5 — presentation.** `src/inlineCitations.js` (used by `CopilotPanel.jsx`), `src/viewScope.js`
+(used by `Queue.jsx`), `app/short_ref.py` (used by `readiness.py`, `playbooks.py`,
+`routers/readiness.py`), `evaluator_config` on every readiness component. 18 backend, 18 frontend.
+**Slice 3 — playbook entry counts.** `playbooks._entry_usage`, on the upgrade preview. 8 backend.
+**Slice 4 — plan variance.** `requirementDetail.planVariance`, rendered by `RequirementDetail.jsx`.
+5 backend, 8 frontend. **Slice 6 — advocacy tags.** `0054_advocacy_tags.sql`,
+`people_core.advocacy_tags`, `POST /api/advocacy-tags`, `src/advocacyTags.js`, `PersonCard.jsx`,
+four coordinated edits in `portfolio_io.py`. 9 backend, 6 frontend.
+
+**860 backend, 308 frontend** (was 807 / 263), lint exit 0, clean build.
+
+**Outstanding: the both-theme screenshot pairs for these five slices.** `browser_screenshot` failed
+with "Current display surface not available for capture" on every attempt across two fresh headless
+sessions, hours after Slice 1's captures succeeded the same way; the page reported
+`visibilityState: "hidden"`. Environment state, not code. Both themes were verified live at the
+root and on Slices 2 and 5 by reading computed styles and rendered text instead. Take the pairs when
+the capture layer is back — this is the one CLAUDE.md gate on this spec still open.
+
+What you must not undo:
+
+- **The four absence counters never combine.** `basis` on the payload says so. There is no total and
+  no coverage score, and each counter ships the records it counted — a count an operator cannot open
+  is an accusation they have no way to answer.
+- **Inline citation chips introduce no mapping.** They render only packet ids the claims block
+  already links. A bracket it does not cite stays literal text; that is an upstream validation
+  failure and the chip must not hide it. Not applied to `shared_plan`'s artifact — that generator has
+  no claim→source links, and building it there would mean inventing the mapping.
+- **`evaluator_config` is attached outside both branches** in `readiness.py`. The case that most
+  needs it is the unallowlisted key that fails closed into `coverage: partial`, where nothing ran.
+  It is configuration, never a reading, and the values are rendered verbatim rather than described.
+- **Short refs are computed over the whole population, on the server.** A token unique only within
+  the list on screen is worse than none. It is a name, never a sort key.
+- **The upgrade preview runs no evaluator.** A test monkeypatches `readiness.evaluate` to raise.
+  Zero instantiations is a row, not an omission, and `_ENTRY_USAGE_SCOPE` is the one place the
+  population is named.
+- **`planVariance` subtracts only two planning dates.** `assessed_through` is never an operand under
+  any label — a test asserts its value appears nowhere in the result. The delta is hueless and sits
+  outside the `tone-` wrapper; an unresolved anchor gets the cross-hatch, and the relative rule is
+  never offered as a substitute date.
+- **`advocacy_tags` is not `advocacy_events`.** Do not merge them, on the card or in a query.
+  `has_champion_evidence` must stay `False` for a person carrying only public tags. The column set is
+  asserted exactly: no score, level, sentiment, or anything resembling product usage.
+
 ## VISIBILITY-SPEC Slice 1 — decay on persisted copilot runs (2026-08-06, D-251…D-258)
 
-**Read D-251 before you build anything else from this spec.** `VISIBILITY-SPEC.md` is *not* named in
-`CLAUDE.md`'s authority chain. Slice 1 was built on Zach's instruction "continue building with what's
-specc'ed out" after everything in the named chain was finished — that is an instruction, not a
-formal naming, and the difference matters under D-239. **Slices 2–6 are not started.** Slice 6 is the
-one with a migration and stays held for the schema conversation regardless.
+Slice 1 was built first, on the earlier and looser instruction "continue building with what's
+specc'ed out". D-251 records that distinction and it is worth keeping: an instruction to continue is
+not the same permission as being named in the authority chain, which is what the message above
+supplied.
 
 `copilot_runs` is the only table that persists generated prose and re-opens it by id, so it is the
 only place a February answer can render in August at full weight. Past the evidence window for its

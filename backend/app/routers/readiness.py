@@ -8,7 +8,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from .. import readiness
+from .. import readiness, short_ref
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api", tags=["readiness"])
@@ -34,18 +34,25 @@ def pillar_detail(account_id: str, pillar_key: str, program_id: str | None = Que
 def definitions(conn: sqlite3.Connection = Depends(get_conn)):
     """§7.3 — the live definition set plus the evaluator allowlist, so what the app is measuring
     (and which code it is allowed to run) is inspectable rather than implicit."""
+    # VISIBILITY-SPEC §7.4 — the speakable reference, derived over the whole table so the token
+    # here is the same one the readiness reading and the plan row show. No column added.
+    refs = short_ref.requirement_refs(conn)
     pillars = []
     for p in conn.execute(
         "SELECT * FROM readiness_pillar_definitions "
         "WHERE retired_at IS NULL AND archived = 0 ORDER BY display_order, key"
     ).fetchall():
         p = dict(p)
-        p["requirements"] = [dict(r) for r in conn.execute(
+        p["requirements"] = []
+        for r in conn.execute(
             "SELECT * FROM readiness_requirement_definitions "
             "WHERE pillar_key = ? AND pillar_version = ? AND retired_at IS NULL AND archived = 0 "
             "ORDER BY rowid",
             (p["key"], p["version"]),
-        ).fetchall()]
+        ).fetchall():
+            r = dict(r)
+            r["ref"] = refs.get(f"{r['key']}:{r['version']}")
+            p["requirements"].append(r)
         pillars.append(p)
     return {
         "pillars": pillars,

@@ -4,7 +4,9 @@ import { Card, Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table }
 import { SavedViewBar } from "../SavedViewControls";
 import { useSavedViews } from "../useSavedViews";
 import { accountFilterOptions } from "../queueView";
+import { viewScope } from "../viewScope";
 import { measure } from "../measure";
+import AbsenceStrip from "./AbsenceStrip";
 
 const TODAY_VIEWS = [
   { id: "all", label: "All attention", state: { band: "all", accountId: "", query: "" } },
@@ -68,12 +70,39 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
   // Portfolio-level attention (for example, a stale global metric definition) deliberately has
   // no account. It belongs in the queue, but not in an account filter whose labels must be sortable.
   const accountOptions = accountFilterOptions(q.items);
+  // VISIBILITY-SPEC §7.3. The empty result and the snoozed remainder are already accounted for
+  // below; a *non-empty* saved view is the case that narrowed silently.
+  const scope = viewScope(views.state, {
+    bands: BANDS,
+    accountName: accountOptions.find(([id]) => id === views.state.accountId)?.[1],
+    shown: visibleItems.length,
+    total: q.items.length,
+  });
 
   return (
     <div className="queue-page">
       <PageHeader title="Today" eyebrow="Attention queue" spotlight
         subtitle="Ranked by urgency, with the reason and next move kept together."
         meta={`${visibleItems.length}${visibleItems.length !== q.items.length ? ` of ${q.items.length}` : ""} to act · ${q.as_of}`} />
+
+      {/* VISIBILITY-SPEC §4.2 rule 5: a strip on Today, above the queue. The queue ranks what
+          exists; this counts what does not, which is the one question nothing else here answers. */}
+      <AbsenceStrip reloadKey={reloadKey} onOpenAccount={onOpenAccount} />
+
+      {/* §7.3. Above the band counts because it qualifies them, and below the absence strip
+          because it does not: those counts are portfolio-wide and this view does not narrow them.
+          Hueless on purpose — a filter the operator chose is not a fault. */}
+      {scope.narrowed && (
+        <div className="scope-strip">
+          <span className="scope-strip-lead">{scope.lead}</span>
+          <span className="scope-strip-count">{scope.count}</span>
+          <div className="spacer" />
+          <button className="btn small ghost"
+            onClick={() => views.setState({ band: "all", accountId: "", query: "" })}>
+            Show everything
+          </button>
+        </div>
+      )}
 
       {/* Navigation context per DESIGN-GUIDE §2.5: each band filters the list to itself and
           toggles back off, so the summary is a control rather than a read-only tile. */}

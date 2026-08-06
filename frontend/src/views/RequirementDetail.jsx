@@ -18,9 +18,9 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Card, Empty, SlideOver, fmtDate, rowActivation, useToast } from "../ui";
 import { RequirementLinks } from "./PathAdvance";
-import { EvidenceItem } from "./Readiness";
+import { EvaluatorConfig, EvidenceItem } from "./Readiness";
 import {
-  dueRuleText, essentialsGaps, exceptionHistoryRows, linkedRecords, planStatus,
+  dueRuleText, essentialsGaps, exceptionHistoryRows, linkedRecords, planStatus, planVariance,
   recordedCompleteNote, requirementAxes, requirementControls, suppressedRequirements,
   trackedRequirements,
 } from "../requirementDetail";
@@ -42,18 +42,48 @@ export function AxisReadings({ row, coverage }) {
   );
 }
 
+/**
+ * The plan layer's own sentence, and — since VISIBILITY-SPEC §6 — the variance beside it.
+ *
+ * The variance sits *outside* the `tone-` wrapper deliberately. `planStatus` may report `risk` on
+ * an overdue row, and a delta that inherited that hue would be saying late is a status. It is not:
+ * a step recorded a week early and one recorded a week late are the same kind of planning fact,
+ * and the operator draws the inference.
+ */
 function PlanLine({ row, today }) {
   const status = planStatus(row, today);
   const rule = dueRuleText(row);
+  const variance = planVariance(row, today);
   return (
-    <div className={`req-plan tone-${status.tone}`}>
-      <span className={`state-mark ${status.tone === "risk" ? "risk" : "neutral"}`}
-        aria-hidden="true" />
-      <span>{status.text}</span>
-      {/* The rule is kept beside the resolved date so a re-anchor is legible rather than
-          looking like somebody hand-edited a date. */}
-      {rule && <span className="rowmeta req-plan-rule">{rule}</span>}
-    </div>
+    <>
+      <div className={`req-plan tone-${status.tone}`}>
+        <span className={`state-mark ${status.tone === "risk" ? "risk" : "neutral"}`}
+          aria-hidden="true" />
+        <span>{status.text}</span>
+        {/* The rule is kept beside the resolved date so a re-anchor is legible rather than
+            looking like somebody hand-edited a date. */}
+        {rule && <span className="rowmeta req-plan-rule">{rule}</span>}
+        {/* §6.1.2. The age of the planned date, beside the date the line already names — never
+            subtracted from anything, and never from `assessed_through`, which is the date evidence
+            was assessed through and not the date this became true. */}
+        {variance.kind === "separate" && variance.age_text && (
+          <span className="rowmeta req-plan-age">{variance.age_text}</span>
+        )}
+      </div>
+      {variance.kind === "delta" && (
+        <div className="rowmeta req-variance">{variance.text}</div>
+      )}
+      {variance.kind === "unknown" && (
+        // §6.1.5. The one thing that must not appear here is the relative rule standing in for a
+        // date: "2 days after the kickoff date" reads as an answer, and with no kickoff date it is
+        // not one. The cross-hatch is the established treatment for a date nobody can compute.
+        <div className="req-variance">
+          <span className="unknown-chip">
+            <span className="unknown-hatch" aria-hidden="true" />{variance.text}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -61,6 +91,11 @@ function PlanLine({ row, today }) {
 export function RequirementRow({ row, today, onOpen }) {
   const axes = requirementAxes(row);
   const status = planStatus(row, today);
+  // VISIBILITY-SPEC §7.2. `dueRuleText` already existed and was called only from the panel, so the
+  // Plan list — the one surface where a whole playbook's dates sit together — showed dates with no
+  // sign of what anchored them. Reusing the formatter keeps the two surfaces saying one thing.
+  const rule = dueRuleText(row);
+  const variance = planVariance(row, today);
   return (
     <div className="readiness-row clickable req-row" {...rowActivation(() => onOpen(row))}>
       <div className="readiness-row-head">
@@ -81,6 +116,20 @@ export function RequirementRow({ row, today, onOpen }) {
             <span className={`state-mark ${status.tone === "risk" ? "risk" : "neutral"}`}
               aria-hidden="true" />
             {status.due_label}
+          </span>
+        )}
+        {/* Outside the urgency chip on purpose: the rule is how the date was derived, not how
+            close it is, and putting it inside would tint a plan fact with the row's tone. */}
+        {status.due && rule && <span className="rowmeta req-row-rule">{rule}</span>}
+        {/* §6. Outside for the same reason and one more: a delta is hueless, so it must not sit
+            inside a chip the row tinted `risk`. This is the list the §2.2 critique was about —
+            a whole playbook's dates together, every one of them reading as a soothing phrase. */}
+        {variance.kind === "delta" && (
+          <span className="rowmeta req-variance">{variance.text}</span>
+        )}
+        {variance.kind === "unknown" && (
+          <span className="unknown-chip">
+            <span className="unknown-hatch" aria-hidden="true" />No planned date
           </span>
         )}
       </div>
@@ -495,6 +544,9 @@ export function RequirementPanel({ row, accountId, coverage, today, onClose, onO
           {row.pillar_label} · {row.scope_label}
           {row.program_name ? ` · ${row.program_name}` : ""}
           {row.requirement_version ? ` · definition v${row.requirement_version}` : ""}
+          {/* §7.4. Something to say out loud on a call. Muted and mono so it reads as a label
+              rather than as a value, and it is a name — never an ordering. */}
+          {row.ref && <> · <span className="short-ref">{row.ref}</span></>}
         </div>
 
         <AxisReadings row={row} coverage={coverage} />
@@ -513,6 +565,10 @@ export function RequirementPanel({ row, accountId, coverage, today, onClose, onO
         {row.definition_of_done && (
           <div className="rowmeta readiness-dod">Definition of done: {row.definition_of_done}</div>
         )}
+
+        {/* §7.2. Beside the definition of done, which says what would satisfy the condition, and
+            not in place of it: this says what the evaluator was configured to look for. */}
+        <EvaluatorConfig row={row} />
 
         {note && (
           <div className={`callout ${note.tone === "warn" ? "warn" : ""} req-recorded`} role="status">

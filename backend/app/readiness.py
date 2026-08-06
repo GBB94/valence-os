@@ -39,7 +39,7 @@ from datetime import date, timedelta
 
 from fastapi import HTTPException
 
-from . import db, people_core
+from . import db, people_core, short_ref
 
 # --- contract vocabularies (§3) ----------------------------------------------------------------
 STATES = ("met", "thin", "unknown", "conflicted", "not_applicable")
@@ -1865,6 +1865,9 @@ def _applicability(ctx: _Ctx, pillar: dict) -> str:
 # --- evaluation ----------------------------------------------------------------------------------
 
 def _load_definitions(conn) -> list[dict]:
+    # §7.4. Derived over the whole definition table, not over the pillars being loaded, so the
+    # token names the same row on every surface. No column is added for it.
+    refs = short_ref.requirement_refs(conn)
     pillars = conn.execute(
         "SELECT * FROM readiness_pillar_definitions "
         "WHERE retired_at IS NULL AND archived = 0 ORDER BY display_order, key"
@@ -1872,12 +1875,16 @@ def _load_definitions(conn) -> list[dict]:
     out = []
     for p in pillars:
         p = dict(p)
-        p["requirements"] = [dict(r) for r in conn.execute(
+        p["requirements"] = []
+        for r in conn.execute(
             "SELECT * FROM readiness_requirement_definitions "
             "WHERE pillar_key = ? AND pillar_version = ? AND retired_at IS NULL AND archived = 0 "
             "ORDER BY rowid",
             (p["key"], p["version"]),
-        ).fetchall()]
+        ).fetchall():
+            r = dict(r)
+            r["ref"] = refs.get(f"{r['key']}:{r['version']}")
+            p["requirements"].append(r)
         out.append(p)
     return out
 
@@ -1974,6 +1981,15 @@ def _evaluate_pillar(ctx: _Ctx, pillar: dict) -> dict:
         # so a change in a state can be attributed to a rule change rather than to the account.
         component["evaluator_key"] = definition["evaluator_key"]
         component["evaluator_version"] = definition["evaluator_version"]
+        # VISIBILITY-SPEC §7.2. What the definition row *configured*, carried out beside the key
+        # that names the evaluator — set here rather than inside either branch, because the case
+        # that most needs it is the one where no evaluator ran: an unallowlisted key fails closed
+        # into `coverage: partial` and until now nothing on screen said what had been asked for.
+        # This is configuration, not a reading; it never carries a state, and the operand values
+        # are rendered verbatim rather than described, so nothing here can restate the evaluator.
+        component["evaluator_config"] = json.loads(definition["evaluator_config_json"] or "{}")
+        # §7.4. A name to say out loud, never a sort key and never an ordering.
+        component["ref"] = definition.get("ref")
         components.append(component)
         missing.extend(component["missing"])
         if action is None and component["state"] not in ("met", "not_applicable") \

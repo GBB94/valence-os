@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { api } from "../api";
 import { answerBlocks } from "../copilotAnswer";
 import { answerState, revealLabel } from "../copilotFreshness";
+import { citationRuns, citedPacketIds, sourceForPacket } from "../inlineCitations";
 import { AgeChip, Badge, Btn, Empty, useToast } from "../ui";
 
 const STARTERS = [
@@ -24,16 +25,30 @@ const STATE_LABEL = {
  * path would let a record's contents become markup. See `copilotAnswer.js` for why the structure
  * cannot simply be dropped from the generator.
  */
-export function CopilotAnswer({ markdown }) {
+/**
+ * One line of answer prose, with the packet ids the claims block cites rendered as inline chips
+ * (VISIBILITY-SPEC §7.1). A bracket the claims block does not cite stays literal text — that is a
+ * validation failure upstream, and a working-looking chip would hide it.
+ */
+function Prose({ text, cited, onCite }) {
+  if (!cited || !cited.size) return text;
+  return citationRuns(text, cited).map((run, index) => run.kind === "text"
+    ? <span key={index}>{run.text}</span>
+    : <button key={index} type="button" className="cite-chip" onClick={() => onCite?.(run.packetId)}
+        aria-label={`Open source ${run.packetId}`}>{run.number}</button>);
+}
+
+export function CopilotAnswer({ markdown, cited, onCite }) {
+  const prose = (text) => <Prose text={text} cited={cited} onCite={onCite} />;
   return (
     <div className="copilot-answer">
       {answerBlocks(markdown).map((block, index) => {
         if (block.kind === "h2") return <h4 key={index}>{block.text}</h4>;
         if (block.kind === "h3") return <h5 key={index}>{block.text}</h5>;
         if (block.kind === "list") {
-          return <ul key={index}>{block.items.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+          return <ul key={index}>{block.items.map((item, i) => <li key={i}>{prose(item)}</li>)}</ul>;
         }
-        return <p key={index}>{block.text}</p>;
+        return <p key={index}>{prose(block.text)}</p>;
       })}
     </div>
   );
@@ -150,6 +165,9 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
   const scopeLabel = scope.scope_type === "portfolio" ? "Portfolio · all accounts"
     : scope.scope_type === "program" ? `${accountName} · selected program` : accountName;
   const answer = answerState(run);
+  // The inline chips render only what the claims block below cites, from the same links. A chip
+  // cannot point at a source the evidence block does not carry.
+  const cited = citedPacketIds(run);
 
   // Portal to <body> so the panel clears the workspace's isolated stacking context; rendered
   // inline the sticky topbar painted over its header (same fix as the shared SlideOver).
@@ -224,7 +242,8 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
                     </div>
                   : <>
                       {answer.revealed && <p className="copilot-withheld-note">{answer.sentence}</p>}
-                      <CopilotAnswer markdown={run.answer_markdown} />
+                      <CopilotAnswer markdown={run.answer_markdown} cited={cited}
+                        onCite={(packetId) => setSelectedSource(sourceForPacket(run, packetId))} />
                     </>}
               {!!run.gaps?.length && <div className="copilot-gaps">
                 <strong>Named gaps</strong>

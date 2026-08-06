@@ -27,7 +27,7 @@ from datetime import date, timedelta
 
 from fastapi import HTTPException
 
-from . import audit, readiness
+from . import audit, readiness, short_ref
 from .db import new_id, now_utc
 
 EXCEPTION_KINDS = ("not_applicable", "waiver")
@@ -93,6 +93,9 @@ def _playbook(conn: sqlite3.Connection, key: str, version: int) -> dict:
 
 
 def _entries(conn: sqlite3.Connection, key: str, version: int) -> list[dict]:
+    # VISIBILITY-SPEC §7.4 — derived over every entry in the table rather than over this
+    # playbook's, so an entry keeps the same spoken name whichever playbook you reached it from.
+    refs = short_ref.playbook_entry_refs(conn)
     rows = conn.execute(
         "SELECT e.*, d.pillar_key, d.label, d.definition_of_done, d.default_scope AS requirement_scope "
         "FROM readiness_playbook_entries e "
@@ -102,7 +105,12 @@ def _entries(conn: sqlite3.Connection, key: str, version: int) -> list[dict]:
         "ORDER BY e.display_order, e.requirement_key",
         (key, version),
     ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["ref"] = refs.get(r["id"])
+        out.append(r)
+    return out
 
 
 def list_playbooks(conn: sqlite3.Connection) -> dict:
@@ -338,6 +346,57 @@ def _definition_label(conn: sqlite3.Connection, key: str, version: int) -> str:
     return row["label"] if row else key.replace("_", " ").capitalize()
 
 
+# VISIBILITY-SPEC §5. The population the instantiation counts are taken over, named once so the
+# label and the query can never describe different sets. Live plans everywhere — not this
+# account's — because the question the preview is answering is "has this step ever fired at all",
+# and one account's silence is not an answer to it.
+_ENTRY_USAGE_SCOPE = "live plans across every account"
+
+_ENTRY_USAGE_SQL = """
+SELECT i.requirement_key AS requirement_key,
+       i.requirement_version AS requirement_version,
+       COUNT(*) AS instantiated,
+       SUM(CASE WHEN i.recorded_complete = 1 THEN 1 ELSE 0 END) AS recorded_complete
+FROM readiness_plan_instances i
+JOIN readiness_plans p ON p.id = i.plan_id
+WHERE i.archived = 0 AND p.archived = 0 AND p.status = 'active'
+GROUP BY i.requirement_key, i.requirement_version
+"""
+
+
+def _entry_usage(conn: sqlite3.Connection, entries: list[dict]) -> list[dict]:
+    """§5.1 — two planning counts per entry of the incoming version, and nothing else.
+
+    Both counts come from `readiness_plan_instances`, which stores planning facts: an instantiation
+    is a row a plan created, and `recorded_complete` is an operator-recorded tick carried across
+    from a legacy checkbox. **Neither is a readiness state and no evaluator runs here** (§5.1.2) —
+    reading one would be both expensive and a category error, since the preview is a question about
+    the plan and readiness has its own surface and its own vocabulary.
+
+    `recorded_complete` of 0 across every instantiation is a count. It is not "not working", not
+    "broken", and not a failure rate; nothing here divides one number by the other. The operator
+    draws the inference (§5.1.5).
+    """
+    totals = {(row["requirement_key"], row["requirement_version"]): row
+              for row in conn.execute(_ENTRY_USAGE_SQL).fetchall()}
+    out = []
+    for entry in entries:
+        key = (entry["requirement_key"], entry["requirement_version"])
+        row = totals.get(key)
+        out.append({
+            "requirement_key": entry["requirement_key"],
+            "requirement_version": entry["requirement_version"],
+            "label": entry["label"],
+            "ref": entry.get("ref"),
+            "necessity": entry["necessity"],
+            # Zero, never absent (§5.1.4). A step that has never fired is exactly what an operator
+            # deciding whether to keep it needs to see, and an omitted row would hide it.
+            "instantiated_on_plans": int(row["instantiated"]) if row else 0,
+            "recorded_complete_count": int(row["recorded_complete"] or 0) if row else 0,
+        })
+    return out
+
+
 def preview_upgrade(conn: sqlite3.Connection, account_id: str, *, playbook_key: str,
                     to_version: int, program_id: str | None = None) -> dict:
     """§13.4/§13.9 — additions, removals, timing changes, and definition changes, applying nothing.
@@ -419,6 +478,12 @@ def preview_upgrade(conn: sqlite3.Connection, account_id: str, *, playbook_key: 
         # and a removed row takes its recorded tick with it.
         "recorded_complete_at_risk": [r["requirement_key"] for r in removals
                                       if r["recorded_complete"]],
+        # VISIBILITY-SPEC §5. How each entry of the incoming version has actually been used, so a
+        # step nobody has ever ticked is visible at the moment of deciding to keep it. The scope
+        # sentence is authored here because a count over this account and a count over every
+        # account are different numbers, and only the server knows which one it ran (§5.1.3).
+        "entry_usage": _entry_usage(conn, list(after.values())),
+        "entry_usage_scope": _ENTRY_USAGE_SCOPE,
     }
 
 
@@ -655,6 +720,12 @@ def _readiness_readings(result: dict) -> dict[tuple[str | None, str], dict]:
                     # only place that knows it.
                     "evaluator_key": component.get("evaluator_key"),
                     "evaluator_version": component.get("evaluator_version"),
+                    # And what it was configured with (VISIBILITY-SPEC §7.2), for the same
+                    # reason one step further: the identity says which rule was asked for, the
+                    # configuration says what it was asked to look for, and only the second
+                    # survives an evaluator that could not be resolved at all.
+                    "evaluator_config": component.get("evaluator_config"),
+                    "ref": component.get("ref"),
                     "evaluated": True,
                 }
             return
@@ -756,7 +827,10 @@ def merged_plan(conn: sqlite3.Connection, account_id: str, program_id: str | Non
                 "label", "definition_of_done", "state", "freshness", "applicability", "reason",
                 "evidence", "missing", "assessed_through", "provenance", "pillar_label",
                 "applicability_override", "waiver", "evaluated", "program_name",
-                "evaluator_key", "evaluator_version",
+                # `evaluator_config` rides along with the key that names the evaluator
+                # (VISIBILITY-SPEC §7.2) so the plan row can say what was configured, not only
+                # which rule was asked for.
+                "evaluator_key", "evaluator_version", "evaluator_config", "ref",
             ) if k in reading})
         else:
             merged.update({

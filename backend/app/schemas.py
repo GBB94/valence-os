@@ -24,6 +24,10 @@ Stance = Literal["supporter", "skeptic", "unconverted"]
 AdvocacyKind = Literal[
     "advocacy_without_us", "secured_meeting", "defended_us", "presented_internally", "other",
 ]
+# VISIBILITY-SPEC §8, migration 0054. Public-facing advocacy, and a closed list on purpose: an
+# `other` member here would be the free-text escape hatch §9 refuses, since "other: very keen"
+# is a sentiment about a named person written into a field nobody validates.
+AdvocacyTagKind = Literal["reference", "review", "quote", "beta_participant", "speaking"]
 InteractionType = Literal["call", "meeting", "email", "workshop", "message", "other"]
 SourceType = Literal[
     "file", "transcript_span", "meeting", "crm_record", "data_report", "manual_entry",
@@ -122,6 +126,25 @@ class AdvocacyEventCreate(BaseModel):
     occurred_on: Optional[str] = None
     note: Optional[str] = None
     source_reference_id: Optional[str] = None
+
+
+class AdvocacyTagCreate(BaseModel):
+    """VISIBILITY-SPEC §8 — public-facing advocacy, migration 0054.
+
+    `occurred_on` and `evidence_note` are required here as well as NOT NULL in the table, so the
+    422 names the missing field instead of the request reaching SQLite and coming back as an
+    integrity error. `min_length=1` closes the same gap the CHECK closes: a required field
+    satisfied by `""` is an optional field wearing a NOT NULL.
+
+    There is no `stance`, `level`, `strength`, or `sentiment` field, and adding one would put a
+    model-inferred or undated judgement on a named person — the thing §9 refuses outright.
+    """
+    person_id: str
+    kind: AdvocacyTagKind
+    occurred_on: str = Field(min_length=1)
+    evidence_note: str = Field(min_length=1)
+    source_reference_id: Optional[str] = None
+    actor_id: Optional[str] = None
 
 
 class InteractionCreate(BaseModel):

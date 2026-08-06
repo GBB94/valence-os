@@ -213,6 +213,31 @@ function UpgradePreview({ accountId, offer, onClose, onApplied }) {
             {diff.retained_keys?.length === 1 ? "" : "s"} carry over unchanged. Anchored to
             the {diff.anchor_type} date {fmtDate(diff.anchor_date)}.
           </p>
+
+          {/* VISIBILITY-SPEC §5. Two planning counts per incoming entry. Deliberately not a rate:
+              nothing divides one by the other, and a zero here means "never ticked", which is a
+              fact the operator interprets rather than a verdict this pane reaches. */}
+          {diff.entry_usage?.length > 0 && (
+            <section className="aplan-diff-group aplan-usage">
+              <h3>How v{offer.toVersion}&apos;s conditions have been used</h3>
+              {/* The scope comes from the server, because a count over this account and a count
+                  over every account are different numbers and only it knows which it ran. */}
+              <p className="rowmeta">Counted over {diff.entry_usage_scope}.</p>
+              <ul>
+                {diff.entry_usage.map((entry) => (
+                  <li key={`${entry.requirement_key}:${entry.requirement_version}`}>
+                    {entry.label}
+                    {entry.ref && <> <span className="short-ref">{entry.ref}</span></>}
+                    <span className="rowmeta">
+                      {" · "}{entry.instantiated_on_plans} plan
+                      {entry.instantiated_on_plans === 1 ? "" : "s"}
+                      {" · "}{entry.recorded_complete_count} recorded complete
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </>
       )}
     </SlideOver>

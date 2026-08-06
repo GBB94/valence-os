@@ -195,6 +195,10 @@ export const api = {
   },
   mapSaveDocument: (accountId, b) => req("POST", `/api/accounts/${accountId}/map/document`, b || {}),
   queue: () => req("GET", "/api/queue"),
+  // The window is omitted rather than defaulted here, so the server stays the one place the default
+  // is decided and the payload can state which one it used.
+  portfolioAbsence: (days) =>
+    req("GET", `/api/portfolio/absence${days === undefined ? "" : `?days=${days}`}`),
   snoozeQueue: (b) => req("POST", "/api/queue/snooze", b),
   resolveQueue: (b) => req("POST", "/api/queue/resolve", b),
   setStatus: (accountId, b) => req("POST", `/api/accounts/${accountId}/status`, b),
@@ -228,6 +232,10 @@ export const api = {
   patchPerson: (personId, b) => req("PATCH", `/api/persons/${personId}`, b),
   patchStakeholderRole: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}`, b),
   createAdvocacyEvent: (b) => req("POST", "/api/advocacy-events", b),
+  // VISIBILITY-SPEC §8 — public-facing advocacy. A separate pair of calls from the two above,
+  // because they write a separate table for the reasons migration 0054 states.
+  advocacyTags: (personId) => req("GET", `/api/persons/${personId}/advocacy-tags`),
+  createAdvocacyTag: (b) => req("POST", "/api/advocacy-tags", b),
 
   // Phase 3 Stage 4 — communications ingestion + association
   ingestFixtures: () => req("GET", "/api/ingest/fixtures"),

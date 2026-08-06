@@ -46,6 +46,9 @@ _INSERT_ORDER = [
     # 0012-0016 — onboarding, people intelligence, ingestion, relationships
     "checklist_items", "advocacy_events", "comm_messages", "association_hints",
     "champion_candidates", "exec_pairings",
+    # 0054 — public-facing advocacy tags. Person-scoped like `advocacy_events`, and a separate
+    # table from it for the reasons the migration states.
+    "advocacy_tags",
     # 0017-0019 — whitespace, value ledger, funding (population objects precede the cells,
     # observations, and targets that reference them)
     "population_partitions", "population_segments", "population_views",
@@ -163,6 +166,10 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     apq = ",".join("?" * len(acct_person_ids)) or "''"
     t["advocacy_events"] = _all(
         conn, f"SELECT * FROM advocacy_events WHERE person_id IN ({apq})", acct_person_ids
+    ) if acct_person_ids else []
+    # 0054 advocacy tags hang off people the same way, so they are scoped the same way.
+    t["advocacy_tags"] = _all(
+        conn, f"SELECT * FROM advocacy_tags WHERE person_id IN ({apq})", acct_person_ids
     ) if acct_person_ids else []
 
     # --- 0017-0019: whitespace, value ledger, funding ---
@@ -403,7 +410,8 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
                                      "qualification_champion_person_id"]),
         ("relationship_edges", ["from_person_id", "to_person_id"]),
         # 0013-0019 person references, or a restored bundle hits a missing FK.
-        ("advocacy_events", ["person_id"]), ("comm_messages", ["person_id"]),
+        ("advocacy_events", ["person_id"]), ("advocacy_tags", ["person_id"]),
+        ("comm_messages", ["person_id"]),
         ("association_hints", ["person_id"]), ("champion_candidates", ["person_id"]),
         ("exec_pairings", ["client_person_id", "valence_person_id"]),
         ("whitespace_cells", ["sponsor_person_id", "blocker_owner_person_id"]),
@@ -453,6 +461,10 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
         # missing those references cannot restore the rows that point at them.
         "adoption_campaigns", "adoption_campaign_barriers", "adoption_campaign_checkpoints",
         "intel_documents",
+        # 0054: a tag's evidence note is required, and its source reference is how the note
+        # points at something. Dropping the reference leaves the note claiming a document that
+        # no longer exists in the bundle.
+        "advocacy_tags",
     ) for row in t.get(tbl, []) if row.get("source_reference_id")}
     srcs |= {row["diagnosis_source_reference_id"] for row in t.get("adoption_campaigns", [])
              if row.get("diagnosis_source_reference_id")}

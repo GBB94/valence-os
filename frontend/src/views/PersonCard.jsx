@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { SlideOver, useToast, AgeChip, fmtDate, Loading } from "../ui";
+import { advocacyTagBody, advocacyTagDraft } from "../advocacyTags";
 
 const CAD_LABEL = { manage_closely: "Manage closely", keep_satisfied: "Keep satisfied", keep_informed: "Keep informed", monitor: "Monitor" };
 
@@ -149,6 +150,11 @@ export default function PersonCard({ personId, onClose, onChanged }) {
           <button className="btn small" style={{ marginTop: 6 }} onClick={addAdvocacy}>+ Log advocacy without us</button>
         </Section>
 
+        {/* VISIBILITY-SPEC §8. A separate section from the advocacy log above, not a second kind
+            inside it: that log is the coach-vs-champion evidence gate, and a public quote is not
+            evidence that someone advocates for us when we are not in the room. */}
+        <AdvocacyTags personId={personId} tags={card.advocacy_tags || []} onAdded={reload} />
+
         {card.open_commitments.length > 0 && (
           <Section title="Open commitments">
             {card.open_commitments.map((c) => (
@@ -171,6 +177,92 @@ export default function PersonCard({ personId, onClose, onChanged }) {
         </Section>
       </div>
     </SlideOver>
+  );
+}
+
+/**
+ * §8 — public-facing advocacy: reference, review, quote, beta participant, speaking.
+ *
+ * The date and the note are not "recommended fields": the record cannot exist without them, so the
+ * form says which one is missing and the submit stays disabled until both are there. The five kinds
+ * come from the server with the tags, so there is no copy of the vocabulary here to drift.
+ *
+ * There is no level, score, or sentiment control, and none is coming. Each row is a dated fact
+ * with the evidence beside it, and nothing on this card rolls them into a number.
+ */
+function AdvocacyTags({ personId, tags, onAdded }) {
+  const toast = useToast();
+  const [vocab, setVocab] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!personId) return;
+    api.advocacyTags(personId).then(setVocab).catch(() => {});
+  }, [personId]);
+
+  const kinds = vocab?.kinds || [];
+  const label = (k) => vocab?.kind_labels?.[k] || k.replace(/_/g, " ");
+  const check = advocacyTagDraft(draft);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.createAdvocacyTag(advocacyTagBody(personId, draft));
+      toast("Advocacy tag recorded");
+      setDraft(null);
+      onAdded?.();
+    } catch (e) { toast(e.message, "err"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Section title={`Public advocacy (${tags.length})`}>
+      {tags.length === 0 && !draft && (
+        <div className="rowmeta">No public advocacy recorded.</div>
+      )}
+      {tags.map((t) => (
+        <div key={t.id} className="advocacy-tag">
+          <div className="advocacy-tag-head">
+            <span className="badge">{t.kind_label || label(t.kind)}</span>
+            <div className="spacer" />
+            <span className="rowmeta">{fmtDate(t.occurred_on)}</span>
+          </div>
+          {/* The note is the record, not a tooltip on it. A tag whose evidence is one hover away
+              is the undated, unevidenced property §9 refuses, wearing a date. */}
+          <div className="rowmeta advocacy-tag-note">{t.evidence_note}</div>
+        </div>
+      ))}
+
+      {draft ? (
+        <div className="advocacy-tag-form">
+          <div className="advocacy-tag-fields">
+            <select value={draft.kind} style={sel}
+              onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
+              {kinds.map((k) => <option key={k} value={k}>{label(k)}</option>)}
+            </select>
+            <input type="date" value={draft.occurred_on} style={sel}
+              aria-label="Date it happened"
+              onChange={(e) => setDraft({ ...draft, occurred_on: e.target.value })} />
+          </div>
+          <textarea value={draft.evidence_note} rows={2} className="advocacy-tag-note-input"
+            aria-label="Evidence note" placeholder="What happened, and where the evidence is"
+            onChange={(e) => setDraft({ ...draft, evidence_note: e.target.value })} />
+          {!check.valid && <div className="rowmeta">{check.reason}</div>}
+          <div className="advocacy-tag-actions">
+            <button className="btn small" disabled={!check.valid || saving} onClick={save}>
+              Record tag
+            </button>
+            <button className="btn small ghost" onClick={() => setDraft(null)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn small" style={{ marginTop: 6 }} disabled={kinds.length === 0}
+          onClick={() => setDraft({ kind: kinds[0], occurred_on: "", evidence_note: "" })}>
+          + Record public advocacy
+        </button>
+      )}
+    </Section>
   );
 }
 

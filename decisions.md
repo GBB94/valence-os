@@ -2,6 +2,144 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## VISIBILITY-SPEC Slices 2–6 — the rest of the spec (2026-08-06)
+
+Built on Zach's instruction "please build the visibility spec and then we'll move on to surface
+usage" (2026-08-06), which is the naming D-251 said Slices 2–6 were waiting for. Build order was
+§10's: 2, 5, 3, 4, 6. **One migration** — `0054_advocacy_tags.sql`, Slice 6. 860 backend tests
+(was 807 after Slice 1), 308 frontend (was 263), lint exit 0, clean build.
+
+**The both-theme screenshot pairs are outstanding and the specs say so.** `browser_screenshot`
+returned "Current display surface not available for capture" on every attempt across two fresh
+headless sessions, hours after Slice 1's six captures succeeded by the same route; the page reported
+`visibilityState: "hidden"`. That is an environment fact, which is the only kind of thing D-83
+allows a deferral on, and it is named rather than quietly skipped. Both themes were verified live
+instead — root tokens, Slice 2's strip, Slice 5's scope strip — and Slice 6's write path end-to-end
+over the API.
+
+Slice 6's migration was **not** gated on a separate schema conversation, despite §10 saying "only
+after the schema change is agreed". D-83 retires exactly that move: "downgrading a schema change to
+a request for permission … reintroduce[s] a gate that was deliberately removed". The rationale is
+presented in the migration header instead, which is where the standing rule puts it.
+
+**Slice 2 — portfolio absence counters** (`backend/app/portfolio_absence.py`,
+`GET /api/portfolio/absence`, `frontend/src/portfolioAbsence.js`, `views/AbsenceStrip.jsx`; 13
+backend, 7 frontend tests).
+
+- **D-259 — Absence is four independent counts that never combine, and the payload says so.**
+  `basis` ships on the response — "They are independent and do not combine into a coverage score" —
+  rather than being left to the view, because the strip is the one place four numbers sit in a row,
+  which is exactly where a reader starts adding them up. There is no total, no percentage, and no
+  ratio anywhere in the module.
+- **D-260 — Every counter ships the records it counted, not just the number.** `_counter` returns
+  `records` beside `count` (§4.2 rule 4). A count an operator cannot open is an accusation they have
+  no way to answer — and a count over our own record-keeping is not a claim about the customer, so
+  the only honest response to it is "show me which ones".
+- **D-261 — The sentence is authored on the server, count and window together.** `_counter` builds
+  "62 accounts with no recorded interaction in 30 days" as one string. The count and the window are
+  both server facts and a view that assembles "62 accounts" and "in 30 days" separately is a view
+  that can render one without the other. The window is validated to 1–365 days and echoed back with
+  its `since` date and the default it departed from.
+
+**Slice 5 — presentation** (`frontend/src/inlineCitations.js`, `viewScope.js`,
+`backend/app/short_ref.py`, evaluator config on readiness components; 18 backend, 18 frontend tests).
+
+- **D-262 — Inline citation chips render the packet ids the claims block already links, and nothing
+  else.** `copilot_model` already writes `[p003]` into the answer body; this turns that existing
+  token into a chip and **introduces no new mapping**. A bracket the claims block does not cite
+  stays literal text — that case is an upstream validation failure, and dressing it up as a working
+  citation would hide the failure behind the affordance meant to expose it. The chip spends no
+  colour. Not applied to `shared_plan`'s artifact despite §7.1 naming it: that generator carries no
+  claim→source links, so building the chip there would mean inventing the mapping this module exists
+  to avoid.
+- **D-263 — The evaluator's configuration is reported beside the reading as configuration, never as
+  a second reading.** A component names its evaluator but not what it was asked to look for, which
+  is worst in the case readiness designed for — an unknown evaluator key fails closed into
+  `coverage: partial`, so nothing ran and the config is the only thing left that could explain the
+  degraded reading. Tests assert the config survives the evaluator's absence and that it stays the
+  definition's own values: a config is an **input**, so nothing on it may claim a state.
+- **D-264 — The config is attached outside both branches, so the failure path cannot lose it.**
+  Attaching it where the evaluator succeeds would drop it in precisely the case it explains.
+- **D-265 — Short reference ids are derived on the server over the whole population, never per
+  list.** `short_ref` widens the token until no two ids in the set collide; identical ids keep their
+  full id. Two properties are load-bearing and both require the server: a reference unique only
+  within the list on screen is worse than none, because two people would each be certain they meant
+  the same object; and the same definition must get the same token in the plan, the readiness
+  detail, and the definitions listing. It is a name — never a sort key, never an ordering.
+- **D-266 — The saved-view scope strip is hueless, and the client may author its sentence.**
+  `.coverage-callout`'s `is-warning` / `is-healthy` is right for a coverage claim and wrong here: a
+  filter the operator chose is not a fault. And D-153's rule — a view that composes part of a
+  refusal can soften one — does not reach this sentence, because it withholds nothing: every row is
+  in hand and clearing the filter shows them all. If the narrowing ever moves server-side, the
+  sentence moves with it. It states the count and never scores it.
+
+**Slice 3 — playbook entry instantiation counts in the upgrade preview** (`playbooks._entry_usage`;
+8 backend tests).
+
+- **D-267 — The preview reports two planning counts per entry and runs no evaluator.** Both come
+  from `readiness_plan_instances`: an instantiation is a row a plan created, and `recorded_complete`
+  is an operator-recorded tick carried from a legacy checkbox. Neither is a readiness state, and
+  calling `readiness.evaluate` here would be both expensive and a category error — the preview asks
+  a question about the plan. A test monkeypatches `readiness.evaluate` to raise and asserts the
+  preview still returns. Nothing divides one count by the other; there is no completion rate.
+- **D-268 — Zero is a row, and the scope is named once beside the counts.** A step that has never
+  fired is exactly what an operator deciding whether to keep it needs to see, so an entry with no
+  instantiations ships `0` rather than being omitted. `_ENTRY_USAGE_SCOPE` — "live plans across
+  every account" — is a single constant the label and the query both read, because a count over this
+  account and a count over every account are different numbers and the preview must not be able to
+  describe one while computing the other.
+
+**Slice 4 — plan variance, stated honestly** (`frontend/src/requirementDetail.js::planVariance`;
+5 backend, 8 frontend tests).
+
+- **D-269 — A variance is only computed when both operands are planning facts.** `due_date` and
+  `recorded_complete_on` are both planning facts, so their difference is one too — that is the only
+  branch that subtracts anything. Every other row returns the planned date and its age as one
+  statement, with the readiness state beside it in readiness's own vocabulary. `assessed_through` is
+  the date evidence was assessed **through**, not the date a requirement became true, and it is
+  never read here under any label — a frontend test asserts its value does not appear anywhere in
+  the result, and a backend test asserts the server ships no variance of its own and no key outside
+  the completion allowlist implies completion. This is §2.2's correction: the original proposal was
+  half honest, and this is the honest half.
+- **D-270 — The delta is hueless and rendered outside the tone wrapper.** `planStatus` reports
+  `risk` on an overdue row and a delta that inherited that hue would be asserting that late is a
+  status; a step recorded a week early and one recorded a week late are the same kind of planning
+  fact. A scheduled row whose anchor never resolved gets the cross-hatched unknown treatment, and
+  the relative rule is deliberately **not** offered in its place — "2 days after the kickoff date"
+  reads as an answer to "when", and with no kickoff date it is not one. A test asserts that sentence
+  contains no digits.
+
+**Slice 6 — advocacy tags on people** (`0054_advocacy_tags.sql`, `people_core.advocacy_tags`,
+`POST /api/advocacy-tags`, `views/PersonCard.jsx`; 9 backend, 6 frontend tests).
+
+- **D-271 — A new table, not more kinds on `advocacy_events`.** Two reasons, both recorded in the
+  migration header. (1) `advocacy_events` is *internal* advocacy and is read by name with its own
+  `kind IN (...)` filter in four places — `people_core.has_champion_evidence`, `people_analytics`,
+  `stage75`, `readiness._CHAMPION_EVIDENCE_KINDS`. Widening the CHECK needs all four updated in
+  lockstep, and the one that got missed would start counting a conference talk as proof that someone
+  advocates for us when we are not in the room — which is the entire point of the coach-vs-champion
+  gate. (2) §8 requires the date and the evidence note *structurally*, and `advocacy_events`'
+  equivalents are nullable with existing rows; tightening them means a rebuild that either fails or
+  backfills a date nobody recorded. A test asserts the new kinds never appear in `advocacy_events`'
+  DDL, and `has_champion_evidence` is asserted `False` for a person carrying only a public tag.
+- **D-272 — The date and the note are required by CHECK, not only by NOT NULL.** `NOT NULL` alone is
+  satisfied by `''`, which is how a required field becomes an optional one without anyone editing
+  the schema. The Pydantic model repeats both with `min_length=1` so the 422 names the field instead
+  of the request reaching SQLite and returning an integrity error; tests assert missing, `""`, and
+  `"   "` are all refused at both layers.
+- **D-273 — The kind list is closed and there is no score, level, or sentiment column.** An `other`
+  member would be the free-text escape hatch §9 refuses, since "other: very keen" is a sentiment
+  about a named person in a field nobody validates. The test asserts the column set **exactly**, so
+  a later addition has to argue with a test rather than slip in, and separately bans any column
+  name matching product usage. `advocacyTagBody` is an explicit four-field object rather than a
+  spread of the draft, so a `level` field added to a form somewhere cannot ride along.
+- **D-274 — There is no PATCH, and the person card keeps the two arrays separate.** A tag records
+  that a thing happened on a date; editing the date or note afterwards would make the evidence note
+  a mutable claim about an immutable event. And `advocacy_tags` sits beside `advocacy` on the card
+  rather than merged into it — a single combined array is how the public one silently starts
+  satisfying the internal gate. Tags are returned as records, never as a count: "three advocacy
+  tags" is one step from an advocacy level, and the date and note are the load-bearing part.
+
 ## VISIBILITY-SPEC Slice 1 — decay and withholding on persisted copilot runs (2026-08-06)
 
 The first slice of `VISIBILITY-SPEC.md`: a completed copilot answer stops being rendered as current

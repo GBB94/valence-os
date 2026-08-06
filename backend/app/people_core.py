@@ -59,6 +59,39 @@ DEFAULT_LAYER_BY_ROLE = {
 # Advocacy kinds that count as "advocacy without us in the room" (§3.2 champion evidence).
 _CHAMPION_EVIDENCE = ("advocacy_without_us", "secured_meeting", "defended_us", "presented_internally")
 
+# VISIBILITY-SPEC §8 — public-facing advocacy, migration 0054. A separate vocabulary from
+# `_CHAMPION_EVIDENCE` above and a separate table, because the champion gate asks whether someone
+# advocates for us *inside their own organisation when we are not there*, and a public quote is
+# not an answer to that question. Nothing in this list is a level, a score, or a sentiment: each
+# kind names a thing that either happened on a date with an evidence note, or is not recorded.
+ADVOCACY_TAG_KINDS = ["reference", "review", "quote", "beta_participant", "speaking"]
+ADVOCACY_TAG_LABELS = {
+    "reference": "Reference", "review": "Review", "quote": "Quote",
+    "beta_participant": "Beta participant", "speaking": "Speaking",
+}
+
+
+def advocacy_tag_label(kind: str | None) -> str:
+    if not kind:
+        return "Unspecified"
+    return ADVOCACY_TAG_LABELS.get(kind) or kind.replace("_", " ").capitalize()
+
+
+def advocacy_tags(conn: sqlite3.Connection, person_id: str) -> list[dict]:
+    """§8 — every live tag on one person, newest first.
+
+    Returned as records, never as a count and never as a summary. "Three advocacy tags" is one
+    step from an advocacy level, and the date and the note are the load-bearing part of each row.
+    """
+    return [
+        {**dict(r), "kind_label": advocacy_tag_label(r["kind"])}
+        for r in conn.execute(
+            "SELECT id, kind, occurred_on, evidence_note, source_reference_id "
+            "FROM advocacy_tags WHERE person_id = ? AND archived = 0 "
+            "ORDER BY occurred_on DESC, id", (person_id,),
+        ).fetchall()
+    ]
+
 
 def default_layer(role: str) -> str:
     return DEFAULT_LAYER_BY_ROLE.get(role, "operational")
@@ -188,6 +221,10 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "interaction_history": history,
         "last_touch": last_touch,
         "advocacy": advocacy,
+        # VISIBILITY-SPEC §8. Beside `advocacy`, never merged into it: one is internal advocacy
+        # feeding the coach-vs-champion gate, the other is public-facing and feeds nothing. A
+        # single combined array is how the second silently starts satisfying the first.
+        "advocacy_tags": advocacy_tags(conn, person_id),
         "cadence": cadence_block,
         "health": health,
         "attendance": attendance,

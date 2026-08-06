@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, SlideOver, fmtDate, rowActivation } from "../ui";
+import { evaluatorConfigSentence } from "../requirementDetail";
 
 const STATE = {
   met: { label: "Met", mark: "ok" },
@@ -221,6 +222,38 @@ export function EvidenceItem({ evidence, onOpenTarget }) {
   );
 }
 
+/**
+ * What the definition row configured its evaluator with (VISIBILITY-SPEC §7.2).
+ *
+ * Rendered wherever a condition's reading is, because the reading alone does not say what was
+ * asked for — and when the evaluator key is not allowlisted, the pillar degrades to
+ * `coverage: partial` with nothing on screen naming the cause. Operands are `.mono` so a value
+ * reads as a value; the sentence spends no colour and asserts no state, since a configuration is
+ * an input to the reading and never a second one.
+ */
+export function EvaluatorConfig({ row }) {
+  const config = evaluatorConfigSentence(row);
+  if (!config) return null;
+  return (
+    <div className="rowmeta evaluator-config">
+      Evaluated by <span className="mono">{config.lead}</span>
+      {config.operands.length === 0
+        ? ", configured with no operands."
+        : (
+          <>
+            , configured with{" "}
+            {config.operands.map((operand, index) => (
+              <span key={operand.key}>
+                {index > 0 ? (index === config.operands.length - 1 ? ", and " : ", ") : ""}
+                {operand.label} <span className="mono">{operand.value}</span>
+              </span>
+            ))}.
+          </>
+        )}
+    </div>
+  );
+}
+
 export function ReadinessDetail({ pillar, onOpenTarget }) {
   return (
     <div className="readiness-detail">
@@ -240,6 +273,9 @@ export function ReadinessDetail({ pillar, onOpenTarget }) {
         <div key={c.key} className="readiness-component">
           <div className="readiness-row-head">
             <strong>{c.label || c.key}</strong>
+            {/* §7.4 — the same token the requirement panel and the plan row show, so a condition
+                can be named out loud without reading a label back word for word. */}
+            {c.ref && <span className="short-ref">{c.ref}</span>}
             <div className="spacer" />
             <StateBadge state={c.state} />
           </div>
@@ -253,6 +289,7 @@ export function ReadinessDetail({ pillar, onOpenTarget }) {
           {c.definition_of_done && (
             <div className="rowmeta readiness-dod">Definition of done: {c.definition_of_done}</div>
           )}
+          <EvaluatorConfig row={c} />
           {c.evidence?.length > 0 && (
             <ul className="readiness-evidence">
               {c.evidence.map((e) => (

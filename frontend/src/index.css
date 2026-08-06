@@ -1270,6 +1270,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   margin: var(--sp-4) 0; font-size: var(--t-small); }
 .req-plan.tone-risk { color: var(--status-risk); }
 .req-plan-rule { color: var(--ink-tertiary); }
+.req-plan-age { color: var(--ink-tertiary); }
+
+/* Plan variance (VISIBILITY-SPEC §6). Deliberately hueless and deliberately *not* nested inside
+   `.req-plan`, whose `tone-risk` rule would tint it: a step recorded late and one recorded early
+   are the same kind of planning fact, and colouring the delta would make late a status. */
+.req-variance { margin: calc(-1 * var(--sp-2)) 0 var(--sp-4); color: var(--ink-tertiary); }
+.req-row-meta .req-variance { margin: 0; }
 
 .req-h { margin: var(--sp-6) 0 var(--sp-3); font-size: var(--t-small); color: var(--ink-secondary);
   border-top: 1px solid var(--line-hairline); padding-top: var(--sp-5); }
@@ -1662,6 +1669,15 @@ button.ptl-mark { cursor: pointer; }
 .aplan-diff-group h3 { margin: 0 0 var(--sp-2); }
 .aplan-diff-group ul { margin: 0; padding-left: var(--sp-6); }
 
+/* Instantiation counts on the upgrade preview (VISIBILITY-SPEC §5). Two counts side by side and
+   deliberately no hue: a step nobody has ticked is a fact about how the playbook has been used,
+   not a warning, and tinting it amber would be this pane reaching the verdict the operator is
+   here to reach. The `p` states the scope, because a count over this account and a count over
+   every account are different numbers. */
+.aplan-usage > p { margin: 0 0 var(--sp-3); }
+.aplan-usage li { margin-bottom: var(--sp-1); }
+.aplan-usage li .rowmeta { font-variant-numeric: tabular-nums; }
+
 /* ---- Account drop zone (ACCOUNT-INTAKE-SPEC.md §16) ---------------------------------
    Two rules are doing real work here and are easy to undo by accident:
 
@@ -1729,3 +1745,98 @@ button.ptl-mark { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .intake-zone { transition: none; }
 }
+
+/* --- portfolio absence counters (VISIBILITY-SPEC §4) ------------------------------------------
+   Deliberately hueless. Every other count on Today carries a band colour, which is right for
+   attention bands and wrong here: a ramp across four counters reads as a grade, and a grade about
+   coverage is the composite score this spec refuses. Zero looks exactly like sixty-two. */
+.absence-strip { margin-bottom: var(--sp-6); padding: var(--sp-5) var(--sp-6);
+  border: 1px solid var(--line-hairline); border-radius: var(--r-lg); background: var(--bg-surface); }
+.absence-strip-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-5); margin-bottom: var(--sp-5); }
+.absence-strip-head h2 { margin: 0; font-size: var(--t-h3); font-weight: 600; letter-spacing: -.01em; }
+.absence-window { display: inline-flex; align-items: center; gap: var(--sp-3);
+  color: var(--ink-tertiary); font-size: var(--t-small); }
+.absence-counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--sp-4); margin: 0; padding: 0; list-style: none; }
+.absence-counter { display: flex; align-items: baseline; gap: var(--sp-4); width: 100%;
+  padding: var(--sp-4) var(--sp-5); border: 1px solid var(--line-hairline); border-radius: var(--r-md);
+  background: var(--bg-sunken); color: var(--ink-primary); text-align: left; cursor: pointer; }
+.absence-counter:hover:not(:disabled) { border-color: var(--line-hover); background: var(--bg-hover); }
+/* A zero has nothing to open. It is still stated, at full contrast — it is the one value here that
+   is good news and it must not read as disabled-because-broken. */
+.absence-counter:disabled { cursor: default; }
+.absence-count { flex: none; font-size: var(--t-h2); font-weight: 600; font-variant-numeric: tabular-nums;
+  line-height: 1.1; }
+.absence-sentence { color: var(--ink-secondary); font-size: var(--t-small); line-height: 1.35; }
+.absence-basis { margin: var(--sp-5) 0 0; color: var(--ink-tertiary); font-size: var(--t-micro);
+  line-height: 1.45; }
+.absence-list { margin: 0; padding: 0; list-style: none; }
+.absence-list-row { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-5); padding: var(--sp-4) var(--sp-2); border-bottom: 1px solid var(--line-hairline);
+  cursor: pointer; }
+.absence-list-row:hover { background: var(--bg-hover); }
+
+/* --- inline citation chip (VISIBILITY-SPEC §7.1) ----------------------------------------------
+   A third presentation of a citation, for prose-heavy output. `.proposal-span` (a dashed quote
+   under the claim) stays right where an operator adjudicates one proposal at a time; the chip row
+   under a claim stays right in the claims block. This one sits inline after the clause it supports.
+   Shape plus a number and no colour at all — the accent is for interaction and would read as state
+   scattered through a paragraph. */
+.cite-chip {
+  display: inline-flex; align-items: center; justify-content: center; min-width: var(--sp-8);
+  margin: 0 var(--sp-1) 0 var(--sp-2); padding: 0 var(--sp-2);
+  border: 1px solid var(--line-strong); border-radius: var(--r-pill);
+  background: var(--bg-sunken); color: var(--ink-secondary);
+  font-family: var(--font-mono); font-size: var(--t-micro); font-variant-numeric: tabular-nums;
+  line-height: 1.5; vertical-align: baseline; cursor: pointer;
+}
+.cite-chip:hover { border-color: var(--line-hover); color: var(--ink-primary); }
+
+/* --- rule and evaluator configuration (VISIBILITY-SPEC §7.2) ----------------------------------
+   Both say how a reading was derived rather than what it says, so both sit at tertiary ink with
+   no hue. `.evaluator-config` in particular renders beside a degraded state, and a colour here
+   would read as a second opinion on that state. */
+.req-row-rule { color: var(--ink-tertiary); }
+.evaluator-config { margin-top: var(--sp-3); color: var(--ink-tertiary); line-height: 1.45; }
+.evaluator-config .mono { color: var(--ink-secondary); }
+
+/* --- view-level scope strip (VISIBILITY-SPEC §7.3) ---------------------------------------------
+   Deliberately not `.coverage-callout`: that carries `is-warning` / `is-healthy`, which is right
+   for a per-card coverage claim and wrong for "this whole view is filtered". A narrowing the
+   operator chose is not a fault, so this spends no hue at all — a hairline rule, sunken ground,
+   and the sentence doing the work. */
+.scope-strip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-5); padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--line-hairline); border-radius: var(--r-md);
+  background: var(--bg-sunken); font-size: var(--t-small); line-height: 1.45;
+}
+.scope-strip-lead { color: var(--ink-secondary); }
+.scope-strip-count { color: var(--ink-tertiary); font-variant-numeric: tabular-nums; }
+
+/* --- short reference id (VISIBILITY-SPEC §7.4) ------------------------------------------------
+   A name to say out loud, so it is muted and mono: it must be findable at a glance and must never
+   compete with the label or read as a value. No border and no ground — a chip would make a name
+   look like a status. */
+.short-ref {
+  font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: .04em;
+  color: var(--ink-tertiary); white-space: nowrap;
+}
+
+/* --- public advocacy tags (VISIBILITY-SPEC §8) ------------------------------------------------
+   No status hue anywhere in here. A reference, a review, and a speaking slot are dated facts about
+   deployment engagement, not conditions — green would read as "this is a good one", which is the
+   level §8 refuses. The evidence note is body text on its own line rather than a title attribute,
+   because a note you have to hover for is an unevidenced tag in practice. */
+.advocacy-tag { padding: var(--sp-3) 0; border-bottom: 1px solid var(--line-hairline); }
+.advocacy-tag:last-of-type { border-bottom: 0; }
+.advocacy-tag-head { display: flex; align-items: center; gap: var(--sp-3); }
+.advocacy-tag-note { margin-top: var(--sp-2); line-height: 1.45; }
+.advocacy-tag-form { margin-top: var(--sp-3); display: flex; flex-direction: column;
+  gap: var(--sp-3); }
+.advocacy-tag-fields { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.advocacy-tag-note-input { width: 100%; border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong); background: var(--bg-surface); color: var(--ink-primary);
+  padding: var(--sp-2) var(--sp-3); font: inherit; font-size: var(--t-small); resize: vertical; }
+.advocacy-tag-actions { display: flex; gap: var(--sp-3); }

@@ -13,6 +13,9 @@
  * - `requirementControls` enumerates every write the panel offers. There is deliberately no
  *   status control in it: readiness has nothing for one to write to, and adding one would be the
  *   stored second source of truth §2 of the readiness spec forbids.
+ *
+ * `planVariance` (VISIBILITY-SPEC §6) is the fourth, and it exists to stop a subtraction rather
+ * than a merge: two dates may only be differenced when both are planning facts.
  */
 
 export const ESSENTIALS_GAP_CAP = 3;   // §13.6
@@ -123,6 +126,145 @@ export function dueRuleText(row) {
   const n = Math.abs(rule.offset_days);
   if (rule.offset_days === 0) return `On the ${anchor} date`;
   return `${n} day${n === 1 ? "" : "s"} ${rule.offset_days < 0 ? "before" : "after"} the ${anchor} date`;
+}
+
+const MS_PER_DAY = 86400000;
+
+/** Parse an ISO date as UTC midnight, so a local timezone cannot shift a planned date by a day. */
+function utcDay(iso) {
+  if (typeof iso !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function daysBetween(fromIso, toIso) {
+  const a = utcDay(fromIso);
+  const b = utcDay(toIso);
+  if (a === null || b === null) return null;
+  return Math.round((b - a) / MS_PER_DAY);
+}
+
+function days(n) {
+  return `${n} day${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Variance between a plan instance's planned date and what actually happened
+ * (VISIBILITY-SPEC §6, correcting §2.2).
+ *
+ * A subtraction is only legal when **both operands are planning facts**. `due_date` is one and
+ * `recorded_complete_on` is one, so their difference is one too — that is the `delta` branch, and
+ * it is the only branch that subtracts anything.
+ *
+ * Every other row returns `separate`: the planned date and its age as one statement, and nothing
+ * else. The readiness state belongs beside it in readiness's own vocabulary, supplied by the view
+ * from the row it already has — this function will not fold the two into "13 days late", because
+ * the second operand for that sentence does not exist. `assessed_through` is the date evidence was
+ * assessed **through**, not the date a requirement became true; it is never read here, under any
+ * label, which is the whole reason §2.2 rejected half of the original proposal.
+ *
+ * A scheduled row whose anchor never resolved returns `unknown`, for the cross-hatched treatment.
+ * The relative rule is deliberately *not* offered as a substitute date there: "2 days after the
+ * kickoff date" reads as an answer to "when", and when the kickoff date is unset it is not one.
+ */
+export function planVariance(row, today = null) {
+  const r = row || {};
+  const due = r.due_date || null;
+  const recorded = r.recorded_complete_on || null;
+  const rule = r.due_rule || null;
+  const scheduled = !!(rule && rule.anchor);
+
+  if (due && recorded) {
+    const delta = daysBetween(due, recorded);
+    if (delta !== null) {
+      return {
+        kind: "delta",
+        planned: due,
+        recorded,
+        days: delta,
+        // The age of a planned date stops mattering once the thing was recorded done, and stating
+        // both would invite reading them as a pair.
+        age: null,
+        age_text: null,
+        // No tone. A plan item recorded late and one recorded early are the same kind of fact,
+        // and late is not a status — colouring this would make the plan layer assert one.
+        text: delta === 0
+          ? "Recorded complete on the planned date."
+          : `Recorded complete ${days(Math.abs(delta))} `
+            + `${delta > 0 ? "after" : "before"} the planned date.`,
+      };
+    }
+  }
+
+  if (!due && scheduled) {
+    const anchor = String(rule.anchor).replace(/_/g, " ");
+    return {
+      kind: "unknown",
+      planned: null,
+      recorded,
+      days: null,
+      age: null,
+      age_text: null,
+      text: `No planned date: the ${anchor} date it is measured from is not set.`,
+    };
+  }
+
+  const age = due && today ? daysBetween(due, today) : null;
+  // Arithmetic on one planning date, which is why it can be offered on its own: a surface that
+  // already names the planned date renders `age_text` beside it rather than repeating the whole
+  // sentence. Neither form ever reaches for a second date to subtract.
+  const ageText = age === null ? null
+    : age > 0 ? `${days(age)} ago` : age < 0 ? `in ${days(-age)}` : "today";
+  return {
+    kind: "separate",
+    planned: due,
+    recorded,
+    days: null,
+    age,
+    age_text: due ? ageText : null,
+    // One statement, about the plan and nothing else. The state sits beside it, never inside it.
+    text: due ? `Planned for ${due}${ageText ? `, ${ageText}` : ""}` : null,
+  };
+}
+
+/** A config value as the operand token it will render as. Lists join; nothing is summarised. */
+function operand(value) {
+  if (Array.isArray(value)) return value.length ? value.map(operand).join(", ") : "none";
+  if (value === null || value === undefined) return "none";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/**
+ * What a requirement definition configured its evaluator with (VISIBILITY-SPEC §7.2).
+ *
+ * Returns `{ lead, operands: [{ key, label, value }] }` or `null` — the view renders `label` as
+ * prose and `value` as a `.mono` token, so an operand always reads as a value rather than as a
+ * word in the sentence.
+ *
+ * This describes the **configuration**, never the evaluator. A per-evaluator English gloss
+ * ("checks for two champions with a dated assessment") would be a second statement of what the
+ * code does, authored here, free to drift from it — and it would be wrong in exactly the case
+ * this exists for, where the evaluator key is not allowlisted and nothing ran at all. Stating
+ * `min_count 2` says what was asked for and claims nothing about what happened.
+ */
+export function evaluatorConfigSentence(row) {
+  if (!row?.evaluator_key) return null;
+  const version = row.evaluator_version === null || row.evaluator_version === undefined
+    ? "" : ` v${row.evaluator_version}`;
+  const config = row.evaluator_config;
+  const entries = config && typeof config === "object" && !Array.isArray(config)
+    ? Object.entries(config) : [];
+  return {
+    lead: `${row.evaluator_key}${version}`,
+    operands: entries.map(([key, value]) => ({
+      key,
+      label: key.replace(/_/g, " "),
+      value: operand(value),
+    })),
+  };
 }
 
 /**

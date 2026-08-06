@@ -355,16 +355,41 @@ that its data model permits and ours does not.
 1. ~~Slice 1 (decay on persisted runs) — the one with a live example of what its absence costs.~~
    **Built 2026-08-06** (D-251…D-258). No migration; 12 backend and 7 frontend tests; six captures in
    `design-screenshots/visibility-slice-1/`.
-2. Slice 2 (absence counters).
-3. Slice 5 (presentation), which can interleave freely; nothing depends on it.
-4. Slice 3 (playbook counts), Slice 4 (plan variance).
-5. Slice 6 last, and only after the schema change is agreed.
+2. ~~Slice 2 (absence counters).~~ **Built 2026-08-06** (D-259…D-261). No migration; 13 backend and
+   7 frontend tests.
+3. ~~Slice 5 (presentation), which can interleave freely; nothing depends on it.~~
+   **Built 2026-08-06** (D-262…D-266). No migration; 18 backend and 18 frontend tests.
+4. ~~Slice 3 (playbook counts), Slice 4 (plan variance).~~ **Both built 2026-08-06**
+   (D-267…D-268, D-269…D-270). No migration; 13 backend and 8 frontend tests.
+5. ~~Slice 6 last, and only after the schema change is agreed.~~ **Built 2026-08-06**
+   (D-271…D-274). Migration `0054_advocacy_tags.sql`; 9 backend and 6 frontend tests.
+
+**The whole spec is built.** 860 backend tests (was 807 after Slice 1), 308 frontend (was 263),
+lint exit 0, clean build.
+
+**Screenshots for Slices 2–6 are outstanding.** `browser_screenshot` returned "Current display
+surface not available for capture" on every attempt across two fresh headless sessions on
+2026-08-06, several hours after Slice 1's six captures succeeded the same way — the headless page
+reported `visibilityState: "hidden"`, so the surface was not being composited. This is an
+environment state, not a code problem, and it is the one gate on this spec still open. What was
+verified in its place, in a live headless session against the running app: both themes apply at the
+root (`--bg-app` `#f4f5f8` light / `#050609` dark), Slice 2's strip renders all four sentences and
+its independence caveat in both, and Slice 5's scope strip renders "Narrowed to the Needs you now
+band. 6 of 34 shown · 28 not listed here." Slice 6's write path and card shape were exercised
+end-to-end over the API. **Capture the pair for each slice when the capture layer is back.**
 
 Each slice lands with tests, both-theme screenshots, a decision entry, and a `HANDOFF.md` update.
+
+**Correction to item 5 (2026-08-06):** "only after the schema change is agreed" re-gates work that
+D-83 explicitly un-gated — "downgrading a schema change to a request for permission … reintroduce[s]
+a gate that was deliberately removed". Slice 6 was built on Zach's instruction to build the spec,
+with the table decision argued in the migration header where the standing rule puts it.
 
 **Correction (2026-08-06):** an earlier draft of this section recorded that screenshots were
 "blocked at this environment's capture layer". That was wrong, and D-248 records the same correction
 where it was first made. `browser_open_local_preview` cannot be screenshotted, but
 `browser_open_session` with `headless: true` can. Slice 1's six captures were taken that way.
 
-**Nothing in slices 1–5 flips an adapter, adds a network boundary, or changes `CONNECTIONS.md`.**
+**Nothing in slices 1–6 flips an adapter, adds a network boundary, or changes `CONNECTIONS.md`.**
+Slice 6's `advocacy_tags` is a local table recording facts an operator types in; it has no adapter
+and no external touchpoint.
