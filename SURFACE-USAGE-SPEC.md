@@ -548,7 +548,10 @@ the loophole that makes "measurement is disabled" and "there is measurement data
 
 ## 10. Data model
 
-Migration `0052` (or `0053` if the drop-intake spec lands first).
+Migration **`0054`**. This document was written before Stage 16 landed and originally said "`0052`
+(or `0053` if the drop-intake spec lands first)"; the drop-intake spec took both, so the next free
+number is 0054. Treat every other pre-Stage-16 estimate in here — the §13 slice sizes especially —
+as carrying the same staleness.
 
 ```sql
 CREATE TABLE surface_usage_months (
