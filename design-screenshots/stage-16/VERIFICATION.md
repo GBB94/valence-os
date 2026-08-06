@@ -52,8 +52,15 @@ Both branches measured after the fix:
 | `dragover-{light,dark}.png` | Mid-drag — accent border **and** the label changes to "Drop to add to …" |
 | `review-{light,dark}.png` | `ProposalReview` slide-over: `Accept all 3`, spans quoted, `Cited` marks |
 | `duplicate-{light,dark}.png` | Duplicate receipt naming the earlier drop and offering its drafts |
-| `citation-deleted-{light,dark}.png` | Split view with a degraded citation — source deleted |
+| `citation-deleted-{light,dark}.png` | Split view, degraded citation — source deleted (stacked branch, 391px) |
+| `citation-never-captured-{light,dark}.png` | Split view, degraded citation — `never_captured` (wide branch, 608px + 608px) |
 | `dropzone-narrow-620-light.png` | 620px viewport |
+
+The two citation pairs are also the two branches of the split fix: `deleted` was shot in the 480px
+slide-over where the layout stacks, `never_captured` on the Ledger tab where it stays two columns
+with the 12rem label track intact. `never_captured` is reached without contrivance — an extraction
+run started from the Ledger panel has no `intake_drops` row pointing at it, and §11.2's rule is that
+a run has a retained document *iff a drop points at it*.
 
 ## Measured, not reasoned about
 
@@ -76,8 +83,10 @@ Both branches measured after the fix:
 
 ## Not captured
 
-- `never_captured` and unlocatable citations. `deleted` is captured and the three share one render
-  path, differing only in the server-authored heading and note — but that is an argument, not a
-  capture, and it is recorded here as one.
+- **The unlocatable citation.** `deleted` and `never_captured` are both captured; the third degraded
+  state needs a span that is not byte-identical to anything in a retained document, which no
+  operator action produces — it would have to be manufactured by editing stored data. The three
+  share one render path and differ only in the server-authored heading and note, so this is an
+  argument rather than a capture, and it is recorded here as one.
 - The 620px viewport for the split view specifically. The split's stacking is now measured directly
   at 391px, which is narrower than the 620px case would produce.
