@@ -4,7 +4,12 @@ import { SlideOver, useToast, fmtDate, AgeChip } from "../ui";
 
 // Plays trigger engine (v4). Definitions fire runs against current state; each run
 // records an effectiveness note so the playbook improves, not just automates.
-const TRIGGERS = ["renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker"];
+const TRIGGERS = [
+  "renewal_window", "overdue_commitment", "stale_stakeholder", "active_blocker",
+  "checklist_overdue", "unanswered_email", "unidentified_placeholder", "cadence_overdue",
+  "no_second_champion", "champion_gone_quiet", "stalled_cohort", "expansion_signal",
+  "org_change_confirmed", "calendar_moment", "land_and_leave",
+];
 const EFF = ["effective", "unclear", "ineffective"];
 
 export default function Plays({ reloadKey, onChanged }) {
@@ -30,7 +35,7 @@ export default function Plays({ reloadKey, onChanged }) {
   const completed = runs.filter((r) => r.status === "completed");
 
   return (
-    <div>
+    <div className="card-stack">
       <div className="actions" style={{ marginBottom: 14 }}>
         <h1>Plays</h1>
         <div className="spacer" />
@@ -41,7 +46,7 @@ export default function Plays({ reloadKey, onChanged }) {
       <div className="card">
         <div className="card-h"><h3>Definitions</h3></div>
         {plays.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No plays defined.</div> : (
-          <table><thead><tr><th>Play</th><th style={{ width: 180 }}>Trigger</th><th>Action</th></tr></thead>
+          <table><thead><tr><th scope="col">Play</th><th scope="col" style={{ width: 180 }}>Trigger</th><th scope="col">Action</th></tr></thead>
             <tbody>{plays.map((p) => (
               <tr key={p.id}><td>{p.name}</td><td className="rowmeta">{p.trigger_kind.replace(/_/g, " ")}</td><td className="rowmeta">{p.action_template}</td></tr>
             ))}</tbody></table>
@@ -83,7 +88,7 @@ function AddPlay({ onClose, onSaved }) {
   }
   return (
     <SlideOver title="New play" onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Create</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Create play</button></>}>
       <div className="field"><label>Name</label><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus /></div>
       <div className="field"><label>Trigger</label><select value={f.trigger_kind} onChange={(e) => setF({ ...f, trigger_kind: e.target.value })}>{TRIGGERS.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}</select></div>
       <div className="field"><label>Action template</label><textarea value={f.action_template} onChange={(e) => setF({ ...f, action_template: e.target.value })} placeholder="Use {title} and {because} placeholders" /></div>
@@ -101,7 +106,7 @@ function CompleteRun({ run, onClose, onSaved }) {
   }
   return (
     <SlideOver title="Complete play run" onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Record</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Record play run</button></>}>
       <div className="subtle" style={{ marginBottom: 12 }}>{run.action_text}</div>
       <div className="field"><label>Effectiveness</label><select value={eff} onChange={(e) => setEff(e.target.value)}>{EFF.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
       <div className="field"><label>Note</label><textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened — so the playbook learns" /></div>

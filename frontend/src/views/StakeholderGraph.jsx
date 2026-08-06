@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { api } from "../api";
-import { useToast, AgeChip } from "../ui";
+import { Card, useToast, AgeChip, DueChip, Loading } from "../ui";
 import PersonCard from "./PersonCard";
 
 // §3.1 the five horizontal bands, top (most senior) to bottom.
@@ -18,6 +18,17 @@ const STANCE_SHAPE = { supporter: "ellipse", skeptic: "diamond", unconverted: "r
 // treatment (status-unknown fill + hexagon), sized by EXPECTED influence.
 const PLACEHOLDER_VAR = "--status-unknown";
 const PLACEHOLDER_SHAPE = "hexagon";
+
+function trackCanvasSpotlight(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty("--spot-x", `${event.clientX - bounds.left}px`);
+  event.currentTarget.style.setProperty("--spot-y", `${event.clientY - bounds.top}px`);
+}
+
+function resetCanvasSpotlight(event) {
+  event.currentTarget.style.setProperty("--spot-x", "50%");
+  event.currentTarget.style.setProperty("--spot-y", "42%");
+}
 
 export default function StakeholderGraph({ accounts, accountId, setAccountId, reloadKey }) {
   const toast = useToast();
@@ -78,8 +89,11 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
       style: [
         { selector: "node", style: {
           "background-color": "data(color)", shape: "data(shape)", width: "data(size)", height: "data(size)",
-          label: "data(label)", "font-size": 10, color: labelColor, "text-valign": "bottom",
-          "text-margin-y": 3, "border-width": 1, "border-color": nodeBorder } },
+          label: "data(label)", "font-size": 12, "font-weight": 500, color: labelColor,
+          "text-valign": "bottom", "text-margin-y": 4,
+          "text-background-color": nodeBorder, "text-background-opacity": 0.9,
+          "text-background-padding": 4, "text-background-shape": "roundrectangle",
+          "border-width": 2, "border-color": nodeBorder } },
         // placeholders (§3): dashed border marks a position that isn't a confirmed person yet
         { selector: 'node[dashed="dashed"]', style: {
           "border-width": 2, "border-color": v("--status-unknown"), "border-style": "dashed" } },
@@ -91,7 +105,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
         { selector: 'edge[type="influences"]', style: { "line-style": "dashed", "line-color": relColor, "target-arrow-color": relColor } },
         { selector: 'edge[type="sponsors"]', style: { "line-style": "dotted", "line-color": relColor, "target-arrow-color": relColor } },
       ],
-      layout: { name: "breadthfirst", directed: true, spacingFactor: 1.3, padding: 20 },
+      layout: graph.edges.length
+        ? { name: "breadthfirst", directed: true, spacingFactor: 1.15, padding: 48 }
+        : { name: "grid", avoidOverlap: true, padding: 72 },
     });
     cy.on("tap", "node", (evt) => {
       const n = graph.nodes.find((x) => x.id === evt.target.id());
@@ -105,47 +121,49 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
   const programs = detail?.programs ?? [];
 
   return (
-    <div>
-      <div className="actions" style={{ marginBottom: 14 }}>
-        <h1>Stakeholder map</h1>
-        <select value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }} style={sel}>
+    <div className="stakeholder-workspace">
+      <Card as="header" spotlight className="actions stakeholder-toolbar stakeholder-hero">
+        <div className="stakeholder-title"><div className="page-eyebrow">Relationship intelligence</div><h1>Stakeholder map</h1></div>
+        <select className="stakeholder-select" value={accountId || ""} onChange={(e) => { setAccountId(e.target.value); setProgramId(""); }}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
-        <select value={programId} onChange={(e) => setProgramId(e.target.value)} style={sel}>
+        <select className="stakeholder-select" value={programId} onChange={(e) => setProgramId(e.target.value)}>
           <option value="">all programs</option>
           {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <div className="spacer" />
-        <button className={"btn small" + (mode === "network" ? " primary" : "")} onClick={() => setMode("network")}>Network</button>
-        <button className={"btn small" + (mode === "layers" ? " primary" : "")} onClick={() => setMode("layers")}>Layers</button>
-        <button className={"btn small" + (mode === "power_interest" ? " primary" : "")} onClick={() => setMode("power_interest")}>Power–interest</button>
-      </div>
+        <button className={"btn small" + (mode === "network" ? " selected" : "")} aria-pressed={mode === "network"} onClick={() => setMode("network")}>Network</button>
+        <button className={"btn small" + (mode === "layers" ? " selected" : "")} aria-pressed={mode === "layers"} onClick={() => setMode("layers")}>Layers</button>
+        <button className={"btn small" + (mode === "power_interest" ? " selected" : "")} aria-pressed={mode === "power_interest"} onClick={() => setMode("power_interest")}>Power–interest</button>
+      </Card>
 
       <div className="two-col">
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          {!graph ? <div className="subtle" style={{ padding: 20 }}>Loading…</div> :
+        <div className="card stakeholder-canvas">
+          {!graph ? <Loading what="stakeholder graph" /> :
             graph.nodes.length === 0 ? <div className="empty"><h3>No stakeholders</h3>Add people with roles and set their influence.</div> :
             mode === "network"
-              ? <div ref={elRef} style={{ height: 460 }} />
+              ? <div ref={elRef} className="stakeholder-graph"
+                  onPointerMove={trackCanvasSpotlight} onPointerLeave={resetCanvasSpotlight} />
               : mode === "layers"
                 ? <LayerLanes nodes={graph.nodes} onSelect={setSelected} />
                 : <PowerInterest nodes={graph.nodes} onSelect={setSelected} />}
-          <div className="rowmeta" style={{ padding: "8px 12px", borderTop: "1px solid var(--line-hairline)" }}>
+          <div className="rowmeta stakeholder-legend">
             Size = influence · shape = stance (● supporter, ◆ skeptic, ▮ unconverted) · ⬡ dashed = unidentified position · solid = reports-to, dashed = influences, dotted = sponsors.
           </div>
         </div>
         <div>
         {coverage && (
-          <div className="card" style={{ padding: 14, marginBottom: 10 }}>
-            <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>Coverage</div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>
-              <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong> senior relationships active
-              <span className="rowmeta"> (touched ≤21d)</span>
+          <Card spotlight className="stakeholder-coverage">
+            <div className="page-eyebrow">Relationship coverage</div>
+            <div className="coverage-primary">
+              <strong>{coverage.vp_plus_active}/{coverage.vp_plus_total}</strong>
+              <span>senior relationships active<small>touched within 21 days</small></span>
             </div>
-            <div style={{ fontSize: 13, marginBottom: 8 }}>
-              Business case: {coverage.multithreaded
+            <div className={`coverage-callout ${coverage.multithreaded ? "is-healthy" : "is-warning"}`}>
+              <span className={`state-mark ${coverage.multithreaded ? "ok" : "warn"}`} />
+              <span>Business case is {coverage.multithreaded
                 ? <span style={{ color: "var(--status-ok)" }}>multithreaded ({coverage.business_case_owner_count} owners)</span>
-                : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a 2nd owner</span>}
+                : <span style={{ color: "var(--status-warn)" }}>single-threaded — add a second owner</span>}</span>
             </div>
             {coverage.placeholder_count > 0 && (
               <div style={{ fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
@@ -154,8 +172,8 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
               </div>
             )}
             {coverage.cadence_compliance != null && (
-              <div style={{ fontSize: 13, marginBottom: 8 }}>
-                Cadence compliance: <strong>{coverage.cadence_compliance}%</strong>
+              <div className="coverage-metric">
+                <span>Cadence compliance</span><strong>{coverage.cadence_compliance}%</strong>
                 <span className="rowmeta"> ({coverage.cadence_overdue_count} overdue)</span>
               </div>
             )}
@@ -170,9 +188,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                     <div key={l} className="rowmeta" style={{ display: "flex", justifyContent: "space-between" }}>
                       <span>{LAYER_LABEL[l]}</span>
                       <span>
-                        <span style={{ color: "var(--status-ok)" }}>{a}</span> ·{" "}
-                        <span style={{ color: "var(--status-warn)" }}>{s}</span> ·{" "}
-                        <span style={{ color: "var(--status-unknown)" }}>{ph}</span>
+                        <span style={{ color: "var(--status-ok)" }}>{a} active</span> ·{" "}
+                        <span style={{ color: "var(--status-warn)" }}>{s} stale</span> ·{" "}
+                        <span style={{ color: "var(--ink-secondary)" }}>{ph} placeholder</span>
                       </span>
                     </div>
                   );
@@ -199,9 +217,9 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 {s.days_since_touch == null ? <span className="rowmeta">no touch</span> : <AgeChip days={s.days_since_touch} />}
               </div>
             ))}
-          </div>
+          </Card>
         )}
-        <div className="card" style={{ padding: 14 }}>
+        <Card spotlight className="stakeholder-detail">
           {selected ? (
             selected.is_placeholder ? (
               <>
@@ -213,7 +231,7 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                 <div className="kv" style={{ marginTop: 10 }}>
                   <dt>Expected role</dt><dd>{(selected.role || "—").replace(/_/g, " ")}</dd>
                   <dt>Expected influence</dt><dd>{selected.expected_influence || "—"}</dd>
-                  <dt>Find by</dt><dd>{selected.find_by_date ? <AgeChip date={selected.find_by_date} /> : "—"}</dd>
+                  <dt>Find by</dt><dd>{selected.find_by_date ? <DueChip date={selected.find_by_date} /> : "—"}</dd>
                 </div>
               </>
             ) : (
@@ -228,11 +246,12 @@ export default function StakeholderGraph({ accounts, accountId, setAccountId, re
                   <dt>Stance</dt><dd>{selected.stance || "—"}</dd>
                   <dt>Influence</dt><dd>{selected.influence || "—"}</dd>
                 </div>
-                <button className="btn small primary" style={{ marginTop: 10 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
+                <button className="btn small" style={{ marginTop: 12 }} onClick={() => setCardPerson(selected.id)}>Open full profile →</button>
               </>
             )
-          ) : <div className="rowmeta">Click a node to inspect a stakeholder.</div>}
-        </div>
+          ) : <div className="stakeholder-detail-empty"><span className="stakeholder-detail-mark" />
+            <strong>Select a stakeholder</strong><span>Inspect role, stance, influence, and the full relationship record.</span></div>}
+        </Card>
         </div>
       </div>
       {cardPerson && <PersonCard personId={cardPerson} onClose={() => setCardPerson(null)} onChanged={() => setThemeTick((t) => t + 1)} />}
@@ -249,8 +268,8 @@ function LayerLanes({ nodes, onSelect }) {
     <div style={{ padding: 12 }}>
       {LAYER_ORDER.map((l) => (
         <div key={l} style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--line-hairline)", minHeight: 76 }}>
-          <div style={{ width: 120, flex: "none", fontSize: 11, color: "var(--ink-tertiary)", textTransform: "uppercase", letterSpacing: ".04em" }}>{LAYER_LABEL[l]}</div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "10px 0" }}>
+          <div style={{ width: 120, flex: "none", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)", textTransform: "uppercase", letterSpacing: ".04em" }}>{LAYER_LABEL[l]}</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", padding: "12px 0" }}>
             {byLayer[l].length === 0
               ? <span className="rowmeta" style={{ fontStyle: "italic" }}>— empty band —</span>
               : byLayer[l].map((n) => (
@@ -260,7 +279,7 @@ function LayerLanes({ nodes, onSelect }) {
                     borderRadius: n.is_placeholder ? 3 : "50%",
                     background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`,
                     border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
-                  <div style={{ fontSize: 10, color: "var(--ink-secondary)", marginTop: 2 }}>{(n.is_placeholder ? (n.title || n.name) : n.name).split(" ").slice(0, 2).join(" ")}</div>
+                  <div style={{ fontSize: "var(--t-micro)", color: "var(--ink-secondary)", marginTop: 2 }}>{(n.is_placeholder ? (n.title || n.name) : n.name).split(" ").slice(0, 2).join(" ")}</div>
                 </div>
               ))}
           </div>
@@ -279,8 +298,8 @@ function PowerInterest({ nodes, onSelect }) {
       <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, background: "var(--line-hairline)" }} />
       <Label t="Keep satisfied" x="2%" y="2%" /><Label t="Manage closely" x="70%" y="2%" />
       <Label t="Monitor" x="2%" y="94%" /><Label t="Keep informed" x="70%" y="94%" />
-      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: 10, color: "var(--ink-tertiary)" }}>power (influence) →</div>
-      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: 10, color: "var(--ink-tertiary)" }}>interest (stance) →</div>
+      <div style={{ position: "absolute", left: -4, top: "50%", transform: "rotate(-90deg)", transformOrigin: "left", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>power (influence) →</div>
+      <div style={{ position: "absolute", bottom: -16, left: "50%", fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>interest (stance) →</div>
       {nodes.map((n) => {
         const x = ((n.interest - 1) / 2) * 84 + 8;      // 1..3 -> 8..92%
         const y = 92 - ((n.power - 1) / 2) * 84;         // higher power = higher up
@@ -288,12 +307,11 @@ function PowerInterest({ nodes, onSelect }) {
           <div key={n.id} onClick={() => onSelect(n)} title={n.name}
             style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", cursor: "pointer", textAlign: "center" }}>
             <div className={n.is_placeholder ? "unknown-hatch" : ""} style={{ width: n.size * 0.7, height: n.size * 0.7, borderRadius: n.is_placeholder ? 2 : "50%", background: n.is_placeholder ? undefined : `var(${STANCE_VAR[n.stance] || "--data-muted"})`, border: n.is_placeholder ? "1px dashed var(--status-unknown)" : "1px solid var(--bg-surface)" }} />
-            <div style={{ fontSize: 10, color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
+            <div style={{ fontSize: "var(--t-micro)", color: "var(--ink-secondary)" }}>{n.name.split(" ")[0]}</div>
           </div>
         );
       })}
     </div>
   );
 }
-const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: 10, color: "var(--ink-tertiary)" }}>{t}</div>;
-const sel = { height: 30, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" };
+const Label = ({ t, x, y }) => <div style={{ position: "absolute", left: x, top: y, fontSize: "var(--t-micro)", color: "var(--ink-tertiary)" }}>{t}</div>;

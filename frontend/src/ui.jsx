@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
+import { nextTabKey } from "./segTabs";
 
 // Canvas/SVG charts can't use CSS var() in attributes — resolve the token to a concrete color,
 // and re-render when the theme flips so both themes render correctly (DESIGN-GUIDE §8).
@@ -46,8 +48,30 @@ export function Badge({ children, className = "" }) {
   return <span className={"badge" + (className ? " " + className : "")}>{children}</span>;
 }
 
-export function Card({ className = "", children, ...rest }) {
-  return <div className={"card" + (className ? " " + className : "")} {...rest}>{children}</div>;
+function trackSurfaceSpotlight(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty("--surface-spot-x", `${event.clientX - bounds.left}px`);
+  event.currentTarget.style.setProperty("--surface-spot-y", `${event.clientY - bounds.top}px`);
+}
+
+function resetSurfaceSpotlight(event) {
+  event.currentTarget.style.setProperty("--surface-spot-x", "50%");
+  event.currentTarget.style.setProperty("--surface-spot-y", "0%");
+}
+
+export function Card({ as: Component = "div", className = "", children, spotlight = false,
+  onPointerMove, onPointerLeave, ...rest }) {
+  function handlePointerMove(event) {
+    if (spotlight) trackSurfaceSpotlight(event);
+    onPointerMove?.(event);
+  }
+  function handlePointerLeave(event) {
+    if (spotlight) resetSurfaceSpotlight(event);
+    onPointerLeave?.(event);
+  }
+  const classes = `card${spotlight ? " spotlight-surface" : ""}${className ? ` ${className}` : ""}`;
+  return <Component className={classes} onPointerMove={handlePointerMove}
+    onPointerLeave={handlePointerLeave} {...rest}>{children}</Component>;
 }
 
 export function PhaseBadge({ phase }) {
@@ -55,24 +79,55 @@ export function PhaseBadge({ phase }) {
 }
 
 // Screen header: title, optional right-aligned meta, optional action cluster.
-export function PageHeader({ title, meta, children }) {
+export function PageHeader({ title, meta, eyebrow, subtitle, children, spotlight = false, className = "" }) {
   return (
-    <div className="actions" style={{ marginBottom: 12 }}>
-      <h1>{title}</h1>
+    <header className={`page-header${spotlight ? " page-header-feature spotlight-surface" : ""}${className ? ` ${className}` : ""}`}
+      onPointerMove={spotlight ? trackSurfaceSpotlight : undefined}
+      onPointerLeave={spotlight ? resetSurfaceSpotlight : undefined}>
+      <div className="page-header-copy">
+        {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
+        <h1>{title}</h1>
+        {subtitle && <div className="page-subtitle">{subtitle}</div>}
+      </div>
       <div className="spacer" />
-      {meta && <span className="rowmeta">{meta}</span>}
+      {meta && <span className="page-meta">{meta}</span>}
       {children}
-    </div>
+    </header>
   );
 }
 
 // Segmented tabs (inner selectors, filter groups). tabs: [[key, label, count?], …]
-export function SegTabs({ tabs, value, onChange, kind = "tab" }) {
+export function SegTabs({ tabs, value, onChange, kind = "tab", ariaLabel = "Section", id, panelId }) {
   const cls = kind === "chip" ? "filter-chip" : "tab";
+  const autoId = useId();
+  const baseId = id || `seg-tabs-${autoId.replaceAll(":", "")}`;
+  const refs = useRef(new Map());
+  // Keyboard selection must move focus with it, or a screen reader announces nothing and the
+  // next Tab starts from a stale element. A one-shot rAF loses the race when selecting also
+  // changes the URL (the lens selector), so the focus is re-applied from an effect, which runs
+  // after the commit that re-rendered these buttons.
+  const pendingFocus = useRef(null);
+  useEffect(() => {
+    if (pendingFocus.current !== value) return;
+    pendingFocus.current = null;
+    const node = refs.current.get(value);
+    if (node && document.activeElement !== node) node.focus();
+  }, [value]);
+  function onKeyDown(event) {
+    const next = nextTabKey(tabs, value, event.key);
+    if (!next) return;
+    event.preventDefault();
+    pendingFocus.current = next;
+    onChange(next);
+    refs.current.get(next)?.focus();
+  }
   return (
-    <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist">
+    <div className={kind === "chip" ? "chiprow" : "tabstrip inner"} role="tablist"
+      aria-label={ariaLabel} onKeyDown={onKeyDown}>
       {tabs.map(([key, label, count]) => (
-        <button key={key} role="tab" aria-selected={value === key}
+        <button key={key} id={`${baseId}-${key}-tab`} role="tab" aria-selected={value === key}
+          aria-controls={panelId} tabIndex={value === key ? 0 : -1}
+          ref={(node) => { if (node) refs.current.set(key, node); else refs.current.delete(key); }}
           className={cls + (value === key ? " active" : "")} onClick={() => onChange(key)}>
           {label}{count != null && <span className="chip-count">{count}</span>}
         </button>
@@ -120,6 +175,99 @@ export function Tooltip({ text, children, label = "i" }) {
   );
 }
 
+// Sub-tab help (DESIGN-GUIDE §10 voice: the job, not the contents). Keyed by SECTION_HELP group
+// then active sub-tab. Rendered as one ⓘ beside a SegTabs strip via <SectionHelp>, reusing the
+// accessible Tooltip so the explanation is never hover-only.
+export const SECTION_HELP = {
+  commercial: {
+    whitespace: "The reconciled seat map: where the product is landed, proven, blocked, or white space, by population and use case. The first question is where the next seats live.",
+    ledger: "Value targets and the outcomes that back them — the proof a renewal or expansion is defensible. Stale evidence renders unknown, never carried forward.",
+    funding: "Where the money would come from: funding pools, fiscal timing, and the back-scheduled asks that must clear before a budget window closes.",
+    signals: "Recurring, explainable episodes — client pull, calendar moments, confirmed org changes, coverage gaps — that say an account moved and why.",
+    company: "Outside-in intelligence: what the company said and did publicly, mapped to rows, columns, and stakeholders. Proposal-first and span-cited; nothing is assumed true.",
+    growth: "The renewal and expansion motion over time — growth-plan lines, seat and price assumptions, and the ask dates that gate them.",
+    pipeline: "Expansion opportunities with a staged budget state, and contract versions with your operational overlay. The waterfall shows what has to be true to fund the next seats.",
+  },
+  people: {
+    map: "The stakeholder network — layers, buying-committee roles, stance, and influence. Every assessment carries a date and an evidence note.",
+    champions: "Champion development: who is advocating, at what stage, and where a second champion is missing before the first one leaves.",
+    influence: "Who moves whom — reporting, sponsorship, and influence paths — so a message reaches the person who can actually decide.",
+    exec: "Executive alignment: which of our leaders is paired with which of theirs, and where an exec relationship is exposed.",
+    changes: "Confirmed organizational changes — arrivals, departures, title moves — proposal-first from the enrichment adapter, and their succession impact.",
+    messaging: "The message that lands with each layer and role: what they care about and the value framed for them, kept professional.",
+  },
+  ledgerView: {
+    records: "Capture, convert, and close the account's execution — interactions and the commitments, tasks, decisions, risks, and issues that came out of them.",
+    activity: "A read-only chronology across every source on one time axis, with recorded time and effective time kept distinct. Opening a row lands on its native record.",
+  },
+  internal: {
+    forecast: "Forecast calls as append-only category transitions, with the evidence that supports each — not a second source of truth.",
+    asks: "Explicit asks of leadership and internal functions, with an owner, a needed-by date, and a state, so nothing sits unowned.",
+    reviews: "Governed internal account reviews: the point-of-view record, its assessed date, and the review trail behind a status.",
+    coverage: "Colleague coverage across the portfolio — who is exposed and where a relationship has no backup.",
+  },
+  accountsBook: {
+    accounts: "The portfolio at a glance — delivery and commercial status per account, filterable and sortable, each row a way into the workspace.",
+    analytics: "Portfolio-level analytics across accounts: honest aggregates, never a composite health score.",
+    internal: "The internal operating layer across the whole book — forecast, asks, and coverage rolled up.",
+  },
+  outputs: {
+    artifacts: "Generated, review-gated documents — pre-call briefs, business cases, kits, decks. Editable before anything leaves the tool.",
+    qbr: "The quarterly business review generator. Client-facing output includes only affirmatively promoted records.",
+    team: "The weekly internal team update — what moved, what is stuck, and what is needed — assembled from account facts.",
+    map: "The client-facing mutual action plan: shared steps and owners, with only promoted fields visible to the client.",
+  },
+};
+
+// Human labels for the active sub-tab, so the panel title reads "Value ledger", not "ledger".
+const SECTION_LABELS = {
+  commercial: { whitespace: "Whitespace", ledger: "Value ledger", funding: "Funding",
+    signals: "Signals", company: "Company", growth: "Growth & renewal", pipeline: "Pipeline & contracts" },
+  people: { map: "Map", champions: "Champions", influence: "Influence", exec: "Exec alignment",
+    changes: "Org changes", messaging: "Messaging" },
+  ledgerView: { records: "Records", activity: "Activity" },
+  internal: { forecast: "Forecast", asks: "Asks", reviews: "Reviews", coverage: "Coverage" },
+  accountsBook: { accounts: "Book", analytics: "Portfolio analytics", internal: "Internal" },
+  outputs: { artifacts: "Artifacts", qbr: "QBR", team: "Team update", map: "Mutual action plan" },
+};
+
+// "About this page" — a labeled disclosure beside a sub-tab strip that opens a panel explaining
+// the active sub-tab. A click-to-open panel (not a hover tooltip) is more discoverable and
+// touch-friendly; it closes on Escape or an outside click, and the label reads the active tab so
+// the affordance is never a mystery.
+export function SectionHelp({ group, active, label }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const panelId = useId();
+  useEffect(() => { setOpen(false); }, [active]);   // switching sub-tabs closes a stale panel
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); } };
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
+  }, [open]);
+  const text = SECTION_HELP[group]?.[active];
+  if (!text) return null;
+  const activeLabel = label || SECTION_LABELS[group]?.[active] || null;
+  return (
+    <span className="about-page" ref={ref}>
+      <button type="button" className="about-page-btn" aria-expanded={open} aria-controls={panelId}
+        onClick={() => setOpen((v) => !v)}>
+        <span className="about-page-icon" aria-hidden="true">i</span>
+        About this page
+      </button>
+      {open && (
+        <span className="about-page-panel" id={panelId} role="region" aria-label="About this page">
+          {activeLabel && <strong className="about-page-title">{activeLabel}</strong>}
+          <span>{text}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 // Stance = categorical (D-67): color from the data family + a shape, matching the graph, so it
 // reads without color and never as health. ● supporter / ◆ skeptic / ▮ unconverted.
 export function StanceLabel({ stance }) {
@@ -141,21 +289,80 @@ export function Empty({ title, children }) {
 }
 
 // --- Slide-over (detail/quick-entry; never a blocking modal for routine work) ---
+// Keyboard contract (DESIGN-GUIDE §11): Escape closes, Tab cycles inside, and focus
+// returns to wherever the operator was standing when the panel opened.
 export function SlideOver({ title, onClose, children, footer }) {
-  return (
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  // Captured during the first render and never re-read. Two things were breaking the restore, and
+  // both are avoided by reading it here rather than inside an effect: `onClose` is an inline arrow
+  // at nearly every call site, so a `[onClose]`-keyed effect re-runs on every render and would
+  // re-capture the opener as a control *inside* the panel; and a child `autoFocus` is applied during
+  // commit, before any effect, so even a mount-only effect can see the wrong element. Restoring to a
+  // panel-internal node means restoring to a node that is already detached — focus fell to <body>
+  // with no symptom, which is why the suite stayed green through it.
+  const openerRef = useRef(undefined);
+  if (openerRef.current === undefined) openerRef.current = document.activeElement;
+  // Mount-only, and deliberately separate from the keyboard effect below. Entering and restoring
+  // focus are things that happen once per open; the keyboard effect re-subscribes whenever the
+  // caller's `onClose` identity changes, and running the restore from *that* cleanup would yank
+  // focus out of the panel on every parent re-render.
+  useEffect(() => {
+    closeRef.current?.focus();
+    return () => {
+      // `isConnected`, not a truthiness check: focusing a detached node silently does nothing and
+      // leaves focus on <body>, which is the failure this guard is here to make visible.
+      const opener = openerRef.current;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+  useEffect(() => {
+    const key = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key !== "Tab") return;
+      const focusable = [...(panelRef.current?.querySelectorAll(
+        'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])') || [])];
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  // Portal to <body> so the panel escapes the account workspace's isolated stacking context
+  // (.main has `isolation: isolate`). Rendered inline, its z-index only ranked within .content,
+  // so the sticky topbar painted over its header. At the body level it clears everything.
+  return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
-      <aside className="slideover" role="dialog" aria-label={title}>
+      <aside className="slideover" role="dialog" aria-modal="true" aria-label={title} ref={panelRef}>
         <header>
           <h1>{title}</h1>
           <div className="spacer" />
-          <button className="btn ghost" onClick={onClose}>Close</button>
+          <button className="btn ghost" onClick={onClose} ref={closeRef}>Close</button>
         </header>
         <div className="body">{children}</div>
         {footer && <footer>{footer}</footer>}
       </aside>
-    </>
+    </>,
+    document.body,
   );
+}
+
+// A row that acts as a control must be reachable and operable by keyboard, not just by mouse.
+// Spread onto the <tr>: `<tr className="clickable" {...rowActivation(() => open(id))}>`.
+export function rowActivation(onActivate) {
+  return {
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== event.currentTarget) return;   // let nested controls handle their own keys
+      event.preventDefault();
+      onActivate();
+    },
+  };
 }
 
 export const ROLE_LABELS = {
@@ -211,6 +418,24 @@ export function AgeChip({ date, days }) {
   return <span className={"age age-" + bucketFor(ageDays(date))} title={date ? `as of ${fmtDate(date)}` : undefined}>{ageLabel(date)}</span>;
 }
 
+// Forward-looking counterpart to AgeChip. AgeChip clamps future dates to "today", which
+// silently misreads a due date or find-by date; this renders "in Nd" (or overdue via the
+// stale treatment) instead. Same mono/micro form, no decay ramp — the future doesn't age.
+export function DueChip({ date }) {
+  if (!date) return null;
+  const due = new Date(date.slice(0, 10) + "T00:00:00");
+  if (isNaN(due)) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((due.getTime() - today.getTime()) / 86400000);
+  const label = days < 0 ? `${-days}d over` : days === 0 ? "today" : days < 21 ? `in ${days}d` : days < 84 ? `in ${Math.round(days / 7)}w` : `in ${Math.round(days / 30)}mo`;
+  return <span className={"age " + (days < 0 ? "age-stale" : "age-fresh")} title={`due ${fmtDate(date)}`}>{label}</span>;
+}
+
+// The one Loading treatment: quiet, left-aligned, consistent copy.
+export function Loading({ what }) {
+  return <div className="subtle" style={{ padding: 12 }}>Loading{what ? ` ${what}` : ""}…</div>;
+}
+
 // The unknown treatment: cross-hatched tint + "Unknown" + the age chip that explains why.
 // For a metric-derived indicator whose inputs passed their freshness threshold — never a
 // carried-forward last value (§7, and the trust boundary in CLAUDE.md).
@@ -229,6 +454,10 @@ export const TYPE_LABEL = {
   commitment: "commitment", risk: "risk", issue: "issue", decision: "decision", task: "task",
   milestone: "milestone", value_story: "value story", expansion_opportunity: "expansion",
   capture_inbox_item: "inbox note", scope_change: "scope change",
+  whitespace_cell: "whitespace cell", value_target: "value target", funding_pool: "funding pool",
+  operational_agreement: "operational agreement", growth_plan_line: "growth plan line",
+  signal_episode: "signal", calendar_event: "calendar", org_change_flag: "org change",
+  comms_sequence: "comms sequence",
 };
 
 // Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.
@@ -236,7 +465,7 @@ const NAV_COMMANDS = [
   ["Today", { dest: "today" }], ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
 ];
 
-export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick }) {
+export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick, openCopilot }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [sel, setSel] = useState(0);
@@ -245,6 +474,9 @@ export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount,
   const ql = q.trim().toLowerCase();
   const commands = [
     { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
+    { kind: "action", label: "Ask current scope", hint: "copilot", run: () => { openCopilot?.("fact"); onClose(); } },
+    { kind: "action", label: "What changed", hint: "copilot", run: () => { openCopilot?.("changes", "What changed since last week?"); onClose(); } },
+    { kind: "action", label: "Plan this week", hint: "copilot", run: () => { openCopilot?.("weekly", "What needs my attention this week?"); onClose(); } },
     ...NAV_COMMANDS.map(([label, dest]) => ({ kind: "nav", label, hint: "go to", run: () => { go(dest); onClose(); } })),
     ...accounts.map((a) => ({ kind: "account", label: a.name, hint: "account", run: () => { openAccount(a.id); onClose(); } })),
   ].filter((c) => !ql || c.label.toLowerCase().includes(ql));
@@ -273,20 +505,22 @@ export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount,
       <div className="palette">
         <div className="card" style={{ boxShadow: "var(--shadow-panel)", overflow: "hidden" }}>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
-            placeholder="Type a command or search…"
-            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 14px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
-          <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            placeholder="Type a command or search…" role="combobox" aria-expanded="true" aria-autocomplete="list"
+            aria-controls="palette-listbox" aria-activedescendant={items[sel] ? `palette-opt-${sel}` : undefined}
+            style={{ width: "100%", border: 0, borderBottom: "1px solid var(--line-hairline)", padding: "12px 16px", fontSize: "var(--t-body-lg)", outline: "none", background: "var(--bg-surface)" }} />
+          <div style={{ maxHeight: 360, overflowY: "auto" }} role="listbox" id="palette-listbox" aria-label="Commands and results">
             {items.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No matches.</div> :
               items.map((it, i) => (
                 <div key={it.kind + it.label + i} onMouseEnter={() => setSel(i)} onClick={it.run}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", cursor: "pointer",
+                  role="option" id={`palette-opt-${i}`} aria-selected={i === sel}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", cursor: "pointer",
                     background: i === sel ? "var(--accent-tint)" : "transparent" }}>
                   <span style={{ flex: 1, fontSize: "var(--t-body)", color: i === sel ? "var(--accent)" : "var(--ink-primary)" }}>{(it.label || "").slice(0, 64)}</span>
                   <span className="rowmeta">{it.hint}</span>
                 </div>
               ))}
           </div>
-          <div className="rowmeta" style={{ padding: "6px 14px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
+          <div className="rowmeta" style={{ padding: "6px 16px", borderTop: "1px solid var(--line-hairline)" }}>↑↓ move · ↵ open · esc close</div>
         </div>
       </div>
     </>

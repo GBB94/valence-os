@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { useToast } from "../ui";
+import { Empty, Loading, useToast } from "../ui";
+import { DocPanel } from "./Artifacts";
 
 // Weekly team update export (Module L). Internal, freshness-stamped, summary-level
 // only — internal-only capture (raw notes, stance) is excluded by construction in
@@ -9,6 +10,19 @@ export default function TeamUpdate({ reloadKey }) {
   const toast = useToast();
   const [tu, setTu] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [docs, setDocs] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [open, setOpen] = useState(null);
+  const [runAt, setRunAt] = useState("");
+  const [tick, setTick] = useState(0);
+
+  async function loadWorkflow() {
+    try {
+      const [saved, queued] = await Promise.all([api.documents(), api.jobs("queued")]);
+      setDocs(saved.filter((d) => d.kind === "team_update"));
+      setJobs((queued.jobs || []).filter((j) => j.kind === "weekly_team_update"));
+    } catch (e) { toast(e.message, "err"); }
+  }
 
   async function generate() {
     setLoading(true);
@@ -16,11 +30,19 @@ export default function TeamUpdate({ reloadKey }) {
     catch (e) { toast(e.message, "err"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { generate(); }, [reloadKey]);
+  useEffect(() => { generate(); loadWorkflow(); }, [reloadKey, tick]);
 
   async function copy() {
     try { await navigator.clipboard.writeText(tu.markdown); toast("Copied to clipboard"); }
     catch { toast("Copy failed — select and copy manually", "err"); }
+  }
+
+  async function schedule() {
+    try {
+      await api.scheduleWeeklyUpdate({ run_at: runAt ? new Date(runAt).toISOString() : null, recurring: true });
+      toast(runAt ? "Weekly draft scheduled" : "Weekly draft queued");
+      setRunAt(""); setTick((t) => t + 1);
+    } catch (e) { toast(e.message, "err"); }
   }
 
   return (
@@ -28,6 +50,9 @@ export default function TeamUpdate({ reloadKey }) {
       <div className="actions" style={{ marginBottom: 4 }}>
         <h1>Weekly team update</h1>
         <div className="spacer" />
+        <input type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)}
+               aria-label="First weekly draft time" style={{ width: 190 }} />
+        <button className="btn" onClick={schedule}>Schedule weekly draft</button>
         <button className="btn" onClick={generate} disabled={loading}>{loading ? "Generating…" : "Regenerate"}</button>
         <button className="btn primary" onClick={copy} disabled={!tu}>Copy markdown</button>
       </div>
@@ -38,7 +63,7 @@ export default function TeamUpdate({ reloadKey }) {
         </div>
       )}
 
-      {!tu ? <div className="subtle">Loading…</div> : tu.sections.length === 0 ? (
+      {!tu ? <Loading what="team update" /> : tu.sections.length === 0 ? (
         <div className="placeholder">Nothing to report this week.</div>
       ) : (
         tu.sections.map((s) => (
@@ -60,6 +85,27 @@ export default function TeamUpdate({ reloadKey }) {
           </div>
         ))
       )}
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-h"><h3>Review queue</h3><div className="spacer" />
+          <span className="rowmeta">{jobs.length} scheduled · {docs.length} saved</span>
+        </div>
+        {docs.length === 0 ? <Empty title="No weekly drafts yet">Schedule one above; it will be saved for review and never auto-sent.</Empty> : (
+          <table><thead><tr><th scope="col">Draft</th><th scope="col">Status</th><th scope="col" className="num">Generated</th><th scope="col">Actions</th></tr></thead>
+            <tbody>{docs.map((d) => <tr key={d.id}>
+              <th scope="row" style={{ textAlign: "left", fontWeight: 500 }}>{d.title}</th>
+              <td>{d.status}</td><td className="rowmeta num">{d.generated_at}</td>
+              <td><div className="actions">
+                <button className="btn small" onClick={() => setOpen(d)}>Open</button>
+                <a className="btn small ghost" href={api.documentPptxUrl(d.id)}>.pptx</a>
+                <a className="btn small ghost" href={api.documentPdfUrl(d.id)}>.pdf</a>
+              </div></td>
+            </tr>)}</tbody>
+          </table>
+        )}
+      </div>
+      {open && <DocPanel doc={open} onClose={() => setOpen(null)}
+                         onChanged={() => { setOpen(null); setTick((t) => t + 1); }} />}
     </div>
   );
 }

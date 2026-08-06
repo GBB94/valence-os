@@ -13,7 +13,9 @@ async function req(method, path, body) {
       const j = await res.json();
       if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
     } catch { /* keep default */ }
-    throw new Error(detail);
+    const error = new Error(detail);
+    error.status = res.status;
+    throw error;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -29,9 +31,69 @@ export const api = {
     return req("GET", `/api/library${qs ? "?" + qs : ""}`);
   },
   createSourceReference: (b) => req("POST", "/api/source-references", b),
+  sourceReferences: () => req("GET", "/api/source-references"),
   patchSourceReference: (id, b) => req("PATCH", `/api/source-references/${id}`, b),
   accounts: () => req("GET", "/api/accounts"),
   account: (id) => req("GET", `/api/accounts/${id}`),
+  commandCenter: (id, { programId = "", recordedAfter = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (recordedAfter) p.set("recorded_after", recordedAfter);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center${qs ? "?" + qs : ""}`);
+  },
+  // Account Path (ACCOUNT-PATH-SPEC.md §10.1). A projection, so the route is a GET and there is
+  // no companion write: every action on a path row goes to its native record's own endpoint.
+  executionPath: (id, { programId = "" } = {}) =>
+    req("GET", `/api/accounts/${id}/execution-path${programId ? `?program_id=${programId}` : ""}`),
+  meetingPrep: (id, { programId = "", meetingId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (meetingId) p.set("meeting_id", meetingId);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center/prepare${qs ? "?" + qs : ""}`);
+  },
+  meetingBrief: (id, { programId = "", personIds = [] } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (personIds.length) p.set("person_ids", personIds.join(","));
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/pre-call-brief${qs ? "?" + qs : ""}`);
+  },
+  leadershipReview: (id, { programId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/command-center/leadership${qs ? "?" + qs : ""}`);
+  },
+  accountActivity: (id, filters = {}) => {
+    const p = new URLSearchParams();
+    const keys = {
+      programId: "program_id", recordedAfter: "recorded_after", eventKind: "event_kind",
+      sourceType: "source_type",
+      displayFrom: "display_from", displayTo: "display_to", nextCursor: "cursor",
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value == null || value === "" || value === false) return;
+      const name = keys[key] || key;
+      (Array.isArray(value) ? value : [value]).forEach((item) => p.append(name, item));
+    });
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${id}/activity${qs ? "?" + qs : ""}`);
+  },
+  markAccountChangesReviewed: (id, b) => req("POST", `/api/accounts/${id}/change-checkpoints`, b),
+  companyWorkspace: (id) => req("GET", `/api/accounts/${id}/company`),
+  putCompanyWatch: (id, b) => req("PUT", `/api/accounts/${id}/company-watch`, b),
+  syncCompanyIntel: () => req("POST", "/api/ingest/company-intel/sync"),
+  confirmCompanyEvent: (id, b = {}) => req("POST", `/api/intel/events/${id}/confirm`, b),
+  dismissCompanyEvent: (id, b) => req("POST", `/api/intel/events/${id}/dismiss`, b),
+  confirmCompanyEventLink: (eventId, linkId, b = {}) => req("POST", `/api/intel/events/${eventId}/links/${linkId}/confirm`, b),
+  dismissCompanyEventLink: (eventId, linkId, b) => req("POST", `/api/intel/events/${eventId}/links/${linkId}/dismiss`, b),
+  createCompanyEventLink: (eventId, b) => req("POST", `/api/intel/events/${eventId}/links`, b),
+  suggestCompanyEventLinks: (eventId) => req("POST", `/api/intel/events/${eventId}/links/suggest`),
+  createCompanyLinkKeyword: (accountId, b) => req("POST", `/api/accounts/${accountId}/intel/link-keywords`, b),
+  retractIntelDocument: (id, b) => req("POST", `/api/intel/documents/${id}/retract`, b),
+  evaluateCompanyIntel: (id) => req("POST", `/api/accounts/${id}/intel/evaluate`),
   createAccount: (b) => req("POST", "/api/accounts", b),
   exportAccount: (id) => req("GET", `/api/accounts/${id}/export`),
   importAccount: (bundle) => req("POST", "/api/accounts/import", bundle),
@@ -76,13 +138,17 @@ export const api = {
   waterfall: (accountId) => req("GET", `/api/accounts/${accountId}/waterfall`),
   stakeholderCoverage: (accountId) => req("GET", `/api/accounts/${accountId}/stakeholder-coverage`),
   observationHistory: (defId) => req("GET", `/api/metric-definitions/${defId}/observations`),
+  accountMetricObservations: (accountId) => req("GET", `/api/accounts/${accountId}/metric-observations`),
 
   // v4 AI & automation
   extractionConfig: () => req("GET", "/api/extraction/config"),
   runExtraction: (b) => req("POST", "/api/extraction/run", b),
   manualExtraction: (b) => req("POST", "/api/extraction/manual", b),
   acceptProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/accept`, b),
-  rejectProposal: (id) => req("POST", `/api/extraction/proposals/${id}/reject`),
+  // The body is required in practice: RR §6.7 makes the rejection reason the only record that the
+  // source said something the operator disagreed with. Calling this without one stores a null and
+  // makes the next reviewer redo the same judgement.
+  rejectProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/reject`, b),
   plays: () => req("GET", "/api/plays"),
   createPlay: (b) => req("POST", "/api/plays", b),
   evaluatePlays: () => req("POST", "/api/plays/evaluate"),
@@ -120,7 +186,19 @@ export const api = {
   teamUpdate: (since) => req("GET", `/api/team-update${since ? "?since=" + since : ""}`),
   accountMap: (accountId) => req("GET", `/api/accounts/${accountId}/map`),
   mapPromote: (b) => req("POST", "/api/map/promote", b),
+  // §16.7 — the preview comes from the same projection as the export, so what an operator reads
+  // before confirming is the artifact itself rather than a second rendering of it.
+  mapPromotionPreview: (objectType, objectId, clientLabel) => {
+    const p = new URLSearchParams({ object_type: objectType, object_id: objectId });
+    if (clientLabel) p.set("client_label", clientLabel);
+    return req("GET", `/api/map/promotion-preview?${p.toString()}`);
+  },
+  mapSaveDocument: (accountId, b) => req("POST", `/api/accounts/${accountId}/map/document`, b || {}),
   queue: () => req("GET", "/api/queue"),
+  // The window is omitted rather than defaulted here, so the server stays the one place the default
+  // is decided and the payload can state which one it used.
+  portfolioAbsence: (days) =>
+    req("GET", `/api/portfolio/absence${days === undefined ? "" : `?days=${days}`}`),
   snoozeQueue: (b) => req("POST", "/api/queue/snooze", b),
   resolveQueue: (b) => req("POST", "/api/queue/resolve", b),
   setStatus: (accountId, b) => req("POST", `/api/accounts/${accountId}/status`, b),
@@ -154,6 +232,10 @@ export const api = {
   patchPerson: (personId, b) => req("PATCH", `/api/persons/${personId}`, b),
   patchStakeholderRole: (roleId, b) => req("PATCH", `/api/stakeholder-roles/${roleId}`, b),
   createAdvocacyEvent: (b) => req("POST", "/api/advocacy-events", b),
+  // VISIBILITY-SPEC §8 — public-facing advocacy. A separate pair of calls from the two above,
+  // because they write a separate table for the reasons migration 0054 states.
+  advocacyTags: (personId) => req("GET", `/api/persons/${personId}/advocacy-tags`),
+  createAdvocacyTag: (b) => req("POST", "/api/advocacy-tags", b),
 
   // Phase 3 Stage 4 — communications ingestion + association
   ingestFixtures: () => req("GET", "/api/ingest/fixtures"),
@@ -184,4 +266,337 @@ export const api = {
   meetingDynamics: (programId) => req("GET", `/api/programs/${programId}/meeting-dynamics`),
   pullSignals: (accountId) => req("GET", `/api/accounts/${accountId}/pull-signals`),
   createPullSignal: (b) => req("POST", "/api/pull-signals", b),
+
+  // Stage 5.5 — whitespace map, value ledger, funding intelligence
+  whitespace: (accountId) => req("GET", `/api/accounts/${accountId}/whitespace`),
+  nextSeats: (accountId) => req("GET", `/api/accounts/${accountId}/whitespace/next-seats`),
+  cell: (id) => req("GET", `/api/whitespace-cells/${id}`),
+  createCell: (b) => req("POST", "/api/whitespace-cells", b),
+  patchCell: (id, b) => req("PATCH", `/api/whitespace-cells/${id}`, b),
+  setCellFact: (id, b) => req("POST", `/api/whitespace-cells/${id}/set-fact`, b),
+  reopenCell: (id, b) => req("POST", `/api/whitespace-cells/${id}/reopen`, b),
+  linkCellEvidence: (id, b) => req("POST", `/api/whitespace-cells/${id}/evidence`, b),
+  partition: (accountId) => req("GET", `/api/accounts/${accountId}/population-partition`),
+  createPartition: (b) => req("POST", "/api/population-partitions", b),
+  createSegment: (b) => req("POST", "/api/population-segments", b),
+  patchSegment: (id, b) => req("PATCH", `/api/population-segments/${id}`, b),
+  headcountHistory: (id) => req("GET", `/api/population-segments/${id}/headcount-history`),
+  createHeadcountObs: (b) => req("POST", "/api/population-headcount-observations", b),
+  populationViews: (accountId) => req("GET", `/api/accounts/${accountId}/population-views`),
+  createPopulationView: (b) => req("POST", "/api/population-views", b),
+  audienceTags: () => req("GET", "/api/audience-tags"),
+  createAudienceTag: (b) => req("POST", "/api/audience-tags", b),
+  useCases: (accountId) => req("GET", `/api/use-cases${accountId ? `?account_id=${accountId}` : ""}`),
+  createUseCase: (b) => req("POST", "/api/use-cases", b),
+  ledger: (accountId) => req("GET", `/api/accounts/${accountId}/ledger`),
+  valueGaps: (accountId) => req("GET", `/api/accounts/${accountId}/value-gaps`),
+  createValueTarget: (b) => req("POST", "/api/value-targets", b),
+  supersedeValueTarget: (id, b) => req("POST", `/api/value-targets/${id}/supersede`, b),
+  linkValueTargetEvidence: (id, b) => req("POST", `/api/value-targets/${id}/evidence`, b),
+  funding: (accountId) => req("GET", `/api/accounts/${accountId}/funding`),
+  createFundingPool: (b) => req("POST", "/api/funding-pools", b),
+  patchFundingPool: (id, b) => req("PATCH", `/api/funding-pools/${id}`, b),
+  putFiscalMap: (accountId, b) => req("PUT", `/api/accounts/${accountId}/fiscal-map`, b),
+  createAskCalendar: (b) => req("POST", "/api/ask-calendars", b),
+  patchAskStep: (id, b) => req("PATCH", `/api/ask-calendar-steps/${id}`, b),
+  revenueMovement: (accountId) => req("GET", `/api/accounts/${accountId}/revenue-movement`),
+  patchContractRevenue: (id, b) => req("PATCH", `/api/contracts/${id}/revenue`, b),
+  accountSettings: (accountId) => req("GET", `/api/accounts/${accountId}/settings`),
+  putAccountSettings: (accountId, b) => req("PUT", `/api/accounts/${accountId}/settings`, b),
+
+  // Stage 7 — recurring signal episodes, mock calendar, and org change
+  stage7Fixtures: () => req("GET", "/api/stage7/fixtures"),
+  syncCalendar: () => req("POST", "/api/ingest/calendar/sync"),
+  syncOrgChanges: () => req("POST", "/api/ingest/org-changes/sync"),
+  syncHeadcount: () => req("POST", "/api/ingest/headcount/sync"),
+  calendarEvents: (accountId) => req("GET", `/api/accounts/${accountId}/calendar-events`),
+  createCalendarEvent: (b) => req("POST", "/api/calendar-events", b),
+  orgChanges: (accountId) => req("GET", `/api/accounts/${accountId}/org-changes`),
+  confirmOrgChange: (id) => req("POST", `/api/org-change-flags/${id}/confirm`, {}),
+  dismissOrgChange: (id, reason) => req("POST", `/api/org-change-flags/${id}/dismiss`, { reason }),
+  completeSuccession: (id, b) => req("POST", `/api/succession-records/${id}/complete`, b),
+  evaluateSignals: () => req("POST", "/api/signals/evaluate"),
+  signalEpisodes: ({ accountId = "", status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId); if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/signal-episodes${qs ? "?" + qs : ""}`);
+  },
+  dismissSignal: (id, reason) => req("POST", `/api/signal-episodes/${id}/dismiss`, { reason }),
+  draftSignalOpportunity: (id) => req("POST", `/api/signal-episodes/${id}/draft-opportunity`),
+
+  // Stage 7.5 — qualification, operational agreements, renewal, and growth plan
+  opportunityQualification: (id) => req("GET", `/api/expansions/${id}/qualification`),
+  patchOpportunityQualification: (id, b) => req("PATCH", `/api/expansions/${id}/qualification`, b),
+  operationalAgreements: (accountId) => req("GET", `/api/accounts/${accountId}/operational-agreements`),
+  createOperationalAgreement: (b) => req("POST", "/api/operational-agreements", b),
+  evaluateOperationalAgreements: () => req("POST", "/api/operational-agreements/evaluate"),
+  actionOperationalAgreement: (id) => req("POST", `/api/operational-agreement-events/${id}/action`),
+  dismissOperationalAgreement: (id, reason) => req("POST", `/api/operational-agreement-events/${id}/dismiss`, { dismissal_reason: reason }),
+  renewalCenter: (accountId, contractId = "") => req("GET", `/api/accounts/${accountId}/renewal-center${contractId ? `?contract_id=${contractId}` : ""}`),
+  growthPlan: (accountId) => req("GET", `/api/accounts/${accountId}/growth-plan`),
+  createGrowthPlan: (b) => req("POST", "/api/growth-plans", b),
+  createGrowthPlanLine: (b) => req("POST", "/api/growth-plan-lines", b),
+  patchGrowthPlanLine: (id, b) => req("PATCH", `/api/growth-plan-lines/${id}`, b),
+
+  // Stage 9 — portfolio analytics and expansion learning
+  commercialAnalytics: (windowDays = 90) => req("GET", `/api/portfolio/commercial-analytics?window_days=${windowDays}`),
+  playbookEntries: (accountId = "") => req("GET", `/api/playbook-entries${accountId ? `?account_id=${accountId}` : ""}`),
+  createPlaybookEntry: (b) => req("POST", "/api/playbook-entries", b),
+  playbookMatches: (cellId) => req("GET", `/api/whitespace-cells/${cellId}/playbook-matches`),
+  promotePlaybookPlay: (id, b) => req("POST", `/api/playbook-entries/${id}/promote-play`, b),
+  promotePlaybookMessage: (id, b) => req("POST", `/api/playbook-entries/${id}/promote-message`, b),
+
+  // Stage 6 — generators as finished artifacts
+  generatePreview: (kind, accountId, programId = "") => {
+    const path = { pre_call_brief: "pre-call-brief", business_case: "business-case",
+                   value_review: "value-review", champion_kit: "champion-kit",
+                   kickoff_deck: "kickoff-deck" }[kind];
+    const qs = programId && ["pre_call_brief", "kickoff_deck"].includes(kind)
+      ? `?program_id=${encodeURIComponent(programId)}` : "";
+    return req("GET", `/api/accounts/${accountId}/${path}${qs}`);
+  },
+  documents: ({ accountId = "", status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId);
+    if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/documents${qs ? "?" + qs : ""}`);
+  },
+  saveDocument: (accountId, b) => req("POST", `/api/accounts/${accountId}/documents`, b),
+  patchDocument: (id, b) => req("PATCH", `/api/documents/${id}`, b),
+  setDocumentStatus: (id, b) => req("POST", `/api/documents/${id}/status`, b),
+  // Download links are plain hrefs, so they need the absolute base the fetch client uses.
+  documentPptxUrl: (id) => `${BASE}/api/documents/${id}/pptx`,
+  documentPdfUrl: (id) => `${BASE}/api/documents/${id}/pdf`,
+  kickoffPptxUrl: (accountId) => `${BASE}/api/accounts/${accountId}/kickoff-deck/pptx`,
+  roiModel: (accountId) => req("GET", `/api/accounts/${accountId}/roi-model`),
+  putRoiModel: (accountId, b) => req("PUT", `/api/accounts/${accountId}/roi-model`, b),
+  recoveredSpend: (accountId) => req("GET", `/api/accounts/${accountId}/recovered-spend`),
+  scheduleWeeklyUpdate: (b) => req("POST", "/api/weekly-team-update/schedule", b),
+  jobs: (status = "") => req("GET", `/api/jobs${status ? `?status=${status}` : ""}`),
+  runJobs: () => req("POST", "/api/jobs/run", {}),
+
+  // Internal operating layer
+  forecastPeriods: () => req("GET", "/api/forecast-periods"),
+  createForecastPeriod: (b) => req("POST", "/api/forecast-periods", b),
+  forecastEntries: (id) => req("GET", `/api/forecast-periods/${id}/entries`),
+  createForecastEntry: (id, b) => req("POST", `/api/forecast-periods/${id}/entries`, b),
+  changeForecastCategory: (id, b) => req("POST", `/api/forecast-entries/${id}/category`, b),
+  lockForecastPeriod: (id) => req("POST", `/api/forecast-periods/${id}/lock`),
+  submitForecast: (id) => req("POST", `/api/forecast-periods/${id}/submissions`),
+  closeForecastPeriod: (id) => req("POST", `/api/forecast-periods/${id}/close`),
+  forecastCalibration: (id) => req("GET", `/api/forecast-periods/${id}/calibration`),
+  internalFunctions: () => req("GET", "/api/internal-functions"),
+  internalAsks: (id) => req("GET", `/api/accounts/${id}/internal-asks`),
+  createInternalAsk: (id, b) => req("POST", `/api/accounts/${id}/internal-asks`, b),
+  setInternalAskStatus: (id, b) => req("POST", `/api/internal-asks/${id}/status`, b),
+  escalateAsk: (id, b) => req("POST", `/api/internal-asks/${id}/escalations`, b),
+  reviews: (id) => req("GET", `/api/accounts/${id}/reviews`),
+  createReview: (id, b) => req("POST", `/api/accounts/${id}/reviews`, b),
+  holdReview: (id, b) => req("POST", `/api/account-reviews/${id}/hold`, b),
+  operatorViews: (id) => req("GET", `/api/accounts/${id}/operator-views`),
+  createOperatorView: (id, b) => req("POST", `/api/accounts/${id}/operator-views`, b),
+  assessInternalStatus: (id, b) => req("POST", `/api/accounts/${id}/status-assessments`, b),
+  generateReviewDocument: (id, kind) => req("POST", `/api/account-reviews/${id}/documents/${kind}`, {}),
+  internalRoster: (id) => req("GET", `/api/accounts/${id}/internal-roster`),
+  addInternalRoster: (id, b) => req("POST", `/api/accounts/${id}/internal-roster`, b),
+  coverage: (id) => req("GET", `/api/accounts/${id}/coverage`),
+  coverageBrief: (id) => req("GET", `/api/accounts/${id}/coverage-brief`),
+  colleagueCallBrief: (id, rosterId) => req("GET", `/api/accounts/${id}/call-brief?roster_id=${rosterId}`),
+  coverageReturnBrief: (id, startsOn, endsOn) => req("GET", `/api/accounts/${id}/return-brief?starts_on=${startsOn}&ends_on=${endsOn}`),
+  productFeedback: (accountId = "") => req("GET", `/api/product-feedback${accountId ? `?account_id=${accountId}` : ""}`),
+  createProductFeedback: (b) => req("POST", "/api/product-feedback", b),
+  addFeedbackOccurrence: (id, b) => req("POST", `/api/product-feedback/${id}/occurrences`, b),
+  setFeedbackStatus: (id, b) => req("POST", `/api/product-feedback/${id}/status`, b),
+  recordFeedbackTouch: (id, b) => req("POST", `/api/product-feedback-occurrences/${id}/touches`, b),
+  internalAnalytics: () => req("GET", "/api/portfolio/internal-analytics"),
+  monthlyInternalPreview: () => req("GET", "/api/internal-reports/monthly_portfolio_brief/preview"),
+  generateMonthlyInternal: () => req("POST", "/api/internal-reports/monthly_portfolio_brief/documents", {}),
+  excludeInternalReportOrigin: (b) => req("POST", "/api/internal-reports/red-origin-exclusions", b),
+
+  // Stage 11 — adoption campaigns
+  campaigns: (accountId, status) => req("GET",
+    `/api/accounts/${accountId}/campaigns${status ? `?status=${status}` : ""}`),
+  campaign: (id) => req("GET", `/api/campaigns/${id}`),
+  createCampaign: (b) => req("POST", "/api/campaigns", b),
+  patchCampaign: (id, b) => req("PATCH", `/api/campaigns/${id}`, b),
+  campaignReadiness: (id) => req("GET", `/api/campaigns/${id}/readiness`),
+  // Stage 11.2 — learning
+  campaignRetrospective: (id) => req("GET", `/api/campaigns/${id}/retrospective`),
+  recordCampaignRetrospective: (id, b) => req("POST", `/api/campaigns/${id}/retrospective`, b),
+  campaignNearest: (id) => req("GET", `/api/campaigns/${id}/nearest`),
+  campaignLearning: () => req("GET", "/api/portfolio/campaign-learning"),
+  campaignTransition: (id, action, b) => req("POST", `/api/campaigns/${id}/${action}`, b),
+  addCampaignBarrier: (id, b) => req("POST", `/api/campaigns/${id}/barriers`, b),
+  addCampaignTarget: (id, b) => req("POST", `/api/campaigns/${id}/targets`, b),
+  addCampaignPlanLink: (id, b) => req("POST", `/api/campaigns/${id}/plan`, b),
+  addCampaignCheckpoint: (id, b) => req("POST", `/api/campaigns/${id}/checkpoints`, b),
+
+  // Stage 13 — planned communication waves and privacy-safe session attendance
+  commsSequences: (accountId) => req("GET", `/api/accounts/${accountId}/comms-sequences`),
+  commsSequence: (id) => req("GET", `/api/comms-sequences/${id}`),
+  createCommsSequence: (b) => req("POST", "/api/comms-sequences", b),
+  cancelCommsSequence: (id, reason) => req("POST", `/api/comms-sequences/${id}/cancel`, { reason }),
+  createCommsWave: (id, b) => req("POST", `/api/comms-sequences/${id}/waves`, b),
+  patchCommsWave: (id, b) => req("PATCH", `/api/comms-waves/${id}`, b),
+  markCommsWaveSent: (id, sentAt = null) => req("POST", `/api/comms-waves/${id}/sent`, { sent_at: sentAt }),
+  cancelCommsWave: (id) => req("POST", `/api/comms-waves/${id}/cancel`, {}),
+  createCommsSession: (b) => req("POST", "/api/comms-sessions", b),
+  recordSessionAttendee: (id, b) => req("PUT", `/api/calendar-events/${id}/attendees`, b),
+  sessionAttendance: (id) => req("GET", `/api/calendar-events/${id}/attendance`),
+
+  proposeCampaignFromSignal: (episodeId, b) =>
+    req("POST", `/api/signal-episodes/${episodeId}/propose-campaign`, b),
+  attachEpisodeToCampaign: (episodeId, campaignId) =>
+    req("POST", `/api/signal-episodes/${episodeId}/attach-campaign`, { campaign_id: campaignId }),
+  supersedeCampaignPlanLink: (linkId, b) =>
+    req("POST", `/api/campaign-plan-links/${linkId}/supersede`, b),
+
+  // Stage 12 — grounded, read-only Account Copilot
+  createCopilotRun: (b) => req("POST", "/api/copilot/runs", b),
+  // `reveal` is the explicit action a withheld (past-window) answer is collapsed behind. It reads;
+  // it never regenerates.
+  copilotRun: (id, { reveal = false } = {}) =>
+    req("GET", `/api/copilot/runs/${id}${reveal ? "?reveal=true" : ""}`),
+  copilotRuns: ({ scopeType = "", accountId = "", programId = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (scopeType) p.set("scope_type", scopeType); if (accountId) p.set("account_id", accountId);
+    if (programId) p.set("program_id", programId);
+    return req("GET", `/api/copilot/runs?${p.toString()}`);
+  },
+  copilotFeedback: (id, b) => req("POST", `/api/copilot/runs/${id}/feedback`, b),
+  copilotMarkReviewed: (id) => req("POST", `/api/copilot/runs/${id}/mark-reviewed`, {}),
+  copilotDraftPreview: (id, b) => req("POST", `/api/copilot/runs/${id}/draft-preview`, b),
+  copilotDraft: (id, b) => req("POST", `/api/copilot/runs/${id}/draft`, b),
+  copilotHealth: () => req("GET", "/api/copilot/health"),
+  copilotConfigurations: () => req("GET", "/api/copilot/configurations"),
+  activateCopilotConfiguration: (id) => req("POST", `/api/copilot/configurations/${id}/activate`, {}),
+  rollbackCopilotConfiguration: (id) => req("POST", `/api/copilot/configurations/${id}/rollback`, {}),
+  copilotFeedbackQueue: (pendingOnly = true) => req("GET", `/api/copilot/feedback?pending_only=${pendingOnly}`),
+  reviewCopilotFeedback: (id, b) => req("POST", `/api/copilot/feedback/${id}/review`, b),
+  copilotAliases: (accountId = "") => req("GET", `/api/copilot/entity-aliases${accountId ? `?account_id=${accountId}` : ""}`),
+  createCopilotAlias: (b) => req("POST", "/api/copilot/entity-aliases", b),
+  copilotStyles: () => req("GET", "/api/copilot/styles"),
+  createCopilotStyle: (b) => req("POST", "/api/copilot/styles", b),
+
+  // Relationship readiness — a projection, so every route here is a GET except the
+  // definition-upgrade preview, which computes a blast radius and still writes nothing.
+  readiness: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness${programId ? `?program_id=${programId}` : ""}`),
+  readinessPillar: (accountId, pillarKey, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness/${pillarKey}${programId ? `?program_id=${programId}` : ""}`),
+  readinessDefinitions: () => req("GET", "/api/readiness/definitions"),
+  // Proposal reads. Composed at query time from extraction proposals and manual capture notes,
+  // which keep their own stores and their own commands (RR §0.5).
+  proposedUpdates: (accountId, { programId = "", sourceInteractionId = "", runId = "",
+                                 status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (sourceInteractionId) p.set("source_interaction_id", sourceInteractionId);
+    // §11.4 — a filter on the one queue, not a second queue. What it leaves out comes back in
+    // `scope.note`, authored on the server.
+    if (runId) p.set("run_id", runId);
+    if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${accountId}/proposed-updates${qs ? "?" + qs : ""}`);
+  },
+  proposalPreview: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/proposed-updates/preview${programId ? `?program_id=${programId}` : ""}`),
+  proposalReview: (id) => req("GET", `/api/extraction/proposals/${id}/review`),
+  // ACCOUNT-INTAKE-SPEC.md §11.2. Its own call, made when the source pane opens: a snapshot can be
+  // the full 1 MB cap and most proposals are decided without ever looking at it.
+  proposalGrounding: (id) => req("GET", `/api/extraction/proposals/${id}/grounding`),
+  // §11.4 / D-208 — all of one run's open drafts, or none of them. Never account-wide.
+  acceptAllInRun: (runId) => req("POST", `/api/extraction/runs/${runId}/accept-all`),
+
+  // The account drop zone (ACCOUNT-INTAKE-SPEC.md §15). Five calls, and there is deliberately no
+  // sixth that resolves anything — accepting happens through the proposal routes above, which are
+  // the same ones every other drafted proposal goes through.
+  intakeLimits: () => req("GET", "/api/intake/limits"),
+  intakeDrops: (accountId) => req("GET", `/api/accounts/${accountId}/intake/drops`),
+  createIntakeDrop: (accountId, b) => req("POST", `/api/accounts/${accountId}/intake/drops`, b),
+  deleteIntakeSnapshot: (id) => req("DELETE", `/api/intake/drops/${id}/snapshot`),
+  archiveIntakeDrop: (id) => req("DELETE", `/api/intake/drops/${id}`),
+  resolveProposalExisting: (id, b) => req("POST", `/api/extraction/proposals/${id}/resolve-existing`, b),
+  supersedeProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/supersede`, b),
+  previewReadinessUpgrade: (b) => req("POST", "/api/readiness/definition-upgrades/preview", b),
+
+  // Playbooks and plan instances — the planning layer readiness declines to store. These write
+  // *plans* and *decisions*; none of them writes a state, so there is no state-setting route to
+  // call from the requirement panel.
+  playbooks: () => req("GET", "/api/readiness/playbooks"),
+  planInstances: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/plan-instances${programId ? `?program_id=${programId}` : ""}`),
+  createPlanInstances: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances`, b),
+  previewPlanUpgrade: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances/upgrade-preview`, b),
+  applyPlanUpgrade: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances/upgrade`, b),
+  readinessExceptions: (accountId, requirementKey, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness-exceptions/${requirementKey}${programId ? `?program_id=${programId}` : ""}`),
+  setReadinessException: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/readiness-exceptions`, b),
+  revokeReadinessException: (id, b) =>
+    req("POST", `/api/readiness-exceptions/${id}/revoke`, b),
+  checklistCompatibility: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/checklist-compatibility`, b),
+  // The operational half of the merged launch standard (migration 0051). This is the one write on
+  // the Plan surface that records something happened — a gate item is a thing somebody does, which
+  // nothing else in the model records. It is not, and never becomes, a readiness state.
+  patchGateItem: (itemId, b) => req("PATCH", `/api/gate-items/${itemId}`, b),
+
+  // Account Path Slice 5 — relationships, evidence, and governed advancement (§15).
+  // Every write below records a link, a decision, or a phase event. None of them writes a
+  // readiness state, for the same reason the planning routes above do not: there is nowhere to
+  // write one, and a route that appeared to would be the stored second source of truth.
+  requirementLinks: (planInstanceId) =>
+    req("GET", `/api/plan-instances/${planInstanceId}/links`),
+  linkRequirementAction: (planInstanceId, b) =>
+    req("POST", `/api/plan-instances/${planInstanceId}/action-links`, b),
+  archiveRequirementActionLink: (linkId, b) =>
+    req("POST", `/api/action-links/${linkId}/archive`, b),
+  evidenceTypes: () => req("GET", "/api/readiness/evidence-types"),
+  attachRequirementEvidence: (planInstanceId, b) =>
+    req("POST", `/api/plan-instances/${planInstanceId}/evidence`, b),
+  reviewRequirementEvidence: (linkId, b) =>
+    req("POST", `/api/evidence-links/${linkId}/review`, b),
+  retractRequirementEvidence: (linkId, b) =>
+    req("POST", `/api/evidence-links/${linkId}/retract`, b),
+  milestoneActionLinks: (milestoneId) =>
+    req("GET", `/api/milestones/${milestoneId}/action-links`),
+  linkMilestoneAction: (milestoneId, b) =>
+    req("POST", `/api/milestones/${milestoneId}/action-links`, b),
+  archiveMilestoneActionLink: (linkId, b) =>
+    req("POST", `/api/milestone-action-links/${linkId}/archive`, b),
+  linkGateRequirement: (gateId, b) =>
+    req("POST", `/api/phase-gates/${gateId}/requirement-links`, b),
+  archiveGateRequirementLink: (linkId, b) =>
+    req("POST", `/api/gate-requirement-links/${linkId}/archive`, b),
+  actionPathContext: (actionType, actionId) =>
+    req("GET", `/api/actions/${actionType}/${actionId}/path-context`),
+  closeActionWithSuccessor: (actionType, actionId, b) =>
+    req("POST", `/api/actions/${actionType}/${actionId}/close-with-successor`, b),
+  phaseReadiness: (programId, asOf = null) =>
+    req("GET", `/api/programs/${programId}/phase-readiness${asOf ? `?as_of=${asOf}` : ""}`),
+  phaseTransitions: (programId) =>
+    req("GET", `/api/programs/${programId}/phase-transitions`),
+  createPhaseTransition: (programId, b) =>
+    req("POST", `/api/programs/${programId}/phase-transitions`, b),
+  // Product measurement (ACCOUNT-PATH-SPEC.md §17). `recordEvent` returns nothing and rejects
+  // nothing: §17.4 requires that a measurement failure never blocks user work, and these are
+  // called inline from click handlers. The payloads themselves are built by `telemetry.js`,
+  // which stays free of this module so it can be tested without a DOM or a bundler.
+  recordEvent: (payload) => {
+    try {
+      req("POST", "/api/telemetry/events", payload).catch(() => {});
+    } catch { /* a diagnostic sink must never surface its own faults */ }
+  },
+  telemetrySettings: () => req("GET", "/api/telemetry/settings"),
+  patchTelemetrySettings: (b) => req("PATCH", "/api/telemetry/settings", b),
+  telemetryFunnel: (accountId = "") =>
+    req("GET", `/api/telemetry/funnel${accountId ? `?account_id=${accountId}` : ""}`),
+  rankingRules: () => req("GET", "/api/telemetry/ranking-rules"),
+  compareRankingRules: (b) => req("POST", "/api/telemetry/ranking-rules/compare", b),
 };

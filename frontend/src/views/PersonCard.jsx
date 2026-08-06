@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SlideOver, useToast, AgeChip, fmtDate } from "../ui";
+import { SlideOver, useToast, AgeChip, fmtDate, Loading } from "../ui";
+import { advocacyTagBody, advocacyTagDraft } from "../advocacyTags";
 
 const CAD_LABEL = { manage_closely: "Manage closely", keep_satisfied: "Keep satisfied", keep_informed: "Keep informed", monitor: "Monitor" };
 
@@ -18,7 +19,7 @@ export default function PersonCard({ personId, onClose, onChanged }) {
     api.personCard(personId).then(setCard).catch((e) => toast(e.message, "err"));
   }, [personId, tick]);
 
-  if (!card) return <SlideOver title="Person" onClose={onClose}><div className="subtle">Loading…</div></SlideOver>;
+  if (!card) return <SlideOver title="Person" onClose={onClose}><Loading /></SlideOver>;
 
   const reload = () => { setTick((t) => t + 1); onChanged?.(); };
   const patchRole = async (roleId, body) => {
@@ -53,7 +54,7 @@ export default function PersonCard({ personId, onClose, onChanged }) {
         {/* Roles by program (editable role + layer) */}
         <Section title="Roles by program">
           {card.roles.length === 0 ? <div className="rowmeta">No roles yet.</div> : card.roles.map((r) => (
-            <div key={r.role_id} className="card" style={{ padding: 10, marginBottom: 6 }}>
+            <div key={r.role_id} className="card" style={{ padding: 12, marginBottom: 6 }}>
               <div className="rowmeta" style={{ marginBottom: 4 }}>{r.program_name}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <select value={r.role} onChange={(e) => patchRole(r.role_id, { role: e.target.value })} style={sel}>
@@ -149,6 +150,11 @@ export default function PersonCard({ personId, onClose, onChanged }) {
           <button className="btn small" style={{ marginTop: 6 }} onClick={addAdvocacy}>+ Log advocacy without us</button>
         </Section>
 
+        {/* VISIBILITY-SPEC §8. A separate section from the advocacy log above, not a second kind
+            inside it: that log is the coach-vs-champion evidence gate, and a public quote is not
+            evidence that someone advocates for us when we are not in the room. */}
+        <AdvocacyTags personId={personId} tags={card.advocacy_tags || []} onAdded={reload} />
+
         {card.open_commitments.length > 0 && (
           <Section title="Open commitments">
             {card.open_commitments.map((c) => (
@@ -174,6 +180,92 @@ export default function PersonCard({ personId, onClose, onChanged }) {
   );
 }
 
+/**
+ * §8 — public-facing advocacy: reference, review, quote, beta participant, speaking.
+ *
+ * The date and the note are not "recommended fields": the record cannot exist without them, so the
+ * form says which one is missing and the submit stays disabled until both are there. The five kinds
+ * come from the server with the tags, so there is no copy of the vocabulary here to drift.
+ *
+ * There is no level, score, or sentiment control, and none is coming. Each row is a dated fact
+ * with the evidence beside it, and nothing on this card rolls them into a number.
+ */
+function AdvocacyTags({ personId, tags, onAdded }) {
+  const toast = useToast();
+  const [vocab, setVocab] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!personId) return;
+    api.advocacyTags(personId).then(setVocab).catch(() => {});
+  }, [personId]);
+
+  const kinds = vocab?.kinds || [];
+  const label = (k) => vocab?.kind_labels?.[k] || k.replace(/_/g, " ");
+  const check = advocacyTagDraft(draft);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.createAdvocacyTag(advocacyTagBody(personId, draft));
+      toast("Advocacy tag recorded");
+      setDraft(null);
+      onAdded?.();
+    } catch (e) { toast(e.message, "err"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Section title={`Public advocacy (${tags.length})`}>
+      {tags.length === 0 && !draft && (
+        <div className="rowmeta">No public advocacy recorded.</div>
+      )}
+      {tags.map((t) => (
+        <div key={t.id} className="advocacy-tag">
+          <div className="advocacy-tag-head">
+            <span className="badge">{t.kind_label || label(t.kind)}</span>
+            <div className="spacer" />
+            <span className="rowmeta">{fmtDate(t.occurred_on)}</span>
+          </div>
+          {/* The note is the record, not a tooltip on it. A tag whose evidence is one hover away
+              is the undated, unevidenced property §9 refuses, wearing a date. */}
+          <div className="rowmeta advocacy-tag-note">{t.evidence_note}</div>
+        </div>
+      ))}
+
+      {draft ? (
+        <div className="advocacy-tag-form">
+          <div className="advocacy-tag-fields">
+            <select value={draft.kind} style={sel}
+              onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
+              {kinds.map((k) => <option key={k} value={k}>{label(k)}</option>)}
+            </select>
+            <input type="date" value={draft.occurred_on} style={sel}
+              aria-label="Date it happened"
+              onChange={(e) => setDraft({ ...draft, occurred_on: e.target.value })} />
+          </div>
+          <textarea value={draft.evidence_note} rows={2} className="advocacy-tag-note-input"
+            aria-label="Evidence note" placeholder="What happened, and where the evidence is"
+            onChange={(e) => setDraft({ ...draft, evidence_note: e.target.value })} />
+          {!check.valid && <div className="rowmeta">{check.reason}</div>}
+          <div className="advocacy-tag-actions">
+            <button className="btn small" disabled={!check.valid || saving} onClick={save}>
+              Record tag
+            </button>
+            <button className="btn small ghost" onClick={() => setDraft(null)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn small" style={{ marginTop: 6 }} disabled={kinds.length === 0}
+          onClick={() => setDraft({ kind: kinds[0], occurred_on: "", evidence_note: "" })}>
+          + Record public advocacy
+        </button>
+      )}
+    </Section>
+  );
+}
+
 const Section = ({ title, children }) => (
   <div>
     <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>{title}</div>
@@ -191,11 +283,11 @@ function EditRow({ label, value, onSave }) {
       {editing ? (
         <div style={{ display: "flex", gap: 6 }}>
           <input value={v} onChange={(e) => setV(e.target.value)} autoFocus style={{ flex: 1, height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" }} />
-          <button className="btn small primary" onClick={() => { onSave(v); setEditing(false); }}>Save</button>
+          <button className="btn small" onClick={() => { onSave(v); setEditing(false); }}>Save {label.toLowerCase()}</button>
           <button className="btn small" onClick={() => setEditing(false)}>Cancel</button>
         </div>
       ) : (
-        <div style={{ fontSize: 13 }}>{value || <span className="rowmeta">—</span>}
+        <div style={{ fontSize: "var(--t-body)" }}>{value || <span className="rowmeta">—</span>}
           <button className="btn small" style={{ marginLeft: 8 }} onClick={() => setEditing(true)}>Edit</button>
         </div>
       )}
@@ -203,4 +295,4 @@ function EditRow({ label, value, onSave }) {
   );
 }
 
-const sel = { height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)", fontSize: 12 };
+const sel = { height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)", fontSize: "var(--t-small)" };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, useToast, fmtDate } from "../ui";
+import { Empty, Loading, useToast, fmtDate } from "../ui";
+import { DependencyLines } from "./PathAdvance";
 
 // Program-scoped timeline (Section 6b): milestones as diamonds, deployment moments
 // as dots, renewal marker, today line. Limited palette; color for status/key markers only.
@@ -63,7 +64,7 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
         </select>
       </div>
 
-      {!data ? <div className="subtle">Loading…</div> : markers.length === 0 ? (
+      {!data ? <Loading what="timeline" /> : markers.length === 0 ? (
         <div className="placeholder">No dated milestones, moments, comms, or renewal for this program yet.</div>
       ) : (
         <div className="card" style={{ padding: "16px 24px 24px" }}>
@@ -79,11 +80,11 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
               <div style={{ position: "relative", flex: 1, height: 46 }}>
                 {/* lane baseline + today marker */}
                 <div style={{ position: "absolute", top: 23, left: 0, right: 0, height: 1, background: "var(--line-hairline)" }} />
-                <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--accent)", opacity: 0.5 }} title="today" />
+                <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(today), width: 2, background: "var(--data-1)", opacity: 0.5 }} title="today" />
                 {markers.filter((m) => m.lane === lane).sort((a, b) => a.date.localeCompare(b.date)).map((m, i) => (
                   <div key={i} style={{ position: "absolute", left: pct(m.date), top: 23, transform: "translate(-50%,-50%)" }} title={`${m.label} · ${m.date}`}>
                     <Marker kind={m.kind} status={m.status} />
-                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10, color: "var(--ink-secondary)" }}>
+                    <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: "var(--t-micro)", color: "var(--ink-secondary)" }}>
                       {(m.label || "").slice(0, 22)}
                     </div>
                   </div>
@@ -91,12 +92,18 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
               </div>
             </div>
           ))}
-          <div className="rowmeta" style={{ marginTop: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <span><Marker kind="milestone" /> milestone (green=complete)</span>
+          {/* §15.8 — dependency lines, and only the explicit ones. Rendered under the chart as a
+              secondary band rather than drawn across it: a dependency is real but subordinate to
+              the dated marker it hangs off, and nothing here is inferred from a shared date. */}
+          <TimelineDependencies milestones={(data.program.execution?.milestones ?? [])
+            .filter((m) => m.target_date)} />
+          <div className="rowmeta" style={{ marginTop: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span><Marker kind="milestone" status="complete" /> milestone complete</span>
+            <span><Marker kind="milestone" /> milestone due</span>
             <span><Marker kind="moment" /> deployment moment</span>
             <span><Marker kind="comms" /> comms</span>
             <span><Marker kind="renewal" /> renewal</span>
-            <span style={{ color: "var(--accent)" }}>│ today</span>
+            <span style={{ color: "var(--data-1)" }}>│ today</span>
           </div>
         </div>
       )}
@@ -104,12 +111,52 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
   );
 }
 
+/**
+ * One row per milestone that has at least one accepted relation. A milestone with none draws
+ * nothing — the absence of a line is the absence of a recorded dependency, not a rendering gap,
+ * and inventing one from a shared date or owner is what §15.2 forbids.
+ */
+function TimelineDependencies({ milestones }) {
+  const [links, setLinks] = useState({});
+  useEffect(() => {
+    let live = true;
+    setLinks({});
+    Promise.all(milestones.map((m) => api.milestoneActionLinks(m.id)
+      .then((r) => [m.id, r.links || []])
+      .catch(() => [m.id, []])))
+      .then((pairs) => { if (live) setLinks(Object.fromEntries(pairs)); });
+    return () => { live = false; };
+  }, [milestones.map((m) => m.id).join(",")]);
+
+  const withLinks = milestones.filter((m) => (links[m.id] || []).length > 0);
+  if (withLinks.length === 0) return null;
+  return (
+    <div className="path-deps-band">
+      <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>
+        Dependencies
+      </div>
+      {withLinks.map((m) => (
+        <div key={m.id} className="path-deps-milestone">
+          <span className="rowmeta">{m.name}</span>
+          <DependencyLines milestoneId={m.id} />
+        </div>
+      ))}
+      <div className="rowmeta">
+        Explicit relationships only. Nothing here is inferred from a shared date, owner, or wording.
+      </div>
+    </div>
+  );
+}
+
 function Marker({ kind, status }) {
   if (kind === "milestone") {
-    const c = status === "complete" ? "var(--status-ok)" : "var(--status-warn)";
-    return <span style={{ display: "inline-block", width: 12, height: 12, background: c, transform: "rotate(45deg)", verticalAlign: "middle" }} />;
+    // Complete = filled, due = hollow: the shape difference carries the state, never hue alone.
+    const done = status === "complete";
+    return <span style={{ display: "inline-block", width: 12, height: 12, transform: "rotate(45deg)", verticalAlign: "middle",
+      background: done ? "var(--status-ok)" : "transparent",
+      border: done ? "0" : "2px solid var(--status-warn)", boxSizing: "border-box" }} />;
   }
-  if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--accent)", verticalAlign: "middle" }} />;
+  if (kind === "renewal") return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: "var(--data-1)", verticalAlign: "middle" }} />;
   if (kind === "comms") return <span style={{ display: "inline-block", width: 10, height: 10, background: "var(--data-2)", verticalAlign: "middle" }} />;
   return <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: "var(--ink-secondary)", verticalAlign: "middle" }} />;
 }

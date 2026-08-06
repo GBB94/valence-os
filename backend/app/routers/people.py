@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from .. import people_core, repo
 from ..deps import get_conn
 from ..schemas import (
-    AdvocacyEventCreate, PersonCreate, PersonPatch, SourceReferenceCreate,
+    AdvocacyEventCreate, AdvocacyTagCreate, PersonCreate, PersonPatch, SourceReferenceCreate,
     SourceReferencePatch, StakeholderRolePatch,
 )
 
@@ -46,6 +46,23 @@ def patch_stakeholder_role(role_id: str, body: StakeholderRolePatch,
 @router.post("/advocacy-events", status_code=201)
 def create_advocacy_event(body: AdvocacyEventCreate, conn: sqlite3.Connection = Depends(get_conn)):
     return repo.insert(conn, "advocacy_events", body.model_dump(), object_type="advocacy_event")
+
+
+# --- VISIBILITY-SPEC §8 public-facing advocacy tags (migration 0054) ---
+@router.get("/persons/{person_id}/advocacy-tags")
+def list_advocacy_tags(person_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    return {"person_id": person_id, "kinds": people_core.ADVOCACY_TAG_KINDS,
+            "kind_labels": people_core.ADVOCACY_TAG_LABELS,
+            "tags": people_core.advocacy_tags(conn, person_id)}
+
+
+@router.post("/advocacy-tags", status_code=201)
+def create_advocacy_tag(body: AdvocacyTagCreate, conn: sqlite3.Connection = Depends(get_conn)):
+    """A dated, evidenced fact about public advocacy. There is no PATCH: a tag records that a
+    thing happened, and editing the date or the note after the fact would make the evidence note
+    a mutable claim about an immutable event."""
+    tag = repo.insert(conn, "advocacy_tags", body.model_dump(), object_type="advocacy_tag")
+    return {**tag, "kind_label": people_core.advocacy_tag_label(tag["kind"])}
 
 
 @router.get("/persons")

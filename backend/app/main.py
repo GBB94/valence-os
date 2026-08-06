@@ -1,20 +1,30 @@
 """Valence OS backend — v0.1 capture slice."""
 from __future__ import annotations
 
+import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import ingestion, jobs  # noqa: F401 — importing ingestion registers its job handlers
+from . import (company_intel, copilot_service, ingestion, jobs, stage7,
+               internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
-    accounts, ai, attention, commercial, data, delivery, execution, inbox,
+    account_command_center, accounts, campaigns, copilot, ai, attention, commercial, data, delivery, execution, expansion, inbox,
     ingestion as ingestion_router, interactions, jobs as jobs_router, library,
     mutual_action_plan, onboarding as onboarding_router, output, people, programs,
-    relationships, search as search_router, viz,
+    relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
+    stage9 as stage9_router, viz, internal_forecast, internal_asks, internal_reviews,
+    internal_reporting, internal_roster, product_feedback, adoption_comms, company_intel as company_intel_router,
+    readiness as readiness_router, execution_path as execution_path_router,
+    playbooks as playbooks_router, path_links as path_links_router,
+    telemetry as telemetry_router, intake_drops as intake_drops_router,
 )
 
 
@@ -30,7 +40,11 @@ async def lifespan(app: FastAPI):
     applied = run_migrations(conn)
     if applied:
         print(f"[migrations] applied: {applied}")
+    internal_reporting_service.sync_templates(conn)
     app.state.conn = conn
+    # FastAPI may enter and finalize a generator dependency on different worker threads, so use a
+    # plain Lock (which is not thread-owned) rather than RLock.
+    app.state.conn_lock = threading.Lock()
     worker = jobs.start_worker()  # env-gated (VALENCE_OS_WORKER); None when off
     if worker:
         print("[jobs] in-process worker started")
@@ -42,6 +56,54 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Valence OS", version="0.1.0", lifespan=lifespan)
 
+
+class SPAStaticFiles(StaticFiles):
+    """Serve the frontend entry point for canonical client-side routes.
+
+    Unknown API paths and missing files must remain real 404s; only extensionless
+    navigation paths are eligible for the SPA fallback.
+    """
+
+    async def get_response(self, path, scope):
+        is_navigation = not path.startswith("api/") and not Path(path).suffix
+        request_scope = scope
+        if is_navigation:
+            # A production rebuild replaces the hashed JS filename in index.html and removes the
+            # previous asset. Never let a conditional navigation request reuse an HTML shell that
+            # still points at that deleted bundle.
+            request_scope = dict(scope)
+            request_scope["headers"] = [
+                (key, value) for key, value in scope.get("headers", [])
+                if key.lower() not in {b"if-none-match", b"if-modified-since"}
+            ]
+        try:
+            response = await super().get_response(path, request_scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404 or not is_navigation:
+                raise
+            response = await super().get_response("index.html", request_scope)
+        if is_navigation and response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["cache-control"] = "no-store"
+        return response
+
+
+@app.exception_handler(sqlite3.IntegrityError)
+def _integrity_error(request, exc: sqlite3.IntegrityError):
+    """Database invariants are client errors, not server errors.
+
+    The schema now carries ~95 triggers that `RAISE(ABORT, '<readable message>')` to enforce
+    relationships single-column foreign keys cannot express — account scope, promotion
+    provenance, comparator disjointness. Those fire correctly and protect the data, but an
+    uncaught IntegrityError surfaces as a bare 500 with no message, which is indistinguishable
+    from a crash and tells the operator nothing. The trigger already wrote a good sentence;
+    this returns it.
+
+    UNIQUE violations are a conflict rather than a validation failure, so they keep 409.
+    """
+    detail = str(exc)
+    status = 409 if detail.startswith("UNIQUE constraint failed") else 422
+    return JSONResponse(status_code=status, content={"detail": detail})
+
 # Frontend runs on the Vite dev server in development.
 app.add_middleware(
     CORSMiddleware,
@@ -51,6 +113,9 @@ app.add_middleware(
 )
 
 app.include_router(accounts.router)
+app.include_router(account_command_center.router)
+app.include_router(campaigns.router)
+app.include_router(copilot.router)
 app.include_router(programs.router)
 app.include_router(people.router)
 app.include_router(interactions.router)
@@ -70,6 +135,24 @@ app.include_router(jobs_router.router)
 app.include_router(onboarding_router.router)
 app.include_router(ingestion_router.router)
 app.include_router(relationships.router)
+app.include_router(expansion.router)
+app.include_router(stage7_router.router)
+app.include_router(stage75_router.router)
+app.include_router(stage9_router.router)
+app.include_router(internal_forecast.router)
+app.include_router(internal_asks.router)
+app.include_router(internal_reviews.router)
+app.include_router(internal_reporting.router)
+app.include_router(internal_roster.router)
+app.include_router(product_feedback.router)
+app.include_router(adoption_comms.router)
+app.include_router(company_intel_router.router)
+app.include_router(readiness_router.router)
+app.include_router(execution_path_router.router)
+app.include_router(playbooks_router.router)
+app.include_router(path_links_router.router)
+app.include_router(telemetry_router.router)
+app.include_router(intake_drops_router.router)
 
 
 @app.get("/api/health")
@@ -80,4 +163,4 @@ def health():
 # Serve the built frontend if present (production-ish single-process serving).
 _dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _dist.is_dir():
-    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="frontend")
+    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="frontend")

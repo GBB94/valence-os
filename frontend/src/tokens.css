@@ -30,20 +30,36 @@
   color-scheme: light;
 
   /* Surfaces */
-  --bg-app:        #F6F7F9;
+  --bg-app:        #F4F5F8;
   --bg-surface:    #FFFFFF;
+  --bg-elevated:   #FFFFFF;
+  --bg-translucent: rgba(255,255,255,.88);
+  --bg-glass:      rgba(255,255,255,.72);
   --bg-sunken:     #EFF1F4;
   --bg-hover:      #F2F4F7;
   --bg-selected:   #EEEEFC;
+  --surface-highlight: rgba(255,255,255,.72);
+  --surface-highlight-subtle: rgba(255,255,255,.34);
+  --ambient-page: rgba(58,52,196,.035);
+  --ambient-primary: rgba(58,52,196,.13);
+  --ambient-secondary: rgba(90,79,196,.075);
+  --ambient-tertiary: rgba(63,93,180,.055);
+  --ambient-graph: rgba(58,52,196,.10);
+  --ambient-surface: rgba(58,52,196,.095);
+  --grid-line: rgba(20,22,28,.032);
+  --title-highlight: #101218;
+  --title-shadow: #4E5564;
 
   /* Lines */
   --line-hairline: #E3E6EB;
   --line-strong:   #CDD2DA;
+  --line-hover:    #B8BEC8;
 
   /* Ink */
   --ink-primary:   #14161C;
   --ink-secondary: #565D6B;
-  --ink-tertiary:  #6B717C;   /* darkened for 4.5:1 as 11px meta text (was #868D9B, 3.33) */
+  --ink-tertiary:  #646A75;   /* darkened for 4.5:1 on every light surface incl. --bg-sunken
+                                 and the tints (was #6B717C, 4.34 on sunken; originally #868D9B) */
   --ink-inverse:   #FFFFFF;
 
   /* Accent (interaction only, never state) */
@@ -76,9 +92,20 @@
 
   /* Radii and elevation */
   --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.80);
+  --shadow-control: 0 1px 2px rgba(20,22,28,.06), inset 0 1px 0 rgba(255,255,255,.72);
+  --shadow-primary: 0 0 0 1px rgba(58,52,196,.12), 0 4px 12px rgba(58,52,196,.16), inset 0 1px 0 rgba(255,255,255,.20);
+  --shadow-card: 0 0 0 1px rgba(20,22,28,.025), 0 2px 10px rgba(20,22,28,.055), 0 18px 46px rgba(20,22,28,.045), inset 0 1px 0 rgba(255,255,255,.82);
+  --shadow-card-hover: 0 0 0 1px rgba(58,52,196,.10), 0 8px 24px rgba(20,22,28,.085), 0 22px 58px rgba(58,52,196,.075), inset 0 1px 0 rgba(255,255,255,.90);
   --shadow-panel: 0 1px 2px rgba(20,22,28,.05), 0 12px 32px rgba(20,22,28,.10);
+
+  /* Fine grain prevents large gradients from feeling digitally flat. */
+  --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+  --noise-opacity: .018;
 
   /* Spacing scale (4px base) — the only permitted spacing values */
   --sp-1: 2px;
@@ -108,26 +135,43 @@
   /* Motion */
   --dur-fast: 120ms;
   --dur-med:  180ms;
+  --dur-standard: 240ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---- Dark --------------------------------------------------------------------------- */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg-app:        #0E1013;
-  --bg-surface:    #16191E;
-  --bg-sunken:     #101317;
-  --bg-hover:      #1D2127;
+  --bg-app:        #050609;
+  --bg-surface:    #0D0F14;
+  --bg-elevated:   #12151C;
+  --bg-translucent: rgba(8,10,14,.80);
+  --bg-glass:      rgba(14,16,22,.68);
+  --bg-sunken:     #080A0F;
+  --bg-hover:      #151923;
   --bg-selected:   #191A33;   /* matches accent-tint so active-nav accent text clears 4.5:1 */
+  --surface-highlight: rgba(255,255,255,.065);
+  --surface-highlight-subtle: rgba(255,255,255,.032);
+  --ambient-page: rgba(124,116,240,.11);
+  --ambient-primary: rgba(94,106,210,.26);
+  --ambient-secondary: rgba(110,76,198,.14);
+  --ambient-tertiary: rgba(66,99,190,.11);
+  --ambient-graph: rgba(124,116,240,.22);
+  --ambient-surface: rgba(124,116,240,.16);
+  --grid-line: rgba(255,255,255,.028);
+  --title-highlight: #F2F3F6;
+  --title-shadow: #AEB4C0;
 
-  --line-hairline: #262B33;
-  --line-strong:   #363C46;
+  --line-hairline: #20242C;
+  --line-strong:   #303640;
+  --line-hover:    #454D5A;
 
   --ink-primary:   #E8EAEE;
   --ink-secondary: #A2A9B6;
   --ink-tertiary:  #838A98;   /* lightened for 4.5:1 as 11px meta text (was #6F7784, 3.90) */
-  --ink-inverse:   #0E1013;
+  --ink-inverse:   #08090C;
 
   --accent:        #7C74F0;
   --accent-hover:  #948DF5;
@@ -153,7 +197,13 @@
   --data-4: #C9C5FB;
   --data-muted: #454B55;
 
-  --shadow-panel: 0 1px 2px rgba(0,0,0,.40), 0 12px 32px rgba(0,0,0,.50);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.065);
+  --shadow-control: 0 1px 2px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.075);
+  --shadow-primary: 0 0 0 1px rgba(124,116,240,.30), 0 5px 16px rgba(94,106,210,.28), 0 0 34px rgba(94,106,210,.12), inset 0 1px 0 rgba(255,255,255,.20);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.025), 0 2px 18px rgba(0,0,0,.38), 0 24px 70px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.055);
+  --shadow-card-hover: 0 0 0 1px rgba(124,116,240,.18), 0 9px 34px rgba(0,0,0,.48), 0 0 70px rgba(94,106,210,.095), inset 0 1px 0 rgba(255,255,255,.085);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.46), 0 16px 42px rgba(0,0,0,.58), 0 0 70px rgba(94,106,210,.055);
+  --noise-opacity: .026;
 }
 
 /* ---- Surface-role tokens (roles that aren't a plain neutral) ---- */

@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "external_id": "mock-org-bluepeak-demo-001",
+      "account_name": "Bluepeak Demo",
+      "person_email": "aisha.kone@example-bluepeak.test",
+      "kind": "title_change",
+      "summary": "Aisha Kone moved from VP of Learning to VP of Talent Enablement.",
+      "old_title": "VP of Learning",
+      "new_title": "VP of Talent Enablement",
+      "occurred_on": "2026-07-30"
+    }
+  ]
+}

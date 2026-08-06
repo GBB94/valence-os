@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Empty, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
+import { Empty, Loading, SectionHelp, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
 import ConvertPanel from "./ConvertPanel";
+import { ActionPathContext, DependencyLines } from "./PathAdvance";
+import { PromotionPreview } from "./MutualActionPlan";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
 // account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture —
@@ -10,10 +12,12 @@ import ConvertPanel from "./ConvertPanel";
 const CHIPS = [
   ["all", "All"], ["interaction", "Interactions"], ["commitment", "Commitments"],
   ["task", "Tasks"], ["decision", "Decisions"], ["risk", "Risks"], ["issue", "Issues"], ["inbox", "Inbox"],
+  ["milestone", "Milestones"],
 ];
 const KIND_LABEL = {
   interaction: "interaction", commitment: "commitment", task: "task",
   decision: "decision", risk: "risk", issue: "issue", inbox: "inbox note",
+  milestone: "milestone",
 };
 
 // state → (color-band, shape) so state never rides on color alone (§6 badges)
@@ -37,7 +41,208 @@ function StateBadge({ band, label }) {
   );
 }
 
-export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
+function activityWhen(value) {
+  if (!value) return "Not recorded";
+  if (!value.includes("T")) return fmtDate(value);
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return `${value.slice(0, 16).replace("T", " · ")} · timezone not recorded`;
+  }
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return value.replace("T", " · ");
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  }).format(instant);
+}
+
+export default function Ledger({ accountId, programId, reloadKey, onChanged, onOpenTarget, focusedRecordId }) {
+  const [view, setView] = useState("records");
+  return <div>
+    <div className="subtab-strip">
+      <SegTabs id="ledger-views" ariaLabel="Ledger view" value={view} onChange={setView}
+        tabs={[["records", "Records"], ["activity", "Activity"]]} />
+      <SectionHelp group="ledgerView" active={view} />
+    </div>
+    <div className="ledger-view-body">
+      {view === "records"
+        ? <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} focusedRecordId={focusedRecordId} />
+        : <ActivityTimeline accountId={accountId} programId={programId} reloadKey={reloadKey} onOpenTarget={onOpenTarget} />}
+    </div>
+  </div>;
+}
+
+function ActivityTimeline({ accountId, programId, reloadKey, onOpenTarget }) {
+  const [direction, setDirection] = useState("past");
+  const [stream, setStream] = useState("");
+  const [sourceType, setSourceType] = useState("");
+  const [activityState, setActivityState] = useState("");
+  const [materiality, setMateriality] = useState("");
+  const [search, setSearch] = useState("");
+  const [data, setData] = useState(null);
+  const [items, setItems] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+
+  const filters = { programId, direction, stream, sourceType, state: activityState, materiality, limit: 50 };
+  useEffect(() => {
+    let current = true;
+    setLoading(true); setError(null); setSelectedId(null); setExpandedGroups(new Set());
+    api.accountActivity(accountId, filters).then((result) => {
+      if (!current) return;
+      setData(result); setItems(result.items); setLoading(false);
+    }).catch((loadError) => {
+      if (!current) return;
+      setError(loadError.message); setData(null); setItems([]); setLoading(false);
+    });
+    return () => { current = false; };
+    // Scalar dependencies intentionally describe the server query; filters is rebuilt per render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, programId, direction, stream, sourceType, activityState, materiality, reloadKey]);
+
+  async function loadMore() {
+    if (!data?.next_cursor) return;
+    setLoadingMore(true);
+    try {
+      const result = await api.accountActivity(accountId, { ...filters, nextCursor: data.next_cursor });
+      setItems((current) => [...current, ...result.items]);
+      setData(result);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const shown = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter((item) => [item.title, item.summary, item.reason, item.owner, item.actor,
+      item.source_type, item.event_kind].some((value) => String(value || "").toLowerCase().includes(needle)));
+  }, [items, search]);
+  const selected = shown.find((item) => item.id === selectedId) || null;
+  const sourceFacets = Object.entries(data?.facets?.source_types || {});
+  const grouped = useMemo(() => {
+    const members = new Map();
+    shown.forEach((item) => {
+      if (item.group_id) members.set(item.group_id, [...(members.get(item.group_id) || []), item]);
+    });
+    const emitted = new Set();
+    return shown.flatMap((item) => {
+      if (!item.group_id || (members.get(item.group_id)?.length || 0) < 2) {
+        return [{ root: item, linked: [] }];
+      }
+      if (emitted.has(item.group_id)) return [];
+      emitted.add(item.group_id);
+      const group = members.get(item.group_id);
+      const root = group.find((candidate) => candidate.group_role === "origin") || group[0];
+      return [{ root, linked: group.filter((candidate) => candidate.id !== root.id) }];
+    });
+  }, [shown]);
+
+  if (loading) return <Loading what="account activity" />;
+  return <div className="activity-consumer stack">
+    {error && <div className="callout warn" role="status">Activity could not be read: {error}</div>}
+    {data && <div className="activity-evidence callout">
+      <div><strong>{data.stamp.coverage.length}/{data.stamp.adapter_metrics.length} adapters covered</strong>
+        <div className="rowmeta">{data.matched_count} matching events · projected in {data.stamp.projection_duration_ms.toFixed(3)} ms · query-time and rebuildable</div></div>
+      <details className="activity-diagnostics"><summary>Coverage and query evidence</summary>
+        <div className="actions activity-adapters" aria-label="Activity adapter measurements">
+          {data.stamp.adapter_metrics.map((metric) => <span className={`badge ${metric.status === "omitted" ? "band-risk" : ""}`} key={metric.adapter}
+            title={`${metric.item_count} items in ${metric.duration_ms.toFixed(3)} ms`}>
+            {metric.adapter} · {metric.item_count} · {metric.duration_ms.toFixed(3)} ms
+          </span>)}
+        </div>
+      </details>
+    </div>}
+    {!!data?.stamp.omitted.length && <div className="callout warn">Partial coverage: {data.stamp.omitted.join(", ")} could not be read. Empty results are not complete.</div>}
+    <div className="viewbar activity-filters" aria-label="Activity filters">
+      <label className="view-filter">Time
+        <select value={direction} onChange={(event) => setDirection(event.target.value)}>
+          <option value="past">Past</option><option value="future">Future</option><option value="all">All</option>
+        </select></label>
+      <label className="view-filter">Stream
+        <select value={stream} onChange={(event) => setStream(event.target.value)}>
+          <option value="">All</option><option value="customer">Customer</option><option value="internal">Internal</option>
+          <option value="external">External</option><option value="unknown">Unknown</option>
+        </select></label>
+      <label className="view-filter">Source
+        <select value={sourceType} onChange={(event) => setSourceType(event.target.value)}>
+          <option value="">All</option>{sourceFacets.map(([value, count]) => <option key={value} value={value}>{value.replaceAll("_", " ")} ({count})</option>)}
+        </select></label>
+      <label className="view-filter">State
+        <select value={activityState} onChange={(event) => setActivityState(event.target.value)}>
+          <option value="">All</option>{Object.entries(data?.facets?.states || {}).map(([value, count]) => <option key={value} value={value}>{value} ({count})</option>)}
+        </select></label>
+      <label className="view-filter">Importance
+        <select value={materiality} onChange={(event) => setMateriality(event.target.value)}>
+          <option value="">All</option><option value="material">Material</option><option value="context">Context</option>
+        </select></label>
+      <label className="view-filter">Search loaded
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, reason, owner…" /></label>
+    </div>
+    <div className="ledger activity-ledger">
+      <div className="card ledger-list activity-list">
+        {!shown.length ? <Empty title="No covered activity matches">Change the filters, or inspect partial coverage before concluding nothing happened.</Empty> : <table>
+          <thead><tr><th scope="col">Activity</th><th scope="col">Stream</th><th scope="col">Effective</th><th scope="col">Recorded</th></tr></thead>
+          <tbody>{grouped.flatMap(({ root, linked }) => {
+            const expanded = root.group_id && expandedGroups.has(root.group_id);
+            const renderRow = (item, isLinked = false) => <tr key={item.id} className={`clickable${item.id === selectedId ? " sel" : ""}${isLinked ? " activity-linked-row" : ""}`}
+              onClick={() => setSelectedId(item.id)} tabIndex={0}
+              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(item.id); } }}>
+              <td><div className="actions activity-title">{isLinked && <span className="rowmeta" aria-hidden="true">↳</span>}<strong>{item.title}</strong><Badge>{item.source_type.replaceAll("_", " ")}</Badge>
+                {!isLinked && linked.length > 0 && <button className="btn small ghost activity-group-toggle"
+                  aria-expanded={Boolean(expanded)} onClick={(event) => { event.stopPropagation(); setExpandedGroups((current) => {
+                    const next = new Set(current); if (expanded) next.delete(root.group_id); else next.add(root.group_id); return next;
+                  }); }}>{expanded ? "Hide" : `+${linked.length} linked`}</button>}</div>
+                {item.summary && <div className="rowmeta">{item.summary}</div>}</td>
+              <td><StateBadge band={item.state === "confirmed" ? "ok" : item.state === "proposed" ? "warn" : "unknown"} label={`${item.stream} · ${item.state}`} /></td>
+              <td><AgeChip date={item.display_at} /><div className="rowmeta">{item.temporal_kind}</div></td>
+              <td><AgeChip date={item.recorded_at} /></td>
+            </tr>;
+            return [renderRow(root), ...(expanded ? linked.map((item) => renderRow(item, true)) : [])];
+          })}</tbody>
+        </table>}
+        {data?.next_cursor && <button className="command-more" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading…" : "Load 50 more"}</button>}
+      </div>
+      <div className="card ledger-detail">
+        {selected ? <ActivityDetail item={selected} onOpenTarget={onOpenTarget} />
+          : <Empty title="Select an activity event">Its temporal meaning, provenance, reason, and native record appear here.</Empty>}
+      </div>
+    </div>
+  </div>;
+}
+
+function ActivityDetail({ item, onOpenTarget }) {
+  return <div className="detail-body">
+    <div className="detail-head"><Badge>{item.source_type.replaceAll("_", " ")}</Badge>
+      <StateBadge band={item.state === "confirmed" ? "ok" : item.state === "proposed" ? "warn" : "unknown"} label={item.state} />
+      <Badge>{item.materiality}</Badge></div>
+    <div className="detail-title">{item.title}</div>
+    {item.summary && <p>{item.summary}</p>}
+    <dl className="kv">
+      <dt>Effective</dt><dd><span className="mono">{activityWhen(item.display_at)}</span> · {item.temporal_kind} · {item.temporal_precision}</dd>
+      <dt>Recorded</dt><dd className="mono">{activityWhen(item.recorded_at)}</dd>
+      <dt>Why included</dt><dd>{item.reason}</dd>
+      <dt>Stream</dt><dd>{item.stream}</dd>
+      <dt>Event</dt><dd>{item.event_kind.replaceAll("_", " ")}</dd>
+      {item.status && <><dt>Native state</dt><dd>{item.status.replaceAll("_", " ")}</dd></>}
+      {item.owner && <><dt>Owner</dt><dd>{item.owner}</dd></>}
+      {item.actor && <><dt>Actor</dt><dd>{item.actor}</dd></>}
+      {item.program_id && <><dt>Program scope</dt><dd className="mono">{item.program_id}</dd></>}
+      {!!item.participants.length && <><dt>Participants</dt><dd>{item.participants.map((person) => person.name).join(", ")}</dd></>}
+      {item.group_id && <><dt>Activity group</dt><dd>{item.group_role === "origin" ? "Originating interaction" : "Record created from the linked interaction"}</dd></>}
+      {item.source_reference && <><dt>Source</dt><dd>{item.source_reference.url
+        ? <a href={item.source_reference.url} target="_blank" rel="noreferrer">{item.source_reference.label}</a>
+        : item.source_reference.label}</dd></>}
+    </dl>
+    {onOpenTarget && <button className="btn primary" onClick={() => onOpenTarget(item.native_target)}>Open native record</button>}
+  </div>;
+}
+
+function RecordsLedger({ accountId, programId, reloadKey, onChanged, focusedRecordId }) {
   const toast = useToast();
   const [exec, setExec] = useState(null);
   const [history, setHistory] = useState(null);
@@ -46,6 +251,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
   const [selKey, setSelKey] = useState(null);
   const [converting, setConverting] = useState(null);
   const [closing, setClosing] = useState(null);
+  const [sharing, setSharing] = useState(null);
 
   async function load() {
     if (!accountId) return;
@@ -79,6 +285,7 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
     pushExec("decision", exec.decisions, "decided_on");
     pushExec("risk", exec.risks, "created_at");
     pushExec("issue", exec.issues, "created_at");
+    pushExec("milestone", exec.milestones, "target_date");
     (history.interactions || []).forEach((it) => out.push({
       key: `interaction:${it.id}`, kind: "interaction", raw: it,
       date: it.occurred_on, title: it.summary || "(interaction)", program: it.program_name,
@@ -103,12 +310,22 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
     return c;
   }, [rows]);
 
+  // Arriving from a command-center "Open" selects the record itself rather than dropping the
+  // operator on the tab to find it. Clearing the type filter keeps the row reachable.
+  useEffect(() => {
+    if (!focusedRecordId || !rows.length) return;
+    const match = rows.find((r) => r.raw?.id === focusedRecordId);
+    if (!match) return;
+    setSelKey(match.key);
+    setFilter((current) => (current === "all" || current === match.kind ? current : "all"));
+  }, [focusedRecordId, rows]);
+
   const shown = filter === "all" ? rows : rows.filter((r) => r.kind === filter);
   const selected = shown.find((r) => r.key === selKey) || null;
 
   const afterMutation = () => { setClosing(null); setConverting(null); setSelKey(null); load(); onChanged?.(); };
 
-  if (!exec || !history) return <div className="subtle">Loading…</div>;
+  if (!exec || !history) return <Loading what="ledger" />;
 
   return (
     <div>
@@ -120,10 +337,11 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
         <div className="card ledger-list">
           {shown.length === 0 ? <Empty title="Nothing here yet">Capture a call, or convert an inbox note into a record.</Empty> : (
             <table>
-              <thead><tr><th style={{ width: 96 }}>Type</th><th>What</th><th style={{ width: 120 }}>State</th><th style={{ width: 64 }}>Age</th></tr></thead>
+              <thead><tr><th scope="col" style={{ width: 96 }}>Type</th><th scope="col">What</th><th scope="col" style={{ width: 120 }}>State</th><th scope="col" className="num" style={{ width: 64 }}>Age</th></tr></thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}>
+                  <tr key={r.key} className={"clickable" + (r.key === selKey ? " sel" : "") + (r.pinned ? " unknown-row" : "")} onClick={() => setSelKey(r.key)}
+                      tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelKey(r.key); } }}>
                     <td><Badge>{KIND_LABEL[r.kind]}</Badge></td>
                     <td>
                       <div className="cell-title">{r.title}</div>
@@ -140,18 +358,28 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged }) {
 
         <div className="card ledger-detail">
           {!selected ? <div className="empty"><h3>Select a record</h3><div>Its detail and actions appear here.</div></div> : (
-            <Detail row={selected} onConvert={() => setConverting(selected.raw)} onClose={() => setClosing(selected)} />
+            <Detail row={selected} onConvert={() => setConverting(selected.raw)} onClose={() => setClosing(selected)}
+                    // ACCOUNT-PATH-SPEC.md §16.4 puts a preview between opening the item and
+                    // confirming: what a customer would read is shown before it is shared, not
+                    // afterwards on the plan.
+                    onShare={() => setSharing({ kind: selected.kind, id: selected.raw.id,
+                      promoted: Boolean(selected.raw.client_visible) })} />
           )}
         </div>
       </div>
 
       {converting && <ConvertPanel item={converting} onClose={() => setConverting(null)} onConverted={afterMutation} />}
       {closing && <CloseItemPanel row={closing} onClose={() => setClosing(null)} onDone={afterMutation} />}
+      {sharing && (
+        <PromotionPreview objectType={sharing.kind} objectId={sharing.id} promoted={sharing.promoted}
+                          onClose={() => setSharing(null)}
+                          onDone={async () => { await load(); onChanged?.(); }} />
+      )}
     </div>
   );
 }
 
-function Detail({ row, onConvert, onClose }) {
+function Detail({ row, onConvert, onClose, onShare }) {
   const r = row.raw;
   const closable = ["commitment", "task", "risk", "issue"].includes(row.kind) && row.state.band !== "ok";
   return (
@@ -176,6 +404,26 @@ function Detail({ row, onConvert, onClose }) {
         {r.close_note && <><dt>Close note</dt><dd>{r.close_note}</dd></>}
       </dl>
 
+      {/* §15.8 — the inverse read. What this action advances, from accepted explicit links only.
+          A milestone gets its dependency lines instead: the same relations read from the other
+          end, and secondary by design so they never compete with the milestone itself. */}
+      {["task", "commitment"].includes(row.kind) && (
+        <div style={{ marginTop: 12 }}>
+          <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            What this advances
+          </div>
+          <ActionPathContext actionType={row.kind} actionId={r.id} />
+        </div>
+      )}
+      {row.kind === "milestone" && (
+        <div style={{ marginTop: 12 }}>
+          <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            Depends on
+          </div>
+          <DependencyLines milestoneId={r.id} />
+        </div>
+      )}
+
       {row.kind === "interaction" && r.created_records?.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>Records from this touch</div>
@@ -190,6 +438,11 @@ function Detail({ row, onConvert, onClose }) {
         {closable && <Btn variant="primary" size="small" onClick={onClose}>
           {row.kind === "issue" ? "Resolve issue" : row.kind === "risk" ? "Close risk" : row.kind === "commitment" ? "Close commitment" : "Close task"}
         </Btn>}
+        {["commitment", "task", "milestone"].includes(row.kind) && (
+          <Btn size="small" onClick={onShare}>
+            {r.client_visible ? "★ Shared in mutual plan" : "☆ Add to mutual plan"}
+          </Btn>
+        )}
       </div>
     </div>
   );

@@ -2,11 +2,11 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import audit, repo
+from .. import audit, phase_readiness, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
-    CommsCreate, ComplianceCreate, CompliancePatch, GateItemToggle, GateWaive,
+    CommsCreate, ComplianceCreate, CompliancePatch, GateItemPatch, GateItemToggle, GateWaive,
     GovernancePatch, MomentCreate, PhaseGateCreate, ScopeChangeCreate,
 )
 
@@ -43,17 +43,74 @@ def toggle_gate_item(item_id: str, b: GateItemToggle, conn: sqlite3.Connection =
     return _gate_with_items(conn, row["gate_id"])
 
 
+@router.patch("/gate-items/{item_id}")
+def patch_gate_item(item_id: str, b: GateItemPatch, conn: sqlite3.Connection = Depends(get_conn)):
+    """Complete a gate item, push its date, or record the answer it was asking for.
+
+    The merged launch standard (migration 0051) moved the operational half of the launch checklist
+    onto phase gates, which brought two behaviours with it that `toggle` had no room for:
+
+    * **Pushing the date.** The queue tells an operator to "do it, mark it done, or push the date",
+      and a gate item now carries a date to push. Without this the third option was not real.
+    * **Filling the field it asks about (PHASE-3-SPEC.md §1e).** "Confirm the success definition"
+      exists to put an answer in `program.success_criteria`; a tick that left the field empty would
+      record that the conversation happened and lose what it produced.
+
+    `fills_field` still never writes on its own — nothing infers a value from a completion. The
+    operator supplies `fill_value` and this patches exactly the one field the template named.
+    """
+    row = conn.execute(
+        "SELECT gi.*, g.program_id, p.account_id FROM phase_gate_items gi "
+        "JOIN phase_gates g ON g.id = gi.gate_id JOIN programs p ON p.id = g.program_id "
+        "WHERE gi.id=?", (item_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "gate item not found")
+
+    ts = now_utc()
+    sets, params = [], []
+    if b.complete is not None:
+        sets += ["complete=?", "completed_on=?"]
+        params += [1 if b.complete else 0, ts[:10] if b.complete else None]
+    if b.due_date is not None:
+        sets.append("due_date=?")
+        params.append(b.due_date)
+    if sets:
+        with conn:
+            conn.execute(f"UPDATE phase_gate_items SET {', '.join(sets)}, updated_at=? WHERE id=?",
+                         (*params, ts, item_id))
+
+    filled = None
+    if b.fill_value and row["fills_field"]:
+        target, _, field = row["fills_field"].partition(".")
+        if target == "account":
+            repo.patch(conn, "accounts", row["account_id"], {field: b.fill_value},
+                       object_type="account")
+            filled = row["fills_field"]
+        elif target == "program":
+            repo.patch(conn, "programs", row["program_id"], {field: b.fill_value},
+                       object_type="program")
+            filled = row["fills_field"]
+
+    if b.complete:
+        _maybe_autopass(conn, row["gate_id"])
+    return {"gate": _gate_with_items(conn, row["gate_id"]), "filled_field": filled}
+
+
 @router.post("/phase-gates/{gate_id}/waive")
 def waive_gate(gate_id: str, b: GateWaive, conn: sqlite3.Connection = Depends(get_conn)):
-    before = repo.get_row(conn, "phase_gates", gate_id)
-    with conn:
-        conn.execute("UPDATE phase_gates SET status='waived', waiver_reason=?, waived_by=?, "
-                     "passed_on=?, updated_at=? WHERE id=?",
-                     (b.waiver_reason, audit.DEFAULT_ACTOR, now_utc()[:10], now_utc(), gate_id))
-        after = repo.get_row(conn, "phase_gates", gate_id)
-        audit.record(conn, object_type="phase_gate", object_id=gate_id, action="close",
-                     before=before, after=after)
-    return _gate_with_items(conn, gate_id)
+    """Waiving settles the gate and moves nothing (`ACCOUNT-PATH-SPEC.md` §15.6).
+
+    Slice 5 owns the semantics and this stays the only waive route, so there is one command
+    rather than two that could disagree. Against the previous implementation that means: a
+    `waived` row in `program_phase_events`, no `passed_on` stamp (a waived gate was never
+    passed, and dating it as if it were is exactly the conflation §15.6 forbids), and the
+    accepted gaps returned so the operator sees what the waiver did not fill.
+    """
+    waiver = phase_readiness.waive_gate(conn, gate_id, reason=b.waiver_reason)
+    gate = _gate_with_items(conn, gate_id)
+    gate["waiver"] = {key: waiver[key] for key in
+                      ("event_id", "phase_unchanged", "unmet_at_waiver", "note")}
+    return gate
 
 
 def _maybe_autopass(conn, gate_id):

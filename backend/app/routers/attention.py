@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from .. import audit, queue, repo
+from .. import audit, portfolio_absence, queue, repo
 from ..db import now_utc
 from ..deps import get_conn
 from ..schemas import AccountStatusUpdate, QueueResolve, QueueSnooze
@@ -13,6 +13,14 @@ router = APIRouter(prefix="/api", tags=["attention"])
 @router.get("/queue")
 def get_queue(conn: sqlite3.Connection = Depends(get_conn)):
     return queue.build_queue(conn)
+
+
+@router.get("/portfolio/absence")
+def get_absence(days: int = portfolio_absence.DEFAULT_WINDOW_DAYS,
+                conn: sqlite3.Connection = Depends(get_conn)):
+    """Where we are not looking. Lives beside the queue because it is the same surface's question
+    asked in the negative: the queue ranks what exists, this counts what does not."""
+    return portfolio_absence.absence_counters(conn, days)
 
 
 @router.post("/queue/snooze")

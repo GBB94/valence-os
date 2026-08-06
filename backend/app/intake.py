@@ -33,6 +33,33 @@ _QUESTION = re.compile(r"([A-Z][^?.\n]{6,}\?)")
 
 _TITLE_STOP = {"we", "the", "they", "it", "action", "next", "kickoff", "renewal"}
 
+_PLACEHOLDER_ROLE_TERMS = (
+    ("works_council_contact", ("works council", "works-council")),
+    ("legal_dpo", ("legal", "dpo", "privacy")),
+    ("budget_owner", ("budget owner", "economic buyer")),
+    ("champion", ("champion",)),
+    ("it", ("it security", "security lead", "cio", "ciso")),
+    ("other", ("chro", "chief human resources")),
+)
+
+
+def _matching_placeholder(conn: sqlite3.Connection, account_id: str, proposal: dict) -> dict | None:
+    """Return one role-identical placeholder, never a fuzzy title guess.
+
+    Intake used to create a second person for "Aisha Kone (Champion)" while leaving the seeded
+    Champion placeholder—and its Today escalation—alive.  Only explicit role terms participate;
+    ordinary titles such as "VP of Learning" still create a new stakeholder.
+    """
+    title = (proposal.get("title") or "").strip().lower()
+    roles = [role for role, terms in _PLACEHOLDER_ROLE_TERMS if any(term in title for term in terms)]
+    if len(roles) != 1:
+        return None
+    matches = repo.list_rows(
+        conn, "persons", where="account_id=? AND is_placeholder=1 AND expected_role=?",
+        params=(account_id, roles[0]),
+    )
+    return matches[0] if len(matches) == 1 else None
+
 
 def parse_intake(text: str) -> list[dict]:
     """Return ordered, de-duplicated proposals. Deterministic for a given input."""
@@ -55,14 +82,21 @@ def parse_intake(text: str) -> list[dict]:
             add("stakeholder", ("stk", name.lower()),
                 {"name": name, "title": title}, m.group(0))
 
+    labelled_dates: set[str] = set()
     for m in _DATE_LABEL.finditer(text):
         label, iso = m.group(1).strip(" -"), m.group(2)
         if label.lower() in _TITLE_STOP or len(label) < 3:
             continue
+        labelled_dates.add(iso)
         add("key_date", ("date", iso, label.lower()),
             {"label": label.title(), "date": iso}, m.group(0))
-    # bare dates with no label still surface as a generic key date
+    # Bare dates with no label still surface as a generic key date — but only if the same date
+    # did not already produce a labelled one. "Go live is 2026-10-01" used to yield both
+    # "Go Live" and a second unlabelled "Key date", so the operator triaged the same fact
+    # twice; the 30-second capture rule loses every time that happens.
     for m in _ISO_DATE.finditer(text):
+        if m.group(1) in labelled_dates:
+            continue
         add("key_date", ("date", m.group(1), ""),
             {"label": "Key date", "date": m.group(1)}, m.group(0))
 
@@ -85,15 +119,25 @@ def accept_proposal(conn: sqlite3.Connection, account_id: str,
     kind = proposal.get("type")
 
     if kind == "stakeholder":
-        person = repo.insert(conn, "persons", {
-            "name": proposal["name"], "affiliation": "client",
-            "account_id": account_id, "title": proposal.get("title"),
-        }, object_type="person")
-        if program_id:
+        placeholder = _matching_placeholder(conn, account_id, proposal)
+        if placeholder:
+            person = repo.patch(conn, "persons", placeholder["id"], {
+                "name": proposal["name"], "title": proposal.get("title"), "is_placeholder": 0,
+                "placeholder_why": None, "find_by_date": None, "expected_influence": None,
+                "expected_role": None,
+            }, object_type="person", allow_null={"placeholder_why", "find_by_date",
+                                                   "expected_influence", "expected_role"})
+        else:
+            person = repo.insert(conn, "persons", {
+                "name": proposal["name"], "affiliation": "client",
+                "account_id": account_id, "title": proposal.get("title"),
+            }, object_type="person")
+        if program_id and not placeholder:
             repo.insert(conn, "stakeholder_roles",
                         {"program_id": program_id, "person_id": person["id"], "role": "other"},
                         object_type="stakeholder_role")
-        return {"created_type": "person", "created": person}
+        return {"created_type": "person", "created": person,
+                "filled_placeholder_id": placeholder["id"] if placeholder else None}
 
     if kind == "key_date":
         if not program_id:

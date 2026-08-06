@@ -100,12 +100,57 @@ def test_retries_until_max_attempts(client):
 
     conn = client.app.state.conn
     job = jobs.enqueue(conn, "flaky", max_attempts=3)
-    # each drain makes one attempt (a requeued job isn't re-run within the same drain)
-    for _ in range(3):
-        jobs.run_pending(conn)
+    # Backoff is disabled here so the drains stay immediate; the delay itself is covered by
+    # test_failed_attempt_backs_off_before_retrying.
+    base = jobs.RETRY_BACKOFF_BASE_SECONDS
+    jobs.RETRY_BACKOFF_BASE_SECONDS = 0
+    try:
+        # each drain makes one attempt (a requeued job isn't re-run within the same drain)
+        for _ in range(3):
+            jobs.run_pending(conn)
+    finally:
+        jobs.RETRY_BACKOFF_BASE_SECONDS = base
     row = jobs.get_job(conn, job["id"])
     assert calls["n"] == 3
     assert row["status"] == "failed" and row["attempts"] == 3
+
+
+def test_failed_attempt_backs_off_before_retrying(client):
+    """A failing job must not be retried on every drain (D-134)."""
+    from datetime import datetime
+
+    from app import jobs
+
+    calls = {"n": 0}
+
+    @jobs.register("backoff-probe")
+    def _always_fails(conn, payload):
+        calls["n"] += 1
+        raise RuntimeError("still failing")
+
+    conn = client.app.state.conn
+    job = jobs.enqueue(conn, "backoff-probe", max_attempts=3)
+    jobs.run_pending(conn)
+    row = jobs.get_job(conn, job["id"])
+    assert row["status"] == "queued" and row["attempts"] == 1
+    assert row["scheduled_for"], "a failed attempt must be deferred, not immediately eligible"
+    delay = (datetime.fromisoformat(row["scheduled_for"])
+             - datetime.fromisoformat(row["updated_at"])).total_seconds()
+    assert delay == jobs.RETRY_BACKOFF_BASE_SECONDS
+
+    # The deferred job is not picked up while it is still in the future.
+    jobs.run_pending(conn)
+    assert calls["n"] == 1
+
+    # Once due, it runs again and the next delay is longer.
+    with conn:
+        conn.execute("UPDATE jobs SET scheduled_for = ? WHERE id = ?", (row["updated_at"], job["id"]))
+    jobs.run_pending(conn)
+    second = jobs.get_job(conn, job["id"])
+    assert calls["n"] == 2 and second["attempts"] == 2
+    second_delay = (datetime.fromisoformat(second["scheduled_for"])
+                    - datetime.fromisoformat(second["updated_at"])).total_seconds()
+    assert second_delay == jobs.RETRY_BACKOFF_BASE_SECONDS * 2
 
 
 def test_worker_thread_runs_a_job(client):

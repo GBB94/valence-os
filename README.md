@@ -2,10 +2,10 @@
 
 An internal, **single-editor** web app for running a handful of very deep Fortune-100 accounts end to end — the execution ledger, stakeholders, commercial motion, evidence, and generated outputs in one place. Built for an Engagement Manager at Valence (who sells *Nadia*, an AI coaching product) to live in daily and brief the team in minutes.
 
-> **Context / source of truth.** The current scope authority is `PHASE-3-SPEC.md` (the consolidated *Comprehensive Spec*, July 2026), a deliberate override of the earlier frozen-scope regime: build to feature-complete now, in its Part 7 order. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth for anything the Phase 3 spec doesn't address. The standing rules that govern every change are in `CLAUDE.md`; the Stage-0 paper model (entity diagram, field dictionary, state transitions, attention rules, wireframes, acceptance script, mock seed) is in `stage-0/`; and every non-obvious decision is logged newest-first in `decisions.md`. All data in the repo is **mock/synthetic** — no real client names, people, or figures anywhere. **One gate remains: build everything, connect nothing real** — every external touchpoint (email, recordings, calendar, transcription, LLM, notifications, storage, hosting) is a mock adapter until the Valence hosting/data-handling conversation happens.
+> **Context / source of truth.** Phase 3, the Expansion Engine, and the Internal Operating Layer are implemented through Stage 10 under `PHASE-3-SPEC.md`, `EXPANSION-ENGINE-SPEC.md`, and `INTERNAL-OPS-SPEC.md`. `ADOPTION-CAMPAIGN-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, `ADOPTION-COMMS-SPEC.md`, `COMPANY-INTEL-SPEC.md`, and `RELATIONSHIP-READINESS-SPEC.md` are the accepted **Stage 11–15** authorities. `ACCOUNT-PATH-SPEC.md` (Slices 1–7, all built) and `ACCOUNT-INTAKE-SPEC.md` (**Stage 16**, Slices 1–4, all built) are additive and in force. `UX-FOUNDATION-SPEC.md` and its `ACCOUNT-COMMAND-CENTER-SPEC.md` Release 2 detail are the staged UX authorities. `SURFACE-USAGE-SPEC.md` (Stage 17) and `VISIBILITY-SPEC.md` are **proposed and not in force** — nothing may be built on either. Current implementation status is tracked in `HANDOFF.md`. `Valence-OS-Scoping-Doc.md` (v3.2) remains the original source of truth where the additive specs are silent. The standing rules are in `CLAUDE.md`, the Stage-0 paper model is in `stage-0/`, and non-obvious decisions are logged newest-first in `decisions.md`. All repository data is **mock/synthetic**. **One gate remains: build everything, connect nothing real** until Valence approves hosting and data handling.
 
 ## What it is (the one-paragraph tour)
-Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into **commitments** (two owners: who does it + the Valence follow-up owner), **risks**, **issues**, **decisions**, **tasks**, and **milestones**. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** models stakeholders by horizontal **layer** and the full buying-committee role taxonomy (coach-vs-champion enforced by advocacy evidence), with a per-person **cadence engine**, a measured **relationship-health** panel, a **champion development pipeline**, **influence-path** route-planning to people you haven't met, an **executive-alignment** map, a role-based **messaging library**, and **meeting-dynamics** attendance. **Communications ingestion** syncs a mock inbox and mock recordings through a **job table**, associates them to accounts/people, and flags priority emails. **Commercial** tracks expansion opportunities (staged budget) and contract versions (canonical copy + operational overlay). **Metrics** are ingested from the Data team (never recomputed; stale renders as *unknown*); a **value-story library** captures wins *and* negative evidence. Generators produce a weekly **team update**, a client-facing **QBR**, and a **Mutual Action Plan** — all excluding internal-only material *by construction*. Visualizations: a **stakeholder graph** (network / layer-lane / power-interest) and a **budget waterfall**. **AI**: pluggable transcript/email extraction (offline mock, your own local LLM, or the Claude API) proposing structured updates for per-item acceptance, plus a **plays** trigger engine.
+Accounts contain **programs** (bounded deployments/commercial motions, each with a phase). Assigning an account kicks off a guided **onboarding pack** (intake parse, seeded plan, launch checklists with falling-behind escalation, org-chart placeholders for people you haven't identified). You **capture** interactions in under a minute; ambiguous notes land in a **capture inbox** and later convert — with no retype — into execution records. A rules-based, explainable **attention queue** ranks what needs you and why. The **People module** covers layers, buying-committee roles, cadence, relationship health, champion development, influence paths, executive alignment, messaging, and meeting dynamics. Mock communications flow through a job table and shared association engine. **Commercial** adds a reconciled whitespace map, explicit row seat inventory, value targets, funding pools, fiscal timing, and atomic back-scheduled asks to opportunities and contracts. Aggregate cohort **metrics** keep stable segment/view identity; stale evidence renders *unknown*. Generators produce editable, review-gated pre-call briefs, expansion business cases, value reviews/QBRs, champion kits, kickoff decks, and schedulable weekly drafts, with PPTX/PDF export. Client-facing output is promotion- and source-gated by construction; nothing is auto-sent. Visualizations include the stakeholder graph and a currency-safe budget waterfall. **AI** remains pluggable (offline mock, local LLM, or Claude API) and proposes structured updates for per-item acceptance. A recurring **signals engine** turns fresh usage bars, client pull, calendar moments, confirmed org changes, champion coverage, and account growth into explainable episodes; mock calendar, enrichment, and HRIS-shaped adapters exercise the flow without connecting real systems.
 
 ## Stack
 - **Backend:** Python 3.12 · FastAPI · SQLite with **versioned SQL migrations** (raw `sqlite3`, no ORM) · SQLite **FTS5** for global search.
@@ -36,25 +36,43 @@ cd ../frontend && npm run dev                                   # terminal 2 -> 
 ```
 
 - **Reset to clean mock data:** `cd backend && .venv/bin/python -m app.seed --reset`
-- **Run the tests:** `cd backend && .venv/bin/python -m pytest`  (118 tests)
+- **Run the backend tests:** `cd backend && .venv/bin/python -m pytest`  (795 tests; `pyproject.toml` already sets `-q`, so do not pass it again)
+- **Run the frontend tests:** `cd frontend && node --test "src/*.test.js"`  (256 tests; the glob must be quoted)
+- **Lint and build the frontend:** `cd frontend && npm run lint` (oxlint) and `npx vite build`
 - **Launch note:** use `python -m uvicorn …`, not `.venv/bin/uvicorn` — the console script bakes in an absolute shebang that breaks if the folder moves. If the venv itself was moved: `rm -rf .venv && uv venv --python 3.12 && uv pip install -e .`.
 
 ## Repo layout
 ```
-PHASE-3-SPEC.md             current scope authority (Comprehensive Spec; build order in Part 7)
+PHASE-3-SPEC.md             completed comprehensive Phase 3 authority
+EXPANSION-ENGINE-SPEC.md    completed Stages 5.5–9 expansion authority
+INTERNAL-OPS-SPEC.md        Implemented Stage 10 internal operating layer authority
+ADOPTION-CAMPAIGN-SPEC.md   Accepted Stage 11 authority — adoption campaigns (status in HANDOFF.md)
+ACCOUNT-COPILOT-SPEC.md     Accepted Stage 12 authority — grounded account copilot (status in HANDOFF.md)
+ADOPTION-COMMS-SPEC.md      Accepted Stage 13 authority — comms waves and cohort attendance
+COMPANY-INTEL-SPEC.md       Accepted Stage 14 authority — cited outside-in company intelligence
+RELATIONSHIP-READINESS-SPEC.md
+                            Accepted Stage 15 authority — readiness as a query-time projection
+ACCOUNT-PATH-SPEC.md        Additive Account Path authority — Slices 1–7, all built
+ACCOUNT-INTAKE-SPEC.md      Additive Stage 16 authority — the account drop zone (Slices 1–4, all built)
+UX-FOUNDATION-SPEC.md       staged UX authority — addressability, saved views, and later orchestration
+ACCOUNT-COMMAND-CENTER-SPEC.md
+                            Release 2 detail under UX-FOUNDATION-SPEC.md — command center + activity
+SURFACE-USAGE-SPEC.md       PROPOSED Stage 17 — surface usage and retirement evidence. Not in force.
+VISIBILITY-SPEC.md          PROPOSED — borrowings from the 2026-08-06 competitive review. Not in force.
+ACCOUNT-PATH-REVIEW.md      point-in-time review of the Account Path, 2026-08-05. Not an authority.
 Valence-OS-Scoping-Doc.md   the original source of truth (v3.2)
 CLAUDE.md                   standing rules (trust boundaries, data rules, design)
 DESIGN-GUIDE.md             standing design authority (supersedes scoping-doc §6)
 HANDOFF.md                  fresh-session onboarding + current build status
-decisions.md                decision log, newest first (D-01…D-80)
-design-audit.md             redesign value inventory + contrast audit
+CONNECTIONS.md              executable real-data gate registry; every boundary is local/mock
+decisions.md                decision log, newest first
 stage-0/                    paper model + mock seed data (seed-data/*.yaml)
-docs/archive/               superseded point-in-time briefs (history only)
+docs/                       documentation index, runbooks, and archived evidence
 backend/
   app/                      FastAPI app: routers/, db.py (migration runner), seed.py, extractor.py,
                             jobs.py, onboarding.py, people_core.py, cadence.py, ingestion.py,
                             association.py, people_analytics.py, output_gen.py, queue.py …
-  migrations/               0001…0016 numbered SQL; every schema change is a migration
+  migrations/               0001…0053 landed; Stages 10–16 and the Account Path are complete
   tests/                    pytest (per-slice/-stage + full acceptance script)
 frontend/src/               React views (one per module/tab) + api.js + tokens.css
 ```
@@ -63,7 +81,11 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 
 **Foundation — Section 9 build order complete:** Stage 0 → **v0** (capture / execution / attention / output) → **v1** (commercial & deployment) → **v2** (data & evidence) → **v3** (visualization) → **v4** (AI & automation), plus global search, cmd-K, export/restore, MAP, and the files library. Migrations 0001–0010.
 
-**Frontend redesign — complete:** fully redesigned to `DESIGN-GUIDE.md` (eight phases A–H + a corrective pass + a punch-list pass). Backend, behavior, and the §2 trust boundaries unchanged; no schema changes. See `design-audit.md` for the value inventory.
+**Frontend redesign — complete:** fully redesigned to `DESIGN-GUIDE.md` (eight phases A–H + a corrective pass + a punch-list pass). Backend, behavior, and the §2 trust boundaries unchanged; no schema changes. See `docs/archive/design-audit.md` for the retrospective value inventory.
+
+**UX foundation Release 1 — implemented:** canonical `/today`, `/accounts`, account-tab/program, `/library`, and `/operations` routes now survive refresh and support Back/Forward; production deep links fall back to the SPA without masking missing assets or unknown APIs. Today and the Accounts Book have built-in and named browser-local saved views, search/filter controls, and modified-state feedback. The Accounts Book now exposes delivery and commercial status directly. Authority: `UX-FOUNDATION-SPEC.md`; decision: D-116.
+
+**Account command center Release 2 — implemented:** account Overview now switches among complete Operate, Prepare, and Leadership lenses over ten rebuildable activity adapters and append-only scoped review checkpoints. Ledger retains its mutable Records workflow and adds a read-only Activity chronology with server-scoped filters, stable pagination, effective-versus-recorded time, provenance, partial-coverage evidence, and expandable interaction-derived groups. Prepare and its deterministic pre-call brief share bounded, confirmed outside-in public context. Company Activity, Search, and Copilot sources route to one addressable exact-event Company view with expandable evidence. Per-adapter item/latency measurements show no current need for a materialized event table; the established eight-tab taxonomy remains because no usage evidence yet justifies the directional five-job rewrite. Authority: `ACCOUNT-COMMAND-CENTER-SPEC.md`; decisions: D-117–D-123.
 
 | Phase | Delivered |
 |---|---|
@@ -81,7 +103,7 @@ frontend/src/               React views (one per module/tab) + api.js + tokens.c
 
 Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholder **coverage** sidebar (§5C), metric **sparklines + bullet charts** (§6b), the **Mutual Action Plan** (§5N — client-facing joint plan from items promoted via a ★ on the Execution board), and the **Files & context library** (§5O — link-first, searchable, **tagged** list of source references with the records that cite each).
 
-**Phase 3 — feature-complete build, in progress** (authority: `PHASE-3-SPEC.md`; build order in Part 7). The evidence gates are retired; the one remaining gate is data governance (build everything, connect nothing real). Migrations 0011–0016.
+**Phase 3 — feature-complete through Stage 9** (authority: `PHASE-3-SPEC.md`, with the expansion interleave in `EXPANSION-ENGINE-SPEC.md`). The one remaining gate is data governance (build everything, connect nothing real). Migrations 0011–0025.
 
 | Stage | Delivered |
 |---|---|
@@ -91,14 +113,35 @@ Also built beyond the numbered phases: timeline **swimlanes** (§5F), stakeholde
 | **3 · Cadence + health + coverage** | per-role **cadence engine** (content-carrying suggested touches), measured relationship-**health** panel, coverage/layer-heat/detractor analytics (migration 0014) |
 | **4 · Ingestion + association** | mock email/recording **adapters**, one shared **association engine** (learns from corrections), ingestion via the job table, comms panel + priority flagging (migration 0015) |
 | **5 · Relationship intelligence** | **champion pipeline**, **influence paths**, **exec alignment**, role-based **messaging library**, **meeting dynamics**, + §4.4 extraction targets (placeholder-fill / pull-signal / deployment-moment / value-story) with a keyboard-driven review screen (migration 0016) |
+| **5.5 · Expansion nouns** | reconciled whitespace map with explicit row seat inventory; value-realization ledger with linked cohort evidence; funding/fiscal map/atomic ask calendar; revenue semantics (migrations 0017–0019, hardened in 0021) |
+| **6 · Finished artifacts** | editable/review-gated briefs, business cases, value reviews/QBRs, champion kits and kickoff decks; scheduled weekly drafts; PPTX/PDF render; champion handoff history (migrations 0020–0021) |
+| **7 · Signals, calendar, org change** | recurring condition episodes with clear/re-arm semantics, windows/hysteresis/freshness/cooldowns, remaining plays, client-pull precedence and value pacing; mock `.ics`, enrichment, and headcount adapters; confirmation-only org changes + succession (migration 0022) |
+| **7.5 · Qualification, triggers, renewal, growth** | five explicit opportunity slots; sourced operational agreements with earned-trigger events; derived renewal command center; overlap-safe account growth plan and client-facing mutual twin (migration 0023) |
+| **8 · Connection governance + e2e proof** | complete `CONNECTIONS.md` registry backed by a fail-closed runtime gate and Operations view; reproducible Phase 3 demo plus executable assigned-account → delivered-expansion-case test; cross-stage integration fixes (migration 0024) |
+| **9 · Portfolio analytics + playbook** | count-and-denominator portfolio commercial analytics; explicit cell/funding links for velocity; currency-safe actual/projected revenue movement; deterministic shape matching; human-curated play/message promotion (migration 0025) |
+| **10 · Internal operating layer** | account-level commitment provenance; period forecast locks/submissions/calibration; internal asks and snapshotted escalation chains; review/status governance and bidirectional no-surprises reporting; roster/coverage briefs; sourced cross-account product feedback and internal analytics (migrations 0026–0030) |
+| **11 · Adoption campaigns** | cohort-scoped intervention plans, comparable locked baselines, explicit cautions, signal conversion, canonical Today integration, immutable retrospectives, and portfolio learning (migrations 0031–0033) |
+| **12 · Account Copilot** | deterministic mock-only scoped analyst; frozen claim sources; reviewed change cursors; canonical weekly planning; bounded follow-ups/entity resolution; previewed internal drafts; correction review; executable golden activation/rollback controls (migration 0034) |
+| **13 · Adoption comms and sessions** | planned communication sequences over canonical comms entries; explicit immutable send facts; webinar/office-hours linkage; privacy-safe cohort attendance and one sequence-level Today item (migration 0035) |
+| **14 · Company intelligence** | canonical company identity; immutable public artifact spans; proposal-first events/map links; posting-level hiring clusters; independently sourced convergence; Stage 7 bridge; fixed cited company brief (migrations 0036–0038) |
+| **UX Release 2** | account command center and unified activity (migrations 0039–0040), detailed in `ACCOUNT-COMMAND-CENTER-SPEC.md` |
+| **15 · Relationship readiness** | readiness as a **query-time projection** over six independent pillars — no composite score, no stored state table; RR-2 widens the single proposal store rather than adding a parallel one (migrations 0041, 0043, 0044) |
+| **Account Path · Slices 1–7** | next-best-move and program path, planning and playbooks, relationship links, the shared plan (customer artifact built from promoted records only, readings withheld rather than downgraded), and local aggregate measurement (migrations 0042, 0045–0051) |
+| **16 · Account drop zone** | drop or paste on the Operate lens → screen → detect kind → parse from bytes → the existing extractor → the existing review surface; a dropped `.eml` takes the same ingestion path a synced one does; grounding split view, run-scoped accept-all, and duplicate detection (migrations 0052–0053); milestone proposals and the six drop events, no migration. Slices 1–4, all built |
 
-**Remaining Phase 3 stages:** 6 · generators to finished artifacts (real `.pptx`, champion kit, expansion business case, schedulable team update); 7 · new triggers + calendar + org-change detection; 8 · `CONNECTIONS.md` registry + the end-to-end demo. Production-mode items (SSO/MFA, approved hosting/DB, encryption, off-site backups) remain gated on the five open decisions in §12 and hosting approval. §11 "declined" items stay out. See `HANDOFF.md` for the current handoff.
+**Feature-complete through Stage 16 and the full Account Path.** Suites: **795 backend, 256 frontend**, clean production build. Production-mode items remain gated on the open §12 decisions and hosting approval. See `HANDOFF.md` for the current handoff.
+
+**Owed and not delivered:** both-theme screenshot capture for the **Stage 16** drop zone (Slices 1–3). Every other stage has its pair under `design-screenshots/`. Capture is blocked in the current environment — a trivial static probe page fails identically, so the block is the capture layer, not the app. Recorded rather than skipped; see `design-screenshots/stage-16/VERIFICATION.md`.
+
+**Stage 10 — implemented and externally adversarially reviewed.** `INTERNAL-OPS-SPEC.md` adds the internal operating layer: forecast, asks/escalations, reviews/reporting, roster/coverage, product feedback, and honest portfolio analytics. Migration 0030 closes the external review's leadership-report, forecast-unit, calibration, no-surprises, navigation, policy, Today, and usability findings. All external delivery remains disabled.
 
 ## Trust & correctness rules enforced in code (and tested)
 - **No table or column anywhere for a named individual's product usage** — asserted by a test. Champion/relationship signals are deployment engagement (meetings, comms, advocacy) and derived counts only.
 - **No sensitive personal data on people** — professional observations only; no health/family/politics. Relationship-health signals (reciprocity, attendance) are counts and response-time distributions from our own correspondence, never sentiment inference.
-- Client-facing generators (team update, QBR) include **only** affirmatively-promoted, non-negative records **by construction** — raw notes and stakeholder judgments can't leak.
+- Client-facing artifacts include **only** affirmatively promoted, sourced, non-negative records **by construction**; raw notes, stakeholder judgments, internal whitespace tactics, and unsourced plan items cannot leak. The weekly team update and pre-call brief are explicitly internal.
 - Stakeholder assessments (stance, influence, relationship strength) **require a date + evidence note** (DB CHECK + API guard).
 - Metric-derived indicators past their freshness threshold render as **unknown**, never carried-forward.
+- Cross-account and cross-program references are rejected at the API and reinforced with database triggers where SQLite can express the relationship.
+- Monetary movements enforce sign and ISO-currency semantics; mixed/unknown-currency recovered spend is never summed into a waterfall.
 - **No hard-coded benchmarks** — benchmarks are versioned/sourced data with population + period.
 - Versioned migrations from the first table; append-only audit log on every write; soft-delete throughout.

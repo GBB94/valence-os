@@ -1,29 +1,38 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { SegTabs, useToast, AgeChip, Empty, fmtDate } from "../ui";
+import { SectionHelp, SegTabs, useToast, AgeChip, Empty, Loading, fmtDate } from "../ui";
 import StakeholderGraph from "./StakeholderGraph";
 import PersonCard from "./PersonCard";
+import OrgChanges from "./OrgChanges";
 
 // The People tab (Comprehensive Spec Part 3). Map is the existing stakeholder graph + coverage;
 // the Stage-5 panels add the champion pipeline (§3.4), influence paths (§3.5), executive alignment
 // (§3.8) and the role-based messaging library (§3.12). Meeting dynamics (§3.13) render on the
 // person card and inside exec alignment.
-const TABS = [["map", "Map"], ["champions", "Champions"], ["influence", "Influence"], ["exec", "Exec alignment"], ["messaging", "Messaging"]];
+const TABS = [["map", "Map"], ["champions", "Champions"], ["influence", "Influence"], ["exec", "Exec alignment"], ["changes", "Org changes"], ["messaging", "Messaging"]];
 const LAYER_ORDER = ["executive", "economic", "operational", "technical_gating", "user_advocate"];
 const LAYER_LABEL = { executive: "Executive", economic: "Economic", operational: "Operational", technical_gating: "Technical & gating", user_advocate: "User & advocate" };
 const STAGES = ["identify", "develop", "validate", "arm", "maintain"];
 
-export default function People({ accounts, accountId, setAccountId, reloadKey }) {
-  const [sub, setSub] = useState("map");
+// The sub-tab is navigation state, not local state, so a readiness evidence link can land on the
+// panel that holds the record it names (RELATIONSHIP-READINESS-SPEC.md §5.3). Same contract as the
+// Commercial tab: the URL owns `section`, and the strip writes to it.
+export default function People({ accounts, accountId, setAccountId, reloadKey,
+  section, onSectionChange }) {
+  // A section this tab does not own falls back to Map rather than rendering nothing: `section` is
+  // one nav field shared with Commercial, and a stale value must not blank the page.
+  const sub = TABS.some(([key]) => key === section) ? section : "map";
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <SegTabs tabs={TABS} value={sub} onChange={setSub} />
+      <div className="subtab-strip" style={{ marginBottom: 12 }}>
+        <SegTabs tabs={TABS} value={sub} onChange={(value) => onSectionChange?.(value)} />
+        <SectionHelp group="people" active={sub} />
       </div>
       {sub === "map" && <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAccountId} reloadKey={reloadKey} />}
       {sub === "champions" && <Champions accountId={accountId} reloadKey={reloadKey} />}
       {sub === "influence" && <Influence accountId={accountId} reloadKey={reloadKey} />}
       {sub === "exec" && <ExecAlignment accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "changes" && <OrgChanges accountId={accountId} reloadKey={reloadKey} />}
       {sub === "messaging" && <Messaging />}
     </div>
   );
@@ -43,7 +52,7 @@ function Champions({ accountId, reloadKey }) {
 
   const load = () => api.championPipeline(accountId).then(setPipe).catch((e) => toast(e.message, "err"));
   useEffect(() => { if (accountId) { load(); api.persons(accountId).then((ps) => setPeople(ps.filter((p) => p.affiliation === "client"))).catch(() => {}); } }, [accountId, reloadKey, tick]);
-  if (!pipe) return <div className="subtle">Loading…</div>;
+  if (!pipe) return <Loading what="champion pipeline" />;
 
   const inPipeline = new Set(pipe.candidates.map((c) => c.person_id));
   const addable = people.filter((p) => !inPipeline.has(p.id) && !p.is_placeholder);
@@ -71,7 +80,7 @@ function Champions({ accountId, reloadKey }) {
           <option value="">+ add candidate…</option>
           {addable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <button className="btn small primary" onClick={add} disabled={!addPid}>Add</button>
+        <button className="btn small" onClick={add} disabled={!addPid}>Add champion</button>
       </div>
 
       {pipe.single_thread_risk && (
@@ -151,7 +160,7 @@ function Influence({ accountId, reloadKey }) {
         </div>
       )}
       {res && !res.already_known && (res.paths?.length ? res.paths.map((path, i) => (
-        <div key={i} className="card" style={{ padding: 14, marginBottom: 8, borderLeft: i === 0 ? "3px solid var(--accent)" : undefined }}>
+        <div key={i} className="card" style={{ padding: 16, marginBottom: 8, borderLeft: i === 0 ? "3px solid var(--accent)" : undefined }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 14 }}>
             {path.path.map((n, j) => (
               <span key={n.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -165,7 +174,7 @@ function Influence({ accountId, reloadKey }) {
           </div>
           <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 13 }}>{path.action}</span>
-            <button className="btn small primary" onClick={() => createIntroTask(path)}>Create task</button>
+            <button className="btn small" onClick={() => createIntroTask(path)}>Create task</button>
           </div>
         </div>
       )) : <Empty title="No path found">No relationship edges reach this person yet. Add reporting/influence edges on the map, or find a new thread.</Empty>)}
@@ -181,7 +190,7 @@ function ExecAlignment({ accountId, reloadKey }) {
   const [tick, setTick] = useState(0);
   const [vp, setVp] = useState(""); const [cp, setCp] = useState("");
   useEffect(() => { if (accountId) { api.execAlignment(accountId).then(setAlign).catch((e) => toast(e.message, "err")); api.account(accountId).then(setDetail).catch(() => {}); } }, [accountId, reloadKey, tick]);
-  if (!align) return <div className="subtle">Loading…</div>;
+  if (!align) return <Loading what="executive alignment" />;
   const valence = (detail?.people || []).filter((p) => p.affiliation === "valence");
   const clients = (detail?.people || []).filter((p) => p.affiliation === "client" && !p.is_placeholder);
 
@@ -198,24 +207,24 @@ function ExecAlignment({ accountId, reloadKey }) {
         <div className="card-h"><h3>Pairings</h3></div>
         {align.pairings.length === 0 ? <Empty title="No pairings yet">Pair a Valence executive with each senior client executive.</Empty> : (
           <table>
-            <thead><tr><th>Valence owner</th><th>Client executive</th><th>Last exec touch</th><th>Next planned</th></tr></thead>
+            <thead><tr><th scope="col">Valence owner</th><th scope="col">Client executive</th><th scope="col" className="num">Last exec touch</th><th scope="col" className="num">Next planned</th></tr></thead>
             <tbody>
               {align.pairings.map((p) => (
                 <tr key={p.id}>
                   <td>{p.valence_name}</td>
                   <td>{p.client_name}<div className="rowmeta">{p.client_title || ""}</div></td>
-                  <td>{p.last_touch ? <AgeChip date={p.last_touch} /> : <span className="rowmeta">none</span>}</td>
-                  <td className="rowmeta">{p.next_touch_planned ? fmtDate(p.next_touch_planned) : "—"}</td>
+                  <td className="num">{p.last_touch ? <AgeChip date={p.last_touch} /> : <span className="rowmeta">none</span>}</td>
+                  <td className="rowmeta num">{p.next_touch_planned ? fmtDate(p.next_touch_planned) : "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        <div style={{ display: "flex", gap: 6, padding: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line-hairline)" }}>
+        <div style={{ display: "flex", gap: 6, padding: 12, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line-hairline)" }}>
           <select value={vp} onChange={(e) => setVp(e.target.value)} style={sel}><option value="">Valence exec…</option>{valence.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
           <span className="rowmeta">↔</span>
           <select value={cp} onChange={(e) => setCp(e.target.value)} style={sel}><option value="">Client exec…</option>{clients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-          <button className="btn small primary" onClick={addPairing}>Pair</button>
+          <button className="btn small" onClick={addPairing}>Add pairing</button>
         </div>
       </div>
 
@@ -239,7 +248,7 @@ function Messaging() {
   const [entries, setEntries] = useState(null);
   const load = () => api.messagingLibrary().then((r) => setEntries(r.entries)).catch((e) => toast(e.message, "err"));
   useEffect(() => { load(); }, []);
-  if (!entries) return <div className="subtle">Loading…</div>;
+  if (!entries) return <Loading what="messaging library" />;
   const byLayer = {};
   entries.forEach((e) => { (byLayer[e.layer] ||= []).push(e); });
 
