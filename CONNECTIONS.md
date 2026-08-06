@@ -40,6 +40,8 @@ The environment variables are a fail-closed runtime check, not a substitute for 
 | `company_intel_source` | Public company artifact source | Synthetic JSON snapshots only | `backend/app/fixtures/company_intel/*.json` | `COMPANY_INTEL_BACKEND=mock` only; any real mode fails closed because no retrieval adapter exists | Provider terms/content license; API/robots compliance; source allow-list; exact provenance; retention; correction/takedown; credentials/logging; rollback |
 | `intel_extraction_endpoint` | Public artifact → company-event extraction | Fixture-carried proposals; no extraction call | `backend/app/fixtures/company_intel/*.json` | None; no extraction implementation | Separate model/provider and payload approval; licensing; region/retention; prompt-injection controls; golden evaluation; credentials/logging; rollback |
 | `file_storage` | Files and generated artifacts | Source links + SQLite markdown; binary export rendered in memory | None | None; no object-store adapter implemented | Approved encrypted object store; account boundaries; signed links; retention/deletion; backup and restore test |
+| `document_drop_intake` | Account drop zone (dropped and pasted documents) | Local text only; a dropped file's bytes are decoded in memory and never written anywhere | None | No runtime switch; `POST /api/accounts/{id}/intake/drops` takes text or text-file bytes | Approved retention and deletion terms for customer document text; a reviewed answer before any binary format (PDF/DOCX/OCR/audio) or any file storage is added |
+| `product_telemetry_sink` | Product measurement sink | Local SQLite `product_events` only; nothing leaves the installation | None | Disable from Operations; `VALENCE_OS_TELEMETRY_STRICT` chooses reject-vs-drop | Approved analytics vendor; processing region; retention/deletion terms; event allow-list review; pseudonymous identifier policy; explicit decision that behavioural data may leave the installation |
 | `hosting` | Application hosting and database | Local FastAPI + SQLite + optional in-process worker | Synthetic seed database | `VALENCE_OS_DB`; `VALENCE_OS_WORKER` | Approved hosting; SSO/MFA; encryption; managed secrets; network/logging controls; backups, restore drill, incident owner |
 
 ## Boundary notes
@@ -62,6 +64,34 @@ The environment variables are a fail-closed runtime check, not a substitute for 
   aggregate cohorts/cells, subject to the account's cohort floor and freshness rules.
 - “Sent” on a generated document records an operator assertion. Valence OS has no outbound document
   delivery adapter.
+- Product measurement is a boundary even though it is currently local. It is here because the day
+  somebody points it at a vendor, behavioural data about how an account is worked starts leaving the
+  installation — and that is a data-handling decision, not a configuration change. The event
+  allow-list, the slug-only property rule, and the schema-level `@` and length constraints are what
+  make that boundary reviewable in advance rather than after the fact.
+- The account drop zone is a boundary even though it is local and text-only. It is the first place
+  material of arbitrary origin, chosen at runtime, enters this installation — everything before it
+  was a fixture in the repository. The rule that keeps it local is **text in, bytes never
+  persisted**: a dropped file's bytes exist for the life of one request, the decoded text lands on
+  `intake_drops.snapshot_text`, and nothing binary reaches disk. That is also why PDF, DOCX, images
+  and audio are refused *by name with the reason*: reading any of them means either holding the file
+  (`file_storage`, unopened) or running a text-extraction library over untrusted binary, which is
+  parser hardening nobody has reviewed. Registering the row now makes the day somebody adds one an
+  approval rather than a config change.
+- `document_drop_intake` does not touch `llm_endpoint`. A drop hands its text to whichever extractor
+  backend is already configured, and the default stays `mock`. Nothing in the drop zone flips it.
+- A dropped `.eml` writes a `comm_message` through the same ingestion path `email_provider` uses
+  (Slice 2, D-219), and that is deliberately **not** a widening of `email_provider`. The provider
+  boundary is about *fetching* mail from an external mailbox; a drop is an operator handing us a file
+  they already had, recorded under provider `account_drop` so the two origins stay distinguishable in
+  the data. Shared destination, separate approval: connecting a real mailbox is still the
+  `email_provider` conversation and nothing in the drop zone brings it closer.
+- `product_telemetry_sink` is the **only** registry entry that is on by default, and the exception is
+  deliberate rather than an oversight. Every other boundary defaults off because enabling it sends
+  data somewhere; this one has no adapter and no network path at all, writes to local SQLite, and
+  discards what it collected when it is disabled. Nothing here waives the row above it: adding a
+  sink, an export, or a person-identifying field is the approval conversation, and the default flips
+  off the moment one exists.
 
 ## Pre-production verification
 

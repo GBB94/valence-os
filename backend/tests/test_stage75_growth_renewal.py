@@ -163,8 +163,10 @@ def test_overlapping_growth_lines_withhold_totals_and_mutual_plan_hides_internal
     growth = client.get(f"/api/accounts/{s['account']['id']}/growth-plan").json()
     assert growth["rollup"]["additive"] is False
     assert growth["rollup"]["named_seats"] is None and growth["conflicts"]
-    mutual = client.get(f"/api/accounts/{s['account']['id']}/map").json()
-    assert any(i["type"] == "growth line" for i in mutual["items"])
+    # ACCOUNT-PATH-SPEC.md §16.5 replaced the flat `items` list with a grouped artifact; the growth
+    # lines moved to their own block, and the intent of this assertion is unchanged.
+    mutual = client.get(f"/api/accounts/{s['account']['id']}/map").json()["artifact"]
+    assert [line["name"] for line in mutual["growth_lines"]] == ["Line 0"]
     assert "SECRET competitive tactic" not in mutual["markdown"]
     assert "probability" not in mutual["markdown"].lower()
     source = next(x for x in client.get("/api/library").json()["sources"] if x["id"] == s["source"]["id"])
@@ -254,7 +256,7 @@ def test_client_visible_conversation_agreement_never_leaks_interaction_summary(c
         "effective_on": _day(), "seat_band_min": 10, "seat_band_max": 20,
         "agreed_process": "Jointly review the next wave", "client_visible": True})
     assert created.status_code == 201, created.text
-    mutual = client.get(f"/api/accounts/{s['account']['id']}/map").json()["markdown"]
+    mutual = client.get(f"/api/accounts/{s['account']['id']}/map").json()["artifact"]["markdown"]
     review = client.get(f"/api/accounts/{s['account']['id']}/value-review").json()["markdown"]
     assert "Conversation trigger" in mutual and "Conversation trigger" in review
     assert "SECRET" not in mutual and "SECRET" not in review

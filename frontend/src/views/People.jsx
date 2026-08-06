@@ -14,12 +14,18 @@ const LAYER_ORDER = ["executive", "economic", "operational", "technical_gating",
 const LAYER_LABEL = { executive: "Executive", economic: "Economic", operational: "Operational", technical_gating: "Technical & gating", user_advocate: "User & advocate" };
 const STAGES = ["identify", "develop", "validate", "arm", "maintain"];
 
-export default function People({ accounts, accountId, setAccountId, reloadKey }) {
-  const [sub, setSub] = useState("map");
+// The sub-tab is navigation state, not local state, so a readiness evidence link can land on the
+// panel that holds the record it names (RELATIONSHIP-READINESS-SPEC.md §5.3). Same contract as the
+// Commercial tab: the URL owns `section`, and the strip writes to it.
+export default function People({ accounts, accountId, setAccountId, reloadKey,
+  section, onSectionChange }) {
+  // A section this tab does not own falls back to Map rather than rendering nothing: `section` is
+  // one nav field shared with Commercial, and a stale value must not blank the page.
+  const sub = TABS.some(([key]) => key === section) ? section : "map";
   return (
     <div>
       <div className="subtab-strip" style={{ marginBottom: 12 }}>
-        <SegTabs tabs={TABS} value={sub} onChange={setSub} />
+        <SegTabs tabs={TABS} value={sub} onChange={(value) => onSectionChange?.(value)} />
         <SectionHelp group="people" active={sub} />
       </div>
       {sub === "map" && <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAccountId} reloadKey={reloadKey} />}

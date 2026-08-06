@@ -4,6 +4,7 @@ import { Card, Empty, Loading, SlideOver, useToast, PageHeader, AgeChip, Table }
 import { SavedViewBar } from "../SavedViewControls";
 import { useSavedViews } from "../useSavedViews";
 import { accountFilterOptions } from "../queueView";
+import { measure } from "../measure";
 
 const TODAY_VIEWS = [
   { id: "all", label: "All attention", state: { band: "all", accountId: "", query: "" } },
@@ -221,6 +222,12 @@ function ResolvePanel({ item, onClose, onDone }) {
     try {
       const task = await api.createTask({ program_id: item.program_id, description: desc.trim() });
       await api.resolveQueue({ item_key: item.key, successor_action_type: "task", successor_action_id: task.id });
+      // ACCOUNT-PATH-SPEC.md §17.3 `successor_action_created`. This is the only surface in the app
+      // that closes something by creating its follow-up, so it is where §17.5 question 3's third
+      // outcome — "advanced to a linked successor" — can honestly be counted.
+      measure({ accountId: item.account_id || null, programId: item.program_id || null })(
+        "successor_action_created",
+        { source_type: item.object_type || null, successor_type: "task" });
       toast("Resolved with a follow-up task"); onDone();
     } catch (e) { toast(e.message, "err"); } finally { setSaving(false); }
   }

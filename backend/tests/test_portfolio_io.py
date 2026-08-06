@@ -112,6 +112,17 @@ def test_export_covers_every_account_scoped_table():
             "attention_state", "import_batches", "extraction_runs", "extraction_proposals",
             "play_definitions", "play_runs", "source_reference_tags", "messaging_entries",
             "cadence_overrides", "onboarding_templates", "checklist_templates",
+            # ACCOUNT-PATH-SPEC.md §17.4: "Export/import excludes telemetry by default."
+            # `product_events` carries an `account_id`, so without this line the registry guard
+            # would demand it be exported — which is the opposite of the rule. It describes how
+            # this installation was used, not what the account is.
+            "product_events",
+            # ACCOUNT-INTAKE-SPEC.md §11.2. A drop receipt is the sibling of an `extraction_run` —
+            # our record of reading a file, not a record of the account — which is why it belongs
+            # beside the two run tables already listed above. It is also the one table that can
+            # hold raw source text, and exporting that would move a snapshot the operator can
+            # delete into a file where deleting it does nothing.
+            "intake_drops",
         }
         account_scoped = set()
         with TestClient(app):

@@ -413,9 +413,15 @@ def material_changes(conn: sqlite3.Connection, run: dict, after: str | None = No
          "'Forecast '||x.category_before||' to '||x.category_after||': '||x.driver statement "
          "FROM forecast_change_events x JOIN forecast_entries e ON e.id=x.entry_id "
          "WHERE x.changed_at >= ? AND x.changed_at <= ?", "e.account_id", None),
+        # Every nullable column in these statements is COALESCEd, because `||` in SQLite yields NULL
+        # if *any* operand is NULL — one missing rationale would blank the whole statement rather
+        # than shorten it, and the run then dies on `copilot_claims.claim_text NOT NULL`.
+        # `account_status_assessments.rationale` and `adoption_campaign_state_history.from_status`
+        # are both nullable by schema; the latter is null on every campaign's creation row.
         ("status_change", "SELECT s.account_id,NULL program_id,s.id,s.created_at occurred_at,"
          "'status_assessment' native_record_type,s.id native_record_id,"
-         "s.dimension||' status: '||s.value||' — '||s.rationale statement "
+         "s.dimension||' status: '||s.value||"
+         "COALESCE(' — '||s.rationale,' — no rationale recorded') statement "
          "FROM account_status_assessments s WHERE s.created_at >= ? AND s.created_at <= ? AND s.archived=0",
          "s.account_id", None),
         ("ask_change", "SELECT a.account_id,NULL program_id,e.id,e.occurred_at,"
@@ -425,7 +431,7 @@ def material_changes(conn: sqlite3.Connection, run: dict, after: str | None = No
          "WHERE e.created_at >= ? AND e.created_at <= ?", "a.account_id", None),
         ("campaign_change", "SELECT c.account_id,c.program_id,h.id,h.created_at occurred_at,"
          "'adoption_campaign' native_record_type,c.id native_record_id,"
-         "'Campaign '||h.from_status||' to '||h.to_status||': '||h.reason statement "
+         "'Campaign '||COALESCE(h.from_status,'created')||' to '||h.to_status||': '||h.reason statement "
          "FROM adoption_campaign_state_history h JOIN adoption_campaigns c ON c.id=h.campaign_id "
          "WHERE h.created_at >= ? AND h.created_at <= ?", "c.account_id", "c.program_id"),
     )

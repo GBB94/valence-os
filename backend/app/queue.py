@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException
 
-from . import audit, cadence, repo
+from . import audit, cadence, proposal_read, repo
 from .db import new_id, now_utc
 
 SENIOR_ROLES = ("champion", "budget_owner", "program_owner")
@@ -29,6 +29,7 @@ PRIORITY = {
     "active_blocker": 2,
     "unanswered_email": 2,         # Phase 3 §4.3 — flagged email past the response threshold
     "checklist_overdue": 3,        # Phase 3 §2 — baseline; escalates to 2 when >1wk past due
+    "gate_item_overdue": 3,        # migration 0051 — same escalation, on the merged standard
     "unidentified_placeholder": 3, # Phase 3 §3 — baseline; escalates to 2 when >1wk past find-by
     "renewal_window": 3,       # enabled by v1 contracts
     "stale_import": 4,         # enabled by v2 metrics/imports
@@ -56,6 +57,7 @@ PRIORITY = {
     "calendar_moment": 4,
     "company_convergence": 2,
     "intel_review_debt": 3,
+    "proposal_review_debt": 3,    # RR §8.1 — one item per account, never per run or per proposal
 }
 
 # Trigger escalates into the top "needs you now" band once this far past its date (§2/§3).
@@ -145,6 +147,51 @@ def _suppressed(overlay: dict | None, underlying_updated_at: str, today: str) ->
         if changed_since:
             return None
         return "resolved"
+    return None
+
+
+def snoozable_object_type(object_type: str) -> bool:
+    """Whether `_validate_key` would accept a key for this object type.
+
+    Account Path needs this before offering a Snooze control: `phase_gate_item` has no entry in
+    `_object_table`, so an `account_path:phase_gate_item:...` key would 422 on write. A control
+    that fails on click is worse than no control, so the caller omits `snooze_key` instead.
+    """
+    try:
+        _object_table(object_type)
+    except KeyError:
+        return False
+    return True
+
+
+def keys_for_objects(conn: sqlite3.Connection, today: str | None = None) -> dict[tuple[str, str], list[str]]:
+    """Queue item keys grouped by the object they point at, e.g. ('task','task-1') -> [key, ...].
+
+    Account Path reuses these so that snoozing the same object from either surface suppresses it
+    in both. One object can carry more than one key when several triggers found it; the caller
+    snoozes each, because the operator's "not now" is about the object, not the trigger.
+    """
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for item in _candidates(conn, today or _today()):
+        grouped.setdefault((item["object_type"], item["object_id"]), []).append(item["key"])
+    return grouped
+
+
+def suppression_state(
+    conn: sqlite3.Connection, keys: list[str], underlying_updated_at: str, today: str,
+    overlays: dict[str, dict] | None = None,
+) -> str | None:
+    """'snoozed'/'resolved' if any of `keys` currently suppresses the object, else None.
+
+    Same overlay rows and the same resurfacing rules the queue applies — Account Path does not
+    get a second expiry rule.
+    """
+    if overlays is None:
+        overlays = _latest_overlays(conn)
+    for key in keys:
+        state = _suppressed(overlays.get(key), underlying_updated_at, today)
+        if state is not None:
+            return state
     return None
 
 
@@ -293,6 +340,21 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             age_days=age, due_date=None, next_action="Review, confirm, or dismiss the proposed events.",
         ))
 
+    # RR §8.1 proposal review debt. Deduplicated at the account: reviewing a backlog is one piece of
+    # work on one surface, so one item is the honest count. Unreviewed proposals are a nudge and
+    # never evidence — nothing here says anything about the account itself.
+    for r in proposal_read.review_debt(conn, today):
+        items.append(_item(
+            "proposal_review_debt", "account", r["account_id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["account_name"], "pid": None, "pname": None},
+            title=f"Review {r['pending']} proposed update(s)",
+            because=("Oldest unreviewed proposal is {age}d old.".format(age=r["age_days"])
+                     if "age" in r["thresholds_breached"] else
+                     f"{r['pending']} proposals are waiting on a review."),
+            age_days=r["age_days"], due_date=None,
+            next_action="Accept, edit, reject, or resolve them against existing records.",
+        ))
+
     # 5c. Earned pre-agreed expansions awaiting action. These fire regardless of a value gap;
     # the gap remains attached as risk rather than suppressing an agreement the client made.
     for r in conn.execute(
@@ -385,6 +447,33 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action="Do it, mark it done, or push the date.",
         )
         it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3  # >1wk past -> risk band
+        items.append(it)
+
+    # 7b. Phase-gate items past their due date (migration 0051 — the merged launch standard).
+    #
+    # Onboarding stopped seeding `checklist_items` and seeds gate items instead, so without this the
+    # merge would have quietly removed the escalation above rather than moved it: an operational
+    # step could sit a month past due and Today would say nothing. Only dated, incomplete items on a
+    # gate that is still open qualify — a passed or waived gate has been settled deliberately, and
+    # re-raising its items would argue with the operator who settled it.
+    for r in conn.execute(
+        "SELECT gi.*, g.name gname, a.id aid, a.name aname, p.id pid, p.name pname "
+        "FROM phase_gate_items gi JOIN phase_gates g ON g.id = gi.gate_id "
+        "JOIN programs p ON p.id = g.program_id JOIN accounts a ON a.id = p.account_id "
+        "WHERE gi.complete=0 AND gi.due_date IS NOT NULL AND gi.due_date < ? "
+        "AND g.status='open' AND g.archived=0 AND p.archived=0",
+        (today,),
+    ):
+        overdue = _days_since(r["due_date"], today)
+        it = _item(
+            "gate_item_overdue", "phase_gate_item", r["id"], r["updated_at"],
+            {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]},
+            title=r["description"],
+            because=f"Launch setup slipping — {r['gname']} item {overdue}d past due.",
+            age_days=overdue, due_date=r["due_date"],
+            next_action="Do it, mark it done, or push the date.",
+        )
+        it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3
         items.append(it)
 
     # 8. Unidentified org-chart placeholders past their find-by date (Phase 3 §3)

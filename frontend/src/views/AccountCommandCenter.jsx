@@ -6,8 +6,12 @@ import {
 import {
   readLastVisit, resolveCommandCenterLens, writeLastVisit, writePreferredLens,
 } from "../accountCommandCenter";
+import AccountIntakeDrop from "./AccountIntakeDrop";
+import AccountPath from "./AccountPath";
 import LeadershipReview from "./LeadershipReview";
 import MeetingPrepare from "./MeetingPrepare";
+import ProposalPreview from "./ProposalPreview";
+import { ReadinessSummary } from "./Readiness";
 
 const LENSES = [
   ["operate", "Operate"],
@@ -62,35 +66,9 @@ function ActivityRows({ items, emptyTitle, emptyBody, onOpenTarget }) {
   );
 }
 
-function AttentionRows({ items, onOpenTarget }) {
-  const [expanded, setExpanded] = useState(false);
-  if (!items?.length) {
-    return <Empty title="No immediate action">Nothing overdue, blocked, or due within seven days.</Empty>;
-  }
-  const visible = expanded ? items : items.slice(0, 5);
-  return (
-    <div className="command-rows">
-      {visible.map((item) => (
-        <article className={`command-row attention-${item.band}`} key={item.id}>
-          <span className={`state-mark ${item.band === "now" ? "risk" : "warn"}`} aria-hidden="true" />
-          <div className="command-row-body">
-            <div className="actions command-row-title">
-              <strong>{item.title}</strong>
-              <Badge>{sentence(item.kind)}</Badge>
-            </div>
-            <div className="subtle">{item.reason}{item.due_date ? ` · ${fmtDate(item.due_date)}` : ""}</div>
-          </div>
-          <button className="btn small ghost" onClick={() => onOpenTarget(item.native_target)}>
-            Resolve
-          </button>
-        </article>
-      ))}
-      {items.length > 5 && <button className="command-more" onClick={() => setExpanded((value) => !value)}>
-        {expanded ? "Show fewer" : `Show ${items.length - 5} more`}
-      </button>}
-    </div>
-  );
-}
+// The old "Needs action" list is gone, not moved. It ranked the same overdue/blocked/due-soon work
+// that Next best move and You own now rank from the Execution Path, and keeping both would put two
+// competing orderings of one set of records on one screen (ACCOUNT-PATH-SPEC.md §3, §7.3).
 
 function UpcomingRows({ items, onOpenTarget }) {
   const [expanded, setExpanded] = useState(false);
@@ -132,52 +110,94 @@ function Section({ title, meta, action, children, className = "", tone = "neutra
   );
 }
 
-function OperateLens({ data, firstVisit, reviewing, onMarkReviewed, onOpenTarget }) {
+/**
+ * ACCOUNT-PATH-SPEC.md §5.2 order: Next best move and the Account Path lead, the execution groups
+ * follow, and the existing activity sections keep their semantics but move below them. Account
+ * Path loads separately (§11.2) so a failure there leaves the activity sections usable, and the
+ * review checkpoint, point of view, and visit cursor behave exactly as before.
+ */
+function OperateLens({ data, firstVisit, reviewing, accountId, programId, reloadKey,
+                      onMarkReviewed, onOpenTarget, onSaved }) {
   const checkpoint = data.cursors.program || data.cursors.account;
   const reviewMeta = checkpoint
     ? `Reviewed through ${whenLabel(checkpoint.reviewed_through)}`
     : `No review checkpoint · showing changes recorded since ${fmtDate(data.cursors.initial_window_start)}`;
+
+  /**
+   * ACCOUNT-INTAKE-SPEC.md §3.1. Full width in the main column, directly above "Since last
+   * review" — the two belong together, because this is where new information enters and that is
+   * where recorded information appears.
+   *
+   * It sits below the ranked work rather than above it on purpose, and the distinction is between
+   * the input and its output: the *zone* is prominent, its *results* are not. Putting a file
+   * target above Next best move would say the first thing to do on opening an account is to feed
+   * the machine. The paste shortcut is what makes it reachable without scrolling at all.
+   */
+  const dropZone = (
+    <AccountIntakeDrop accountId={accountId} accountName={data.account.name}
+      programId={programId} reloadKey={reloadKey} onDrafted={onSaved} />
+  );
+
+  const sinceReview = (
+    <Section
+      title="Since last review"
+      tone="accent"
+      meta={reviewMeta}
+      action={<button className="btn small" disabled={reviewing} onClick={onMarkReviewed}
+        aria-label={`Mark changes reviewed through ${data.stamp.data_current_through}`}>
+        {reviewing ? "Marking…" : "Mark reviewed"}
+      </button>}
+    >
+      <ActivityRows items={data.changes_since_review} emptyTitle="You are caught up"
+        emptyBody="No material confirmed changes have been recorded since this scope was reviewed."
+        onOpenTarget={onOpenTarget} />
+    </Section>
+  );
+
+  const sideExtras = (
+    <>
+      {/* Compact readiness: only the gaps this phase actually requires. The full pillar set and
+          its evidence live behind the row, so Operate stays a prompt rather than a scorecard
+          (RELATIONSHIP-READINESS-SPEC.md §8.2). It follows the scope selector — a program in
+          scope is evaluated on its own evidence and never merged with its siblings. It keeps
+          fetching its own data and reporting its own coverage: readiness coverage and execution
+          coverage are different claims and must not be merged into one notice. */}
+      <ReadinessSummary accountId={accountId} programId={programId} mode="compact"
+        reloadKey={reloadKey} onOpenTarget={onOpenTarget} />
+      {/* Up to three proposals from the newest source, plus a way to the full list
+          (RELATIONSHIP-READINESS-SPEC.md §8.1). It sits below readiness on purpose: a draft
+          nobody has accepted is not an account condition, and it must not read like one. */}
+      <ProposalPreview accountId={accountId} programId={programId} reloadKey={reloadKey}
+        onApplied={onSaved} />
+      <Section title="Next on account" tone="accent" meta="Confirmed future events">
+        <UpcomingRows items={data.upcoming} onOpenTarget={onOpenTarget} />
+      </Section>
+      <Section title="Current point of view" tone="quiet" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
+        {data.operator_view ? (
+          <div className="command-pov">
+            <p>{data.operator_view.body}</p>
+            <div className="rowmeta">{data.operator_view.author}</div>
+            <button className="btn small ghost" onClick={() => onOpenTarget({ tab: "internal" })}>Open review record</button>
+          </div>
+        ) : (
+          <Empty title="No point of view yet">Record a dated operator view in Internal before the next review.</Empty>
+        )}
+      </Section>
+    </>
+  );
+
   return (
-    <div className="command-grid">
-      <div className="command-main stack">
-        <Section
-          title="Since last review"
-          tone="accent"
-          meta={reviewMeta}
-          action={<button className="btn small" disabled={reviewing} onClick={onMarkReviewed}
-            aria-label={`Mark changes reviewed through ${data.stamp.data_current_through}`}>
-            {reviewing ? "Marking…" : "Mark reviewed"}
-          </button>}
-        >
-          <ActivityRows items={data.changes_since_review} emptyTitle="You are caught up"
-            emptyBody="No material confirmed changes have been recorded since this scope was reviewed."
-            onOpenTarget={onOpenTarget} />
-        </Section>
-        <Section title="Needs action" tone="risk" meta="Deterministic rules · overdue, blocked, or due within seven days">
-          <AttentionRows items={data.attention} onOpenTarget={onOpenTarget} />
-        </Section>
-        <Section title="Since last visit" tone="quiet" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
-          <ActivityRows items={data.changes_since_visit} emptyTitle={firstVisit ? "Visit baseline set" : "Nothing new since your last visit"}
-            emptyBody={firstVisit ? "New material changes will appear here on your next visit." : "The review cursor is separate; this only tracks browser visits."}
-            onOpenTarget={onOpenTarget} />
-        </Section>
-      </div>
-      <aside className="command-side stack">
-        <Section title="Next on account" tone="accent" meta="Confirmed future events">
-          <UpcomingRows items={data.upcoming} onOpenTarget={onOpenTarget} />
-        </Section>
-        <Section title="Current point of view" tone="quiet" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
-          {data.operator_view ? (
-            <div className="command-pov">
-              <p>{data.operator_view.body}</p>
-              <div className="rowmeta">{data.operator_view.author}</div>
-              <button className="btn small ghost" onClick={() => onOpenTarget({ tab: "internal" })}>Open review record</button>
-            </div>
-          ) : (
-            <Empty title="No point of view yet">Record a dated operator view in Internal before the next review.</Empty>
-          )}
-        </Section>
-      </aside>
+    <div className="stack operate-stack">
+      <AccountPath accountId={accountId} programId={programId} reloadKey={reloadKey}
+        onOpenTarget={onOpenTarget} onSaved={onSaved}
+        mainSlot={<>{dropZone}{sinceReview}</>} sideSlot={sideExtras} />
+      {/* Retained and deliberately subordinate (§5.2 item 10): a personal recency band, not a
+          statement about the account. */}
+      <Section title="Since last visit" tone="quiet" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
+        <ActivityRows items={data.changes_since_visit} emptyTitle={firstVisit ? "Visit baseline set" : "Nothing new since your last visit"}
+          emptyBody={firstVisit ? "New material changes will appear here on your next visit." : "The review cursor is separate; this only tracks browser visits."}
+          onOpenTarget={onOpenTarget} />
+      </Section>
     </div>
   );
 }
@@ -339,7 +359,8 @@ export default function AccountCommandCenter({
       <div id="command-center-panel" role="tabpanel" aria-labelledby={`command-center-lenses-${activeLens}-tab`}
         className="command-panel">
         {activeLens === "operate" && <OperateLens data={data} firstVisit={!priorVisit} reviewing={reviewing}
-          onMarkReviewed={markReviewed} onOpenTarget={onOpenTarget} />}
+          accountId={accountId} programId={programId} reloadKey={reloadKey}
+          onMarkReviewed={markReviewed} onOpenTarget={onOpenTarget} onSaved={onSaved} />}
         {activeLens === "prepare" && <MeetingPrepare accountId={accountId} programId={programId}
           meetingId={meetingId} onMeetingChange={onMeetingChange} onOpenTarget={onOpenTarget}
           onQuickEntry={onQuickEntry} onOpenCopilot={onOpenCopilot} />}

@@ -1,6 +1,8 @@
 """Adversarial acceptance tests for ACCOUNT-COPILOT-SPEC.md Stage 12."""
+import inspect
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from datetime import datetime, timedelta
@@ -644,3 +646,128 @@ def test_weekly_answer_is_a_deduplicated_view_of_canonical_today_items(client):
     assert source_ids and len(source_ids) == len(set(source_ids))
     assert set(source_ids) <= canonical_ids
     assert all(claim["sources"] for claim in run["claims"])
+
+
+# --- a change feed that cannot blank its own statement ------------------------------------------
+
+def test_a_status_with_no_rationale_does_not_blank_the_whole_change_statement(client):
+    """`||` over a nullable column yields NULL, which killed the run inside its write transaction.
+
+    `rationale` is `Optional` on `StatusAssessmentCreate` and nullable in the table, so an operator
+    can legitimately record a status without one. The change-feed statement concatenated it
+    directly, so one missing rationale blanked the *entire* statement, `claim_text NOT NULL`
+    aborted the run, and the operator saw a bare `failed` badge with no answer and no reason. The
+    sibling `ask_change` query already COALESCEd for exactly this reason, which is what makes the
+    omission a slip rather than a design.
+    """
+    s = _setup(client)
+    account = s["a"]
+    r = client.post(f"/api/accounts/{account['id']}/status-assessments", json={
+        "dimension": "delivery", "value": "on_track", "assessed_on": utc_day()})
+    assert r.status_code == 201, r.text
+
+    run = _run(client, {"scope_type": "account", "account_id": account["id"],
+                        "intent": "changes", "query_text": "What changed since last week?"})
+    assert run["status"] != "failed", run.get("failure_detail")
+    assert all(claim["claim_text"] for claim in run["claims"])
+    # The absence is stated rather than papered over or allowed to blank the line.
+    assert "no rationale recorded" in (run["answer_markdown"] or "")
+
+
+def test_every_nullable_column_in_a_change_statement_is_guarded(client):
+    """The next nullable column is the same bug. This asserts the rule, not the two known cases.
+
+    Each change-feed query concatenates columns into a `statement`. SQLite's `||` propagates NULL
+    across the whole expression, so any nullable column used bare takes the entire statement with
+    it. Both the aliases and the nullability are read from the queries and the live schema rather
+    than listed here, so a new change source or a migration that relaxes a NOT NULL fails here
+    rather than in a run.
+    """
+    from app import copilot_context
+    conn = sqlite3.connect(os.environ["VALENCE_OS_DB"])
+    conn.row_factory = sqlite3.Row
+    # Adjacent Python string literals are the SQL's line breaks; join them back into one query.
+    source = re.sub(r'"\s*\n\s*"', "", inspect.getsource(copilot_context))
+    queries = re.findall(r"SELECT .*? statement FROM .*?(?=\"|$)", source)
+    assert len(queries) >= 4, f"change-feed queries not found — did the SQL move? {queries}"
+
+    def statement_expression(query: str) -> str:
+        """The last item of the select list — the one aliased `statement`.
+
+        Split on top-level commas only: the expression itself contains quoted literals with commas
+        and COALESCE calls with commas, and neither ends a select item.
+        """
+        select_list = re.search(r"SELECT (.*?) statement ", query).group(1)
+        depth, quoted, start = 0, False, 0
+        for index, character in enumerate(select_list):
+            if character == "'":
+                quoted = not quoted
+            elif quoted:
+                continue
+            elif character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+            elif character == "," and depth == 0:
+                start = index + 1
+        return select_list[start:]
+
+    nullable_by_table: dict[str, set[str]] = {}
+    for query in queries:
+        expression = statement_expression(query)
+        aliases = dict(
+            (table, alias) for table, alias
+            in re.findall(r"(?:FROM|JOIN) ([a-z_]+) ([a-z]+)\b", query))
+        for table in aliases:
+            if table not in nullable_by_table:
+                nullable_by_table[table] = {
+                    column["name"] for column
+                    in conn.execute(f"PRAGMA table_info({table})").fetchall()
+                    if not column["notnull"]}
+        nullable = {f"{alias}.{column}" for table, alias in aliases.items()
+                    for column in nullable_by_table[table]}
+        assert nullable, f"no nullable columns resolved for {query!r} — the alias parse is broken"
+        for reference in re.findall(r"\b[a-z]+\.[a-z_]+", expression):
+            if reference not in nullable:
+                continue
+            assert re.search(r"COALESCE\([^()]*" + re.escape(reference) + r"[^()]*\)", expression), (
+                f"{reference} is nullable and is concatenated unguarded into a statement; "
+                f"one NULL there blanks the whole line: {expression}")
+    conn.close()
+
+
+def test_a_record_with_no_readable_statement_is_withheld_and_named_rather_than_crashing(client):
+    """Fail closed, not open and not fatal: the answer gets shorter and says so."""
+    from app import copilot_model
+    packet = {
+        "items": [
+            {"statement": "Commitment X is open; due 2026-07-16", "packet_id": "p001",
+             "record_type": "commitment", "record_id": "c1", "fields": {},
+             "freshness_state": "current", "account_id": "acc-1"},
+            {"statement": None, "packet_id": "p002", "record_type": "adoption_campaign",
+             "record_id": "camp-1", "fields": {}, "freshness_state": "current",
+             "account_id": "acc-1"},
+        ],
+        "excluded": [], "ambiguities": [], "packet_bytes": 400, "coverage_gaps": [],
+    }
+    out = copilot_model.generate(packet, {"intent": "changes"})
+    assert out["abstain"] is False
+    # The readable record still answers; the unreadable one is named, not silently dropped.
+    assert [claim["claim_text"] for claim in out["claims"]] == [
+        "Commitment X is open; due 2026-07-16"]
+    assert any("no readable statement" in gap for gap in out["gaps"])
+    # An answer with a hole in it cannot still read as fully supported.
+    assert out["evidence_state"] == "partial"
+    assert "### Evidence gaps" in out["answer_markdown"]
+
+
+def test_every_unreadable_record_abstains_rather_than_answering_from_nothing(client):
+    from app import copilot_model
+    packet = {"items": [{"statement": "  ", "packet_id": "p001", "record_type": "commitment",
+                         "record_id": "c1", "fields": {}, "freshness_state": "current",
+                         "account_id": "acc-1"}],
+              "excluded": [], "ambiguities": [], "packet_bytes": 10, "coverage_gaps": []}
+    out = copilot_model.generate(packet, {"intent": "changes"})
+    assert out["abstain"] is True
+    assert out["answer_markdown"] is None
+    assert any("no readable statement" in gap for gap in out["gaps"])

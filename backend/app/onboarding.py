@@ -76,10 +76,11 @@ def seed_onboarding(
     pid = prog["id"]
 
     plan = _template("launch_plan.yaml")
-    checklist = _template("launch_checklist.yaml")
+    gates = _template("launch_gates.yaml")
     org = _template("org_placeholders.yaml")
 
-    counts = {"milestones": 0, "prep_tasks": 0, "checklist_items": 0, "placeholders": 0}
+    counts = {"milestones": 0, "prep_tasks": 0, "gate_items": 0, "placeholders": 0,
+              "plan_requirements": 0}
 
     # §1b — milestones, dates relative to kickoff.
     for m in plan["milestones"]:
@@ -98,18 +99,41 @@ def seed_onboarding(
         }, object_type="task")
         counts["prep_tasks"] += 1
 
-    # §2/§1e — time-phased checklist items (first_call doubles as the question list).
-    for section, items in checklist.items():
+    # Operational setup, as phase gates (migration 0051). This replaces the twenty `checklist_items`
+    # this function used to seed: twelve of them restated a milestone or a readiness requirement,
+    # so onboarding was creating a second list that could disagree with the first two about the
+    # same account. Existing `checklist_items` rows are untouched and stay readable — §13.5 keeps
+    # their removal a separate decision — but no new ones are created here.
+    for g in gates["gates"]:
+        items = [it for it in g["items"]
+                 if not (it.get("europe_only") and not europe_in_scope)]
+        if not items:
+            continue
+        gate = repo.insert(conn, "phase_gates", {
+            "program_id": pid, "name": g["name"], "gates_phase": g["gates_phase"],
+        }, object_type="phase_gate")
         for it in items:
-            repo.insert(conn, "checklist_items", {
-                "account_id": account_id, "program_id": pid,
-                "template_key": f"{section}:{it['label']}", "section": section,
-                "label": it["label"], "detail": it.get("detail"),
+            repo.insert(conn, "phase_gate_items", {
+                "gate_id": gate["id"],
+                "template_key": f"{g['key']}:{it['key']}",
+                "description": it["description"], "detail": it.get("detail"),
                 "fills_field": it.get("fills_field"),
                 "due_offset_days": it.get("due_offset_days"),
                 "due_date": _offset(kickoff_date, it.get("due_offset_days")),
-            }, object_type="checklist_item")
-            counts["checklist_items"] += 1
+            }, object_type="phase_gate_item")
+            counts["gate_items"] += 1
+
+    # The relationship conditions, as a plan instance. Onboarding is the moment the operator says
+    # "this launch is happening on this date", which is exactly what a plan anchors to — and
+    # leaving it unstarted is what produced an empty readiness panel with no way in. Instantiating
+    # states *when* each condition is expected; it marks nothing complete and writes no state.
+    from . import playbooks  # local import: playbooks imports readiness, which is heavy
+    started = playbooks.instantiate(
+        conn, account_id, playbook_key="enterprise-launch", playbook_version=3,
+        program_id=pid, anchor_type="kickoff", anchor_date=kickoff_date,
+        note="Seeded by guided onboarding.",
+    )
+    counts["plan_requirements"] = len(started.get("instances") or [])
 
     # §3 — org-chart placeholders (persons is_placeholder=1 + a stakeholder_role so they graph).
     for ph in org["placeholders"]:

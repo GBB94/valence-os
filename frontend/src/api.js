@@ -42,6 +42,10 @@ export const api = {
     const qs = p.toString();
     return req("GET", `/api/accounts/${id}/command-center${qs ? "?" + qs : ""}`);
   },
+  // Account Path (ACCOUNT-PATH-SPEC.md §10.1). A projection, so the route is a GET and there is
+  // no companion write: every action on a path row goes to its native record's own endpoint.
+  executionPath: (id, { programId = "" } = {}) =>
+    req("GET", `/api/accounts/${id}/execution-path${programId ? `?program_id=${programId}` : ""}`),
   meetingPrep: (id, { programId = "", meetingId = "" } = {}) => {
     const p = new URLSearchParams();
     if (programId) p.set("program_id", programId);
@@ -141,7 +145,10 @@ export const api = {
   runExtraction: (b) => req("POST", "/api/extraction/run", b),
   manualExtraction: (b) => req("POST", "/api/extraction/manual", b),
   acceptProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/accept`, b),
-  rejectProposal: (id) => req("POST", `/api/extraction/proposals/${id}/reject`),
+  // The body is required in practice: RR §6.7 makes the rejection reason the only record that the
+  // source said something the operator disagreed with. Calling this without one stores a null and
+  // makes the next reviewer redo the same judgement.
+  rejectProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/reject`, b),
   plays: () => req("GET", "/api/plays"),
   createPlay: (b) => req("POST", "/api/plays", b),
   evaluatePlays: () => req("POST", "/api/plays/evaluate"),
@@ -179,6 +186,14 @@ export const api = {
   teamUpdate: (since) => req("GET", `/api/team-update${since ? "?since=" + since : ""}`),
   accountMap: (accountId) => req("GET", `/api/accounts/${accountId}/map`),
   mapPromote: (b) => req("POST", "/api/map/promote", b),
+  // §16.7 — the preview comes from the same projection as the export, so what an operator reads
+  // before confirming is the artifact itself rather than a second rendering of it.
+  mapPromotionPreview: (objectType, objectId, clientLabel) => {
+    const p = new URLSearchParams({ object_type: objectType, object_id: objectId });
+    if (clientLabel) p.set("client_label", clientLabel);
+    return req("GET", `/api/map/promotion-preview?${p.toString()}`);
+  },
+  mapSaveDocument: (accountId, b) => req("POST", `/api/accounts/${accountId}/map/document`, b || {}),
   queue: () => req("GET", "/api/queue"),
   snoozeQueue: (b) => req("POST", "/api/queue/snooze", b),
   resolveQueue: (b) => req("POST", "/api/queue/resolve", b),
@@ -453,4 +468,124 @@ export const api = {
   createCopilotAlias: (b) => req("POST", "/api/copilot/entity-aliases", b),
   copilotStyles: () => req("GET", "/api/copilot/styles"),
   createCopilotStyle: (b) => req("POST", "/api/copilot/styles", b),
+
+  // Relationship readiness — a projection, so every route here is a GET except the
+  // definition-upgrade preview, which computes a blast radius and still writes nothing.
+  readiness: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness${programId ? `?program_id=${programId}` : ""}`),
+  readinessPillar: (accountId, pillarKey, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness/${pillarKey}${programId ? `?program_id=${programId}` : ""}`),
+  readinessDefinitions: () => req("GET", "/api/readiness/definitions"),
+  // Proposal reads. Composed at query time from extraction proposals and manual capture notes,
+  // which keep their own stores and their own commands (RR §0.5).
+  proposedUpdates: (accountId, { programId = "", sourceInteractionId = "", runId = "",
+                                 status = "" } = {}) => {
+    const p = new URLSearchParams();
+    if (programId) p.set("program_id", programId);
+    if (sourceInteractionId) p.set("source_interaction_id", sourceInteractionId);
+    // §11.4 — a filter on the one queue, not a second queue. What it leaves out comes back in
+    // `scope.note`, authored on the server.
+    if (runId) p.set("run_id", runId);
+    if (status) p.set("status", status);
+    const qs = p.toString();
+    return req("GET", `/api/accounts/${accountId}/proposed-updates${qs ? "?" + qs : ""}`);
+  },
+  proposalPreview: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/proposed-updates/preview${programId ? `?program_id=${programId}` : ""}`),
+  proposalReview: (id) => req("GET", `/api/extraction/proposals/${id}/review`),
+  // ACCOUNT-INTAKE-SPEC.md §11.2. Its own call, made when the source pane opens: a snapshot can be
+  // the full 1 MB cap and most proposals are decided without ever looking at it.
+  proposalGrounding: (id) => req("GET", `/api/extraction/proposals/${id}/grounding`),
+  // §11.4 / D-208 — all of one run's open drafts, or none of them. Never account-wide.
+  acceptAllInRun: (runId) => req("POST", `/api/extraction/runs/${runId}/accept-all`),
+
+  // The account drop zone (ACCOUNT-INTAKE-SPEC.md §15). Five calls, and there is deliberately no
+  // sixth that resolves anything — accepting happens through the proposal routes above, which are
+  // the same ones every other drafted proposal goes through.
+  intakeLimits: () => req("GET", "/api/intake/limits"),
+  intakeDrops: (accountId) => req("GET", `/api/accounts/${accountId}/intake/drops`),
+  createIntakeDrop: (accountId, b) => req("POST", `/api/accounts/${accountId}/intake/drops`, b),
+  deleteIntakeSnapshot: (id) => req("DELETE", `/api/intake/drops/${id}/snapshot`),
+  archiveIntakeDrop: (id) => req("DELETE", `/api/intake/drops/${id}`),
+  resolveProposalExisting: (id, b) => req("POST", `/api/extraction/proposals/${id}/resolve-existing`, b),
+  supersedeProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/supersede`, b),
+  previewReadinessUpgrade: (b) => req("POST", "/api/readiness/definition-upgrades/preview", b),
+
+  // Playbooks and plan instances — the planning layer readiness declines to store. These write
+  // *plans* and *decisions*; none of them writes a state, so there is no state-setting route to
+  // call from the requirement panel.
+  playbooks: () => req("GET", "/api/readiness/playbooks"),
+  planInstances: (accountId, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/plan-instances${programId ? `?program_id=${programId}` : ""}`),
+  createPlanInstances: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances`, b),
+  previewPlanUpgrade: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances/upgrade-preview`, b),
+  applyPlanUpgrade: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/plan-instances/upgrade`, b),
+  readinessExceptions: (accountId, requirementKey, programId = null) =>
+    req("GET", `/api/accounts/${accountId}/readiness-exceptions/${requirementKey}${programId ? `?program_id=${programId}` : ""}`),
+  setReadinessException: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/readiness-exceptions`, b),
+  revokeReadinessException: (id, b) =>
+    req("POST", `/api/readiness-exceptions/${id}/revoke`, b),
+  checklistCompatibility: (accountId, b) =>
+    req("POST", `/api/accounts/${accountId}/checklist-compatibility`, b),
+  // The operational half of the merged launch standard (migration 0051). This is the one write on
+  // the Plan surface that records something happened — a gate item is a thing somebody does, which
+  // nothing else in the model records. It is not, and never becomes, a readiness state.
+  patchGateItem: (itemId, b) => req("PATCH", `/api/gate-items/${itemId}`, b),
+
+  // Account Path Slice 5 — relationships, evidence, and governed advancement (§15).
+  // Every write below records a link, a decision, or a phase event. None of them writes a
+  // readiness state, for the same reason the planning routes above do not: there is nowhere to
+  // write one, and a route that appeared to would be the stored second source of truth.
+  requirementLinks: (planInstanceId) =>
+    req("GET", `/api/plan-instances/${planInstanceId}/links`),
+  linkRequirementAction: (planInstanceId, b) =>
+    req("POST", `/api/plan-instances/${planInstanceId}/action-links`, b),
+  archiveRequirementActionLink: (linkId, b) =>
+    req("POST", `/api/action-links/${linkId}/archive`, b),
+  evidenceTypes: () => req("GET", "/api/readiness/evidence-types"),
+  attachRequirementEvidence: (planInstanceId, b) =>
+    req("POST", `/api/plan-instances/${planInstanceId}/evidence`, b),
+  reviewRequirementEvidence: (linkId, b) =>
+    req("POST", `/api/evidence-links/${linkId}/review`, b),
+  retractRequirementEvidence: (linkId, b) =>
+    req("POST", `/api/evidence-links/${linkId}/retract`, b),
+  milestoneActionLinks: (milestoneId) =>
+    req("GET", `/api/milestones/${milestoneId}/action-links`),
+  linkMilestoneAction: (milestoneId, b) =>
+    req("POST", `/api/milestones/${milestoneId}/action-links`, b),
+  archiveMilestoneActionLink: (linkId, b) =>
+    req("POST", `/api/milestone-action-links/${linkId}/archive`, b),
+  linkGateRequirement: (gateId, b) =>
+    req("POST", `/api/phase-gates/${gateId}/requirement-links`, b),
+  archiveGateRequirementLink: (linkId, b) =>
+    req("POST", `/api/gate-requirement-links/${linkId}/archive`, b),
+  actionPathContext: (actionType, actionId) =>
+    req("GET", `/api/actions/${actionType}/${actionId}/path-context`),
+  closeActionWithSuccessor: (actionType, actionId, b) =>
+    req("POST", `/api/actions/${actionType}/${actionId}/close-with-successor`, b),
+  phaseReadiness: (programId, asOf = null) =>
+    req("GET", `/api/programs/${programId}/phase-readiness${asOf ? `?as_of=${asOf}` : ""}`),
+  phaseTransitions: (programId) =>
+    req("GET", `/api/programs/${programId}/phase-transitions`),
+  createPhaseTransition: (programId, b) =>
+    req("POST", `/api/programs/${programId}/phase-transitions`, b),
+  // Product measurement (ACCOUNT-PATH-SPEC.md §17). `recordEvent` returns nothing and rejects
+  // nothing: §17.4 requires that a measurement failure never blocks user work, and these are
+  // called inline from click handlers. The payloads themselves are built by `telemetry.js`,
+  // which stays free of this module so it can be tested without a DOM or a bundler.
+  recordEvent: (payload) => {
+    try {
+      req("POST", "/api/telemetry/events", payload).catch(() => {});
+    } catch { /* a diagnostic sink must never surface its own faults */ }
+  },
+  telemetrySettings: () => req("GET", "/api/telemetry/settings"),
+  patchTelemetrySettings: (b) => req("PATCH", "/api/telemetry/settings", b),
+  telemetryFunnel: (accountId = "") =>
+    req("GET", `/api/telemetry/funnel${accountId ? `?account_id=${accountId}` : ""}`),
+  rankingRules: () => req("GET", "/api/telemetry/ranking-rules"),
+  compareRankingRules: (b) => req("POST", "/api/telemetry/ranking-rules/compare", b),
 };

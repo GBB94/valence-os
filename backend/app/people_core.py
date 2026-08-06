@@ -25,6 +25,25 @@ ROLES = [
     "budget_owner", "program_owner", "it", "legal_dpo", "works_council_contact", "other",
 ]
 
+# Operator-facing names for the same vocabulary. Any string that reaches a screen goes through
+# here; a raw enum in a sentence reads as a leaked database value, not as an explanation.
+ROLE_LABELS = {
+    "executive_sponsor": "Executive sponsor", "financial_gatekeeper": "Financial gatekeeper",
+    "procurement": "Procurement", "technical_evaluator": "Technical evaluator",
+    "legal_compliance": "Legal & compliance", "end_user_voice": "End-user voice",
+    "coach": "Coach", "champion": "Champion", "detractor": "Detractor",
+    "budget_owner": "Budget owner", "program_owner": "Program owner", "it": "IT",
+    "legal_dpo": "Legal / DPO", "works_council_contact": "Works council contact",
+    "other": "Other",
+}
+
+
+def role_label(role: str | None) -> str:
+    """Never fall through to the raw key silently — an unmapped role still reads as prose."""
+    if not role:
+        return "Unspecified role"
+    return ROLE_LABELS.get(role) or role.replace("_", " ").capitalize()
+
 # Default layer per role — a starting point; the operator can override per role.
 DEFAULT_LAYER_BY_ROLE = {
     "executive_sponsor": "executive",

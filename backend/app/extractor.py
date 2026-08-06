@@ -233,8 +233,15 @@ class ApiExtractor:
 
 # --- Registry / config -------------------------------------------------------
 
+def configured_backend() -> str:
+    """The backend a request with no explicit override will get. Recorded on every run, because
+    'which adapter produced this' is part of a proposal's identity (RR §6.6) and is not
+    recoverable from the model version once more than one adapter can emit the same one."""
+    return os.environ.get("EXTRACTOR_BACKEND", "mock").lower()
+
+
 def get_extractor(backend: str | None = None):
-    b = (backend or os.environ.get("EXTRACTOR_BACKEND", "mock")).lower()
+    b = (backend or configured_backend()).lower()
     if b == "api":
         connections.require_real_connection("llm_endpoint", b)
         return ApiExtractor()
@@ -244,7 +251,7 @@ def get_extractor(backend: str | None = None):
 
 
 def describe_config() -> dict:
-    backend = os.environ.get("EXTRACTOR_BACKEND", "mock").lower()
+    backend = configured_backend()
     gate = connections.approval_state()
     api_installed = False
     try:

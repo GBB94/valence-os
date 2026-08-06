@@ -6,7 +6,7 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from . import expansion, people_analytics, repo, stage75
+from . import expansion, generators, people_analytics, repo, stage75
 from .db import new_id, now_utc
 from .internal_forecast import evidence, operator
 
@@ -179,7 +179,8 @@ def generate_account_brief(conn: sqlite3.Connection, account_id: str, kind: str 
     doc = repo.insert(conn, "generated_documents", {"account_id": account_id, "kind": kind,
         "title": f"{a['name']} — Internal account brief", "body_markdown": "\n".join(lines),
         "status": "draft", "generated_at": now_utc(), "data_current_through": now_utc()[:10],
-        "audience": "internal", "audience_profile": "working"}, object_type="generated_document")
+        "audience": "internal", "audience_profile": "working",
+        **generators.template_stamp(kind)}, object_type="generated_document")
     sources = [("account", a["id"], a["updated_at"], "account context")]
     for key, kind_name in (("operator_view", "operator_view"), ("delivery_status", "status_assessment"), ("commercial_status", "status_assessment")):
         if data[key]: sources.append((kind_name, data[key]["id"], data[key]["updated_at"], key.replace("_", " ")))

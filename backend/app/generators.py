@@ -740,6 +740,30 @@ _TITLES = {"pre_call_brief": "Pre-call brief", "business_case": "Expansion busin
            "value_review": "Value review", "champion_kit": "Champion enablement kit",
            "kickoff_deck": "Kickoff deck", "team_update": "Weekly team update"}
 
+# ACCOUNT-PATH-SPEC.md §16.6 — every generated artifact records the template that produced it.
+# Without it a stored markdown body becomes unattributable the moment a renderer changes, and
+# "regenerate this and compare" stops being an answerable question. The version is bumped when the
+# *shape* of an output changes, not when a word does: a reader who knows the version knows which
+# sections to expect. Unregistered kinds fall back to version 1 under their own name, so a new
+# generator is stamped from its first run rather than silently unstamped.
+TEMPLATE_VERSIONS = {
+    "mutual_action_plan": 2,       # v1 was the flat mixed table; §16.5 replaced it with the grouped plan
+    "value_review": 1,
+    "team_update": 1,
+    "internal_review_packet": 1,
+    "internal_account_brief": 1,
+    "pre_call_brief": 1,
+    "business_case": 1,
+    "champion_kit": 1,
+    "kickoff_deck": 1,
+    "monthly_portfolio_brief": 1,
+}
+
+
+def template_stamp(kind: str) -> dict:
+    """The two template columns for a `generated_documents` insert."""
+    return {"template_key": kind, "template_version": TEMPLATE_VERSIONS.get(kind, 1)}
+
 
 def generate(conn: sqlite3.Connection, kind: str, account_id: str, **kwargs) -> dict:
     if kind not in _GENERATORS:
@@ -761,6 +785,7 @@ def save_draft(conn: sqlite3.Connection, doc: dict, *, source_job_id: str | None
         "missing_or_stale_note": "; ".join(s.get("missing_or_stale_sources") or []) or None,
         "audience": doc.get("audience", "internal"), "source_job_id": source_job_id,
         "writing_style_profile_id": writing_style_profile_id,
+        **template_stamp(doc["kind"]),
     }, object_type="generated_document")
     if doc.get("kind") == "champion_kit":
         with conn:
@@ -792,6 +817,7 @@ def _weekly_team_update(conn, payload):
         "data_current_through": upd["stamp"]["data_current_through"],
         "audience": "internal", "audience_profile": "working",
         "source_job_id": payload.get("_job_id"),
+        **template_stamp("team_update"),
     }, object_type="generated_document")
     # A scheduled draft is still an auditable output. Snapshot every row the renderer
     # selected so a later reader can distinguish the original evidence from live data.

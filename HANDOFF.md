@@ -2,6 +2,483 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## The account drop zone, Slice 3 — grounding, accept-all, duplicates (2026-08-06, D-226…D-238)
+
+The review-speed slice, and it is **not** scoped to dropped material: an extraction started from an
+interaction gets the same split view and the same batch key. `ACCOUNT-INTAKE-SPEC.md` §11.2, §11.4,
+and §12 are the authority; all three are marked built. **No migration** —
+`intake_drops.duplicate_of_id` already existed from 0052 and was simply never written.
+
+New or changed: `app/proposal_grounding.py` (new), the §12 duplicate check and `prior_drop` in
+`app/intake_drop.py`, `run_id` + `scope` on `proposal_read.proposed_updates`, `_accept_blocker` and
+`POST /api/extraction/runs/{run_id}/accept-all` in `routers/ai.py`, `bulk` on `proposal_accepted` in
+`app/telemetry.py`, `frontend/src/proposalGrounding.js` (new), `acceptAllState` /
+`acceptAllBlocker` in `src/proposalReview.js`, the split view and bulk bar in `ProposalReview.jsx`,
+and the duplicate line in `AccountIntakeDrop.jsx`. Suites: **767 backend, 245 frontend, clean
+build** (was 742 / 229).
+
+What you must not undo:
+
+- **The marked passage is byte-identical to the span, or nothing is marked.** There are two match
+  strategies — exact, then whitespace-normalized with a per-character map back to the original
+  offsets — and no third. No similarity threshold, ever: a highlight on nearly-the-quote presents
+  different words as the ones the draft cited, and that is worse than no highlight. `segmentsOf`
+  falls back to one unmarked segment on any malformed location for the same reason.
+- **A run has a retained document iff a drop points at it.** `interactions.raw_notes` is sitting
+  right there and is not a fallback — the run's `content_hash` is over the text handed to the
+  extractor, so nothing links the two, and `raw_notes` is mutable afterwards. Presenting it would be
+  a fabricated provenance claim. `never_captured` and `deleted` are separate states with separate
+  sentences, and neither removes the span.
+- **Every grounding sentence is authored on the server.** `proposalGrounding.js` selects and orders;
+  it never writes one. The test asserts note identity, not a substring match (D-153).
+- **Duplicate detection runs after `screen()` and before any parse.** Move it earlier and a
+  re-dropped PDF is told "you dropped this before" instead of "paste the text" — true, useless, and
+  it hides the working path. Move it later and the whole pipeline runs to produce a second copy of
+  records that already exist. `rejected_kind` and `parse_failed` are deliberately not duplicable.
+- **A duplicate names the earlier drop and offers its drafts.** Silent dedupe and a failed upload are
+  indistinguishable from the operator's chair. It carries the earlier `comm_message_id` but **not**
+  its `extraction_run_id` — reporting "drafted 6 updates" twice is the double count §12 prevents —
+  and it stores **no snapshot**, because a second copy would make §5's deletion not a deletion.
+- **`prior_drop` is earliest, live, account-scoped, tie-broken on `rowid`.** Not `id`: timestamps are
+  second-resolution and ids are random hex, so ordering by id picks an arbitrary drop from that
+  second and the "earliest" guarantee that keeps the chain flat silently stops holding.
+- **Accept-all is all-or-nothing and scoped to a run.** `_accept_blocker` is a dry run of the accept
+  path in its own order, writing nothing; everything is checked before anything is written. A batch
+  that fails on its fourth item has already created three records nobody chose. There is no
+  account-wide variant, and the route table test says so.
+- **"Every item `proposed`" is read over the run's *open* items.** Reading it over all items disables
+  the batch permanently after one rejection — a rule that punishes reviewing.
+- **`run_id` is a filter on the one queue.** Same composition, same commands, and what it withholds
+  (other runs' proposals, all manual capture) is counted and stated. A narrowed queue that looked
+  like an empty account would be the worst version of D-160's rule.
+- **`bulk` is a property on `proposal_accepted`, never its own event.** Each batch item genuinely is
+  an acceptance; a separate event leaves the funnel undercounting by however much the batch is used.
+- **`a` lives in the existing keydown handler.** A second `window` listener is how two handlers start
+  disagreeing about focus — the §11.4 note about `j`/`k` applies to this key too.
+- **The citation mark carries no hue.** Neutral surface lift + left rule + primary-ink weight. A
+  status hue would read as "verified"; the accent belongs to interaction.
+
+Two bugs in existing code that these tests found, both now fixed: `proposed_updates` rebound its own
+`run_id` parameter as a loop variable (so an *unfiltered* read reported itself narrowed and dropped
+manual capture), and `prior_drop`'s `id` tie-break above.
+
+Still owed and still blocked: the both-theme screenshot pair, now covering the split view and the
+bulk bar as well as the drop zone. Retried on 2026-08-06 and re-confirmed blocked at the capture
+layer, not the app — a trivial static probe page fails the same way (*"Current display surface not
+available for capture"*), so this is an environment limitation for whoever picks it up, not a
+rendering problem to debug. What was verified without it: every new rule resolves from `tokens.css`
+and every token used (`--bg-surface`, `--bg-sunken`, `--line-hairline`, `--line-strong`,
+`--shadow-control`, `--ink-primary`, `--ink-secondary`, `--font-mono`, `--t-micro`) is defined in
+both themes, and the mark's three signals (surface lift, left rule, primary-ink weight) are all
+non-chromatic, so neither theme carries it on colour.
+
+## The account drop zone, Slice 2 — `.eml` (2026-08-06, D-219…D-225)
+
+A dropped `.eml` now takes the **same** path a synced message does: `source_reference` →
+`comm_message` with thread identity and `new_text_hash` → one extraction run over new text only.
+`ACCOUNT-INTAKE-SPEC.md` §7.3 and §7.4 are the authority; both are marked built.
+
+New or changed: `adapters.parse_eml_bytes` (+ `_decode_part`, and `_body` now returning
+`(text, body_source)`), `ingestion.DropOrigin` and the origin-aware `ingest_email_message`,
+`association.pick_program` (promoted and account-scoped), migration 0053, the `_process_eml` branch
+in `app/intake_drop.py`, and `email_file` in `intake_kind`, `src/intakeDrop.js`, and the receipt.
+Suites: **742 backend, 229 frontend, clean build.**
+
+What you must not undo:
+
+- **One ingestion path, differing only by origin.** Both dedupe checks live *outside* the
+  `DropOrigin` branch, and that is load-bearing: dropping a message the mock inbox already synced is
+  a no-op precisely because the check is shared. A `.eml`-shaped copy of `ingest_email_message`
+  would grow its own answer to "have we seen this?" within a slice.
+- **`read_whole_thread` is refused for a `.eml`, not honoured and not ignored.** The quoted history
+  is made of messages that each carry their own `Message-ID`, so each is already a record or will be
+  when it syncs. The test asserts the behaviour, not the label: a commitment appearing only in the
+  quoted history still produces no proposal.
+- **The sender header is the parse guard.** `email.message_from_bytes` never raises — it happily
+  returns a headerless message whose body is the whole file. Guard on `from_addr` or a renamed
+  `notes.txt` mints a `comm_message` with nobody on the other end, skewing the very reciprocity
+  counts §7.4 exists to protect.
+- **`_hash_bytes` decodes with `latin-1`.** Not an encoding claim: it is the one codec that maps
+  every byte to a distinct character. `utf-8` + `errors="replace"` collapses undecodable bytes to a
+  single character, so two different non-UTF-8 messages would hash the same and the second would be
+  reported a duplicate and never read.
+- **`pick_program` is scoped to the account.** Without the JOIN to `programs`, a person holding a
+  stakeholder role in another account's program puts this client's material under that client's
+  program. Unreachable while the account was inferred from the same people; reachable the moment a
+  caller supplies the account independently, which is what a drop does.
+- **A duplicate on another account is named, never linked.** `comm_message_id` stays NULL. A receipt
+  in this account must not hold a handle on another client's record; re-scoping is the operator's act.
+- **HTML-only is still correspondence.** The `comm_message` is created and only extraction is
+  skipped, because declining to read markup is a fact about our parser, not about whether the message
+  happened. That is why `_body` returns `body_source` at all.
+
+Still owed from Slice 1 and still blocked: the both-theme screenshot pair. Nothing in Slice 2 changed
+the drop zone's visual design — it adds one `rowmeta` line to the receipt — so the Slice 1 contrast
+verification still stands.
+
+Next: Slice 3 is the grounding split view inside `ProposalReview`, run-scoped accept-all, and
+duplicate detection. Slice 4 is `("create","milestone")` plus telemetry.
+
+## The account drop zone, Slice 1 (2026-08-06, D-210…D-218)
+
+`ACCOUNT-INTAKE-SPEC.md` is the additive authority. Drop a file or paste a thread on an account's
+Operate lens; it is screened, routed to a parser, read, and turned into **drafts in the store that
+already exists**. Nothing is written to a tracker until the operator accepts it in `ProposalReview`.
+
+New: migration 0052 (`intake_drops`), `app/intake_kind.py`, `app/intake_drop.py`,
+`app/routers/intake_drops.py`, `src/intakeDrop.js`, `src/views/AccountIntakeDrop.jsx`, and
+`document_drop_intake` in `CONNECTIONS.md`. Suites: **719 backend, 225 frontend, clean build.**
+
+Screenshots could not be captured this session — the browser extension reported no display surface
+available across two sessions and four attempts — so both themes were verified by computing
+rendered colours and contrast in the running app instead: every string ≥ 4.5:1 in light and dark
+(lowest 4.81), and drag-over differs by border style, colour, background, **and** label text. That
+is a stronger check than eyeballing a PNG for these particular rules, but it is not a substitute for
+the screenshot pair: **take them when the capture path works again.**
+
+What you must not undo:
+
+- **The receipt resolves nothing.** No accept, reject, resolve, supersede, or apply — on the router
+  or in the view. There is one review surface and it is `ProposalReview`; two surfaces that both
+  resolve proposals would eventually disagree about what a command means. Two tests enforce this,
+  one over `router.routes` and one over the view-model's key names.
+- **One proposal store.** A drop writes `extraction_runs` + `extraction_proposals` through the
+  existing `_persist_run`. `intake_drops` stores only what a run does not — filename, detected kind,
+  byte length, snapshot and its deletion stamps, the new/quoted split, outcome, and foreign keys. It
+  has no `coverage_json`, no payload, no status, no proposal count. `test_rr2_proposals` now asserts
+  that by column rather than by table-name prefix.
+- **Routing is regex and structure, never the model's decision.** A document that could select its
+  own parser could decide which of its own text counts as new — the plainest indirect-injection
+  shape there is. `intake_kind` touches no database, no network, and no extractor.
+- **Every refusal and every coverage sentence is authored on the server.** The client selects and
+  orders that text and never composes any of it, including the client-side pre-screen, which repeats
+  `/api/intake/limits` verbatim. A view that can compose part of an "I did not do this" statement is
+  a view that can soften one.
+- **Binary formats refuse by name, not generically.** PDF, Office, images, and audio each get their
+  own sentence saying what to do instead. (`.eml` refused with "not yet" rather than "not ever";
+  Slice 2 accepts it, and `.msg` inherited its own reason rather than `.eml`'s — D-224.)
+- **A document naming another account is reported and does not move.** There is no version of
+  automatic re-scoping that is safe: a source that could redirect itself into another client's queue
+  is the injection payload writing itself.
+- **`coverage.named_not_proposed` and `coverage.refused` are honestly empty.** They need entity
+  recognition the app does not have. `skipped` is real because those characters are counted.
+
+The one bug worth carrying forward: `email_thread.split_quoted` is written for a message body a MIME
+parser already stripped, so a leading `From:` means quoted history to it. A **paste** still carries
+the newest message's own header block, and the unmodified function classified whole pastes as
+already-read — producing "Nothing drafted" rather than an error, which is the failure mode that
+looks like a verdict. `intake_kind.strip_leading_headers` fixes it and reports the block under its
+own coverage reason. Two header keys are required, so prose beginning "From: the finance team…"
+keeps its first line.
+
+Slice 2 (above) built exactly that: the `parse_eml_bytes` refactor and a dropped email creating a
+`comm_message` through `ingestion.ingest_email_message`, so dropped and synced mail cannot diverge
+in the correspondence-derived relationship-health counts.
+
+## Account plan surface review pass (2026-08-05, D-196…D-205)
+
+An adversarial read of `views/AccountPlan.jsx`, `planSetup.js`, and the planning layer they call.
+Ten holes; eight fixed, two recorded as unreachable-today. Suites: **684 backend, 213 frontend,
+clean build.**
+
+The two that mattered, and the shape they share — a control that cannot be reached:
+
+- **Starting any plan locked out every other one.** `list_plans` returns an account-wide plan inside
+  a program scope deliberately, `planPresence.started` counted all of them, and `StartPlan` rendered
+  only when nothing was started. One account plan hid the picker for every program; one program plan
+  hid it at account level. `AccountPlan.jsx` is the only caller of the route, so there was no other
+  way in. The picker is now independent of the list, and `activePlanKeys(payload, programId)` is
+  scope-exact where `presence.plans` cannot be.
+- **A condition that does not apply read as overdue.** `stageOf` settled on `applicability_override`
+  — how an *operator's* exception arrives — but never on the `applicability` axis, which is how an
+  *evaluator's* arrives. `not_applicable` now settles either way; `not_due` deliberately does not,
+  because the plan and readiness disagreeing is information.
+
+Also fixed: a failed load leaving a permanent spinner (D-172's defect, one level up in the same
+file); orphaned migrated instances split out of `unmatched` into their own `orphaned` list so the
+partition — and "mapped N of M" — stays honest; the compatibility panel now says its number counts
+the whole account while the list above it is one program; removals in the upgrade diff carry a
+label; a swallowed error no longer discards a typed fill value; four dead class names.
+
+Left alone on purpose: `merged_plan.overdue` still means "past its date and not met", which is true
+of a not-applicable row on both counts. Narrowing it would change a field the execution path also
+reads (D-205).
+
+## The launch timeline (2026-08-05, D-189…D-195)
+
+The primary element of the Plan tab: the merged standard drawn against one shared time axis, in
+three swim lanes (setup steps, conditions, deployment events). `src/planTimeline.js` is the whole
+of the geometry, ordering, status wording and accessible naming — 27 tests; `src/views/
+PlanTimeline.jsx` draws what it returns and decides nothing.
+
+What you must not undo:
+
+- **Shape codes the kind, colour does not.** Square/circle/diamond, named in the legend and in
+  every marker's accessible name. Status hue is spent only on overdue and flagged-at-risk markers,
+  and both also gain a ring. `markerLabel`/`clusterLabel` are composed in the module so a view
+  cannot ship a marker whose colour says something its name does not. Do not add a lane colour.
+- **The module computes no state.** Readiness axes pass through untouched. The only derived value
+  is `late`, a date comparison, and it is reported *beside* a reading, never instead of one.
+- **Coincident dates cluster, they do not stack.** `clusterPoints` collapses a lane's same-date
+  rows into one marker with a count, and the caption lists every member. A cluster is `done` only
+  when all its members are. Reverting to one marker per row re-hides five day-zero setup steps
+  behind three visible squares (D-191).
+- **The axis is bounded and states the cost.** 45 days back / 120 forward, always containing today;
+  everything outside is counted in `window.clipped` and named in a sentence `timelineNotice`
+  authors whole. Do not compose that sentence in a view.
+- **Points, never bars.** All 23 things are moments; a bar would assert a start nobody recorded.
+
+The Plan payload (`GET /api/accounts/{id}/plan-instances`) now ships **three** arrays —
+`requirements`, `setup_items`, `milestones` (`phase_readiness.plan_milestones`). Three and not one:
+each kind keeps its own vocabulary and only the dates are shared. Screenshots in
+`design-screenshots/launch-timeline/` (both themes). Contrast audited in both: light ≥ 5.43, dark
+≥ 5.53, floor 4.5.
+
+## One merged launch standard (2026-08-05, D-182…D-188)
+
+Migration 0051 merges the three lists that each claimed to be the standard work of a launch.
+Onboarding no longer seeds `checklist_items`; it seeds **8 phase-gate items + 8 readiness
+requirements + 7 milestones = 23 dated things**, each appearing exactly once. Twelve of the old
+twenty checklist items were a requirement or a milestone wearing a checkbox, several of them at a
+*later* date than the record they duplicated — so the checklist could report work outstanding that a
+milestone had already marked done. `app/templates/launch_gates.yaml` names all twelve exits, which
+is what makes the merge auditable; it is the editable seed file, so change the standard there rather
+than in code.
+
+**Read the counts as exact.** `test_onboard_seeds_one_merged_standard` asserts `== 8` / `== 7`, not
+`> 15`. A floor assertion is what let the old checklist grow a second copy of the budget owner and a
+third copy of the launch milestones without a test noticing.
+
+**Two behaviours had to be carried forward, not dropped** (D-183). The checklist escalated into
+Today after a week past due — queue block 7b now does that for gate items via `gate_item_overdue`,
+restricted to gates still `open`, because re-raising the items of a passed or waived gate argues with
+the operator who settled it. And PHASE-3-SPEC.md §1e's `fills_field` put a first-call answer into the
+field it asked about — `PATCH /api/gate-items/{id}` now does that, plus the date push the queue's own
+"do it, mark it done, or push the date" was already promising. **Nothing is inferred from a
+completion**: the operator supplies `fill_value`, and a tick alone writes only the tick.
+
+**On the Plan tab the merge is one reading order, not one row type** (D-185). Gate items and
+requirements share the six horizons and are partitioned by the same `planStages`, but ride in
+separate arrays (`rows` / `setup`), are counted separately in the header, and are drawn differently.
+A gate item is the one row here with a completion control, because it asks "did somebody do this?"
+and only an operator can answer that; a tick on a requirement would be the stored second source of
+truth the projection rule forbids. `phase_readiness.setup_items` ships `state`, `freshness` and
+`applicability` explicitly null — the absence is the claim. Do not merge the arrays or the counts:
+"11 things open" invites eleven ticks, and eight of them are conditions no tick can satisfy.
+
+**One account is onboarded in the seed and the rest are not, on purpose** (D-187). Every seeded
+account was assembled from YAML and none had been through `seed_onboarding`, so the Plan surface
+filed every setup step under "No date on this plan" — the horizons worked and had nothing to sort.
+`_seed_onboarded_launch_demo` runs the real flow on **Bluepeak** with a kickoff four days back and
+ticks three day-zero items through the router, so the scene spans settled / overdue / due-now / next.
+The seed is not covered by pytest (it needs the real DB); if you change onboarding, run
+`python -m app.seed --reset` and look at the Plan tab.
+
+Both-theme captures in `design-screenshots/merged-launch-standard/`; contrast floors measured live
+over the Plan surface — light 5.44, dark 5.53, nothing under 4.5.
+
+## Account Path review pass (2026-08-05, D-173…D-181)
+
+`ACCOUNT-PATH-REVIEW.md` audited the finished Account Path. Nine findings were accepted and fixed;
+five were rejected with reasons, all recorded in `decisions.md`. Backend 682 green, frontend 174
+green, build clean. The three worth carrying forward:
+
+- **A gate verdict no longer says `blocked` about a condition it could not read.** `coverage_failures`
+  carries two vocabularies — bare evaluator keys and `gate_requirement:<instance_id>` — and the
+  classifier understood one, so a row with `state: None` was counted as an established gap. Because
+  `playbooks.instantiate` archives **every** instance of a superseded plan, one ordinary playbook
+  upgrade produced a false `blocked` on every gate link. Classification is now on the row's own
+  `available` flag, excluded by `link_id` rather than `requirement_key`.
+- **`next_move_completed` is now `next_move_left_list`, in the spec too.** The path sees only that a
+  recommended row is absent; closure, cancellation, archival and ageing out all produce that
+  absence and the client never learns which. Do not reintroduce a completion word here. The funnel
+  returns `by_rule_version` and labels an aggregate that spans more than one ordering.
+- **Known gap, decided: a playbook upgrade orphans every gate requirement link it archives.**
+  `playbooks.instantiate` archives every instance of the superseded plan and nothing re-points the
+  gate links at the successor instances. Zach's call (2026-08-05) is to **leave it**: the gate now
+  reports `insufficient_data` and names the conditions it could not read, so the failure is visible
+  and an operator re-links by hand. Do not "fix" this by having the upgrade silently re-point links
+  — v2 of `enterprise-launch` drops `budget_authority_evidence`, so some links have no successor to
+  point at, and a carry-forward that quietly dropped those would recreate the exact defect D-173
+  closed. If it is ever picked up, it belongs in the upgrade **preview** as a named, previewed
+  action, not in `instantiate`.
+
+## Account Path Slice 7 — measurement and refinement (2026-08-05, D-156…D-161)
+
+Slice 7 of `ACCOUNT-PATH-SPEC.md` §17 is built. **The Account Path is now complete: Slices 1–7 are
+all built.** Migration 0050 adds one table.
+
+**Measurement never leaves the installation, and that is what makes the default acceptable.**
+`app/telemetry.py` records sixteen named events with an account id, a reason code, a ranking rule
+version, and a rotating session token — no person id, no free text, no record content, and no
+adapter, because an event never reaches a network boundary. It is still registered in
+`CONNECTIONS.md` as `product_telemetry_sink` (`gate_status: local`), because the day somebody points
+it at a vendor, behavioural data about how an account is worked starts leaving the installation —
+that is the data-handling conversation, not a config change, and registering it while it is local is
+what makes the allowlist reviewable beforehand. The §17.4 setting in Operations turns it off *and
+discards what was already collected*, which
+the button says on its face rather than leaving to be discovered. Do not add a field that identifies
+a person, and do not add an export: both would turn this into the class of data CLAUDE.md §2 forbids.
+
+Read the funnel as two counters, not one. `views_with_next_move` is separate from `views` because a
+completion rate over all views is diluted by accounts that were never offered anything, and
+`views_with_incomplete_coverage` is separate because a view where a source failed is not evidence
+about ranking quality. Every event carries `ranking_rule_version` so a funnel spanning an ordering
+change cannot silently average two orderings. **The §17.5 caveat renders on screen beside the
+numbers** — counts describe use, not recommendation quality — and §17.5's actual answer is a
+periodic qualitative review by a person. Do not add a numeric quality score here.
+
+`VALENCE_OS_RANKING_RULES` selects the active ruleset at process start. `POST
+/api/telemetry/ranking-rules/compare` builds every account's path under both versions and diffs the
+ordering, **writing nothing and selecting nothing** — a button that switched the live ordering would
+be a deployment decision wearing a click. It returns moved rows with from/to positions and reason
+codes rather than a similarity score, because that is what a person can review.
+
+**The comparison honestly reports `0 of 5 accounts reorder` against the seed until 2026-09-06.**
+That is elapsed time, not a defect: `v2-candidate-notice-first` only moves
+`contract_decision_window`, Terravance is the only seeded account with a contract, and its earliest
+lead window opens at `renewal − procurement_lead_days` = 2026-09-06. **Do not "fix" this by seeding
+an overlay dated to the seed run** — that was written and removed (D-161), because
+`stage-0/seed-data/terravance.yaml` already carries a coherent overlay and overwriting it would make
+the demo reproducible by contradicting the scenario it demonstrates.
+
+`frontend/src/telemetry.js` keeps its own copy of the event names so a typo at a call site is a
+visible no-op rather than a discarded request; a backend test reads `EVENT_NAMES` out of the JS
+source and asserts set equality with `app.telemetry.EVENTS`. **`measure.js` is untestable by
+construction** — it imports `api.js`, which reads `import.meta.env` and throws under bare
+`node --test` — so every rule lives in the pure `telemetry.js` and `measure.js` is browser wiring only.
+
+One defect worth carrying forward (D-160): `coverageNotice()` dropped `coverage.warnings` on a
+complete read, so a **snoozed row vanished with no statement that anything was hidden** — the Slice 3
+rule that a suppression is subtractive and always reported, read backwards. A complete-but-
+subtractive read now renders a quiet `rowmeta` line with no status hue (a withheld row is not a
+failure); an unreadable source keeps its callout. The test that should have caught it passed a
+`warnings` entry to make a point about `coverage.readiness`, a different field, and so asserted
+nothing. Fifth consecutive slice where a green pure-module suite said nothing about what renders.
+
+Validation: 660 backend tests and 138 frontend tests green; production build clean; four both-theme
+PNGs with the audit in `design-screenshots/account-path/VERIFICATION.md`. Contrast measured live over
+54 nodes per theme: light floor 5.44, dark 5.53. The two Operations cards add **no CSS**.
+
+## Account Path Slice 6 — shared plans and generated outputs (2026-08-05, D-151…D-155)
+
+Slice 6 of `ACCOUNT-PATH-SPEC.md` §16 is built. There is
+**no migration**: the shared plan stores nothing, and the promotion columns it reads already existed.
+
+`backend/app/shared_plan.py` projects `(artifact, diagnostics, manifest)`. The `artifact` is the
+customer's document, `diagnostics` is the operator's, and the split is structural — the artifact is
+built from promoted records only, rather than built whole and filtered on the way out. Keep it that
+way: a filter applied late is one refactor away from being applied in the wrong order, and a leaked
+row is invisible because the artifact still looks complete. `GET /api/accounts/{id}/map` returns
+both; **this is a v2 shape** — the old flat `items` list is gone, so anything reading the MAP now
+reads `["artifact"]["markdown"]` or `["artifact"]["growth_lines"]`.
+
+`_requirement_status` maps a readiness reading onto the five client-facing status words **or refuses
+and says why**. The near-misses are the point: a `met` whose evidence is stale is withheld rather
+than shown as `Complete`, a `conflicted` reading is withheld rather than resolved in the customer's
+favour, and legacy pins, suppressions, and waivers are withheld because their rationale is internal.
+An unrecognized readiness state falls through to a refusal naming it, never to a default.
+
+Each refusal is authored on the server as a lower-case clause completing "held back because …", and
+the sentence frame is `frontend/src/sharedPlan.js:withheldSentence` so the node suite can pin it.
+**Do not compose any part of a refusal in the view** — a view that formats one is a view that can
+soften one. `GET /api/map/promotion-preview` runs the same projection as the export, so the preview
+an operator confirms is the real output; it is mounted in the ledger, before sharing. The client-label
+field appears for a requirement only, because §16.3 needs a label written for a customer while a
+commitment's description is already the shared text.
+
+Validation: 621 backend tests (37 in `test_account_path_slice6.py`) and 117 frontend tests green;
+production build clean; six both-theme PNGs with the audit in
+`design-screenshots/account-path/VERIFICATION.md`. Contrast measured live over both themes: plan
+light floor 4.81, dark 5.32; slide-over light 5.44, dark 5.32.
+
+**Theme trap, now confirmed twice:** setting `data-theme` on the root does *not* switch the app —
+`App.jsx:48` owns that attribute from its own state and overwrites it. Write `valence-theme` to
+`localStorage` and reload.
+
+The demo scene comes from `seed._seed_shared_plan_demo`, which builds it through the app's own write
+paths and **deliberately leaves work unpromoted**, including one requirement promoted while its
+readiness reads `unknown`. That is not seed rot — it is how the withheld-with-a-reason path stays
+visible outside the tests.
+
+## Account Path Slice 5 — evidence, relationships, and governed advancement (2026-08-05, D-149/D-150)
+
+Slice 5 of `ACCOUNT-PATH-SPEC.md` §15 is built.
+
+Migration `0046` adds four link tables — `readiness_requirement_action_links`,
+`requirement_evidence_links`, `milestone_action_links`, `gate_requirement_links` — and **not one of
+them has a `state`, `status`, `met`, `freshness`, or `coverage` column**. That is the load-bearing
+rule of the slice: a link table is exactly where somebody caches "this requirement is satisfied" to
+avoid re-evaluating, and the cached copy disagrees with readiness the moment the underlying record
+changes. Closing a linked Task settles the Task; the condition is still whatever the records say on
+the next read, and the UI says so in those words. Writes go through
+`backend/app/routers/path_links.py` — note the payload shapes, which are easy to guess wrong: an
+action link takes `task_id` **or** `commitment_id` (never `action_type`/`action_id`), and evidence
+takes `evidence_type` + `evidence_id`. Waiving a gate is deliberately not routed there;
+`POST /api/phase-gates/{gate_id}/waive` already exists and `delivery.py` delegates to
+`phase_readiness.waive_gate` so there is exactly one waive path.
+
+Governed advancement lives in `backend/app/phase_readiness.py`. A gate verdict distinguishes
+`blocked` (evaluated, unsatisfied) from `insufficient_data` (could not be evaluated) — making that
+distinction true required fixing `readiness.evaluate`, which **popped** each pillar's
+`coverage_failures` while aggregating them, so every gate reported `coverage: complete` regardless.
+An advance carries the `readiness_stamp` of the payload the operator actually read. An override
+records the unmet conditions and satisfies none of them; a waiver moves no phase.
+
+Two things a linked action does **not** do, both asserted by tests: it does not become evidence for
+the requirement, and evidence of a kind the definition does not accept attaches with
+`supporting: false` and a sentence saying it cannot change the state. A count-based evaluator stays
+`thin` no matter what is attached, because the count is the count.
+
+Validation: 584 backend tests (37 in `test_account_path_slice5.py`) and 103 frontend tests green;
+production build clean; **both-theme PNGs delivered** — 8 for Slice 5 and the 4 owed from Slice 4 —
+with the full audit in `design-screenshots/account-path/VERIFICATION.md`. Contrast measured live
+over 239 nodes across both themes: light floor 4.81, dark floor 5.12, nothing under 4.5.
+
+**Read D-150 before touching the requirement surfaces.** Rendering caught a defect the suite could
+not: `_requirement_row` correctly drops a requirement from `current_phase_gaps` once an action is
+linked (§13.6), but `AccountEssentialsGaps` is the only mount of `RequirementPanel` and lists only
+the gaps — so linking an action removed the condition from the one surface that can add evidence or
+revoke a decision. The `.req-tracked` disclosure over `trackedRequirements()` is the route back, and
+it must stay a disclosure: if it becomes a second queue it reinstates the duplication §13.6 removed.
+
+## Account Path Slice 4 — transcript and email proposals, one review surface (2026-08-05, D-148)
+
+Slice 4 of `ACCOUNT-PATH-SPEC.md` is built. It is the review half of the RR-2 proposal store and the
+§14.8 email boundaries underneath it.
+
+Reviewing a proposal now happens in exactly one place. `frontend/src/views/ProposalReview.jsx` is
+the only surface in the app that accepts, rejects, resolves, or supersedes anything, and both entry
+points open it: the Overview card's `Review all` (in a slide-over) and the Extraction screen after a
+run. `Extraction.jsx` kept its ingest half — paste text, run the configured extractor — and lost its
+own row-level accept/reject, which was the last reader of the legacy `mutation_type` enum in the
+frontend. That enum could only ever describe creations, so its commands had already drifted from
+what Overview offered for the same proposal.
+
+The commands are `Accept as drafted` / `Apply my edits`, `Reject`, `Use existing record`,
+`Supersede`, and `Open source`. Each is offered only when it can succeed and carries the reason when
+it cannot, wired through `aria-describedby` so the reason is announced and not merely printed.
+Nothing is preselected and nothing is ranked by model confidence. The decision rules live in
+`frontend/src/proposalReview.js` as pure functions with 19 tests; the component holds no policy.
+
+§14.8's email boundaries are in `backend/app/email_thread.py` and migration `0045`. The extraction
+boundary for an email is its **new text** — what this sender added above the quote — and the §6.6
+content hash is a hash of that, not of the raw body. This is the non-obvious half: without it, a
+five-message thread is read five times and the same commitment is drafted five times. Deduplicating
+proposals afterwards cannot fix it, because two readings of one sentence in different messages have
+different references, locators, and spans, and so fingerprint apart correctly. Thread identity comes
+from the `References` root, never the subject. Attachments are referenced by name and never read.
+An email whose association is unresolved proposes nothing until an operator confirms it.
+
+Validation: 547 backend tests and 75 frontend tests green at the time; production build clean. Both
+themes were verified by computed-style audit on a real load into each theme (37 leaf nodes in the
+open review surface, 0 below 4.5:1, tokens resolving in both). The PNGs owed here were captured
+during Slice 5 and are in `design-screenshots/account-path/` as `slice4-review-{light,dark}.png` and
+`slice4-decision-{light,dark}.png`. Two caveats worth carrying: an imperative `data-theme` flip does not fully recompute
+styles in that headless engine, so audit each theme by reloading into it; and `:focus-visible` never
+matches there because the offscreen window holds no focus, which makes focus-ring checks by that
+route inconclusive rather than failing.
+
 ## Release 2 — adversarial review and critical fixes (2026-08-03, D-126/D-127)
 
 An independent adversarial review of Release 2 found three critical defects, all reproduced
@@ -136,8 +613,14 @@ Repo lives at `~/Desktop/Claude Projects/valence-os` (moved out of `~/Documents`
 .venv/bin/python -m app.seed --reset      # wipe DB, apply migrations, load mock accounts
 .venv/bin/python -m app.seed              # load into existing DB
 
-# Tests (from backend/) — 369 tests, all green
+# Tests (from backend/) — 584 tests, all green
 .venv/bin/python -m pytest
+#   ^ with -q this prints no "N passed" summary line; run it bare (or read the exit code).
+
+# Frontend unit tests (from frontend/) — 103 tests over the pure JS modules, all green
+node --test src/*.test.js
+#   ^ pure modules only. There is no React renderer and no jsdom here, so a passing suite
+#     says nothing about whether a surface renders — render it before calling a slice done.
 
 # Frontend dev (from frontend/) — Vite on :5173, proxies API to :8000
 npm run dev
@@ -145,7 +628,7 @@ npm run build                             # emits frontend/dist, served by the A
 ```
 
 - DB path override: env var `VALENCE_OS_DB`; default file `valence_os.sqlite`.
-- Migrations live in `backend/migrations/` as numbered `NNNN_*.sql`. The runner in `app/db.py` applies any file whose version isn't in `schema_migrations`. **Every schema change is a migration — no manual DB surgery.** Latest is `0038_stage14_company_brief.sql`.
+- Migrations live in `backend/migrations/` as numbered `NNNN_*.sql`. The runner in `app/db.py` applies any file whose version isn't in `schema_migrations`. **Every schema change is a migration — no manual DB surgery.** Latest is `0045_email_thread_identity.sql`.
 - Git: commit as `git -c user.name='Sam' -c user.email='noreply@example.test' commit`, trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`, then `git push -q origin main`. Private repo `github.com/GBB94/valence-os`, `gh` authed as `GBB94`.
 
 ## What's built (by module → doc section)
@@ -229,8 +712,69 @@ These are enforced in code and in tests. If you touch nearby code, keep them tru
 
 **Stage 11.2 — done.** Migration 0033 adds immutable retrospectives and per-intervention verdicts; matching uses frozen completed-campaign shapes and the Stage 9 exact/tag/use-case ranking rules. Portfolio learning reports counts and denominators, never account/person rankings or a health score, and now renders in Operations. Search, export/restore, seed, campaign panels, and both-theme campaign screenshots are wired. D-104. **Reconciled after a concurrent duplicate build (D-107):** the Stage 9 ranking is now called via `stage9.rank_shape()` rather than inlined a third time, and a retrospective must carry a verdict for every plan item — `skipped` included — because omission, not deletion, is how a failed intervention disappears from `§9`'s realization counts.
 
-**Stage 12.0–12.3 — implemented, rendered verification pending.** Migration 0034 replaces the generated-document kind CHECK with governed `document_kinds`, versions writing styles and Copilot configurations, and freezes runs, snapshots, claims, citations, and append-only corrections. Scoped FTS and material-change readers constrain SQL before hydration; readers expose only allowlisted native fields, quarantine instruction-like prose, suppress stale/private numbers, and reuse Today without creating a second priority order. Exact names, governed aliases, bounded fuzzy candidates, and same-scope follow-up context are inspectable. “What changed” starts at the latest explicitly reviewed cursor. The panel opens frozen source fields before canonical navigation and previews style-linted internal notes before any document write; client-audience parameters are rejected. Operations owns correction review plus evaluated configuration activation and rollback. The 13-case golden suite executes through ordinary jobs and blocks activation on any hard-gate failure. **322 tests pass; frontend lint and production build pass.** No real model or outbound action exists. D-106. **A later session drove the panel live in a real browser** (D-107): `fact` returned a cited claim with an "Answer with gaps" coverage badge and no numeric confidence, `changes` abstained rather than answering from generic context, `weekly` cited every suggested move and carried "do not auto-send", and both themes resolve with body contrast 15.8:1 dark / 16.9:1 light. Rendered captures and the keyboard tab-through are still open — `browser_screenshot` writes zero-byte files and no Tab/Escape primitive is exposed, so the blocker is the tooling, not the app. See `design-screenshots/stage-12/VERIFICATION.md`.
+**Stage 12.0–12.3 — done, rendered.** Migration 0034 replaces the generated-document kind CHECK with governed `document_kinds`, versions writing styles and Copilot configurations, and freezes runs, snapshots, claims, citations, and append-only corrections. Scoped FTS and material-change readers constrain SQL before hydration; readers expose only allowlisted native fields, quarantine instruction-like prose, suppress stale/private numbers, and reuse Today without creating a second priority order. Exact names, governed aliases, bounded fuzzy candidates, and same-scope follow-up context are inspectable. “What changed” starts at the latest explicitly reviewed cursor. The panel opens frozen source fields before canonical navigation and previews style-linted internal notes before any document write; client-audience parameters are rejected. Operations owns correction review plus evaluated configuration activation and rollback. The 13-case golden suite executes through ordinary jobs and blocks activation on any hard-gate failure. **322 tests pass; frontend lint and production build pass.** No real model or outbound action exists. D-106. **A later session drove the panel live in a real browser** (D-107): `fact` returned a cited claim with an "Answer with gaps" coverage badge and no numeric confidence, `changes` abstained rather than answering from generic context, `weekly` cited every suggested move and carried "do not auto-send", and both themes resolve with body contrast 15.8:1 dark / 16.9:1 light. **Rendered and captured 2026-08-05** (D-166…D-168): four both-theme PNGs of the `fact` and `changes` runs; panel contrast measured over 20 text nodes per theme, light floor 5.85 / dark floor 8.38, none under 4.5:1; no numeric confidence badge in either theme. The pass found **two real defects, both fixed** — a `||`-over-a-nullable-column in the change feed that killed every `changes` run with a bare `failed` badge and no reason, now COALESCEd and backed by a schema-introspection test that asserts the rule rather than the two columns, plus a fail-closed guard so an unreadable item is named and downgrades coverage instead of aborting the run; and an answer body that rendered raw markdown, now parsed into block elements with text-node children (not HTML — retrieved prose is untrusted). Focus containment and Escape were exercised; native tab traversal order still cannot be driven, as no hardware key primitive is exposed. Outstanding: a narrow-viewport pass and a rendered conflicted/disambiguation response. See `design-screenshots/stage-12/VERIFICATION.md`.
 
-**Stage 13.0–13.2 — implemented, rendered verification pending.** Migration 0035 adds one plan object (`comms_sequences`) while preserving `comms_entries` as the canonical wave. Planned `send_date` and operator-recorded immutable `sent_at` are distinct; status and downstream expected dates derive from facts, duplicate numbers/cross-sequence predecessors/cycles are rejected, and one late sequence raises one Today row. Webinar and office-hours events link to the invitation wave. Attendance counts only explicit audience attendees, excludes facilitators/observers, and withholds unknown, incomplete, unknown-size, or sub-floor readouts. Search, Operations counts, audit, seed, export/restore, the Plan panel, and campaign-derived wave state are wired. **334 backend tests pass; frontend lint and production build pass.** The seeded API returns a running two-wave sequence and a known `19 of 25` webinar readout while excluding its facilitator. The browser plugin exposed no in-app session, so both-theme screenshots and live keyboard interaction remain unverified; see `design-screenshots/stage-13/VERIFICATION.md`. D-109.
+**Stage 13.0–13.2 — done, rendered.** Migration 0035 adds one plan object (`comms_sequences`) while preserving `comms_entries` as the canonical wave. Planned `send_date` and operator-recorded immutable `sent_at` are distinct; status and downstream expected dates derive from facts, duplicate numbers/cross-sequence predecessors/cycles are rejected, and one late sequence raises one Today row. Webinar and office-hours events link to the invitation wave. Attendance counts only explicit audience attendees, excludes facilitators/observers, and withholds unknown, incomplete, unknown-size, or sub-floor readouts. Search, Operations counts, audit, seed, export/restore, the Plan panel, and campaign-derived wave state are wired. **334 backend tests pass; frontend lint and production build pass.** The seeded API returns a running two-wave sequence and a known `19 of 25` webinar readout while excluding its facilitator. **Rendered and captured 2026-08-05** (D-169…D-171): three both-theme PNGs, with **all four** attendance treatments drawn in one view — `known` (`19 of 25 attended`), `unknown` (no linked invitation wave), `incomplete` (an unclassified attendee role), and `suppressed` (invited audience 8 below the account floor of 25). Three mock sessions were added to the seed so each is reachable in the running app, because a withheld readout that has never been drawn is not verified. Every withheld row renders in the cross-hatched `.unknown-fill` treatment with a text label and a stated reason, in both themes — no status hue, no state by color alone. Card contrast measured over 62 text nodes per theme: light floor 4.82, dark floor 4.87, none under 4.5:1. The pass found **one real defect, fixed**: the shared `SlideOver` never restored focus to the control that opened it — it re-captured its opener from inside the panel and fired the restore at a detached node — now captured during render and guarded on `isConnected`, with the same rule applied to `CopilotPanel`; verified live on four callers. Outstanding: a narrow-viewport pass, and submitting a create through the sequence/wave slide-overs. Reported but not fixed: `Field` gives inputs no programmatic label (app-wide and pre-existing, four copies), and `CalendarPanel` prints an uncapped attendee list. See `design-screenshots/stage-13/VERIFICATION.md`. D-109.
 
 **Test clock discipline.** `test_internal_ops.py::test_today_derives_policy_commit_warning_and_delivered_evidence_gap` failed reproducibly at three consecutive commits (including Stage 10's own) while UTC sat past the local date boundary, then passed again. Cause: fixtures derived dates from the *local* clock while the code and SQLite's `date('now')` use UTC, so between 20:00 and midnight US time a fixture is a day behind the system under test — tests pinning an exact boundary (`needed_by = today`) fail every evening and pass every morning. The Stage 10 session landed `tests/conftest.py` with a shared `utc_day()` helper while this was being written, which is the right fix: one clock for fixture and code.
+
+**Stage 15.0–15.1 (RR-0/RR-1) — done.** `RELATIONSHIP-READINESS-SPEC.md` is the additive authority (D-139). Migration 0041 adds versioned `readiness_pillar_definitions` / `readiness_requirement_definitions` (6 pillars, 15 requirements) with at-most-one-live-version partial indexes and retired-pillar triggers. `app/readiness.py` is a query-time projection — it writes nothing, stores no state, and produces no composite score — resolving `(evaluator_key, evaluator_version)` against a hard-coded allowlist so a definition row configures an evaluator but can never create one; an unknown key fails closed into `coverage: partial` naming the missing evaluator. Four routes in `app/routers/readiness.py` (summary, pillar detail, definitions + allowlist, upgrade preview that applies nothing). `Readiness.jsx` renders compact (≤3 required gaps, ordered conflicted→unknown→thin, with an accent "N more" into the full in-scope set) inside the command center's Operate lens, and a detail slide-over showing every component's evidence, provenance, definition-of-done, and gap.
+
+The three rules to preserve when touching this: **do not call `people_core.effective_role`** (person-scoped, so a champion validated in one program would read as a champion in all of them); **do not trust `people_core.resolved_layer`** for the breadth spread (it defaults per role, so three unassessed people would span three "layers" from defaults alone); and **state and freshness are independent** — each component carries its own window. Both `people_core` defenses live in versioned evaluator config (`require_explicit_layer`, etc.), not in code, so changing either is a definition upgrade with a previewable blast radius.
+
+Two defects were found only by a live smoke test, not by the 32 tests written first, and both now have regression tests: an account-scoped pillar read `optional` in the all-programs view (no single phase to read), which would have let compact mode silently drop a required budget-owner gap — account scope now takes the **strongest** applicability across live programs; and that path then raised on the phase it could not name. **403 backend tests pass; frontend production build passes.** Both themes verified live on the seeded account (compact card and detail slide-over, `acc-terravance`). Note `AccountDetail.jsx` is dead code — the Overview tab renders `AccountCommandCenter`; anything added to the former will never render.
+
+**Account Path Slices 1–2 — done (2026-08-04, D-141/D-142).** `ACCOUNT-PATH-SPEC.md` is the authority; Slices 3–7 remain proposed and unapproved. **No migration and no new table** — `GET /api/accounts/{id}/execution-path` (`app/execution_path.py`, `app/routers/execution_path.py`) is a query-time projection running eleven independent source adapters over canonical records. A failing adapter names itself in `coverage.omitted_sources` instead of blanking the page and can never suppress canonical work; a test counts `audit_events` around a request to assert the endpoint writes nothing.
+
+Ranking is **8 deterministic bands with a 4-part tie-break** (band → has-due → due date → recorded time → stable id), and the band ships on the wire so the client groups without re-ranking. Band 7 is a *promotion* of residual band-8 work linked to the latest interaction, not a parallel rule. Snooze reuses the queue's `attention_state` overlay through `queue.snoozable_object_type()` / `keys_for_objects` / `suppression_state` — Account Path has no suppression store of its own — and a `phase_gate_item` ships `snooze_key: null` (no `_object_table` entry) rendering `Open source` instead of a button that would 422.
+
+Frontend: `views/AccountPath.jsx` renders the orientation band (Next best move + program lanes) and the execution groups inside the Operate lens; `src/accountPath.js` holds every presentation rule as a pure module (15 tests) because the harness is `node --test src/*.test.js` with no React renderer. **The Operate lens's "Needs action" list was deleted, not moved** — it ranked the same records a second way. Only a `phase_gate_item` carries a `phase`, so the phase filter narrows to gate items and says so in a callout rather than reassigning work to a phase its record never claimed.
+
+**444 backend tests pass (41 in `tests/test_account_path_slice1.py`); frontend 31 tests, lint, and production build pass.** Both themes, a 620px width, contrast (floor 4.80), focus, and reduced motion verified live — `design-screenshots/account-path/VERIFICATION.md`.
+
+**Account Path Slice 3 — done (2026-08-05, D-143).** Approved by Zach; Slices 4–7 remain proposed and unapproved. This is the first Account Path slice with a migration. **0042 adds six tables and none of them stores an evaluation**: `readiness_playbook_definitions` / `readiness_playbook_entries` (versioned templates), `readiness_plans` + `readiness_plan_instances` (a scope's live plan and the requirements it schedules), `readiness_exceptions` (governed `not_applicable` and waivers), and `readiness_checklist_requirement_map`. A schema-introspection test walks all six and fails on any column named or suffixed `state`, `met`, `freshness`, `coverage`, `applicability`, `score`, or `weight` — a cached evaluation would be the second source of truth `RELATIONSHIP-READINESS-SPEC.md` §2 forbids.
+
+The line to hold: **a plan says when something was expected; readiness says whether it is true.** A due date rides beside the four readiness axes and may say `overdue`, which is a claim about the plan. A legacy checkbox becomes `recorded_complete`, never a state. A suppression is subtractive and reported, never dropped — a fully-suppressed pillar returns `not_applicable` rather than `met`, and `suppressed_count`/`waived_count` ship on the wire. Unlike readiness definitions, **playbook versions do not retire each other**: an account stays pinned to the version it instantiated, so `enterprise-launch` v1 and v2 both ship live and an upgrade is an explicit previewed action (`preview_upgrade` returns additions, removals, timing, definition, and necessity changes and writes nothing).
+
+`app/playbooks.py` (instantiate / preview_upgrade / apply_upgrade / set_exception / revoke / merged_plan), `app/checklist_compatibility.py` (exact `template_key` matching only — label matching is what §13.5.2 forbids; `na` *proposes* an exception and never applies one; nothing is deleted), `app/routers/playbooks.py`, and the plan layer in `execution_path.py::_requirement_rows`, guarded like every other adapter. Frontend: `src/requirementDetail.js` (15 pure tests) and `views/RequirementDetail.jsx` — the four axes in a fixed four-cell grid, never a combined badge, and **no status control**, asserted by `requirementControls()` enumerating every write as `navigate`/`create`/`governed` against a `native_record` or an `exception`.
+
+Two traps for a future session. `readiness.evaluate(conn, account, program_id)` puts **all** pillars in the top-level `pillars` list when a program is given and leaves `programs` empty — matching a reading to its plan instance by `(program_id, key)` alone silently blanks every due date; use `_instance_for`, which adds `ctx.program_id` as a fallback scope *only* in single-program scope. And `audit_events.action` is CHECKed to `create|update|archive|convert|close` (migration 0001); a custom verb rides in the `after` payload as `"event"` rather than widening a constraint every reader depends on.
+
+**Rendering it caught five defects the pure-module tests could not (D-144), and the pattern is worth carrying forward: three of them existed because `RequirementDetail.jsx` hand-rolled its action row instead of rendering `requirementControls()`, so the tests asserting the controls were not exercising the surface.** The worst was a vocabulary drift — `exceptionHistoryRows()` mapped `active`/`expired` while `playbooks._exception_status` emits `live`/`revoked`/`lapsed`, so a live waiver read as unrecognised and *lost its revoke control while still suppressing the requirement*. A test now reads `backend/app/playbooks.py` and asserts every status the Python emits has a label, and an unknown status fails closed and is never `live`. Also fixed: `View all N` clipped in the narrow aside and routing to a page that lists no requirements (it expands in place now); a suppressed requirement with no route back to its decision (the `<details>` disclosure over `suppressedRequirements()` is that route); a bare red due date with no word beside it (`planStatus().due_label`); and `.card`'s `overflow: hidden` clipping the vertical edges off the focus ring of every full-bleed row — `.readiness-row.clickable:focus-visible` now takes `outline-offset: -2px`, which also repairs the readiness pillar lists that class came from. **This harness has no React renderer or jsdom, so a pure-module test cannot see any of this; render the surface before calling a frontend slice done.**
+
+Captures, the live contrast/focus/reduced-motion/620px audit, and the defect list are in
+`design-screenshots/account-path/VERIFICATION.md`.
+
+**474 backend tests pass (30 in `tests/test_account_path_slice3.py`); frontend 46 tests, lint, and the production build pass.**
+
+**Stage 15 RR-2 — canonical proposal widening — done (2026-08-05, D-145/D-146).** Migration 0043 widens `extraction_runs` and `extraction_proposals` and **adds no table**: §6.1 explicitly forbids parallel `intake_runs`/`intake_items` and forbids hanging proposal payloads off `capture_inbox_items`. The split that matters is `intent` (create/update/link/close/no_change) from `target_type`; the old `mutation_type` fused verb and noun, which is why it could only ever create. `mutation_type` stays populated because `Extraction.jsx` still reads it (§6.5). `created_object_*` → `resolved_target_*`.
+
+Three rules to preserve. **`intent` has a SQL CHECK; `target_type` deliberately does not** — the allowlist lives in `app/proposals.py` next to the native write path a target needs to be legal at all, so widening it is a code change reviewed beside that path, never a data change. It is a **pair** allowlist: `(intent, target_type)` is permitted together or not at all, because creatable does not imply updatable. **`link` and `close` are in the vocabulary and in the CHECK but disabled in Python** until Account Path Slice 5's typed relationship and governed closure contracts exist. **No proposal may assert a readiness state** — no `pillar`/`requirement_key`/`state`/`phase` column, no readiness target in the allowlist, and `FORBIDDEN_FIELDS` on the payload; readiness is a projection (D-139) and a proposal that could write one would fabricate evidence.
+
+`app/proposal_review.py` separates the one binding check from the suggestions: `already_resolved()` is enforcement (repeated acceptance returns the existing target or a stable conflict, never a duplicate), while `match_candidates()` never blocks or merges — §6.7 makes matches suggestions, and a near-match that silently swallowed a proposal would lose work nobody saw. It **fails closed on scope**: several execution tables carry only `program_id`, so a run with no program returns no candidates rather than widening the query across accounts.
+
+`app/proposal_read.py` is the combined review, and it **writes nothing** — a test counts `capture_inbox_items` across the whole flow. §0.5's realistic violation is not an INSERT but a merged response shape that flattens both stores into one row type and then needs a stored copy to stay aligned, so each side keeps its own `kind`, status vocabulary (`untriaged` is never restated as `proposed`), and command set. Grouping is by **run, not interaction** — a retranscription is a different source with a different content hash. The program filter is `AND program_id = ?` with no `IS NULL` fallback: a null-program run is account-level work, not work in every program. Counts are derived on every call; §6.5 suggested storing them and 0043 deliberately does not.
+
+Two routes on the AI router: `GET /api/accounts/{id}/proposed-updates` (grouped by source then target type, with provenance, warnings, conflicts, and match candidates) and `.../proposed-updates/preview` (§8.1, capped at 3, matches skipped on purpose). `latest_source_preview()` picks the newest run **that still has unresolved proposals**, not simply the newest, or a fully-reviewed run would render an empty card while older proposals waited unseen. Review debt is **one queue item per account** at priority 3 on the existing derived-queue path (D-19) — per-proposal items would bury every other trigger the moment one transcript was extracted.
+
+Frontend: `src/proposalPreview.js` (9 pure tests) and `views/ProposalPreview.jsx` in the Operate lens below readiness. The card offers **no accept/reject control** by design. A proposal is styled proposed-and-cited: new `.state-mark.draft` (dashed) and `.quiet`, never a status hue and never the accent.
+
+**513 backend tests pass (20 in `tests/test_rr2_proposals.py`, 19 in `tests/test_rr2_read_model.py`); frontend 55 tests and the production build pass.** Both themes captured on the card and the combined review, contrast floors 5.44 light / 5.12 dark over 28 text nodes, no horizontal overflow — `design-screenshots/stage-15/VERIFICATION.md`. Rendering again caught what the pure-module tests could not: a duplicated date in the source line and card meta lines missing the card gutter.
+
+**Adversarial review pass — done (2026-08-05, D-147).** An external review read RR-0/RR-1/RR-2 and the Account Path against their specs and found **seven defects the 513-test suite passed**. Every one was reproduced as a failing test before it was fixed — `tests/test_readiness_review_fixes.py`, 13 tests — and the shape they share is the thing to carry forward: not one was a crash. Each was the app stating something confidently that its own records did not entail, which is precisely the failure mode a green suite is worst at catching.
+
+Three of them were in `readiness.py`. An **account-scoped pillar's evidence was filtered by the selected program**, so `budget_owner` read `met` on the account and `unknown` inside a program — `evaluate()` used one `_Ctx.program_id` for both scope selection and evidence loading, and `run(..., account_wide_evidence=True)` now separates them (the scope program still decides phase and applicability; program-scoped pillars are untouched and a test asserts they still differ per program). **`_freshness()` had no lower bound**, so a meeting dated 2099 produced a negative age, passed the window, and asserted a condition true today; `_engaged_people` and `_program_advocacy` were loading those future rows in the first place and now bound on `occurred_on <= as_of`. And **`preview_definition_upgrade()` diffed the current definitions against themselves** — it could only ever report "nothing changes". The candidate version is now plumbed through `evaluate(..., evaluator_override=...)`. Read the honest limit before extending it: `_PILLAR_EVALUATORS` is a registry **gate**, not a dispatch table, so no *allowlisted* candidate can produce a different answer until a v2 evaluator exists; the test asserts the override plumbing (an unregistered version fails closed to `unknown` and lands in `coverage.failed_evaluators`), not a transition the registry cannot yet produce.
+
+Three were on the proposal path. **§6.7's optimistic concurrency was unreachable in the running app** — `target_id` and `expected_target_updated_at` were written by no production path, so `conflict_preview()` returned `None` for every drafted proposal and the placeholder fill patched whatever it found; the extractor stamps both at draft time now and a stale fill returns 409 `stale_proposal`. `updated_at` is second-precision, so a sub-second race is still undetectable — that is a clock limit, not the defect. **Accept-time overrides could name a foreign `account_id`/`program_id`**, writing one account's proposal into another; `_require_scope_of_run()` rejects that with 422 before any write. And **`already_resolved()` matched on fingerprint alone**, closing one program's proposal against another program's record — it carries `AND r.program_id IS ?` now.
+
+**Migration 0044** closes the reverse direction of 0041's guard: 0041 blocked a live requirement against a retired pillar, and nothing blocked retiring a pillar that still had live requirements. Same illegal pair, easier path.
+
+Also fixed: `RequirementDetail`'s create-action form read owners from the account detail, which by construction holds no internal colleagues (null `account_id`), leaving the internal-owner select permanently empty while a commitment cannot save without one — it fetches `api.persons` beside the account now, behind a liveness flag. The compact readiness empty state pointed at an affordance its own branch never renders.
+
+**`design-screenshots/stage-15/VERIFICATION.md` carried a false claim** — that each `met` component *links* its evidence records. At the time it did not; `Readiness.jsx` rendered plain `<li>` items and `Add evidence` opened the generic Ledger. The bullet was corrected and a dated paragraph said plainly that §5.3's drill-through to the native record was unbuilt.
+
+**That drill-through is now built (D-162…D-165).** `readiness._EVIDENCE_TARGET` sits beside `_ev()` — the single point every evidence item passes through — and maps eighteen kinds to a `(tab, subview)` pair stamped onto each item as `native_target`; `Readiness.jsx` exports one `EvidenceItem` that `RequirementDetail.jsx` also uses, so the pillar detail and the Slice-5 requirement panel share one implementation. Three things to know before extending it. **The map is an allowlist, not a derivation** — `account_field`, `program_field` and `source_reference` deliberately ship `native_target: null` and render as plain text, because their id is a column or a provenance pointer rather than a record id, and `test_readiness_evidence_targets.py` asserts those three *by name* so an unrouted kind must be a written-down decision rather than an omission. **The People tab's sub-panel is now navigation state**, not local state, because a `champion_candidate` was landing on People's default Map — the right tab, the wrong panel. And **`navigation.js` validates `section` per tab**, since it is one nav field shared by Commercial and People; a merged allowlist would round-trip `?section=pipeline` onto People and blank it. `setTab` was left alone on purpose — preserving `section` across a tab switch was tried and reverted. Both routes were clicked through live (`funding_pool` → Commercial/Funding, `advocacy_event` → People/Champions); both-theme captures and the measured contrast are the third section of `design-screenshots/stage-15/VERIFICATION.md`.
+
+**Two open product decisions, deliberately not resolved in code:** the Operate lens renders a readiness card in both the sidebar and the main column, and the combined review's `View all` target may be the wrong surface. Both are judgement calls about what an operator should see. Also raised and deliberately kept: `execution_path.py`'s `data_current_through: now_utc()` — the path is a projection over a local DB with no ingestion lag, so generation time *is* source currency, `AccountPath.jsx` derives `today` from it, and omitted sources are already named separately.
+
+**526 backend tests pass; frontend 55 tests, lint, and the production build pass.**

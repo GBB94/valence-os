@@ -80,13 +80,28 @@ def _coverage(items: list[dict], excluded: list[dict], ambiguities: list[dict]) 
 
 def generate(packet: dict, run: dict) -> dict[str, Any]:
     backend_state()
-    items = packet["items"]
+    # A packet item with no statement cannot become a claim: `claim_text` is NOT NULL, so it used to
+    # abort the whole run inside the write transaction and the operator saw a bare `failed` badge
+    # with no answer and no reason. Dropping it here fails closed instead — the item is named as an
+    # evidence gap below, so the answer gets shorter rather than disappearing. A statement should
+    # never be null in the first place (that was a `||` over a nullable column in the change feed,
+    # fixed in `copilot_context`), but "should never" is what the constraint was already saying.
+    unreadable = [item for item in packet["items"] if not (item.get("statement") or "").strip()]
+    items = [item for item in packet["items"] if (item.get("statement") or "").strip()]
+    withheld_gaps = ([f"{len(unreadable)} candidate record(s) produced no readable statement and "
+                      f"were withheld."] if unreadable else [])
+    packet = {**packet, "items": items,
+              "coverage_gaps": [*(packet.get("coverage_gaps") or []), *withheld_gaps]}
     if not items:
         return {"abstain": True, "diagnostic": "No in-scope native record supports this question.",
                 "claims": [], "answer_markdown": None, "evidence_state": "insufficient",
-                "gaps": ["No matching current record was found in the selected scope."]}
+                "gaps": ["No matching current record was found in the selected scope.",
+                         *withheld_gaps]}
 
     evidence_state = _coverage(items, packet["excluded"], packet.get("ambiguities") or [])
+    # A withheld record is a hole in the evidence, so the answer cannot still read `supported`.
+    if withheld_gaps and evidence_state == "supported":
+        evidence_state = "partial"
     if run["intent"] == "company_brief":
         claims = []
         sections = ["Coverage and as-of", "What they said", "What they did",
@@ -128,7 +143,7 @@ def generate(packet: dict, run: dict) -> dict[str, Any]:
     for claim in claims:
         label = "Inference: " if claim["kind"] == "inference" else ""
         lines.append(f"- {label}{claim['claim_text']} [{claim['packet_ids'][0]}]")
-    gaps = []
+    gaps = list(withheld_gaps)
     for ambiguity in packet.get("ambiguities") or []:
         candidates = ", ".join(
             f"{candidate['record_id']} [{candidate['packet_id']}]"

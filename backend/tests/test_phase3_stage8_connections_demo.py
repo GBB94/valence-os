@@ -47,6 +47,16 @@ def test_registry_is_complete_documented_and_local_by_default(client):
             "enrichment_source", "headcount_source", "metric_source", "notification_channel",
             "llm_endpoint", "copilot_endpoint", "company_intel_source",
             "intel_extraction_endpoint", "file_storage", "hosting",
+            # ACCOUNT-PATH-SPEC.md §17.4. Local SQLite today, but pointing it at an analytics
+            # vendor would send behavioural data about how accounts are worked out of the
+            # installation — a data-handling decision, so it belongs in the registry now rather
+            # than on the day somebody makes it.
+            "product_telemetry_sink",
+            # ACCOUNT-INTAKE-SPEC.md §14. Text in, bytes never persisted, and no adapter is called
+            # today — but the moment a binary format is accepted the answer stops being "we read
+            # the characters" and becomes OCR, a parser library, or a vendor, and each of those is
+            # a data-handling decision about customer document text.
+            "document_drop_intake",
     }
     assert snapshot["approval"]["approved"] is False
     assert all(row["gate_status"] == "local" for row in snapshot["connections"])
@@ -105,15 +115,18 @@ def test_intake_named_role_fills_seeded_placeholder_without_duplicate(client):
 
 
 def test_brand_new_account_reaches_delivered_expansion_case_entirely_on_mocks(client):
-    # 1 — assigned -> seeded plan, checklists, and placeholders.
+    # 1 — assigned -> seeded plan, gates, requirements, and placeholders.
     account = _post(client, "/api/accounts", {"name": "Bluepeak Demo"})
     onboard = _post(client, f"/api/accounts/{account['id']}/onboard", {
         "kickoff_date": _day(-40), "program_name": "Manager Enablement Launch",
         "europe_in_scope": True,
     })
     program_id = onboard["program_id"]
-    assert onboard["seeded"] == {"milestones": 7, "prep_tasks": 3,
-                                  "checklist_items": 20, "placeholders": 6}
+    # The merged launch standard (migration 0051): one gate list, one requirement set, one set of
+    # milestones. The demo asserts the whole dict rather than a subset so a fourth list cannot
+    # reappear here without this walkthrough noticing.
+    assert onboard["seeded"] == {"milestones": 7, "prep_tasks": 3, "gate_items": 8,
+                                 "plan_requirements": 8, "placeholders": 6}
     proposals = client.post("/api/intake/parse", json={
         "text": "Met with Aisha Kone (Champion). They are currently using Ascend. "
                 "Go-live target is 2026-10-01. What is the works-council timeline?",
@@ -137,7 +150,7 @@ def test_brand_new_account_reaches_delivered_expansion_case_entirely_on_mocks(cl
     })
     assert assessed.status_code == 200
     queue = client.get("/api/queue").json()["items"]
-    assert any(item["trigger_type"] == "checklist_overdue" for item in queue)
+    assert any(item["trigger_type"] == "gate_item_overdue" for item in queue)
     assert any(item["trigger_type"] == "unidentified_placeholder" for item in queue)
 
     org_sync = _post(client, "/api/ingest/org-changes/sync", status=200)
@@ -315,7 +328,7 @@ def test_brand_new_account_reaches_delivered_expansion_case_entirely_on_mocks(cl
     assert growth["rollup"]["additive"] is True and growth["rollup"]["unfunded_gap"] == 200
     renewal = client.get(f"/api/accounts/{account['id']}/renewal-center").json()
     assert [row["id"] for row in renewal["eligible_expansions"]] == [opportunity["id"]]
-    mutual = client.get(f"/api/accounts/{account['id']}/map").json()["markdown"]
+    mutual = client.get(f"/api/accounts/{account['id']}/map").json()["artifact"]["markdown"]
     assert "Wave two" in mutual and "SECRET INTERNAL TACTIC" not in mutual
     assert "probability" not in mutual.lower()
 

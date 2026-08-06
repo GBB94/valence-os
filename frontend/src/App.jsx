@@ -20,6 +20,7 @@ import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import People from "./views/People";
 import Checklists from "./views/Checklists";
+import AccountPlan from "./views/AccountPlan";
 import CalendarPanel from "./views/CalendarPanel";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
@@ -213,6 +214,12 @@ function Shell() {
   const setCommercialSection = useCallback((section, { replace = false } = {}) => go((n) => ({
     ...n, tab: "commercial", section: section || undefined, recordId: undefined,
   }), { replace }), [go]);
+  // The People sub-tab writes to the same `section` field, but from inside the tab it is already
+  // on — so it keeps the current tab rather than naming one, and clears the focused record the
+  // way the Commercial setter does.
+  const setPeopleSection = useCallback((section, { replace = false } = {}) => go((n) => ({
+    ...n, section: section || undefined, recordId: undefined,
+  }), { replace }), [go]);
   const setCommandCenterLens = useCallback((lens, { replace = false } = {}) => {
     go((n) => ({
       ...n,
@@ -362,13 +369,14 @@ function Shell() {
             programId={nav.programId}
             lens={nav.lens}
             meetingId={nav.meetingId}
-            commercialSection={nav.section}
+            workspaceSection={nav.section}
             focusedRecordId={nav.recordId}
             reloadKey={reloadKey}
             setTab={setTab}
             setCommandCenterLens={setCommandCenterLens}
             setCommandCenterMeeting={setCommandCenterMeeting}
             setCommercialSection={setCommercialSection}
+            setPeopleSection={setPeopleSection}
             openWorkspaceTarget={openWorkspaceTarget}
             setProgramFilter={setProgramFilter}
             openAccount={openAccount}
@@ -502,7 +510,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, commercialSection, focusedRecordId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, workspaceSection, focusedRecordId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, setPeopleSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -563,10 +571,16 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
           </div>
         )}
         {tab === "people" && (
-          <People accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          <People accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey}
+            section={workspaceSection} onSectionChange={setPeopleSection} />
         )}
         {tab === "plan" && (
           <div className="stack">
+            {/* The plan leads the tab: it is the only surface that says what is expected and when,
+                and the only one that can start a plan at all. Everything below it is execution
+                detail against a plan that has to exist first. */}
+            <AccountPlan accountId={accountId} programId={programId} reloadKey={reloadKey}
+              onChanged={onSaved} />
             <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
             <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
             <AdoptionComms accountId={accountId} programId={programId} reloadKey={reloadKey} />
@@ -578,7 +592,7 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
         )}
         {tab === "commercial" && (
           <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct}
-            reloadKey={reloadKey} openCopilot={openCopilot} section={commercialSection}
+            reloadKey={reloadKey} openCopilot={openCopilot} section={workspaceSection}
             focusedRecordId={focusedRecordId} onSectionChange={setCommercialSection} />
         )}
         {tab === "evidence" && (

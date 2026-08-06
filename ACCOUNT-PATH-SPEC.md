@@ -1,14 +1,14 @@
 # Valence OS Account Path and execution-plan specification
 
-**Status:** Proposed, 2026-08-04
+**Status:** Slices 1–3 **built** and green; Slice 3 landed 2026-08-05 (D-143), Slices 1–2 on 2026-08-04 (D-141, D-142). Slice 3 shipped migration 0042 — versioned playbooks, plan instances, governed exceptions, and checklist compatibility — under the constraint that none of its six tables stores an evaluation, asserted by schema introspection; §13.5.2's label-matching prohibition held, so compatibility maps exact `template_key` values only and an `na` mapping *proposes* an exception rather than applying one. Playbook versions do not retire each other, so an upgrade is an explicit previewed action rather than a silent rewrite. Slices 4–7 remain proposed and unapproved. Sections 5.2, 6.2, and 11.11 were revised after the Slice 2 build to record what shipped: the Operate "Needs action" list is removed rather than reordered, the phase filter narrows to gate items because only they carry a phase, and the §11.11 tests are pure-module rather than rendered-component tests because the repo has no React renderer. Approved for Slices 1–2, 2026-08-04; revised earlier the same day after the Stage 15 readiness build landed — sections 4.6, 6.1, 6.5, 7.1, 7.2, 9, 9.1, 10.2–10.11, 11.1, 11.9, 12.1, 13, 18, 19, and 21 were updated to consume the shipped contract and the shipped suppression overlay instead of hypothetical ones.
 
 **Parent authorities:** `UX-FOUNDATION-SPEC.md`, `ACCOUNT-COMMAND-CENTER-SPEC.md`
 
-**Related authorities:** `DESIGN-GUIDE.md`, `PHASE-3-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, `INTERNAL-OPS-SPEC.md`
+**Related authorities:** `DESIGN-GUIDE.md`, `PHASE-3-SPEC.md`, `ACCOUNT-COPILOT-SPEC.md`, `INTERNAL-OPS-SPEC.md`, `RELATIONSHIP-READINESS-SPEC.md`
 
-**Adjacent work:** The account-pillar scorecard and transcript/email propose-and-accept workflow being specified in the Pre-call Brief research stream. This specification defines the execution surface that consumes those contracts; it does not independently define or persist a second pillar model.
+**Adjacent work:** The account-pillar scorecard is no longer adjacent. It landed as `RELATIONSHIP-READINESS-SPEC.md` (Stage 15, D-139) and is implemented in `backend/app/readiness.py` with definitions in migration `0041`. That specification owns the canonical pillar and requirement taxonomy; its section 0.4 ownership table is the division of labor, and this specification consumes its response verbatim. The transcript/email propose-and-accept workflow was adjacent and unbuilt when this was written; it landed as RR-2 (migration `0043`, D-145/D-146) and Slice 4 (D-148), and this specification's Slice 4 is the review surface over it. This specification defines the execution surface over both; it does not independently define or persist a second pillar model.
 
-**Scope:** The account-level experience that answers what should happen next, where each program is in its lifecycle, what was agreed in the latest interaction, which standard account requirements remain unevidenced, and which milestones or decisions are approaching.
+**Scope:** The account-level experience that answers what should happen next, where each program is in its lifecycle, what was agreed in the latest interaction, which standard account requirements remain unsatisfied, and which milestones or decisions are approaching.
 
 ## 1. Decision
 
@@ -16,7 +16,7 @@ Add an **Account Path** to the existing Account Overview **Operate** lens. It is
 
 Account Path composes existing canonical records into three related layers:
 
-1. **Conditions** — the account or program requirements that must become true. The pillar scorecard and current phase-gate/checklist records supply these conditions.
+1. **Conditions** — the account or program requirements that must become true. The readiness projection supplies these, supplemented by phase-gate and checklist records.
 2. **Sequence** — phases, milestones, dependencies, and important decision dates that explain when the conditions matter.
 3. **Actions** — the specific operator or customer work that advances the current condition or gate.
 
@@ -61,11 +61,11 @@ The complete internal execution presentation for an account and its selected pro
 
 ### 4.2 Requirement
 
-A condition that must be evidenced, waived, or marked not applicable. Examples include “metric of record agreed,” “budget owner identified,” and “technical access validated.” A requirement is not necessarily an action.
+A condition that must be satisfied by evidence, waived, or marked not applicable. Examples include “metric of record agreed,” “budget owner identified,” and “technical access validated.” A requirement is not necessarily an action.
 
 ### 4.3 Action
 
-A concrete unit of work represented by an existing native record, normally a Task or Commitment. A checklist item may act as an action during the compatibility period. A recommended action generated from an unevidenced requirement remains a suggestion until accepted into a native record.
+A concrete unit of work represented by an existing native record, normally a Task or Commitment. A checklist item may act as an action during the compatibility period. A recommended action generated from an unsatisfied requirement remains a suggestion until accepted into a native record.
 
 ### 4.4 Milestone
 
@@ -77,7 +77,7 @@ A decision boundary between phases. A gate passes when its required conditions a
 
 ### 4.6 Pillar
 
-A durable dimension of account readiness or success defined by the adjacent pillar-scorecard specification. Account Path may display pillar-derived gaps and link actions to them, but it must consume the canonical pillar contract rather than define another taxonomy.
+A durable dimension of account readiness or success defined by `RELATIONSHIP-READINESS-SPEC.md`. Account Path may display pillar-derived gaps and link actions to them, but it must consume that contract rather than define another taxonomy. Readiness is a query-time projection with no stored state table; Account Path must not cache a pillar state, restate it in its own vocabulary, or tier its display by `research_class`, which is governance metadata and neither a UI hierarchy nor a weight.
 
 ### 4.7 Proposed update
 
@@ -106,7 +106,7 @@ The Operate lens is revised to use this order:
 3. **From the latest interaction** — accepted call-derived actions plus a proposed-update count when the adjacent workflow is connected.
 4. **You own** — the remaining operator-owned actions, capped at five by default.
 5. **Waiting on customer** — customer responsibilities paired with the Valence follow-up owner and date.
-6. **Account essentials** — the few current-phase requirements that remain unevidenced, blocked, or proposed.
+6. **Account essentials** — the few current-phase readiness gaps, plus standard onboarding requirements that remain open.
 7. **Upcoming gates and dates** — milestones, deployment moments, reviews, contract dates, and meaningful meetings.
 8. **Since last review** — material changes using the existing explicit review checkpoint.
 9. **Current point of view** — the existing append-only operator view.
@@ -114,13 +114,15 @@ The Operate lens is revised to use this order:
 
 This order supersedes only the visual order in `ACCOUNT-COMMAND-CENTER-SPEC.md` section 5.1. Existing activity semantics, checkpoints, truth boundaries, program scoping, and native-target rules remain authoritative.
 
+**The Operate lens's "Needs action" list is removed, not reordered** (Slice 2). It is absent from the ten items above because it ranked the same overdue, blocked, and due-soon records that items 1 and 4 now rank. Keeping it would put two competing orderings of one record set on one screen, which is the duplication section 3 exists to prevent. Its records did not move surfaces — they are the same canonical Tasks, Commitments, Risks, Issues, and Milestones the projection reads.
+
 ### 5.3 Wide layout
 
 Use a full-width orientation band followed by the existing two-thirds/one-third content grid:
 
 - **Orientation band:** Next best move and Account Path.
 - **Main column:** From latest interaction, You own, Since last review.
-- **Side column:** Waiting on customer, Account essentials, Upcoming gates, Current point of view.
+- **Side column:** Waiting on customer, Account essentials, Upcoming gates, Current point of view. The shipped readiness card already sits in this column; Slice 2 orders around it rather than moving it.
 
 The page must not become a grid of equally prominent cards. Only Next best move receives primary emphasis. Section containers use restrained hierarchy, compact rows, and no decorative metric tiles.
 
@@ -150,9 +152,21 @@ The panel contains:
 - A small eyebrow: `NEXT BEST MOVE`.
 - A concise verb-led title.
 - One sentence explaining the deterministic selection reason.
-- Owner, due date/window, program, and provenance.
+- Owner, due date/window, program, and source label.
 - One primary action that opens the native record or performs an already-governed native action.
-- At most one secondary action such as Snooze or Open source.
+- At most one secondary action: `Snooze` where a snooze key resolves, otherwise `Open source`.
+
+**Snooze reuses the existing suppression overlay.** It does not get its own. `queue.snooze()` writes `attention_state`, whose `item_key` is `trigger_type:object_type:object_id` and is validated to exactly three parts (`queue.py`), so Account Path must supply a conforming key and cannot reuse the two-part projection `id`. The response therefore carries a separate `snooze_key`:
+
+- When the Today queue already surfaces the same object, reuse **its** key. Snoozing from Account Path then suppresses the item in both places, which is what an operator who just said "not now" means. If the queue surfaces one object under more than one trigger, snooze each — the intent is about the object, not the trigger that found it.
+- When the queue does not surface the object, use `account_path:{object_type}:{object_id}` — but only where the queue's own validator would accept that object type. `queue._validate_key` resolves `object_type` through `_object_table`, so a type with no table entry produces a key that 422s on click.
+- When neither applies, omit `snooze_key` and show `Open source` instead. A disabled Snooze button is worse than no Snooze button.
+
+`phase_gate_item` is the case that falls through today: gate items are not queue objects and have no `_object_table` entry, so gate-item candidates ship with `snooze_key: null`. The backend asks the queue whether a type is snoozable rather than keeping its own list, so if the queue ever adopts gate items the key appears here without a change to this projection. Adding a mapping purely to make Account Path's Snooze work would put a non-queue object into the queue's namespace to serve a UI affordance.
+
+There is no bare snooze. `attention_state` requires either `snooze_until` or a `resurface_condition`, so the control opens the same date/condition prompt the queue already uses. Snoozing suppresses a projection row; it never closes, cancels, or edits a native record.
+
+Owner and due date are frequently absent and the panel must read correctly without them. `phase_gate_items` carries neither, and `tasks.internal_owner_id` is nullable. Render `Unassigned` and `No due date` as explicit facts; never substitute the program owner silently, and never suppress an otherwise eligible item because these fields are empty.
 
 It must not include an AI sparkle treatment or imply probabilistic ranking. Suggested language may be AI-assisted later, but selection and reason remain rules-based.
 
@@ -185,6 +199,10 @@ The component combines shape, icon, label, and text; state never depends on colo
 
 The path is not a wizard and does not force sequential navigation. Clicking a phase filters the supporting requirements and actions without changing canonical phase state.
 
+**The filter narrows to gate items, and says so.** Only a `phase_gate_item` genuinely belongs to a phase: it hangs off a gate, and a gate carries a phase. A Task, Commitment, Risk, Issue, Milestone, or contract date belongs to a *program*, and stamping it with whatever phase that program happens to be in today would fabricate an attribution the record does not carry — the filter would then claim work is phase-scoped when nothing in the data says so. Every candidate therefore ships a nullable `phase` that is populated only for gate items, the filter reads that field, and selecting a phase renders an explicit notice that other work is recorded against the program and is hidden rather than reassigned. Widening the filter requires a phase on the records themselves, not a heuristic here.
+
+The current phase is also visually focused *without* the accent carrying state on its own: the step pairs a `◆` mark with the word `Current`. At full width a compact multi-program lane hides the state word for space, so the button supplies it through its accessible name instead — the state and any blocking reason are never available to a sighted reader but missing from a screen reader.
+
 ### 6.3 All-program account scope
 
 An account with multiple active programs must not receive a fabricated aggregate phase.
@@ -207,7 +225,7 @@ Default action rows contain:
 - Program when account scope includes multiple programs.
 - Responsible party and internal follow-up owner where applicable.
 - Due date or relative window.
-- Provenance chip.
+- Source label chip.
 - Native-record action.
 
 Optional detail shown in a side panel:
@@ -218,7 +236,7 @@ Optional detail shown in a side panel:
 - Closure rule and evidence.
 - Audit history.
 
-### 6.5 Provenance labels
+### 6.5 Source labels
 
 Use plain, specific labels:
 
@@ -228,6 +246,8 @@ Use plain, specific labels:
 - `Added manually`
 - `From leadership review`
 - `Proposed from transcript`
+
+These name where an item came from. They are deliberately **not** called provenance: `RELATIONSHIP-READINESS-SPEC.md` section 5.3 uses `provenance` for evidence *quality* (`confirmed_source`, `operator_recorded`, `unsupported`), which decides whether a record can satisfy a requirement component, and that chip already renders on requirement detail. A requirement row can carry both, so the two must never share a name or a chip style.
 
 Proposed and accepted items must never share the same visual state. Proposed items include explicit Accept, Edit, and Reject controls supplied by the adjacent workflow.
 
@@ -270,7 +290,7 @@ Individual actions remain in lists or boards. Selecting a phase or milestone fil
 | Contractual dates | current `contract_versions` record |
 | Interaction provenance | `interactions`, `source_references` |
 | Cross-account urgency | existing attention projection and `attention_state` |
-| Pillar readiness | adjacent pillar-scorecard contract |
+| Pillar readiness | `readiness.evaluate()` over `readiness_pillar_definitions` / `readiness_requirement_definitions` |
 | Unaccepted extraction | adjacent proposed-update contract |
 
 Account Path does not write to any of these merely because it was opened or filtered.
@@ -281,8 +301,8 @@ Account Path does not write to any of these merely because it was opened or filt
 - A Commitment closes only with the existing acknowledgement/closure semantics.
 - A Milestone completes only when its success criteria are met and the completion is recorded.
 - A Phase Gate passes or is waived through its native governed flow.
-- A requirement becomes evidenced, waived, or not applicable according to the eventual pillar/playbook contract.
-- During the compatibility period, a completed checklist item is displayed as recorded completion, not automatically elevated to “evidenced” unless it has a supporting canonical field or source.
+- A requirement reaches `met`, is waived, or is marked not applicable according to `RELATIONSHIP-READINESS-SPEC.md`. Account Path never asserts requirement completion in its own words; it renders the state the readiness service returned.
+- A completed checklist item is displayed as recorded completion. It is never elevated to a readiness state, because a checkbox is not evidence and readiness has no state a checkbox could set.
 
 ### 7.3 No duplicate work
 
@@ -301,7 +321,7 @@ The projection deduplicates wrapper and native records by `(source_type, source_
 ```text
 canonical execution records      phase/checklist records
 account activity projection      contract/calendar records
-pillar scorecard contract        proposed-update contract
+readiness projection             proposed-update contract
              \                       /
               execution_path query service
                         |
@@ -320,15 +340,17 @@ If measured query cost later requires caching, the cache must be fully rebuildab
 
 ### Slice 1 — Execution Path read model **(execute immediately)**
 
-Build a migration-free backend aggregation endpoint over existing canonical records. It supplies the next-move candidates, phase path, accepted latest-interaction actions, operator work, customer waits, compatibility requirements, and upcoming gates.
+Build a migration-free backend aggregation endpoint over existing canonical records. It supplies the next-move candidates, phase path, accepted latest-interaction actions, operator work, customer waits, account essentials, and upcoming gates.
+
+Because `RELATIONSHIP-READINESS-SPEC.md` has landed, account essentials is **pillar-backed from the first slice**. Slice 1 calls `readiness.evaluate()` directly and treats `checklist_items` as a supplement for conditions the pillars do not cover, not as the primary requirement source. Building a checklist-derived essentials card first and replacing it in Slice 3 would stand up a second conditions surface for the length of one slice, which section 3 exists to prevent.
 
 ### Slice 2 — Operate Account Path UI **(execute immediately)**
 
 Replace the current weak `Needs action`/`Next on account` hierarchy with the Next best move orientation band, program path, and grouped execution sections. Preserve existing review checkpoints, activity coverage, point of view, and native links.
 
-### Slice 3 — Playbook and pillar integration
+### Slice 3 — Playbook and plan instances
 
-Consume the canonical pillar taxonomy and requirement states from the adjacent work. Replace compatibility-only checklist interpretation with versioned account/program requirements, evidence links, exceptions, and pillar-derived next-condition suggestions.
+The canonical pillar taxonomy and requirement states arrive in Slice 1. Slice 3 adds the capabilities `RELATIONSHIP-READINESS-SPEC.md` section 0.4 assigns to Account Path and that exist nowhere today: playbook templates, plan instances, due-date anchoring, waivers and exceptions, and the operator-set `not_applicable` decision with its reason and actor. It also retires the checklist supplement into versioned requirements.
 
 ### Slice 4 — Transcript and email proposals
 
@@ -351,19 +373,20 @@ Instrument whether operators open the recommended item, complete or snooze it, c
 Reviewers should evaluate the initiative in this order:
 
 1. **Core product decisions:** sections 1–8 — conditions, sequence, actions, truth boundaries, multi-program behavior, and Operate hierarchy.
-2. **Immediate release:** Slices 1–2 — these can be approved and built independently because they are read-only and migration-free.
-3. **Adjacent-contract alignment:** Slice 3 against the approved pillar/playbook contract; Slice 4 against the approved propose-and-accept contract.
+2. **Immediate release:** Slices 1–2 — these can be approved and built independently because they are read-only and migration-free. Consuming `readiness.evaluate()` does not change that; it is a read of a query-time projection.
+3. **Adjacent-contract alignment:** Slice 4 against the approved propose-and-accept contract. Slice 3 no longer waits on a pillar contract — it waits on this specification's own playbook and plan-instance design.
 4. **Governance model:** Slice 5 after Slices 3–4 stabilize, because evidence, linking, and phase advancement depend on their canonical identities.
 5. **External projection:** Slice 6 after client-safe fields and evidence rules exist.
 6. **Evaluation:** the Slice 7 telemetry adapter can be scaffolded after Slice 2, but full metrics and rule refinement should follow Slice 5.
 
-The review should explicitly resolve these implementation gates:
+Implementation gates, with the ones the Stage 15 build has already answered:
 
-- Whether the pillar contract supplies versioned playbook instances or Account Path must add that capability to the same canonical model.
-- The exact allowlist of canonical fields that transcript/email proposals may update.
-- Whether the typed relationship tables proposed in Slice 5 already exist in the pillar model or must be added.
-- Whether requirement summaries belong in the client-facing Mutual Action Plan at all; the safe default is no until affirmatively approved.
-- Whether Slice 7 initially persists local product events or uses a non-persistent adapter during usability validation.
+- **Resolved.** Does the pillar contract supply versioned playbook instances, or must Account Path add that capability? Account Path must add it. `RELATIONSHIP-READINESS-SPEC.md` sections 0.4 and 2 ship versioned *definitions* and explicitly decline to store playbooks or plan instances. Slice 3 owns them and pins them to exact requirement-definition versions.
+- **Resolved, and it is a cross-specification change.** Operator-set `not_applicable` with a reason and actor is delegated to Account Path by `RELATIONSHIP-READINESS-SPEC.md` section 3.2, but the shipped `readiness.py` derives applicability purely from program phase and reads no override. Slice 3 therefore adds both the storage *and* the read path inside the readiness evaluator. It is not an adapter, and it must land as one reviewed change against both specifications.
+- **Resolved.** Do the typed relationship tables proposed in Slice 5 already exist in the pillar model? No. Migration `0041` creates definition tables only.
+- Still open: the exact allowlist of canonical fields that transcript/email proposals may update.
+- Still open: whether requirement summaries belong in the client-facing Mutual Action Plan at all; the safe default is no until affirmatively approved.
+- **Resolved (D-156). Slice 7 persists locally, and the persistence is what makes the default acceptable.** Migration `0050` adds one table; the events carry an account id, a reason code, a ranking rule version, and a rotating session token, and nothing else. There is no adapter, because an event never reaches a network boundary — the choice was between a local table and no memory at all, not between local and remote. The sink is registered in `CONNECTIONS.md` as `product_telemetry_sink` with `gate_status: local` regardless, since pointing it at a vendor would be a data-handling decision rather than a configuration change. A non-persistent adapter would have made §17.5's periodic qualitative review impossible to prepare for, since there would be nothing to review. The §17.4 setting discards what was already collected rather than merely halting collection.
 
 None of these gates should block Slices 1–2. A review outcome for each later slice should be recorded as `approved`, `approved with conditions`, `revise`, or `defer`, with the owning specification named for every condition.
 
@@ -389,7 +412,9 @@ The endpoint is read-only. It must not update visit state, review checkpoints, p
   },
   "scope": {
     "account_id": "acc-bluepeak",
+    "account_name": "Bluepeak",
     "program_id": "prog-bluepeak-launch",
+    "program_name": "Manager coaching launch",
     "mode": "program"
   },
   "program_paths": [
@@ -414,33 +439,41 @@ The endpoint is read-only. It must not update visit state, review checkpoints, p
   ],
   "next_move": {
     "id": "task:task-123",
+    "snooze_key": "open_task:task:task-123",
     "source_type": "task",
     "source_id": "task-123",
     "title": "Confirm the metric of record with Aisha",
     "reason": "Operator task is 3 days overdue",
     "reason_code": "overdue_operator_task",
+    "band": 3,
     "urgency": "now",
     "due_date": "2026-08-01",
-    "owner": {"id": "person-zach", "name": "Zach", "party": "valence"},
+    "owner": {"id": "person-op", "name": "Operator", "party": "valence"},
     "responsible_party": null,
     "program_id": "prog-bluepeak-launch",
-    "provenance": {"kind": "interaction", "label": "From Jul 31 onboarding call"},
-    "native_target": {"tab": "ledger", "type": "task", "id": "task-123"}
+    "program_name": "Manager coaching launch",
+    "provenance": {"kind": "interaction", "label": "From Jul 31 onboarding call",
+                   "interaction_id": "int-456"},
+    "native_target": {"tab": "ledger", "record_type": "task", "record_id": "task-123"}
   },
+  "empty_state": null,
   "latest_interaction": {
     "interaction_id": "int-456",
     "title": "Onboarding call",
-    "occurred_at": "2026-07-31T15:00:00Z",
+    "summary": "Walked the manager cohort through the rollout plan.",
+    "occurred_on": "2026-07-31",
+    "occurred_at_time": "15:00",
+    "native_target": {"tab": "ledger", "record_type": "interaction", "record_id": "int-456"},
     "accepted_actions": [{"id": "task:task-123"}]
   },
   "work": {
     "you_own": [],
     "waiting_on_customer": [],
-    "account_essentials": [],
+    "account_essentials": {"readiness": {}, "checklist_supplements": []},
     "upcoming_gates": []
   },
   "integration": {
-    "pillars": "not_connected",
+    "pillars": "connected",
     "proposed_updates": "not_connected"
   },
   "coverage": {
@@ -453,6 +486,17 @@ The endpoint is read-only. It must not update visit state, review checkpoints, p
 ```
 
 New enum values are explicit and closed in the backend schema. The frontend must render unknown future enum values as `Unknown`, record a diagnostic, and avoid treating them as complete.
+
+`id` is the projection's own two-part identity `{source_type}:{source_id}` and is never used as a suppression key; `snooze_key` is the three-part `attention_state` key described in section 6.1 and is nullable. Every row in `work.you_own` and `work.waiting_on_customer` carries both fields on the same terms.
+
+`next_move.owner` is nullable and `next_move.due_date` is nullable; a phase-gate-item candidate has neither. `integration.pillars` is `connected` because readiness ships with Slice 1; it returns to `not_connected` only if the readiness adapter itself fails, in which case the failure is named in `coverage.omitted_sources` and cannot suppress canonical execution work.
+
+Four contract points are worth stating plainly because a reader would otherwise assume the obvious shape:
+
+- **`native_target` is `{tab, record_type, record_id}`**, which is the navigation contract `openWorkspaceTarget` already accepts and every other backend projection already emits. A path-specific `{tab, type, id}` would have forced a translation layer between two competing shapes for the same idea, which section 21 exists to prevent.
+- **`work.account_essentials` is an object, not a list**: `{"readiness": <the readiness evaluation response verbatim>, "checklist_supplements": [...]}`. Readiness is a projection with its own six-pillar vocabulary (section 12.1) and flattening it into candidate rows would either drop the four independent axes or invent a ranking for pillars that `RELATIONSHIP-READINESS-SPEC.md` forbids. Checklist supplements sit beside it because they are ordinary account work, not readiness evidence.
+- **`empty_state` is `null` whenever `next_move` is non-null**, and otherwise names one of the five section 6.1 variants as `{variant, message, requirement}`. It is a separate field rather than a special `next_move` value so that "nothing is due" can never be mistaken for a move.
+- **`band` is on the wire.** The frontend does not rank; it groups and renders in the order given. Exposing the band lets the UI label a group and lets a test assert ordering without re-deriving it.
 
 ### 10.3 Source adapters
 
@@ -469,6 +513,7 @@ Slice 1 reads:
 - Current contract notice, decision, and renewal dates.
 - Existing account-command-center attention and upcoming projections where they already normalize supported sources.
 - Interactions referenced by Tasks, Commitments, Milestones, Risks, and Issues.
+- `readiness.evaluate(conn, account_id, program_id)` for account essentials and for phase-relevant conditions.
 
 Every adapter returns a normalized internal candidate with source identity, scope, owner, responsible party, dates, state, reason code, provenance, and native target.
 
@@ -478,16 +523,18 @@ An item is eligible when it represents an action the Valence operator can take o
 
 Eligible examples:
 
-- An open Task assigned to a Valence person.
+- An open Task, whether or not `internal_owner_id` is set. An unowned Task appears with `Unassigned`; excluding it would hide real work behind a data-entry gap.
 - The internal follow-up side of an open customer Commitment.
-- An unresolved blocker with a Valence owner.
-- An incomplete item on the current phase gate, or a current-phase checklist item whose label is itself a supported operator action.
+- An unresolved blocker. `risks` and `issues` are internal records with no responsible-party column, so every blocker is operator-side by construction; there is no owned/unowned distinction to filter on. An unowned blocker renders `Unassigned` and its reason says so, on the same terms as an unowned Task.
+- An incomplete item on the current phase gate, or an elapsed-section checklist item whose label is itself a supported operator action.
+- A readiness requirement whose applicability is `required` for the in-scope phase and whose state is `unknown`, `thin`, or `conflicted`. It is eligible only through the `Prepare for the next gate` variant, never as an ordinary ranked candidate, because it has no native record to open. Its primary action opens the requirement detail; its secondary action is `Create action`, which is the governed step that turns the definition's `suggested_action` into a native Task. Until that happens it is a suggestion and must not enter `you_own`.
 - Preparation for a milestone or contract date inside its governed lead window.
 
 Ineligible as the primary move:
 
 - A customer-owned responsibility with no Valence follow-up action.
 - A completed, cancelled, closed, waived, or not-applicable item.
+- An item currently suppressed by `attention_state`, using the same resurfacing rules the queue applies: a snooze expires on its return date, and an underlying change after the overlay timestamp resurfaces the item regardless. Account Path does not invent a second expiry rule.
 - A future-phase requirement that is not a prerequisite and is outside its lead window.
 - A proposed extraction that has not been accepted.
 - An item from another program when a program is selected.
@@ -511,10 +558,13 @@ Priority bands, highest first:
 3. Overdue operator Task or follow-up on an overdue Commitment.
 4. Contractual notice/decision preparation inside its configured lead window.
 5. Operator Task or Commitment follow-up due within seven days.
-6. Required incomplete condition for the current phase.
-7. Preparation action for the next milestone or confirmed meeting.
-8. Open accepted action from the latest meaningful interaction.
-9. Remaining operator-owned open work.
+6. Preparation action for the next milestone or confirmed meeting.
+7. Open accepted action from the latest meaningful interaction.
+8. Remaining operator-owned open work.
+
+Readiness gaps are deliberately absent from these bands. A required condition with no accepted native record is a suggestion, and ranking it against real work would let a suggestion outrank an overdue Task. It reaches Next best move only through the `Prepare for the next gate` variant, which fires when no band produces a candidate.
+
+Phase-gate-item candidates carry neither owner nor due date, so they always fall to the end of tie-breaks 2 and 3 within band 2. That is correct — a gate item with a date recorded elsewhere should be represented by the Task that carries it — but it means band 2's ordering is decided almost entirely by tie-break 4, and the tests must pin that order rather than let it drift with row insertion.
 
 The response exposes `reason_code` and a user-facing `reason`. Tests assert both membership and order. AI does not participate in ranking.
 
@@ -527,17 +577,22 @@ Find the latest meaningful, non-archived Interaction in scope. Include accepted 
 - Sort blockers, then overdue/due work, then undated work.
 - If the latest interaction produced no accepted action, return an empty list rather than “No action was agreed.” Absence of a record is not proof of absence.
 
-### 10.7 Account essentials compatibility adapter
+### 10.7 Account essentials adapter
 
-Until the pillar/playbook contract lands, open `checklist_items` supply compatibility requirements.
+Account essentials has two sources with a strict precedence: readiness first, checklists as a supplement.
 
-- Current or elapsed checklist sections appear before future sections.
-- A checklist completion is labeled `Recorded complete` unless a supported field, answer source, or native closure supplies evidence.
+**Readiness (primary).** The adapter calls `readiness.evaluate(conn, account_id, program_id)` and passes the response through without restating it. It sorts required gaps ahead of optional ones and shows at most three, matching `RELATIONSHIP-READINESS-SPEC.md` section 8. The existing `ReadinessSummary mode="compact"` component is consumed unchanged; Account Path does not build a second readiness card.
+
+**Checklists (supplement).** Open `checklist_items` cover conditions the six pillars do not — technical access, data agreements, and other onboarding facts. They appear below readiness gaps and never above them.
+
+- A checklist completion is labeled `Recorded complete` unless a supported field, answer source, or native closure supplies evidence. It is never rendered in a readiness state.
 - `na` appears as `Not applicable`; it never counts as incomplete.
 - Account-wide items remain visible in selected program scope.
-- The response marks each item `compatibility_source: true` so the UI and future migration can distinguish it.
+- The response marks each item `compatibility_source: true` so the UI and the Slice 3 migration can distinguish it.
 
-Phase Gate Items may also appear as requirements but take precedence over duplicate checklist labels because they are closer to governed phase advancement.
+**Checklist sections are not lifecycle phases.** `checklist_items.section` is `first_call`, `first_two_weeks`, `first_30_days`, `first_90_days` — time from kickoff, not a program phase. A checklist item therefore cannot answer "is this required in the current phase," and the adapter must not claim it does. Order checklist items by elapsed section and due date, and label them `Standard onboarding requirement`, never `Current-phase requirement`. Phase relevance comes only from readiness applicability and from phase gate items.
+
+Phase Gate Items may also appear as requirements but take precedence over duplicate checklist labels because they are closer to governed phase advancement. A readiness requirement takes precedence over both.
 
 ### 10.8 Program path derivation
 
@@ -556,10 +611,11 @@ Slice 1 must prefer honest `unknown` states over reconstructing unsupported hist
 Adapter failure must not turn into a blank page or false caught-up state.
 
 - The service attempts independent source adapters.
-- `coverage.status` is `complete`, `partial`, or `failed`.
+- `coverage.status` is `complete`, `partial`, or `unavailable`. The third value matches `readiness.py`; the two services must not describe the same condition with different words.
 - Partial responses list omitted sources and warnings.
 - `Account is caught up` is legal only when every source required for eligibility succeeded.
-- A failed pillar or proposed-update integration in later slices cannot suppress canonical execution work.
+- Readiness carries its own `coverage`, including the fail-closed `partial` an unknown evaluator key produces. Account Path surfaces it as readiness coverage and does not fold it into execution coverage, because a pillar the app could not evaluate says nothing about whether the Task list is complete.
+- A failed readiness or proposed-update integration cannot suppress canonical execution work.
 
 ### 10.10 Slice 1 backend acceptance criteria
 
@@ -574,7 +630,11 @@ Adapter failure must not turn into a blank page or false caught-up state.
 - Duplicate attention/native records appear once.
 - Missing gates produce Unknown rather than Complete.
 - A failed adapter produces named partial coverage and prevents a false caught-up state.
-- Opening the endpoint creates no audit event and changes no record.
+- Account essentials returns readiness gaps ahead of checklist supplements, and no checklist item is labeled a current-phase requirement.
+- A readiness `conflicted` state renders as conflicted, not as blocked and not as thin.
+- A next move with no owner and no due date still renders and still ranks.
+- A snoozed item is absent from the projection, and its `snooze_key` conforms to the three-part `attention_state` format.
+- Opening the endpoint creates no audit event and changes no record, including no readiness write, because readiness has nothing to write to.
 
 ### 10.11 Slice 1 tests
 
@@ -584,6 +644,9 @@ Add focused service and router tests for:
 - Operator/customer ownership split.
 - Program/all-program scope.
 - Latest-interaction provenance.
+- Readiness precedence over checklist supplements, and readiness state passthrough for all five states.
+- Unowned and undated candidates ranking and rendering.
+- Snooze key derivation, suppression, and resurfacing shared with the queue.
 - Checklist compatibility behavior.
 - Gate and phase state derivation.
 - Dedupe by native identity.
@@ -604,8 +667,10 @@ Create focused presentation components rather than growing one monolithic lens:
 - `ProgramPathLane`
 - `ExecutionGroup`
 - `ExecutionRow`
-- `ProvenanceChip`
+- `SourceLabelChip`
 - `ExecutionCoverageNotice`
+
+Account essentials reuses the shipped `ReadinessSummary mode="compact"` and `ReadinessDetail` from `frontend/src/views/Readiness.jsx`, including `StateBadge` and `FreshnessChip`. Do not reimplement them: they already carry the state-mark vocabulary, the state/freshness separation, and the "Suggested — not created" treatment.
 
 `OperateLens` owns order and navigation callbacks. Components receive normalized response objects and do not query native records independently.
 
@@ -661,6 +726,8 @@ Use direct language:
 - `Proposed — review required`
 - `Recorded complete`
 
+Readiness rows keep the readiness service's own words — `Met`, `Thin`, `Unknown`, `Conflicted`, `Not applicable`, `Not due yet` — and do not get restated in execution language. In particular, do not describe a `conflicted` requirement as blocked or at risk; those words are reserved for canonical blocker records.
+
 Avoid generic labels such as `At risk` without a reason, and avoid presenting `Unknown` as neutral good news.
 
 ### 11.7 Accessibility
@@ -682,19 +749,9 @@ Avoid generic labels such as `At risk` without a reason, and avoid presenting `U
 - Primary actions remain at least 40px high on touch layouts.
 - Compact density may reduce row padding but cannot remove reason, owner, or due-state meaning.
 
-### 11.9 Analytics events
+### 11.9 Analytics events — deferred to Slice 7
 
-Record product telemetry, not canonical account activity:
-
-- `account_path_viewed`
-- `next_move_opened`
-- `next_move_snoozed`
-- `execution_group_opened`
-- `program_path_filtered`
-- `execution_native_target_opened`
-- `execution_path_retry`
-
-Include account/program scope, source type, reason code, and current phase where permitted. Do not include raw notes, transcript text, or confidential action descriptions in analytics payloads.
+Slice 2 emits none. An earlier draft listed product-telemetry events here, but no product-event table existed in the schema and section 9.1 left open whether Slice 7 would persist events locally or use a non-persistent adapter. Emitting events with no sink, or adding a table to hold them, would have decided that question as a side effect of a UI slice. The event list lives in section 17.3, which owns it; Slice 7 has since answered the question in favour of local persistence (D-156), and migration `0050` is where the table landed — in the slice that specified it.
 
 ### 11.10 Slice 2 frontend acceptance criteria
 
@@ -703,7 +760,9 @@ Include account/program scope, source type, reason code, and current phase where
 - All-program scope shows separate lanes and never an aggregate phase.
 - Call-derived accepted actions display their interaction provenance.
 - Customer responsibilities are visually separated from operator work.
-- Account essentials distinguish missing evidence from ordinary tasks.
+- Account essentials distinguish missing evidence from ordinary tasks, and readiness gaps from checklist supplements.
+- No composite readiness score, percentage, or `n of m` count appears anywhere in Operate.
+- A next move with no owner or no due date renders those fields as explicit facts rather than omitting the panel.
 - Every summarized item opens its native record or native workspace destination.
 - Existing Since last review checkpoints and Mark reviewed behavior still work.
 - Current point of view remains available.
@@ -713,34 +772,57 @@ Include account/program scope, source type, reason code, and current phase where
 
 ### 11.11 Slice 2 tests
 
-Add component/integration coverage for:
+The frontend test harness is `node --test src/*.test.js` over plain modules; there is no React
+renderer, jsdom, or testing-library in the repo, so "component/integration coverage" has no vehicle
+here. The presentation rules below therefore live in `frontend/src/accountPath.js` — a pure,
+DOM-free module — and are tested there directly. That is a deliberately smaller claim than a
+rendered-DOM assertion, and the residue is named in
+`design-screenshots/account-path/VERIFICATION.md`: the live both-theme, narrow-width, contrast,
+focus, and reduced-motion checks were run against the running app rather than asserted in CI.
+Adding a renderer is a larger change than a UI slice should decide on its own.
+
+Cover:
 
 - Normal selected-program rendering.
 - Multi-program account rendering.
 - Waiting-on-customer variant.
 - Caught-up and insufficient-plan-data variants.
-- Partial and failed coverage.
+- Partial and unavailable coverage, including readiness coverage rendered separately from execution coverage.
+- All five readiness states rendering with their own marks and words, and no combined score anywhere.
 - Native target callbacks.
 - Review-checkpoint regression.
 - Responsive path orientation.
 - Keyboard and accessible-name behavior.
 - Reduced-motion class/media behavior.
 
-## 12. Later-slice integration contracts
+## 12. Integration contracts
 
-### 12.1 Pillar scorecard
+Section 12.1 is in force from Slice 1. The rest are later-slice contracts.
 
-The pillar system should eventually provide Account Path with:
+### 12.1 Readiness contract
 
-- Stable pillar and requirement keys.
-- Account/program scope.
-- Required/optional applicability.
-- `not_started`, `in_progress`, `evidenced`, `blocked`, and `not_applicable` states.
-- Accepted evidence references.
-- Evidence freshness where relevant.
-- Current-phase relevance.
-- Suggested action template, if one exists.
-- Definition of done.
+This is not a future contract. `readiness.evaluate()` supplies it today, and Account Path renders its vocabulary unchanged. The four axes below are **independent** — that is the whole point of the model, and collapsing any two of them into a single badge is the failure mode this section exists to prevent.
+
+| Axis | Values |
+|---|---|
+| State | `met`, `thin`, `unknown`, `conflicted`, `not_applicable` |
+| Freshness | `current`, `stale`, `mixed`, `undated`, `not_applicable` |
+| Coverage | `complete`, `partial`, `unavailable` |
+| Applicability | `required`, `optional`, `not_due`, `not_applicable` |
+
+Each pillar also carries stable key and version, scope, purpose, per-component evidence references with `confirmed_source` / `operator_recorded` / `unsupported` provenance, definition of done, a human-readable reason, and an optional `suggested_action` template.
+
+An earlier draft of this section proposed `not_started`, `in_progress`, `evidenced`, `blocked`, and `not_applicable`. Do not reintroduce it, and do not translate between the two:
+
+- `thin` and `unknown` are not both "not started." One means the evidence exists and is insufficient; the other means there is no basis to judge. An operator acts differently on each.
+- `conflicted` has no equivalent in that set. Mapping it to `blocked` is actively wrong: `blocked` in this specification means an open blocker Risk or Issue, a canonical execution fact, and a reader would go looking for a blocker that does not exist.
+- `evidenced` folds state into provenance. `RELATIONSHIP-READINESS-SPEC.md` section 5.3 keeps them apart precisely so that `unsupported` provenance can explain a thin state without ever satisfying a component.
+- That set has no freshness axis at all, which is how a fresh component ends up making a stale one look current.
+
+Two further constraints carry over from the readiness specification and bind Account Path:
+
+- There is no composite readiness score, no completion percentage, and no "n of m" count. Account essentials shows gaps; it never totals them.
+- `research_class` is governance metadata. It must not become a visual tier, a sort key, or a weight.
 
 Account Path may turn a missing requirement into a recommended **suggestion**, but the suggestion must be accepted into a native action before it becomes operator work.
 
@@ -765,67 +847,59 @@ The long-term requirement model must support evidence links rather than copying 
 
 Later slices may require an additive join model that links native actions to requirements, milestones, gates, and pillars. Any such join must link existing records rather than create a generic replacement action object.
 
-## 13. Slice 3 detailed specification — Playbook and pillar integration
+## 13. Slice 3 detailed specification — Playbook and plan instances
 
 ### 13.1 Entry gate and ownership
 
-Slice 3 begins only after the adjacent pillar-scorecard specification approves:
+The entry gate is satisfied. `RELATIONSHIP-READINESS-SPEC.md` (D-139) approves stable pillar and requirement keys, states and applicability semantics, account-wide versus program-specific scope, evidence and freshness rules, and versioning and override boundaries; `RELATIONSHIP-READINESS-SPEC.md` section 9 records the gate as met.
 
-- Stable pillar and requirement keys.
-- Requirement states and applicability semantics.
-- Account-wide versus program-specific scope.
-- Evidence and freshness rules.
-- Versioning and override behavior.
+That specification owns the canonical taxonomy and evaluation. Account Path owns how those states become a readable execution plan, plus the planning layer readiness deliberately declines to store. Account Path must not create a competing pillar table or translate the same condition into a second manually maintained status.
 
-That specification owns the canonical taxonomy and persistence model. Account Path owns how those accepted states become a readable execution plan. If the adjacent contract uses different names, Account Path adapts at the service boundary; it must not create a competing pillar table or translate the same condition into a second manually maintained status.
+### 13.2 Capabilities and where each one lives
 
-### 13.2 Minimum canonical capabilities
+Items 1, 5, 6, and 8 already exist in the readiness model. Items 2, 3, 4, 7, and 9 exist nowhere and are Slice 3's actual work.
 
-Regardless of final table names, the approved model must support these capabilities:
+> **Status note (2026-08-05).** This subsection is the pre-build inventory and is kept as written, because the division of labour it records is why the build went the way it did. **Slice 3 is built and every item below now exists** — the "*Slice 3*" labels read as the plan they were, not as outstanding work. Where an item asserted a fact about the shipped code, that sentence is corrected in place and dated.
 
-1. **Versioned definitions** — a pillar and requirement definition has a stable key, version, label, purpose, default scope, and definition of done.
-2. **Versioned playbooks** — an onboarding, adoption, expansion, renewal, or other plan template pins an ordered set of requirement definitions and relative timing rules.
-3. **Plan instances** — an account or program explicitly instantiates a playbook version. Later template edits do not silently rewrite the active plan.
-4. **Applicability** — each instantiated requirement is required, optional, or not applicable; not applicable requires a reason and actor.
-5. **Derived state** — state is computed from accepted records and evidence wherever possible. Manual assessment, if allowed by the pillar contract, is separately labeled and dated.
-6. **Evidence links** — evidence references canonical objects rather than copying their content.
-7. **Exceptions** — waivers and overrides preserve who, when, and why.
-8. **Ordering and timing** — requirements can be associated with a lifecycle phase, relative date rule, milestone, or gate.
-9. **Upgrade history** — applying a newer playbook version is an explicit reviewed action with a recorded diff.
+1. **Versioned definitions** — *shipped.* `readiness_pillar_definitions` and `readiness_requirement_definitions` carry stable key, version, label, purpose, default scope, and definition of done.
+2. **Versioned playbooks** — *Slice 3.* An onboarding, adoption, expansion, renewal, or other plan template pins an ordered set of requirement definitions at exact versions, with relative timing rules.
+3. **Plan instances** — *Slice 3.* An account or program explicitly instantiates a playbook version. Later template edits do not silently rewrite the active plan.
+4. **Instance applicability** — *Slice 3, and a cross-specification change.* Readiness derives `required`, `optional`, and `not_due` from program phase. An operator-set `not_applicable` needs a reason and actor, and `RELATIONSHIP-READINESS-SPEC.md` section 3.2 assigns that decision to Account Path — but the evaluator shipped at the time read no such override. Slice 3 must add the storage *and* the read path inside `readiness.py`, landing as one reviewed change against both specifications. *(Built: `readiness._live_exceptions` resolves a waiver or `not_applicable` for the scope it was decided in, and an account-wide decision never leaks the other way.)* An override never fabricates evidence: it can only suppress a requirement, never satisfy one.
+5. **Derived state** — *shipped, and stronger than this list originally required.* State is computed from accepted records. There is no manually editable pillar state and none may be added.
+6. **Evidence links** — *shipped.* Evidence references canonical objects rather than copying their content.
+7. **Exceptions** — *Slice 3.* Waivers and overrides preserve who, when, and why.
+8. **Ordering and timing** — *partly shipped.* Phase applicability is in the definitions; relative date rules, milestone, and gate association are Slice 3.
+9. **Upgrade history** — *shipped.* `POST /readiness/definition-upgrades/preview` diffs *definition* versions; playbook-version upgrade preview and application were separate and unbuilt when this list was written, and landed in Slice 3 as `playbooks.preview_upgrade` / `playbooks.apply_upgrade` (D-143). A version never retires another, so an upgrade is an explicit previewed action.
 
 ### 13.3 Playbook structure
 
-A playbook requirement should expose this normalized contract to Account Path:
+A plan instance adds scheduling and exception facts around a readiness requirement. It never restates state, freshness, or evidence — those are read live from `readiness.evaluate()` at query time and merged by key and version:
 
 ```json
 {
-  "instance_id": "reqinst-bluepeak-metric",
-  "definition_key": "success.metric_of_record",
-  "pillar_key": "outcomes",
-  "label": "Metric of record agreed",
+  "instance_id": "reqinst-bluepeak-baseline",
+  "requirement_key": "quantified_value.locked_baseline",
+  "requirement_version": 1,
+  "pillar_key": "quantified_value",
   "scope": {"account_id": "acc-bluepeak", "program_id": "prog-bluepeak-launch"},
-  "phase": "foundation",
-  "requirement_level": "required",
-  "state": "not_started",
-  "state_reason": "No accepted metric definition is linked",
-  "definition_of_done": "A named metric, owner, baseline, and reporting cadence are accepted",
   "due_rule": {"anchor": "kickoff", "offset_days": 14},
   "due_date": "2026-08-14",
-  "evidence": [],
-  "suggested_action": {
-    "title": "Confirm the metric of record with the program sponsor",
-    "native_type": "task"
-  },
+  "applicability_override": null,
+  "waiver": null,
   "playbook": {"key": "enterprise-launch", "version": 2},
   "updated_at": "2026-08-04T14:30:00Z"
 }
 ```
 
+`applicability_override`, when set, carries `{"value": "not_applicable", "reason": ..., "actor": ..., "decided_on": ...}` and is the only field a plan instance may contribute back to readiness evaluation.
+
+The merged row presented to the UI carries the readiness axes verbatim — `state`, `freshness`, `coverage`, `applicability`, `reason`, `components`, `definition_of_done`, `suggested_action` — plus `due_date` and `due_rule` from the instance. A plan instance that cannot be matched to a live requirement definition is shown as a legacy row and never invents a state for it.
+
 `suggested_action` is a template, not an open Task. It is eligible for the `Prepare for the next gate` empty-state recommendation but is not mixed into `you_own` until accepted into a native record.
 
 ### 13.4 Plan instantiation
 
-The pillar/playbook service should expose a governed operation equivalent to:
+Account Path owns plan instantiation and exposes a governed operation equivalent to:
 
 `POST /api/accounts/{account_id}/plan-instances`
 
@@ -855,7 +929,7 @@ Migration is conservative and reviewable:
 2. Match only exact known keys; never fuzzy-match labels.
 3. Create plan instances pinned to the migration playbook version.
 4. Carry due dates and `na` reasons when they are structurally supported.
-5. Translate `done` into `recorded_complete`, not `evidenced`, unless accepted supporting evidence exists.
+5. A `done` checklist item becomes `recorded_complete` on the plan instance. It never becomes a readiness state — readiness has no writable state, and a checkbox is not evidence. If the underlying record satisfies a readiness component, readiness will already be reporting `met` on its own.
 6. Keep unmatched checklist items readable as legacy requirements.
 7. Produce a per-account migration report: mapped, unmatched, ambiguous, and evidence missing.
 8. Make the migration idempotent and safe to rerun.
@@ -864,17 +938,18 @@ Do not delete `checklist_items` in this slice. Removal requires a separate depre
 
 ### 13.6 Account Path integration
 
-The Execution Path service adds a pillar/playbook adapter that:
+The Execution Path service extends the Slice 1 readiness adapter with the plan-instance layer, so that it:
 
-- Groups incomplete requirements by current phase and pillar.
-- Includes required current-phase conditions before optional or future conditions.
-- Exposes explicit evidence and freshness gaps.
+- Groups gaps by current phase and pillar, using readiness applicability for phase relevance.
+- Includes `required` conditions before `optional`; `not_due` and `not_applicable` are not gaps and do not appear as chores.
+- Exposes evidence and freshness gaps as the separate axes readiness reports them on. A `met` pillar with `stale` freshness is not a gap and must not be shown as one, but its staleness stays visible.
 - Provides suggested actions separately from canonical work.
 - Deduplicates a requirement when a linked native Task or Commitment already represents its next step.
-- Preserves account-wide requirements in selected program scope.
-- Reports pillar coverage independently from canonical execution coverage.
+- Preserves account-wide requirements in selected program scope, taking the strongest applicability across live programs so a required gap cannot hide behind a scope choice.
+- Reports readiness coverage independently from canonical execution coverage.
+- Adds due dates from plan instances without letting a due date change a readiness state.
 
-Account essentials shows at most three current-phase gaps. `View all` opens a focused requirements view in Plan; it does not introduce a new Account Overview editing surface.
+Account essentials shows at most three current-phase gaps, with the accent affordance to the full in-scope set that Stage 15 already ships. `View all` opens a focused requirements view in Plan; it does not introduce a new Account Overview editing surface.
 
 ### 13.7 Requirement detail experience
 
@@ -882,7 +957,7 @@ Opening a requirement shows a side panel with:
 
 - Requirement label and pillar.
 - Why it matters in the current phase.
-- State and state reason.
+- State, freshness, coverage, and applicability as four separate readings, plus the readiness reason. Do not combine them into one badge.
 - Definition of done.
 - Due date and original relative rule.
 - Accepted evidence and source links.
@@ -892,7 +967,7 @@ Opening a requirement shows a side panel with:
 - `Create action` when a supported suggested action exists.
 - `Add evidence` and `Mark not applicable` only through governed flows.
 
-Do not expose a generic status dropdown that can overwrite a derived evidence state.
+Do not expose a generic status dropdown that can overwrite a derived evidence state. There is nothing for it to write to, and adding one would be the stored second source of truth `RELATIONSHIP-READINESS-SPEC.md` section 2 forbids.
 
 ### 13.8 Creating an action from a requirement
 
@@ -915,10 +990,11 @@ Saving creates the native record and a requirement-action link in Slice 5. Until
 - Account and program requirements remain independently scoped.
 - Current-phase required gaps appear in Account essentials in stable order.
 - Suggested actions are visually distinct from open Tasks and Commitments.
-- A completed legacy checklist item is not falsely labeled evidenced.
-- Not-applicable requirements record a reason and actor.
+- A completed legacy checklist item never acquires a readiness state.
+- An operator `not_applicable` override records a reason and actor, suppresses the requirement, and does not change any component's evidence or state.
 - An upgrade preview shows additions, removals, timing changes, and definition changes before applying.
-- Failed or partial pillar coverage cannot suppress canonical execution work.
+- Failed or partial readiness coverage cannot suppress canonical execution work.
+- Adding the override read path to `readiness.py` leaves the existing readiness tests green, and a schema-introspection test still asserts that no stored pillar-state table exists.
 
 ### 13.10 Slice 3 tests
 
@@ -926,8 +1002,8 @@ Saving creates the native record and a requirement-action link in Slice 5. Until
 - Relative date anchors and boundary dates.
 - Version pinning and upgrade preview/application.
 - Account/program scope validation.
-- Required/optional/not-applicable ordering.
-- Derived versus manual state labeling.
+- Required/optional/not-due/not-applicable ordering.
+- Applicability override storage, its read path in the readiness evaluator, and its inability to satisfy a component.
 - Exact-key checklist migration, unmatched records, and idempotency.
 - Evidence-safe compatibility status.
 - Execution Path adapter dedupe and partial coverage.
@@ -1043,7 +1119,7 @@ After acceptance:
 - Accepted records linked to the latest interaction appear under From latest interaction.
 - The proposal disappears from the proposed preview but remains in proposal history.
 - The next-move engine reruns using the canonical record; the proposal itself is never ranked.
-- The provenance chip continues pointing to the original source.
+- The source label chip continues pointing to the original source.
 
 ### 14.8 Email-specific boundaries
 
@@ -1183,7 +1259,7 @@ Rules:
 - Normal advancement follows the approved phase graph one step at a time.
 - The command rejects stale readiness stamps.
 - A ready transition records the phase event and updates the canonical program phase in one transaction.
-- An override requires a reason and explicit authority; it records unmet requirements and never marks them evidenced.
+- An override requires a reason and explicit authority; it records unmet requirements and never changes their readiness state.
 - Waiving a gate is distinct from completing its requirements.
 - Opening Account Path or becoming ready never auto-advances phase.
 - Phase history is append-only and visible in Plan and Leadership review provenance.
@@ -1387,7 +1463,10 @@ Do not send titles, descriptions, transcript text, source spans, person names, e
 - `account_path_viewed`
 - `next_move_opened`
 - `next_move_snoozed`
-- `next_move_completed`
+- `next_move_left_list` — named for what it observes. Account Path never closes anything (§7.1),
+  so the client can only see that a recommended row it watched somebody open is absent from a
+  later complete-coverage response. Cancellation, archival and an aged-out band window produce
+  the same absence, so this must not be read or reported as a completion count.
 - `successor_action_created`
 - `execution_group_opened`
 - `program_path_filtered`
@@ -1485,9 +1564,9 @@ For each walkthrough, record time and navigation needed to answer the eight Prod
 
 ## 18. Migration and compatibility strategy
 
-Slices 1–2 require no schema migration.
+Slices 1–2 require no schema migration. Reading `readiness.evaluate()` is a query over a projection and adds none.
 
-When the pillar/playbook contract is approved:
+When the playbook and plan-instance model lands in Slice 3:
 
 1. Preserve current `checklist_items` as historical launch records.
 2. Map template keys to new stable requirement keys where deterministic.
@@ -1498,11 +1577,11 @@ When the pillar/playbook contract is approved:
 
 ## 19. Rollout and observability
 
-- Ship Slices 1–2 behind a local feature flag until seeded and multi-program acceptance cases pass.
-- Compare the new Next best move against the existing Needs action ordering on mock accounts.
+- Compare the new Next best move against the existing Needs action ordering on mock accounts before replacing it.
 - Log coverage warnings and ranking reason codes for debugging.
-- Keep the old Operate arrangement available during validation, then remove the flag after acceptance.
 - Do not run a dual-write period because the first slices are read-only projections.
+
+An earlier draft proposed a local feature flag holding both Operate arrangements. Dropped: for a read-only projection with no migration, the flag is a config surface and a second render path to keep working, and git history is the rollback. Replace the arrangement in one commit once the acceptance cases pass.
 
 Initial product measures:
 
@@ -1510,9 +1589,10 @@ Initial product measures:
 - Percentage of recommended moves opened.
 - Percentage resolved or advanced to a linked successor action.
 - Median current-phase overdue requirement count.
-- Percentage of customer waits with a named internal follow-up owner.
 - Percentage of completed milestones with objective success criteria and completion notes.
 - Coverage failure/partial-response rate.
+
+"Percentage of customer waits with a named internal follow-up owner" was removed: `commitments.internal_owner_id` is `NOT NULL`, so the measure can only ever report 100% and would confirm a schema constraint rather than diagnose anything.
 
 These measures diagnose usefulness and data quality; they do not become an account health score.
 
@@ -1524,7 +1604,7 @@ These measures diagnose usefulness and data quality; they do not become an accou
 2. Account Path labels them as from the onboarding call.
 3. The highest-priority operator-owned prerequisite becomes Next best move.
 4. Customer responsibilities appear under Waiting on customer with Valence follow-up ownership.
-5. Missing standard requirements appear separately under Account essentials.
+5. Readiness gaps for the current phase appear under Account essentials, above any open standard onboarding requirements.
 6. Proposed but unaccepted transcript items remain in the proposal workflow and never appear as accepted work.
 
 ### Scenario B — multi-program account
@@ -1564,20 +1644,21 @@ The Account Path initiative is complete when:
 1. Every active account/program can present a clear, explainable next state without duplicating canonical work.
 2. Multi-program accounts remain truthful and independently scoped.
 3. Accepted call actions, customer waits, standard requirements, milestones, and blockers are visually distinct but connected.
-4. The pillar scorecard supplies requirement state without becoming a second task system.
+4. Readiness supplies requirement state, in its own vocabulary, without becoming a second task system and without being restated anywhere in Account Path.
 5. Transcript/email updates remain proposed until explicitly accepted.
 6. Requirement and milestone completion can be supported by evidence or governed waiver/exception.
 7. Overview stays readable, responsive, accessible, and materially less cluttered than the complete Plan or Ledger views.
 8. Today, Prepare, Leadership, Plan, Ledger, and Mutual Action Plan all continue to consume the same canonical records and truth boundaries.
 9. Automated tests cover ranking, scoping, provenance, coverage, native navigation, and read purity.
 
-Slices 1–2 satisfy the immediate release when the migration-free read model and revised Operate UI meet their detailed acceptance criteria. Slices 3–7 now have implementation-level plans, but Slices 3–4 remain gated on approval of their adjacent pillar and propose-and-accept contracts. Any contract differences discovered in that review should update this specification before implementation rather than create compatibility logic between competing models.
+Slices 1–2 satisfy the immediate release when the migration-free read model and revised Operate UI meet their detailed acceptance criteria. Slice 3 is no longer gated on a pillar contract — that contract landed as `RELATIONSHIP-READINESS-SPEC.md` — and is gated only on its own playbook and plan-instance design. Slice 4 remains gated on approval of the propose-and-accept contract. Contract differences update this specification rather than becoming compatibility logic between competing models; sections 12.1, 13.2, and 13.3 were rewritten under that rule after the Stage 15 build, and the superseded state vocabulary is recorded there so it is not reintroduced.
 
 ## 22. Research and implementation basis
 
 This specification is grounded in:
 
 - Existing Valence OS execution objects, guided onboarding, relative launch templates, phase gates, command-center projections, proposal acceptance, evidence links, and client-visible promotion controls.
+- `RELATIONSHIP-READINESS-SPEC.md` and its Stage 15 implementation, which supplies the readiness taxonomy, the four independent axes, and the prohibition on a composite score.
 - The separately provided Valence interview archive, especially the phased enterprise rollout, parallel adoption/value-capture workstreams, 30/60/90 planning, stakeholder conversion, and objective completion patterns.
 - [Linear Timeline](https://linear.app/docs/timeline) — keep high-level timeline planning separate from granular action execution.
 - [Linear Project Milestones](https://linear.app/docs/project-milestones) — use milestones as lifecycle checkpoints that organize and filter supporting work.

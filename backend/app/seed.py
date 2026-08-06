@@ -22,6 +22,7 @@ from .db import connect, db_path, new_id, now_utc, run_migrations
 
 SEED_DIR = Path(__file__).resolve().parent.parent.parent / "stage-0" / "seed-data"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 # v0.1 columns per table (YAML keys outside these are ignored for now).
 COLUMNS = {
@@ -95,7 +96,8 @@ COLUMNS = {
         "overlay_expected_decision_date", "overlay_rationale", "overlay_author", "overlay_assessed_on",
     },
     "phase_gates": {"id", "program_id", "name", "gates_phase", "status", "waiver_reason", "waived_by", "passed_on"},
-    "phase_gate_items": {"id", "gate_id", "description", "complete", "completed_on"},
+    "phase_gate_items": {"id", "gate_id", "description", "complete", "completed_on",
+                         "template_key", "detail", "fills_field", "due_offset_days", "due_date"},
     "deployment_moments": {
         "id", "program_id", "name", "type", "client_owner_person_id", "comms_hook",
         "integration_status", "event_date", "outcome",
@@ -886,6 +888,230 @@ def _seed_stage13_demo(conn):
        "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
        "VALUES ('cal-tv-manager-clinic','Synthetic facilitator','facilitator@example.test',"
        "'accepted','attended',?,'facilitator')", (ts,))
+    # Two more sessions so the *withheld* readouts are demonstrable and not only test-covered. The
+    # §5.3 rule that matters is what the panel does when it cannot honestly compute a rate, and a
+    # seed with one clean session can never show it.
+    # (a) A past session with no invitation wave — attendance is unavailable, and the panel must say
+    #     which fact is missing rather than fall back to counting the room.
+    ex("INSERT OR IGNORE INTO calendar_events "
+       "(id,account_id,program_id,direction,purpose,title,starts_at,ends_at,location,"
+       "comms_sequence_id,created_at,updated_at) VALUES "
+       "('cal-tv-enablement-drop-in','acc-terravance','prog-tv-global','written','webinar',"
+       "'Enablement drop-in',?,?, 'Virtual room','comms-seq-tv-launch',?,?)",
+       (day(-4) + "T09:00:00+00:00", day(-4) + "T09:45:00+00:00", ts, ts))
+    for n in range(12):
+        ex("INSERT OR IGNORE INTO calendar_event_attendees "
+           "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+           "VALUES ('cal-tv-enablement-drop-in',?,?, 'accepted','attended',?,'audience')",
+           (f"Synthetic attendee {n + 1}", f"drop-in-{n + 1}@example.test", ts))
+    # (b) A linked session where one attendee's role was never classified. Deployment engagement is
+    #     only calculable over an explicit audience, so an unclassified row makes the whole readout
+    #     incomplete — it is not quietly treated as audience to keep the number alive.
+    ex("INSERT OR IGNORE INTO calendar_events "
+       "(id,account_id,program_id,direction,purpose,title,starts_at,ends_at,location,"
+       "comms_sequence_id,invited_by_entry_id,created_at,updated_at) VALUES "
+       "('cal-tv-reinforcement-huddle','acc-terravance','prog-tv-global','written','webinar',"
+       "'Reinforcement huddle',?,?, 'Virtual room','comms-seq-tv-launch','comms-wave-tv-1',?,?)",
+       (day(-2) + "T13:00:00+00:00", day(-2) + "T13:30:00+00:00", ts, ts))
+    for n in range(14):
+        status = "attended" if n < 11 else "no_show"
+        ex("INSERT OR IGNORE INTO calendar_event_attendees "
+           "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+           "VALUES ('cal-tv-reinforcement-huddle',?,?, 'accepted',?,?, 'audience')",
+           (f"Synthetic participant {n + 1}", f"huddle-{n + 1}@example.test", status, ts))
+    ex("INSERT OR IGNORE INTO calendar_event_attendees "
+       "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+       "VALUES ('cal-tv-reinforcement-huddle','Synthetic guest','guest@example.test',"
+       "'accepted','attended',?,'unknown')", (ts,))
+    # (c) A properly linked and fully classified session whose audience is simply too small. Nothing
+    #     is missing here — the readout is withheld because reporting a rate over 8 people is how a
+    #     small group becomes identifiable. The cohort clears the floor, so this exercises the
+    #     *audience* floor specifically rather than the cohort one.
+    ex("INSERT OR IGNORE INTO calendar_events "
+       "(id,account_id,program_id,direction,purpose,title,starts_at,ends_at,location,"
+       "comms_sequence_id,invited_by_entry_id,created_at,updated_at) VALUES "
+       "('cal-tv-manager-office-hours','acc-terravance','prog-tv-global','written','webinar',"
+       "'Manager office hours',?,?, 'Virtual room','comms-seq-tv-launch','comms-wave-tv-1',?,?)",
+       (day(-1) + "T15:00:00+00:00", day(-1) + "T15:30:00+00:00", ts, ts))
+    for n in range(8):
+        ex("INSERT OR IGNORE INTO calendar_event_attendees "
+           "(event_id,name,email,response_status,attendance_status,created_at,attendance_scope) "
+           "VALUES ('cal-tv-manager-office-hours',?,?, 'accepted',?,?, 'audience')",
+           (f"Synthetic manager {n + 1}", f"office-hours-{n + 1}@example.test",
+            "attended" if n < 6 else "no_show", ts))
+
+
+def _seed_rr2_demo(conn):
+    """One real extraction run over a seeded interaction (RR §7.2, §8.1).
+
+    The proposals are produced by the app's own mock extractor rather than hand-written, so the
+    seed never asserts an output the extractor would not actually give — the run's provenance
+    (backend, model version, prompt version, content hash) describes what really happened.
+
+    They are left `proposed` on purpose. Overview's preview and the combined review list have
+    nothing to show once everything is resolved, and a seed that pre-accepted them would hide the
+    surface it exists to demonstrate.
+    """
+    from . import proposals as proposals_mod
+    from .extractor import MockExtractor
+    from .routers import ai
+
+    row = conn.execute("SELECT * FROM interactions WHERE id='int-nw-kickoff'").fetchone()
+    if not row or conn.execute(
+            "SELECT 1 FROM extraction_runs WHERE interaction_id='int-nw-kickoff'").fetchone():
+        return
+    transcript = (FIXTURES / "transcripts" / "kickoff-call.txt").read_text()
+    ex = MockExtractor()
+    ai._persist_run(conn, account_id=row["account_id"], program_id=row["program_id"],
+                    interaction_id=row["id"], model_version=ex.model_version,
+                    prompt_version=ex.prompt_version, source_text=transcript,
+                    proposals=ex.extract(transcript), extractor_backend="mock")
+    # One hand-typed note on the same interaction, so the combined review list has both kinds in
+    # it and the difference between them is visible rather than described.
+    ts = now_utc()
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO capture_inbox_items (id,interaction_id,raw_text,status,"
+            "created_at,updated_at) VALUES ('inbox-nw-kickoff-1','int-nw-kickoff',"
+            "'Check whether the works-council timeline affects the Europe cohort dates.',"
+            "'untriaged',?,?)", (ts, ts))
+    print("[seed] extraction run over the kickoff interaction: proposals left for review")
+
+
+def _seed_onboarded_launch_demo(conn):
+    """One account taken through the real onboarding flow, so the merged standard is visible.
+
+    Every seeded account was assembled table-by-table from its YAML file, which means none of them
+    had ever been through `seed_onboarding` — and after migration 0051 that is exactly the standard
+    the Plan tab is built to show. The seed's own phase gates carry no due dates, so the surface
+    rendered every setup step under "No date on this plan": the horizons worked and had nothing to
+    sort. This runs the flow itself rather than writing its output, so the twenty-three dated things
+    are the ones onboarding actually produces and cannot drift from the templates.
+
+    Bluepeak is the right account for it — an early-stage foundation program is what "we have had
+    the call, now what?" looks like. It is the only one; the rest stay un-onboarded on purpose, so
+    the difference between an account with a standard and one without is visible in the account
+    list rather than only in a spec.
+
+    The kickoff is dated four days back and three day-zero items are ticked through the same
+    `PATCH /api/gate-items` code path an operator uses, one of them supplying the value its
+    `fills_field` asks for. That leaves the scene split across horizons — some settled, some
+    overdue, the comms plan due now, governance next — because a launch where everything is
+    outstanding and a launch where everything is done both hide the ordering.
+    """
+    from . import onboarding
+    from .routers.delivery import patch_gate_item
+    from .schemas import GateItemPatch
+
+    program_id = "prog-bp-foundation"
+    prog = conn.execute("SELECT * FROM programs WHERE id = ?", (program_id,)).fetchone()
+    if not prog or prog["onboarded_at"]:
+        return
+
+    # Relative to the run date, as the other demo seeders are: the horizons this scene exists to
+    # show are measured from today, so a fixed kickoff would drift out of them within a week.
+    kickoff = (_dt.date.fromisoformat(now_utc()[:10]) - _dt.timedelta(days=4)).isoformat()
+    with conn:
+        result = onboarding.seed_onboarding(conn, "acc-bluepeak", kickoff_date=kickoff,
+                                            program_id=program_id)
+
+    # Ticked through the router, so nothing here can record a completion the app would refuse —
+    # including the rule that a tick alone writes only the tick.
+    done = {
+        "Confirm the success definition": "80% of people managers running weekly 1:1s by day 60",
+        "Confirm the metric of record": None,
+        "Map the talent calendar": None,
+    }
+    items = conn.execute(
+        "SELECT gi.id, gi.description FROM phase_gate_items gi JOIN phase_gates g "
+        "ON g.id = gi.gate_id WHERE g.program_id = ?", (program_id,)).fetchall()
+    for row in items:
+        if row["description"] in done:
+            patch_gate_item(row["id"], GateItemPatch(complete=True,
+                                                     fill_value=done[row["description"]]), conn)
+
+    seeded = result["seeded"]
+    print(f"[seed] onboarded launch: kickoff {kickoff}, {sum(seeded.values())} dated records, "
+          f"{len(done)} setup steps already done")
+
+
+def _seed_shared_plan_demo(conn):
+    """A shared plan with something on it (ACCOUNT-PATH-SPEC.md §16).
+
+    The Slice 6 surface is about the difference between what is shared and what is not, and an
+    account with nothing promoted shows only half of that. This launches a plan on the Europe
+    program, promotes two sourced items, links one of them to a requirement, and promotes that
+    requirement under a label written for a customer.
+
+    Everything goes through the app's own code paths — `playbooks.instantiate`, `path_links`, the
+    promotion columns the router writes — so the seed cannot produce a state the app would refuse.
+    It also leaves work deliberately unpromoted, because "3 tasks not on this plan" is the sentence
+    that makes an empty plan distinguishable from a forgotten one.
+    """
+    from . import path_links, playbooks
+
+    program_id = "prog-tv-europe"
+    if conn.execute("SELECT 1 FROM readiness_plans WHERE program_id = ? AND status = 'active'",
+                    (program_id,)).fetchone():
+        return
+    if not conn.execute("SELECT 1 FROM programs WHERE id = ?", (program_id,)).fetchone():
+        return
+
+    with conn:
+        playbooks.instantiate(conn, "acc-terravance", playbook_key="enterprise-launch",
+                              playbook_version=1, program_id=program_id, anchor_type="kickoff",
+                              anchor_date="2026-05-20", actor_id="p-val-operator")
+
+    # A jointly-owned commitment on the Europe program, sourced from the steering deck so it can
+    # legitimately be promoted.
+    ts = now_utc()
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO commitments (id,account_id,program_id,description,"
+            "responsible_party_id,internal_owner_id,due_date,status,source_reference_id,"
+            "client_visible,created_at,updated_at) VALUES ('cm-tv-europe-dpo','acc-terravance',?,"
+            "'Confirm the regional data-processing addendum with the works council',"
+            "'p-tv-legal','p-val-operator','2026-08-28','open','src-tv-steerdeck',1,?,?)",
+            (program_id, ts, ts))
+        conn.execute("UPDATE tasks SET client_visible = 0 WHERE program_id = ?", (program_id,))
+
+    instance = conn.execute(
+        "SELECT id FROM readiness_plan_instances WHERE program_id = ? "
+        "AND requirement_key = 'budget_authority_evidence'", (program_id,)).fetchone()
+    if not instance or not conn.execute(
+            "SELECT 1 FROM commitments WHERE id = 'cm-tv-europe-dpo'").fetchone():
+        return
+
+    with conn:
+        path_links.link_action(conn, instance["id"], commitment_id="cm-tv-europe-dpo",
+                               relation="advances", origin="operator", actor_id="p-val-operator",
+                               note="The addendum is where the budget owner signs.")
+        # Both halves promoted, so the plan can group the action under the milestone. A link with
+        # one half unpromoted stays invisible, which is why this one needs both.
+        path_links.link_milestone_action(conn, "ms-tv-europe-launch",
+                                         commitment_id="cm-tv-europe-dpo", relation="advances",
+                                         actor_id="p-val-operator")
+        # §16.3 — a requirement reaches a customer only under a label written for one. The internal
+        # wording ("Evidenced budget authority") stays internal.
+        conn.execute(
+            "UPDATE readiness_plan_instances SET client_visible = 1, "
+            "client_label = 'Budget owner confirmed in writing', client_owner_person_id = ?, "
+            "client_promoted_on = ?, client_promoted_by = 'p-val-operator', updated_at = ? "
+            "WHERE id = ?", ("p-tv-legal", ts[:10], ts, instance["id"]))
+
+    # One requirement promoted whose readiness is `unknown`, so the withheld-with-a-reason path is
+    # visible in the seed rather than only in a test. Nothing about it reaches the artifact.
+    exec_row = conn.execute(
+        "SELECT id FROM readiness_plan_instances WHERE program_id = ? "
+        "AND requirement_key = 'exec_identified'", (program_id,)).fetchone()
+    if exec_row:
+        with conn:
+            conn.execute(
+                "UPDATE readiness_plan_instances SET client_visible = 1, "
+                "client_label = 'Executive sponsor confirmed', client_promoted_on = ?, "
+                "client_promoted_by = 'p-val-operator', updated_at = ? WHERE id = ?",
+                (ts[:10], ts, exec_row["id"]))
+    print("[seed] shared plan: one program plan launched, two items and one requirement promoted")
 
 
 def main():
@@ -947,6 +1173,12 @@ def main():
                          "max_headings": 6, "banned_phrases": ["model confidence"]},
                         sort_keys=True), now_utc()[:10], ts, ts))
         print(f"[seed] messaging library entries: {msg_n}")
+
+    # Outside the transaction above: the extraction writer manages its own, and nesting two
+    # `with conn` blocks would commit the outer one early.
+    _seed_rr2_demo(conn)
+    _seed_onboarded_launch_demo(conn)
+    _seed_shared_plan_demo(conn)
 
     counts = {
         t: conn.execute(f"SELECT COUNT(*) c FROM {t}").fetchone()["c"]

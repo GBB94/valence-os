@@ -385,7 +385,17 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .copilot-panel textarea { width: 100%; resize: vertical; border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 9px 10px; color: var(--ink-primary); background: var(--bg-surface); font: inherit; }
 .copilot-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .copilot-starters { display: flex; flex-wrap: wrap; gap: 6px; }
-.copilot-answer { white-space: pre-wrap; margin-top: 12px; line-height: 1.55; }
+.copilot-answer { margin-top: 12px; line-height: 1.55; }
+/* `pre-wrap` on the paragraph, not the container: a generated line break inside one paragraph is
+   meaningful, but the blank lines between markdown blocks are now structure and must not also
+   render as empty space. */
+.copilot-answer p { white-space: pre-wrap; margin: 0 0 10px; }
+.copilot-answer h4 { margin: 14px 0 6px; font-size: var(--t-body); }
+.copilot-answer h5 { margin: 12px 0 6px; font-size: var(--t-small); color: var(--ink-secondary); }
+.copilot-answer > :first-child { margin-top: 0; }
+.copilot-answer > :last-child { margin-bottom: 0; }
+.copilot-answer ul { margin: 0 0 10px; padding-left: 20px; }
+.copilot-answer li { margin-bottom: 4px; }
 .copilot-gaps { margin-top: 12px; padding: 10px; border-left: 3px solid var(--status-warn); background: var(--status-warn-tint); }
 .copilot-gaps ul { margin: 6px 0 0; padding-left: 20px; }
 .copilot-claim { padding: 10px 12px; border-bottom: 1px solid var(--line-hairline); }
@@ -951,4 +961,751 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .leadership-scope { align-items: flex-start; flex-direction: column; }
   .leadership-scope .actions { justify-content: flex-start; }
   .leadership-recovery { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Relationship readiness (RELATIONSHIP-READINESS-SPEC §8.3). Six independent conditions, no
+   composite grade: there is deliberately no bar, ring, or percentage treatment here. Every state
+   pairs its hue with a distinct mark and a word, so none of them rides on colour alone. */
+.readiness-card .card-h h3 { margin: 0; }
+.readiness-list { display: flex; flex-direction: column; }
+.readiness-row { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--line-hairline); }
+/* A clickable row runs the full width of a card that clips its overflow, so the global ring's
+   vertical edges are cut off. Drawing it inside keeps the whole ring visible wherever the row is
+   used — the requirement gaps of §13.6 as well as the readiness pillar lists it came from. */
+.readiness-row.clickable:focus-visible { outline-offset: -2px; }
+.readiness-row:first-child { border-top: 0; }
+.readiness-row-head { display: flex; align-items: center; gap: var(--sp-4); }
+.readiness-reason { margin: 2px 0 4px; }
+.readiness-foot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--line-hairline); }
+/* The truncation escape hatch. Accent because it is an interaction, never a state — the compact
+   list caps at three, so this is the only route to the remaining required gaps. */
+.readiness-more {
+  border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--t-small);
+  padding: 0; cursor: pointer;
+}
+.readiness-more:hover { text-decoration: underline; }
+
+/* Conflicted is a square, not a dot — an unresolved disagreement must not be mistaken for a
+   risk band at a glance. Not-applicable and not-due share the flat neutral dash. */
+.state-mark.conflict { border-radius: 1px; background: var(--status-risk-tint); border: 1.5px solid var(--status-risk); }
+.state-mark.na { height: var(--sp-1); border-radius: 1px; background: var(--ink-tertiary); align-self: center; }
+
+/* Proposed updates (RELATIONSHIP-READINESS-SPEC §8.3). A proposal is a draft awaiting a person,
+   so nothing here uses a status hue or the accent: the card reads proposed-and-cited, never
+   asserted. The dashed edge and the quoted span are what separate it from an accepted record. */
+.proposal-card .card-h h3 { margin: 0; }
+/* The card's own lines sit on the card's gutter; only .proposal-row carries its own padding. */
+.proposal-card > .rowmeta { padding: var(--sp-3) var(--sp-5); }
+.proposal-list { display: flex; flex-direction: column; }
+.proposal-row { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--line-hairline); }
+.proposal-row:first-child { border-top: 0; }
+.proposal-row-head { display: flex; align-items: baseline; gap: var(--sp-4); }
+.proposal-span {
+  margin: var(--sp-3) 0 0; padding: var(--sp-2) var(--sp-4);
+  border-left: 2px dashed var(--line-strong); background: var(--bg-sunken);
+  color: var(--ink-secondary); font-size: var(--t-small);
+}
+.proposal-marks { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); }
+/* A hollow dashed dot for a draft, a flat neutral dot for the operator's own note. Two shapes,
+   two words, no hue between them — the distinction never rides on colour. */
+.state-mark.draft { background: transparent; border: 1.5px dashed var(--line-strong); }
+.state-mark.quiet { background: var(--ink-tertiary); opacity: 0.55; }
+
+/* The review surface (ACCOUNT-PATH-SPEC §14.5). The selected row is marked by an accent rule on
+   the leading edge, which is interaction — the row's *state* stays in its words and its marks. */
+.proposal-review > .rowmeta,
+.proposal-review > .proposal-scope { padding: var(--sp-3) var(--sp-5); }
+.proposal-row { border-left: 2px solid transparent; }
+.proposal-row.selected { border-left-color: var(--accent); background: var(--bg-selected); }
+.proposal-decision {
+  margin-top: var(--sp-4); padding: var(--sp-5); border-radius: var(--r-md);
+  background: var(--bg-sunken); border: 1px solid var(--line-hairline);
+}
+.proposal-fields { margin-bottom: var(--sp-4); }
+.proposal-conflict { margin: var(--sp-3) 0 0; padding-left: var(--sp-7); }
+.proposal-candidates { margin-bottom: var(--sp-4); }
+.proposal-candidate {
+  display: flex; align-items: flex-start; gap: var(--sp-4);
+  padding: var(--sp-3) 0; border-top: 1px solid var(--line-hairline);
+}
+.proposal-candidate input { margin-top: var(--sp-2); }
+.proposal-supersede { max-width: 26rem; }
+.proposal-commands-row { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-5); }
+/* Every unavailable command states its reason in text as well as in the disabled control, so the
+   surface never reads as broken. */
+.proposal-why { margin-top: var(--sp-3); display: grid; gap: var(--sp-1); }
+.proposal-facts { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline); padding-top: var(--sp-4); }
+.proposal-facts dl { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); margin: var(--sp-3) 0; }
+.proposal-facts dl > div { display: grid; grid-template-columns: 12rem 1fr; gap: var(--sp-4); }
+.proposal-facts dd { margin: 0; font-family: var(--font-mono); font-size: var(--t-small); overflow-wrap: anywhere; }
+@media (max-width: 40rem) {
+  .proposal-facts dl > div { grid-template-columns: 1fr; gap: var(--sp-1); }
+}
+
+/* The grounding split view (ACCOUNT-INTAKE-SPEC §11.2): the draft on the left, the source it was
+   drafted from on the right. It stacks rather than shrinking into two unreadable columns. */
+.proposal-split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
+.proposal-split > .proposal-facts { margin-top: var(--sp-5); }
+@media (max-width: 60rem) {
+  .proposal-split { grid-template-columns: 1fr; }
+}
+.proposal-grounding { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline);
+  padding-top: var(--sp-4); min-width: 0; }
+.proposal-grounding-head { display: flex; align-items: baseline; gap: var(--sp-3); }
+.proposal-grounding-note { margin: var(--sp-3) 0 0; }
+/* Source text is text: monospace, wrapped, scrolled, never parsed as markup. */
+.proposal-grounding-text { margin: var(--sp-4) 0 0; padding: var(--sp-4);
+  background: var(--bg-sunken); border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-secondary);
+  white-space: pre-wrap; word-break: break-word; max-height: 26rem; overflow-y: auto; }
+/* The cited passage. Three redundant signals and no hue at all: a solid left rule, a lifted
+   background (surface sits above sunken in both themes), and primary ink against the secondary ink
+   around it. `DESIGN-GUIDE.md` forbids state by colour alone, status hues are reserved for account
+   condition, and the accent belongs to interaction — a citation is none of those. */
+.proposal-grounding-mark {
+  background: var(--bg-surface); color: var(--ink-primary);
+  border-left: 2px solid var(--line-strong); padding: var(--sp-1) var(--sp-2);
+  box-shadow: var(--shadow-control);
+}
+
+/* §11.4 — accept-all, offered only when the whole visible list is one run. */
+.proposal-bulk { display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--line-hairline); }
+.proposal-scope-note { padding: 0 var(--sp-5) var(--sp-3); margin: 0; }
+
+.readiness-detail .readiness-component { padding: var(--sp-5) 0; border-top: 1px solid var(--line-hairline); }
+.readiness-meta { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-3); }
+.readiness-dod { margin-top: var(--sp-3); }
+.readiness-evidence, .readiness-missing { margin: var(--sp-4) 0 0; padding-left: var(--sp-6); }
+.readiness-evidence li, .readiness-missing li { font-size: var(--t-small); margin-bottom: var(--sp-2); }
+.readiness-missing li { color: var(--ink-secondary); }
+.prov { font-size: var(--t-micro); border: 1px solid var(--line-hairline); border-radius: var(--r-sm);
+  padding: 0 var(--sp-3); margin-left: var(--sp-3); color: var(--ink-tertiary); white-space: nowrap; }
+/* Unsupported provenance is dotted, not coloured: it is an evidence-quality caveat, not a status. */
+.prov-unsupported { border-style: dotted; border-color: var(--line-strong); color: var(--ink-secondary); }
+
+/* A suggestion is a proposal until accepted; it must not read as work already on a list. */
+.readiness-suggestion { margin-top: var(--sp-5); padding: var(--sp-4) var(--sp-5);
+  border: 1px dashed var(--line-strong); border-radius: var(--r-sm); background: var(--bg-sunken); }
+
+/* ---- Account Path (ACCOUNT-PATH-SPEC.md §6, §11) ------------------------------------ */
+/* One orientation band, then compact execution groups. Only Next best move gets primary
+   emphasis; every other surface here is deliberately quieter than it (§5.3). */
+
+.callout.risk { border-left-color: var(--status-risk); background: var(--status-risk-tint); }
+
+.operate-stack > * + * { margin-top: var(--sp-7); }
+
+.path-orientation {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 0; align-items: stretch; overflow: hidden;
+}
+.path-orientation-move {
+  padding: var(--sp-7) var(--sp-8);
+  background: linear-gradient(180deg, var(--surface-highlight-subtle), transparent);
+}
+.path-orientation-rail {
+  padding: var(--sp-7) var(--sp-8); border-left: 1px solid var(--line-hairline);
+  background: var(--bg-sunken); display: flex; flex-direction: column; gap: var(--sp-6);
+}
+
+/* The house `h2` is a section eyebrow (uppercase, tracked, tertiary ink). The move title is a
+   full sentence and the loudest thing on the screen, so it keeps the heading semantics and drops
+   the eyebrow styling — an uppercase sentence in tertiary ink reads as a label, not the move. */
+.path-move h2 {
+  margin: var(--sp-3) 0 0; font-size: var(--t-h2); line-height: 1.25;
+  text-transform: none; letter-spacing: normal; font-weight: 600; color: var(--ink-primary);
+}
+.path-move-reason { margin: var(--sp-4) 0 0; color: var(--ink-secondary); line-height: 1.5; }
+.path-move-meta { margin-top: var(--sp-5); }
+.path-move-actions { display: flex; gap: var(--sp-4); margin-top: var(--sp-6); flex-wrap: wrap; }
+.path-move-requirement {
+  margin-top: var(--sp-5); padding: var(--sp-4) var(--sp-5);
+  border: 1px dashed var(--line-strong); border-radius: var(--r-sm); background: var(--bg-sunken);
+}
+.path-move.is-empty h2 { color: var(--ink-secondary); }
+
+/* The phase rail. State is a word plus a shape plus a colour class — never colour alone. */
+.path-rail-head { display: flex; align-items: baseline; gap: var(--sp-4); flex-wrap: wrap; }
+.path-gate-link, .path-milestone, .path-more {
+  border: 0; background: none; padding: 0; font: inherit; font-size: var(--t-small);
+  color: var(--accent); cursor: pointer; text-align: left;
+}
+.path-gate-link:hover, .path-milestone:hover, .path-more:hover { text-decoration: underline; }
+.path-milestone { margin-top: var(--sp-4); }
+
+.path-steps {
+  list-style: none; margin: var(--sp-5) 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: var(--sp-3);
+}
+.path-step { flex: 1 1 auto; min-width: 0; }
+.path-step > button {
+  width: 100%; display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line-hairline);
+  border-radius: var(--r-sm); background: var(--bg-surface); cursor: pointer;
+  font: inherit; font-size: var(--t-small); color: var(--ink-secondary); text-align: left;
+  transition: background var(--dur-fast) var(--ease-expo);
+}
+.path-step > button:hover { background: var(--bg-hover); }
+.path-step.is-selected > button { border-color: var(--accent); background: var(--bg-selected); }
+.path-step-mark { flex: none; font-family: var(--font-mono); }
+.path-step-label { color: var(--ink-primary); font-weight: 500; }
+.path-step-state {
+  margin-left: auto; font-size: var(--t-micro); text-transform: lowercase;
+  color: var(--ink-tertiary); white-space: nowrap;
+}
+.path-step.is-ok > button { border-left: var(--sp-1) solid var(--status-ok); }
+.path-step.is-accent > button {
+  border-left: var(--sp-1) solid var(--accent); background: var(--bg-elevated);
+  box-shadow: var(--shadow-control);
+}
+.path-step.is-accent .path-step-state { color: var(--ink-secondary); }
+.path-step.is-risk > button { border-left: var(--sp-1) solid var(--status-risk); }
+.path-step.is-future > button { border-style: dashed; background: none; }
+.path-step.is-neutral > button, .path-step.is-na > button { border-left: var(--sp-1) solid var(--line-strong); }
+.path-step.is-unknown > button {
+  border-left: var(--sp-1) solid var(--status-unknown);
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 5px,
+    var(--status-unknown-tint) 5px, var(--status-unknown-tint) 6px);
+}
+.path-step-reason {
+  font-size: var(--t-micro); color: var(--status-risk); margin-top: var(--sp-2);
+  padding-left: var(--sp-4);
+}
+.path-rail.is-compact + .path-rail { border-top: 1px solid var(--line-hairline); padding-top: var(--sp-5); }
+.path-rail.is-compact .path-steps { gap: var(--sp-2); }
+.path-rail.is-compact .path-step > button { padding: var(--sp-2) var(--sp-3); }
+.path-rail.is-compact .path-step-state { display: none; }
+
+.path-phase-filter { display: flex; align-items: center; gap: var(--sp-5); flex-wrap: wrap; }
+.path-coverage { margin-top: 0; }
+
+/* Execution rows: reason, owner, and due state are always present; the cap always reports
+   what it left behind, so a truncated group never reads as a complete one. */
+.path-rows { display: flex; flex-direction: column; }
+.path-row {
+  display: flex; align-items: flex-start; gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--line-hairline);
+  transition: background var(--dur-fast) var(--ease-expo);
+}
+.path-row:last-child { border-bottom: 0; }
+.path-row:hover { background: var(--bg-hover); }
+.path-row-body { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.path-row-title { color: var(--ink-primary); font-size: var(--t-body-lg); font-weight: 500; line-height: 1.35; }
+.path-row-reason { color: var(--ink-secondary); margin-top: var(--sp-2); line-height: 1.45; }
+.path-row-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5);
+  margin-top: var(--sp-3); font-size: var(--t-micro); color: var(--ink-tertiary);
+}
+.path-row-actions { display: flex; flex-direction: column; gap: var(--sp-2); flex: none; }
+.path-group-foot { padding: var(--sp-4) var(--sp-6); border-top: 1px solid var(--line-hairline); }
+
+.path-urgency { display: inline-flex; align-items: center; gap: var(--sp-3); white-space: nowrap; }
+.path-urgency.tone-risk { color: var(--status-risk); }
+.path-urgency.tone-warn { color: var(--status-warn); }
+
+/* A source label says where an item came from. It is not the readiness provenance chip, and the
+   two can appear on one row, so they must not look alike (§6.5). */
+.path-source {
+  font-size: var(--t-micro); color: var(--ink-secondary); background: var(--bg-sunken);
+  border-radius: var(--r-pill); padding: 0 var(--sp-4); white-space: nowrap;
+}
+.path-snooze-or { text-align: center; color: var(--ink-tertiary); margin: var(--sp-3) 0; }
+.path-error { padding: var(--sp-6); }
+.path-error .actions { gap: var(--sp-4); margin-top: var(--sp-4); }
+
+@media (max-width: 1000px) {
+  /* The path becomes vertical before its labels become unreadable (§11.8). No information is
+     hidden by width alone. */
+  .path-orientation { grid-template-columns: minmax(0, 1fr); }
+  .path-orientation-rail { border-left: 0; border-top: 1px solid var(--line-hairline); }
+  .path-steps { flex-direction: column; }
+  .path-rail.is-compact .path-step-state { display: inline; }
+}
+
+@media (max-width: 640px) {
+  .path-row { flex-direction: column; }
+  .path-row-actions { flex-direction: row; width: 100%; }
+  .path-row-actions .btn { min-height: 40px; flex: 1; }
+  .path-move-actions .btn { min-height: 40px; }
+}
+
+/* ---- Requirement detail and Account essentials gaps (ACCOUNT-PATH-SPEC.md §13.6-§13.8) ---- */
+/* The four axes sit in one grid so they read as four separate answers rather than a hierarchy
+   with a headline. There is no combined badge here and no room for one to be added quietly. */
+.req-axes {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4) var(--sp-5); margin: var(--sp-5) 0;
+  padding: var(--sp-5); border: 1px solid var(--line-hairline); border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+}
+.req-axis dt { font-size: var(--t-micro); color: var(--ink-tertiary); text-transform: uppercase;
+  letter-spacing: 0.04em; }
+.req-axis dd { margin: var(--sp-2) 0 0; display: flex; align-items: center; gap: var(--sp-3);
+  font-size: var(--t-small); }
+
+/* The plan's own line. Neutral by default: an expected date is a statement about scheduling, and
+   only a genuinely missed one earns the risk hue. */
+.req-plan { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3) var(--sp-4);
+  margin: var(--sp-4) 0; font-size: var(--t-small); }
+.req-plan.tone-risk { color: var(--status-risk); }
+.req-plan-rule { color: var(--ink-tertiary); }
+
+.req-h { margin: var(--sp-6) 0 var(--sp-3); font-size: var(--t-small); color: var(--ink-secondary);
+  border-top: 1px solid var(--line-hairline); padding-top: var(--sp-5); }
+.req-detail .detail-title { margin: var(--sp-3) 0; }
+.req-recorded, .req-suppression { margin: var(--sp-4) 0; }
+.req-link-note { margin-bottom: var(--sp-5); }
+
+.req-history { list-style: none; margin: 0; padding: 0; }
+.req-history li { padding: var(--sp-4) 0; border-top: 1px solid var(--line-hairline);
+  font-size: var(--t-small); }
+.req-history li:first-child { border-top: 0; }
+/* A decision in force is marked by a rule and its own word, never by colour alone. */
+.req-history li.is-live { border-left: 2px solid var(--status-warn); padding-left: var(--sp-4); }
+
+.req-actions { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-6); }
+/* The panel says out loud that no status control exists, so its absence reads as a decision
+   rather than as something missing. */
+.req-no-status { margin-top: var(--sp-4); }
+.req-suggestion { margin-top: var(--sp-5); }
+
+.req-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5);
+  margin-top: var(--sp-3); font-size: var(--t-small); }
+.req-essentials .readiness-list { margin-top: var(--sp-3); }
+/* The card lives in the narrow aside, where the default shrink clipped "View all N" against the
+   header's own border. The title block absorbs the shrink; the route out never does. */
+.req-essentials .card-h { flex-wrap: wrap; }
+.req-essentials .card-h > div:first-child { flex: 1 1 14rem; min-width: 0; }
+.req-essentials .card-h > .btn { flex: none; white-space: nowrap; }
+.req-suppressed, .req-tracked { border-top: 1px solid var(--line-hairline); }
+.req-suppressed > summary, .req-tracked > summary {
+  padding: var(--sp-4) var(--sp-6); cursor: pointer; list-style-position: inside;
+}
+.req-suppressed > summary:hover, .req-tracked > summary:hover {
+  background: var(--bg-hover); color: var(--ink-primary);
+}
+.req-tracked > summary:focus-visible { outline-offset: -2px; }
+/* The row is full-bleed inside a card that clips its overflow, so the global focus ring's left and
+   right edges are cut away and only the horizontals survive. Drawing it inside keeps the whole
+   ring visible — the same treatment `.company-event-focused` already uses for a full-bleed mark. */
+.req-suppressed > summary:focus-visible { outline-offset: -2px; }
+
+@media (max-width: 640px) {
+  .req-axes { grid-template-columns: minmax(0, 1fr); }
+  .req-actions .btn { min-height: 40px; flex: 1; }
+}
+
+/* ── Account Path Slice 5 — advancement verdict, links, evidence, dependencies (§15) ──────────
+   Everything here reads from tokens, so both themes are covered by the same rules. Status hue is
+   only ever a second signal: every verdict, consequence, and evidence row already carries a shape
+   (`.state-mark`) or a word, and removing the color would not remove the meaning. */
+
+.path-verdict { border-left: 3px solid var(--line-strong); }
+.path-verdict.tone-ok { border-left-color: var(--status-ok); }
+.path-verdict.tone-warn { border-left-color: var(--status-warn); }
+.path-verdict.tone-risk { border-left-color: var(--status-risk); }
+.path-verdict .card-h h3 { display: flex; align-items: center; gap: var(--sp-3); }
+/* The glyph repeats the state-mark's shape in text, so the verdict survives a high-contrast mode
+   that drops the dot and a screenshot read at a glance. */
+.path-verdict-symbol { font-family: var(--font-mono); color: var(--ink-secondary); }
+.path-verdict-summary { margin: var(--sp-4) 0 var(--sp-2); color: var(--ink-primary);
+  line-height: 1.5; }
+.path-verdict-reasons { margin: var(--sp-5) 0 0; padding-left: var(--sp-6); }
+.path-verdict-reasons > li { margin-bottom: var(--sp-4); font-size: var(--t-small); }
+.path-verdict-reasons ul { margin: var(--sp-2) 0 0; padding-left: var(--sp-5);
+  color: var(--ink-secondary); }
+/* A coverage failure is not a gap in the work, so it does not get the risk marker the other
+   reasons carry. It reads as unknown, which is what it is. */
+.path-verdict-reasons > li.is-coverage > strong { color: var(--ink-secondary);
+  font-weight: 500; }
+.path-verdict-foot { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline);
+  padding-top: var(--sp-3); }
+.path-history-card { margin-top: var(--sp-6); }
+
+.path-consequences, .path-unmet { margin: var(--sp-3) 0 0; padding: 0; list-style: none; }
+.path-consequences > li, .path-unmet > li {
+  display: flex; align-items: baseline; gap: var(--sp-3); margin-bottom: var(--sp-3);
+  font-size: var(--t-small); color: var(--ink-secondary);
+}
+.path-consequences > li .state-mark, .path-unmet > li .state-mark {
+  position: relative; top: -1px;
+}
+.path-consequences > li.tone-risk { color: var(--ink-primary); }
+.path-unmet { margin-bottom: var(--sp-5); }
+.path-unmet > li { flex-wrap: wrap; }
+
+/* A checkbox label is a sentence, not a field caption, so it opts out of `.field label`'s
+   uppercase micro-type — an override that shouts at the operator in caps reads as the recommended
+   path. The width reset is required for the same reason: `.field input` is sized for text inputs
+   and would stretch the box across the row. */
+.field label.check, .check { display: flex; align-items: baseline; gap: var(--sp-3); cursor: pointer;
+  text-transform: none; letter-spacing: normal; font-size: var(--t-small);
+  color: var(--ink-primary); margin-bottom: var(--sp-2); }
+.check input[type="checkbox"] { flex: none; width: auto; }
+
+.path-history { margin: 0; padding: 0; list-style: none; }
+.path-history > li { border-top: 1px solid var(--line-hairline); padding: var(--sp-4) 0;
+  font-size: var(--t-small); }
+.path-history > li:first-child { border-top: 0; padding-top: 0; }
+/* An override is the one row worth finding again months later, so it keeps a standing rule of its
+   own rather than only a badge that scrolls past. */
+.path-history > li.is-override { border-left: 2px solid var(--status-warn);
+  padding-left: var(--sp-4); }
+.path-history summary { cursor: pointer; margin-top: var(--sp-2); }
+.path-history details ul { margin: var(--sp-2) 0 0; padding-left: var(--sp-6); }
+
+.req-links { margin-top: var(--sp-4); }
+.req-links .req-h { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-4); }
+.req-link-group { margin-bottom: var(--sp-5); }
+/* Closed and retracted rows stay legible rather than being faded out of reach: they are still
+   facts, and the label beside them already says which kind. */
+.req-links li.is-closed, .req-evidence li.is-retracted { color: var(--ink-secondary); }
+.req-evidence li.is-retracted > .rowmeta:first-of-type { text-decoration: line-through; }
+.req-evidence > li { margin-bottom: var(--sp-4); }
+/* The mark sits immediately before the kind word with no whitespace between the elements, so it
+   reads as one run of text ("⊘interaction") without this. */
+.req-evidence > li > .state-mark { margin-right: var(--sp-2); }
+.req-evidence .actions { margin-top: var(--sp-2); gap: var(--sp-3); }
+
+.path-action-context { margin-top: var(--sp-4); }
+.path-action-context .callout { margin-bottom: var(--sp-4); }
+
+.path-deps { margin: var(--sp-3) 0 0; padding: 0; list-style: none; }
+.path-dep { display: flex; align-items: baseline; gap: var(--sp-3); margin-bottom: var(--sp-2);
+  font-size: var(--t-small); }
+/* The rule is the "line" in dependency line. It is drawn hairline-thin and never in a status hue,
+   because a recorded relation is not a state. */
+.path-dep-rule { flex: none; width: var(--sp-6); height: 1px; background: var(--line-strong);
+  align-self: center; }
+.path-dep.is-secondary { color: var(--ink-secondary); }
+.path-dep.is-blocking .path-dep-rule { background: var(--status-risk); height: 2px; }
+
+.path-deps-band { margin-top: var(--sp-6); border-top: 1px solid var(--line-hairline);
+  padding-top: var(--sp-5); }
+.path-deps-milestone { display: flex; align-items: baseline; gap: var(--sp-4);
+  margin: var(--sp-3) 0; flex-wrap: wrap; }
+.path-deps-milestone > .rowmeta { flex: none; min-width: 8rem; color: var(--ink-secondary); }
+
+/* --- Shared plan (ACCOUNT-PATH-SPEC.md §16.5) --------------------------------------------------
+   The customer's document and the operator's document sit on one page, so the two must never read
+   as one surface. Everything above `.plan-diagnostics` is what a customer would see; the
+   diagnostics card is inset and explicitly labelled internal. Status is a mark plus a symbol plus
+   a word in every case — the colour is the third signal, never the only one. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* The header carries four controls beside a title. Letting them wrap onto a second line keeps the
+   title on one line and stops the last button clipping at a narrow viewport. */
+.plan-header { flex-wrap: wrap; row-gap: var(--sp-4); }
+.plan-header h1 { white-space: nowrap; }
+.plan-header .spacer { min-width: var(--sp-6); }
+.plan-actions { display: flex; align-items: center; gap: var(--sp-4); margin-left: auto; }
+
+/* The artifact's own opening line, set as prose rather than as page chrome. */
+.plan-purpose { max-width: 76ch; margin: calc(var(--sp-5) * -1) 0 var(--sp-6);
+  color: var(--ink-secondary); line-height: 1.5; }
+
+.plan-account-select { height: var(--sp-9); border-radius: var(--r-md);
+  border: 1px solid var(--line-strong); padding: 0 var(--sp-4); background: var(--bg-surface);
+  color: var(--ink-primary); font: inherit; }
+.plan-account-select:focus-visible { outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring); }
+
+.plan-body { display: flex; flex-direction: column; gap: var(--sp-6); }
+.plan-program, .plan-block { padding-bottom: var(--sp-5); }
+
+.plan-group { margin-top: var(--sp-6); }
+.plan-group:first-of-type { margin-top: var(--sp-4); }
+.plan-group-h { display: flex; align-items: baseline; gap: var(--sp-4); flex-wrap: wrap;
+  border-top: 1px solid var(--line-hairline); padding-top: var(--sp-4); }
+.plan-group-h h4 { margin: 0; font-size: var(--t-body); }
+.plan-group-source, .plan-group-empty { margin-top: var(--sp-2); }
+.plan-table { margin-top: var(--sp-3); }
+.plan-table td { vertical-align: top; }
+/* The shared `.cell-title` ellipsis is right for a scannable ledger and wrong here: this is a
+   document a customer reads, and a truncated commitment is a changed commitment. */
+.plan-table .cell-title { overflow: visible; text-overflow: clip; white-space: normal;
+  max-width: 60ch; }
+
+/* The symbol repeats the mark's shape as text, so the status survives a high-contrast mode that
+   drops backgrounds and a screenshot that loses colour. */
+.plan-status { display: inline-flex; align-items: baseline; gap: var(--sp-3);
+  white-space: nowrap; }
+.plan-status-symbol { color: var(--ink-tertiary); font-size: var(--t-micro); }
+.plan-owners { display: inline; }
+
+.plan-triggers { list-style: none; margin: var(--sp-4) 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--sp-5); }
+.plan-triggers > li { border-left: 2px solid var(--line-strong); padding-left: var(--sp-5); }
+.plan-trigger-process { margin-top: var(--sp-2); color: var(--ink-secondary); }
+
+.plan-stale { display: flex; align-items: baseline; gap: var(--sp-4);
+  border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  padding: var(--sp-5); margin-bottom: var(--sp-6); color: var(--ink-secondary); }
+.plan-foot { margin-top: var(--sp-4); }
+
+/* Inset, bordered, and titled — the operator's half is visibly not part of the document above it. */
+.plan-diagnostics { margin-top: var(--sp-9); background: var(--bg-sunken);
+  border-style: dashed; }
+.plan-diag-line { margin: var(--sp-3) 0 0; }
+.plan-withheld { margin-top: var(--sp-6); }
+.plan-withheld h4, .plan-manifest h4 { margin: 0 0 var(--sp-3); font-size: var(--t-micro);
+  text-transform: uppercase; letter-spacing: .04em; color: var(--ink-tertiary); }
+.plan-withheld-group { margin-bottom: var(--sp-5); }
+.plan-withheld-group ul { list-style: none; margin: 0; padding: 0; }
+.plan-withheld-group li { display: flex; align-items: baseline; gap: var(--sp-3);
+  margin-bottom: var(--sp-2); }
+.plan-withheld-reason { margin-top: var(--sp-2); }
+.plan-manifest { margin-top: var(--sp-6); }
+.plan-diag-notes { margin: var(--sp-6) 0 0; padding-left: var(--sp-6); }
+.plan-diag-notes > li { margin-bottom: var(--sp-3); }
+
+.plan-verdict { border: 1px solid var(--line-strong); border-left-width: 3px;
+  border-radius: var(--r-md); padding: var(--sp-5); margin-bottom: var(--sp-6); }
+.plan-verdict-h { display: flex; align-items: baseline; gap: var(--sp-3); }
+.plan-verdict.tone-ok { border-left-color: var(--status-ok); }
+.plan-verdict.tone-warn { border-left-color: var(--status-warn); }
+.plan-verdict.tone-unknown { border-left-color: var(--status-unknown); }
+
+/* --- Account plan surface (ACCOUNT-PATH-SPEC.md §13.3–§13.5) -----------------------------------
+   Stages read top to bottom in time order. Each stage keeps its own heading and count, so an
+   operator reads "what is owed now" without parsing dates; the row itself still carries the four
+   readiness axes, which nothing here combines. Color never carries a stage on its own — the
+   heading is the label and `.state-mark` inside the row supplies the shape. */
+.aplan-surface { display: flex; flex-direction: column; gap: var(--sp-5); }
+
+.aplan-head .actions { margin-bottom: var(--sp-3); }
+.aplan-instances { list-style: none; margin: 0; padding: 0; display: flex;
+  flex-direction: column; gap: var(--sp-3); }
+.aplan-instances > li { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+.aplan-start { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-4);
+  margin-top: var(--sp-4); }
+.aplan-field { display: flex; flex-direction: column; gap: var(--sp-2); }
+.aplan-field > span { color: var(--ink-secondary); font-size: var(--t-micro);
+  text-transform: capitalize; }
+.aplan-field select, .aplan-field input { height: var(--sp-9); border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong); background: var(--bg-surface); color: var(--ink-primary);
+  padding: 0 var(--sp-3); }
+.aplan-start-note { flex-basis: 100%; margin: 0; }
+
+.aplan-upgrade { border-left: 3px solid var(--line-strong); }
+.aplan-warn { border-left: 3px solid var(--status-warn); margin-bottom: var(--sp-4); }
+
+.aplan-stage > .actions { margin-bottom: var(--sp-2); }
+.aplan-stage h3 { margin: 0; }
+/* The rail repeats the stage in shape and position, never in color alone: the heading above it
+   already names the stage in words. */
+.aplan-stage-overdue { border-left: 3px solid var(--status-risk); }
+.aplan-stage-now { border-left: 3px solid var(--status-warn); }
+.aplan-stage-next, .aplan-stage-later, .aplan-stage-undated {
+  border-left: 3px solid var(--line-hairline); }
+.aplan-stage-clear { margin: 0; }
+/* Colour only ever seconds the `.state-mark` ring beside it and the sentence itself, both of which
+   already carry the meaning; removing this rule would remove no information. */
+.aplan-compat p.tone-warn { color: var(--status-warn); }
+.aplan-stage-settled { border-left: 3px solid transparent; }
+
+.aplan-disclosure { display: flex; align-items: center; gap: var(--sp-3); width: 100%;
+  background: none; border: 0; padding: 0; color: var(--ink-primary); font: inherit;
+  text-align: left; cursor: pointer; }
+.aplan-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Setup steps (migration 0051), inside a stage card beneath its conditions. Drawn as a distinct
+   block rather than as more rows in the same list: a gate item has no readiness axis, so giving it
+   the row treatment above would leave three empty axis slots that read as "unknown" instead of
+   "not applicable to this kind of thing". The inset rail is a hairline — never a status hue —
+   because a setup step's state is its own checkbox and nothing else. */
+.aplan-setup-group { margin-top: var(--sp-4); padding-top: var(--sp-4);
+  border-top: 1px solid var(--line-hairline); }
+.aplan-setup-group h4 { margin: 0 0 var(--sp-3); font-weight: 600; }
+.aplan-setup-row { display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3) 0 var(--sp-3) var(--sp-4);
+  border-left: 2px solid var(--line-hairline); }
+.aplan-setup-row + .aplan-setup-row { border-top: 1px solid var(--line-hairline); }
+.aplan-setup-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.aplan-setup-tick { display: flex; align-items: baseline; gap: var(--sp-3); cursor: pointer; }
+.aplan-setup-tick input { accent-color: var(--accent); }
+.aplan-setup-tick input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.aplan-setup-tick input:disabled { cursor: not-allowed; }
+.aplan-setup-done { color: var(--ink-tertiary); text-decoration: line-through; }
+.aplan-setup-fill { margin-top: var(--sp-2); max-width: 32rem; }
+
+/* --- Launch timeline (Plan tab, primary) -------------------------------------------------------
+   Three swim lanes against one axis. The lane is told apart by the marker's *shape*, never by a
+   hue: the legend names each shape, and `markerLabel` puts the same information in every marker's
+   accessible name. Status color appears on exactly two kinds of marker — overdue and flagged — and
+   both of those also change form (they gain a ring), so the difference survives greyscale and a
+   color-vision difference. Nothing here is sized in raw pixels; the marker and inset are tokens of
+   their own so the rules, markers and axis labels cannot drift apart. */
+.ptl { --ptl-mark: 0.7rem; --ptl-inset: var(--sp-5); --ptl-head: 11rem; --ptl-track: var(--sp-9); }
+.ptl > .actions { margin-bottom: var(--sp-3); }
+.ptl h3 { margin: 0; }
+
+.ptl-legend { list-style: none; margin: 0 0 var(--sp-5); padding: 0; display: flex;
+  flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); }
+.ptl-legend > li { display: flex; align-items: center; gap: var(--sp-3);
+  color: var(--ink-secondary); font-size: var(--t-micro); }
+.ptl-legend strong { color: var(--ink-primary); }
+
+/* The shapes. A button element, so each is reachable and operable from the keyboard; the size is
+   deliberately larger than the drawn mark so the hit target stays comfortable. */
+.ptl-mark { display: inline-block; inline-size: var(--ptl-mark); block-size: var(--ptl-mark);
+  border: 1.5px solid var(--ink-secondary); background: var(--bg-surface); padding: 0;
+  flex: none; }
+button.ptl-mark { cursor: pointer; }
+.ptl-mark-circle { border-radius: var(--r-pill); }
+.ptl-mark-square { border-radius: 1px; }
+.ptl-mark-diamond { border-radius: 1px; transform: rotate(45deg); }
+.ptl-mark.is-done { background: var(--ink-secondary); }
+.ptl-mark.is-late { border-color: var(--status-risk); border-width: 2px;
+  box-shadow: 0 0 0 3px var(--status-risk-tint); }
+.ptl-mark.is-risk { border-color: var(--status-warn); border-width: 2px;
+  box-shadow: 0 0 0 3px var(--status-warn-tint); }
+.ptl-mark.is-picked { box-shadow: 0 0 0 3px var(--accent-ring); }
+.ptl-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.ptl-chart { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* Month rules and today, behind the markers and inert. */
+.ptl-rules { position: absolute; inset-block: 0; inset-inline: var(--ptl-head) 0;
+  pointer-events: none; }
+.ptl-rule { position: absolute; inset-block: 0; inline-size: 1px; background: var(--grid-line);
+  transform: translateX(-50%); }
+/* Dashed and labelled rather than a colored line: today is a reference point, not a status, and
+   the accent belongs to interaction. */
+.ptl-now { position: absolute; inset-block: 0; inline-size: 0;
+  border-left: 1px dashed var(--ink-primary); }
+.ptl-now-flag { position: absolute; inset-block-start: calc(-1 * var(--sp-5));
+  transform: translateX(-50%); white-space: nowrap; font-size: var(--t-micro);
+  color: var(--ink-primary); background: var(--bg-surface); padding: 0 var(--sp-2);
+  border-radius: var(--r-sm); }
+
+.ptl-lane { position: relative; display: grid; grid-template-columns: var(--ptl-head) 1fr;
+  align-items: center; }
+.ptl-lane-head { display: flex; align-items: center; gap: var(--sp-3); padding-right: var(--sp-4);
+  font-size: var(--t-micro); }
+.ptl-lane-title { color: var(--ink-secondary); }
+.ptl-lane-head .rowmeta { margin-left: auto; }
+
+.ptl-track { position: relative; list-style: none; margin: 0; padding: 0;
+  block-size: var(--ptl-track); }
+/* The lane line the markers sit on. A hairline, not a rail with meaning. */
+.ptl-track::before { content: ""; position: absolute; inset-inline: 0; inset-block-start: 50%;
+  block-size: 1px; background: var(--line-hairline); }
+.ptl-track > li { position: absolute; inset-block-start: 50%;
+  transform: translate(-50%, -50%); }
+.ptl-lane-none { transform: translateY(-50%); color: var(--ink-tertiary); }
+
+.ptl-axis { position: relative; block-size: var(--sp-6); margin-left: var(--ptl-head); }
+.ptl-tick { position: absolute; transform: translateX(-50%); font-size: var(--t-micro);
+  color: var(--ink-tertiary); white-space: nowrap; }
+
+/* The count beside a marker standing for several rows. Set above and right of the shape so it
+   never shifts the marker off the date it encodes. */
+.ptl-count { position: absolute; inset-block-start: calc(-1 * var(--sp-3));
+  inset-inline-start: calc(var(--ptl-mark) - 1px); font-size: var(--t-micro);
+  color: var(--ink-secondary); line-height: 1; }
+
+.ptl-caption { margin-top: var(--sp-4); padding-top: var(--sp-4); min-block-size: var(--sp-10);
+  border-top: 1px solid var(--line-hairline); }
+.ptl-caption-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.ptl-caption p { margin: var(--sp-1) 0 var(--sp-3); }
+.ptl-caption-list { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex;
+  flex-direction: column; gap: var(--sp-3); }
+.ptl-caption-list > li { display: flex; align-items: baseline; gap: var(--sp-4);
+  flex-wrap: wrap; }
+.ptl-caption-row { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.ptl-notice { margin: var(--sp-3) 0 0; }
+.ptl-empty p { margin: var(--sp-2) 0 0; }
+
+/* Narrow: the lane label moves above its track, because an 11rem column leaves no axis. */
+@media (max-width: 46rem) {
+  .ptl { --ptl-head: 0rem; }
+  .ptl-lane { grid-template-columns: 1fr; }
+  .ptl-lane-head { padding: 0 0 var(--sp-2); }
+  .ptl-axis { margin-left: 0; }
+}
+
+.aplan-legacy-list { list-style: none; margin: var(--sp-4) 0; padding: 0; display: flex;
+  flex-direction: column; gap: var(--sp-3); }
+.aplan-legacy-list > li { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.aplan-legacy-done { color: var(--ink-tertiary); text-decoration: line-through; }
+
+.aplan-actions { display: flex; gap: var(--sp-3); margin-top: var(--sp-4); }
+.aplan-compat { margin-top: var(--sp-4); }
+.aplan-compat p { margin: 0 0 var(--sp-2); display: flex; align-items: baseline; gap: var(--sp-3); }
+
+.aplan-diff-group { margin-bottom: var(--sp-5); }
+.aplan-diff-group h3 { margin: 0 0 var(--sp-2); }
+.aplan-diff-group ul { margin: 0; padding-left: var(--sp-6); }
+
+/* ---- Account drop zone (ACCOUNT-INTAKE-SPEC.md §16) ---------------------------------
+   Two rules are doing real work here and are easy to undo by accident:
+
+   1. Drag-over changes the *label* as well as the border (see `zoneLabel`). The border is the
+      fast signal; the label is the accessible one and the one that names the account. A
+      colour-only change would fail DESIGN-GUIDE.md §"no state by colour alone" outright.
+   2. The zone borrows no status hue. Dashed `--line-strong` is a boundary, not a condition —
+      green/amber/red belong to account health, and an empty upload target is not a health
+      state. Only a genuine read failure takes `--status-warn`, on the receipt, with a label.  */
+.intake-card .card-h .rowmeta { text-align: right; }
+
+.intake-zone {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-9) var(--sp-6);
+  border: 2px dashed var(--line-strong); border-radius: var(--r-lg);
+  background: var(--bg-sunken); cursor: pointer; text-align: center;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.intake-zone:hover { border-color: var(--line-hover); }
+.intake-zone:focus-visible { outline: 2px solid var(--accent); outline-offset: var(--sp-1); }
+/* Solid + raised on drag-over: the boundary stops being a suggestion and becomes a target. */
+.intake-zone.is-dragging { border-style: solid; border-color: var(--accent);
+  background: var(--accent-tint); }
+.intake-zone.is-busy { cursor: progress; }
+
+.intake-zone-label { font-size: var(--t-body); font-weight: 500; color: var(--ink-primary); }
+.intake-zone-hint { font-size: var(--t-micro); color: var(--ink-tertiary); max-width: 44ch; }
+.intake-zone-actions { display: flex; gap: var(--sp-3); margin-top: var(--sp-2); }
+
+.intake-receipts { display: flex; flex-direction: column; gap: var(--sp-4);
+  margin-top: var(--sp-5); }
+
+.intake-receipt { border: 1px solid var(--line-hairline); border-radius: var(--r-md);
+  padding: var(--sp-5); background: var(--bg-surface); }
+/* Only a read failure is tinted, and even then the label carries the meaning. */
+.intake-receipt-warn { border-color: var(--status-warn); background: var(--status-warn-tint); }
+
+.intake-receipt-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.intake-receipt-line { display: flex; align-items: center; gap: var(--sp-3);
+  margin-top: var(--sp-4); }
+.intake-receipt-foot { display: flex; align-items: center; gap: var(--sp-3);
+  margin-top: var(--sp-4); flex-wrap: wrap; }
+
+/* The shape carries the state alongside the colour: a warn outcome is boxed, a quiet one is not. */
+.intake-outcome { font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-tertiary); }
+.intake-outcome-warn { color: var(--status-warn); border: 1px solid currentColor;
+  border-radius: var(--r-pill); padding: 0 var(--sp-3); }
+
+.intake-reason { margin: var(--sp-3) 0 0; color: var(--ink-secondary);
+  font-size: var(--t-small); }
+
+.intake-notdrafted { margin-top: var(--sp-4); padding-top: var(--sp-4);
+  border-top: 1px solid var(--line-hairline); }
+.intake-coverage { list-style: none; margin: var(--sp-2) 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--sp-2); }
+.intake-coverage > li { font-size: var(--t-small); color: var(--ink-secondary); }
+
+/* Source text is text: monospace, wrapped, scrolled, and never parsed as markup. */
+.intake-snapshot { margin: var(--sp-4) 0 0; padding: var(--sp-4);
+  background: var(--bg-sunken); border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-secondary);
+  white-space: pre-wrap; word-break: break-word; max-height: 22rem; overflow-y: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .intake-zone { transition: none; }
 }

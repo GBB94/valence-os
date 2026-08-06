@@ -1,4 +1,11 @@
-"""Mutual Action Plan (Section 5N) — promotion flag + by-construction client-facing view."""
+"""Mutual Action Plan — promotion flag + by-construction client-facing view.
+
+Originally written against template v1's flat mixed table (Section 5N). ACCOUNT-PATH-SPEC.md §16.5
+replaced that with a grouped plan and a `{artifact, diagnostics}` response, so the assertions below
+were rewritten against the new contract. Their intent is unchanged: promotion is affirmative, an
+unsourced record cannot be promoted, and an unpromoted one is absent by construction rather than by
+filtering.
+"""
 import os
 import tempfile
 
@@ -38,33 +45,46 @@ def scene(client):
     return {"c": client, "a": a, "p": p, "cm": cm, "ms": ms, "internal": internal}
 
 
+def _artifact(c, account_id):
+    r = c.get(f"/api/accounts/{account_id}/map")
+    assert r.status_code == 200, r.text
+    return r.json()["artifact"]
+
+
+def _shared_items(artifact):
+    return [action for program in artifact["programs"]
+            for group in program["groups"] for action in group["actions"]]
+
+
 def test_map_empty_until_items_promoted(scene):
-    c, a = scene["c"], scene["a"]
-    m = c.get(f"/api/accounts/{a['id']}/map").json()
-    assert m["items"] == [] and "No items have been shared" in m["markdown"]
+    artifact = _artifact(scene["c"], scene["a"]["id"])
+    assert artifact["programs"] == []
+    assert "No items have been shared" in artifact["markdown"]
 
 
 def test_promote_puts_item_on_map_by_construction(scene):
     c, a = scene["c"], scene["a"]
     c.post("/api/map/promote", json={"object_type": "commitment", "object_id": scene["cm"]["id"], "client_visible": True})
     c.post("/api/map/promote", json={"object_type": "milestone", "object_id": scene["ms"]["id"], "client_visible": True})
-    m = c.get(f"/api/accounts/{a['id']}/map").json()
-    whats = [i["what"] for i in m["items"]]
-    assert "Client to secure DPO sign-off" in whats and "Europe go-live" in whats
+    artifact = _artifact(c, a["id"])
+    assert [i["what"] for i in _shared_items(artifact)] == ["Client to secure DPO sign-off"]
+    milestones = [g["milestone"] for p in artifact["programs"] for g in p["groups"]]
+    assert "Europe go-live" in milestones
     # the un-promoted INTERNAL commitment is excluded by construction
-    assert "INTERNAL: prep board memo" not in whats
-    assert "INTERNAL" not in m["markdown"]
-    # promoted commitment shows the responsible party (client), stamped
-    assert m["stamp"]["data_current_through"]
-    assert any(i["owner"] == "Sofie" for i in m["items"] if i["type"] == "commitment")
+    assert "INTERNAL: prep board memo" not in str(artifact)
+    assert "INTERNAL" not in artifact["markdown"]
+    assert artifact["stamp"]["data_current_through"]
+    # the responsible party sits on the customer side of the plan, the owner on ours
+    item = _shared_items(artifact)[0]
+    assert item["customer_owner"] == "Sofie" and item["valence_owner"] == "Sam"
 
 
 def test_demote_removes_from_map(scene):
     c, a = scene["c"], scene["a"]
     c.post("/api/map/promote", json={"object_type": "commitment", "object_id": scene["cm"]["id"], "client_visible": True})
-    assert len(c.get(f"/api/accounts/{a['id']}/map").json()["items"]) == 1
+    assert len(_shared_items(_artifact(c, a["id"]))) == 1
     c.post("/api/map/promote", json={"object_type": "commitment", "object_id": scene["cm"]["id"], "client_visible": False})
-    assert c.get(f"/api/accounts/{a['id']}/map").json()["items"] == []
+    assert _shared_items(_artifact(c, a["id"])) == []
 
 
 def test_client_visible_defaults_off(scene):

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
+import { answerBlocks } from "../copilotAnswer";
 import { Badge, Btn, Empty, useToast } from "../ui";
 
 const STARTERS = [
@@ -16,6 +17,27 @@ const STATE_LABEL = {
   insufficient: "Insufficient evidence",
 };
 
+/**
+ * The answer body, rendered as blocks rather than as the raw markdown the generator emits. Every
+ * block's text becomes a text node and never HTML — retrieved prose is untrusted data, so an HTML
+ * path would let a record's contents become markup. See `copilotAnswer.js` for why the structure
+ * cannot simply be dropped from the generator.
+ */
+export function CopilotAnswer({ markdown }) {
+  return (
+    <div className="copilot-answer">
+      {answerBlocks(markdown).map((block, index) => {
+        if (block.kind === "h2") return <h4 key={index}>{block.text}</h4>;
+        if (block.kind === "h3") return <h5 key={index}>{block.text}</h5>;
+        if (block.kind === "list") {
+          return <ul key={index}>{block.items.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+        }
+        return <p key={index}>{block.text}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function CopilotPanel({ scope, accountName, starter, onClose, onNavigateSource }) {
   const toast = useToast();
   const closeRef = useRef(null);
@@ -30,8 +52,22 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
   const [draftPreview, setDraftPreview] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
 
+  // Same contract, same capture rule, and for the same reason as `ui.jsx`'s SlideOver: the opener is
+  // read during the first render, because an effect keyed on the caller's `onClose` re-runs on every
+  // render and would re-capture a control inside the panel. Restoring here rather than only from
+  // `App.jsx` means the panel that owns the focus trap also owns giving focus back — the caller's
+  // restore is a rAF, which never fires in a backgrounded tab.
+  const openerRef = useRef(undefined);
+  if (openerRef.current === undefined) openerRef.current = document.activeElement;
   useEffect(() => {
     closeRef.current?.focus();
+    return () => {
+      const opener = openerRef.current;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  useEffect(() => {
     const key = (event) => {
       if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
       if (event.key !== "Tab") return;
@@ -163,7 +199,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
                 {run.context_run_id ? " · bounded follow-up" : ""}
               </div>}
               {run.status === "abstained" ? <Empty title="I can't defend an answer from this scope">
-                {run.failure_detail}</Empty> : <div className="copilot-answer">{run.answer_markdown}</div>}
+                {run.failure_detail}</Empty> : <CopilotAnswer markdown={run.answer_markdown} />}
               {!!run.gaps?.length && <div className="copilot-gaps">
                 <strong>Named gaps</strong>
                 <ul>{run.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul>
@@ -209,7 +245,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
 
             {draftPreview && <div className="card copilot-draft-preview" role="region" aria-label="Internal draft preview">
               <div className="card-h"><div><h3>Preview before saving</h3><div className="rowmeta">Internal only · source run {draftPreview.source_run_id}</div></div></div>
-              <div className="copilot-answer">{draftPreview.markdown}</div>
+              <CopilotAnswer markdown={draftPreview.markdown} />
               <div className="actions" style={{ padding: 12 }}>
                 <Btn variant="primary" onClick={saveDraft} disabled={savingDraft}>{savingDraft ? "Saving…" : "Save internal draft"}</Btn>
                 <Btn variant="ghost" onClick={() => setDraftPreview(null)}>Cancel</Btn>

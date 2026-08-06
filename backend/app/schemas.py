@@ -425,6 +425,17 @@ class GateItemToggle(BaseModel):
     complete: bool
 
 
+class GateItemPatch(BaseModel):
+    """Migration 0051 — the gate item is now the merged standard's operational half.
+
+    Every field is optional and nothing is inferred: `fill_value` is the operator's answer to the
+    question the item asks, written only to the one field the template named in `fills_field`.
+    """
+    complete: bool | None = None
+    due_date: str | None = None
+    fill_value: str | None = None
+
+
 class GateWaive(BaseModel):
     waiver_reason: str = Field(min_length=1)
 
@@ -636,10 +647,15 @@ class EdgeCreate(BaseModel):
 
 
 class MapPromote(BaseModel):
-    """Promote / demote an execution object onto the client-facing mutual action plan."""
-    object_type: Literal["commitment", "task", "milestone"]
+    """Promote / demote a record onto the client-facing mutual action plan (§16.4)."""
+    object_type: Literal["commitment", "task", "milestone", "requirement"]
     object_id: str
     client_visible: bool
+    # Requirements only. §16.3 wants a label confirmed safe for external eyes rather than the
+    # canonical one, which is written for operators; the database refuses the promotion without it.
+    client_label: str | None = None
+    client_owner_person_id: str | None = None
+    actor_id: str | None = None
 
 
 class RecoveredSpendCreate(BaseModel):
@@ -668,9 +684,50 @@ class ManualExtractionRequest(BaseModel):
     proposals_json: str = Field(min_length=1)          # raw JSON from the local model
 
 
+class IntakeDropCreate(BaseModel):
+    """One dropped or pasted item (ACCOUNT-INTAKE-SPEC.md §15).
+
+    Exactly one of `text` (a paste) or `content_b64` (a dropped file's bytes). Bytes rather than a
+    decoded string because §6 decodes per kind, not at the door — and base64 rather than multipart
+    because that needs no new dependency. The account is the route parameter and is never in this
+    body: scope is a human's choice about which page they were on, not something the payload may
+    influence.
+    """
+    text: Optional[str] = None
+    content_b64: Optional[str] = None
+    filename: Optional[str] = None
+    program_id: Optional[str] = None
+    # §7.2's explicit override. An operator act, never a heuristic: a thread forwarded to you for
+    # the first time is all new to this account, and only a human knows that.
+    read_whole_thread: bool = False
+    backend: Optional[str] = None
+
+
 class ProposalAccept(BaseModel):
     # optional per-item field overrides before applying (e.g. add owners/due date)
     overrides: dict = Field(default_factory=dict)
+
+
+class ProposalReject(BaseModel):
+    """RR §6.7 lists rejection *with a reason*. The reason is required because a rejected proposal
+    is the only record that the source said something the operator disagreed with, and an empty
+    rejection makes the next reviewer re-do the same judgement."""
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class ProposalResolveExisting(BaseModel):
+    """"Use existing" (§6.7): the source was right, but a record already says it. Nothing is
+    created and nothing is patched — the proposal is closed against the record that already holds
+    the fact, so the same sentence never proposes it a third time."""
+    target_id: str
+    target_type: Optional[str] = None                  # defaults to the proposal's own target
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class ProposalSupersede(BaseModel):
+    """Replace a proposal with a newer one over the same material (§6.7)."""
+    superseded_by_id: str
+    reason: Optional[str] = Field(default=None, max_length=500)
 
 
 TriggerKind = Literal[

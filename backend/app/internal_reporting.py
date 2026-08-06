@@ -11,7 +11,7 @@ import yaml
 
 from fastapi import HTTPException
 
-from . import audit, expansion, queue, repo, stage75
+from . import audit, expansion, generators, queue, repo, stage75
 from .db import new_id, now_utc
 from .internal_forecast import _closed_actuals, calibration, totals
 from .internal_asks import elapsed_business_hours
@@ -256,7 +256,8 @@ def generate_monthly(conn: sqlite3.Connection) -> dict:
     doc = repo.insert(conn, "generated_documents", {"kind": "monthly_portfolio_brief",
         "title": "Monthly portfolio brief", "body_markdown": "\n".join(lines), "status": "draft",
         "generated_at": now_utc(), "data_current_through": now_utc()[:10], "audience": "internal",
-        "audience_profile": "leadership"}, object_type="generated_document")
+        "audience_profile": "leadership",
+        **generators.template_stamp("monthly_portfolio_brief")}, object_type="generated_document")
     with conn:
         for s in preview["statuses"]:
             account = repo.get_row(conn, "accounts", s["account_id"])
@@ -354,7 +355,8 @@ def generate_review_artifact(conn: sqlite3.Connection, review_id: str, kind: str
     doc = repo.insert(conn, "generated_documents", {"account_id": review["account_id"], "kind": kind,
         "title": kind.replace("_", " ").title(), "body_markdown": "\n".join(body), "status": "draft",
         "generated_at": now_utc(), "data_current_through": now_utc()[:10], "audience": "internal",
-        "audience_profile": "working"}, object_type="generated_document")
+        "audience_profile": "working",
+        **generators.template_stamp(kind)}, object_type="generated_document")
     with conn:
         conn.execute("INSERT INTO generated_document_sources(id,document_id,record_type,record_id,record_version,inclusion_reason,visibility_class,created_at) VALUES (?,?,?,?,?,?,?,?)",
                      (new_id(), doc["id"], "account_review", review_id, review["updated_at"], "review context", "internal", now_utc()))

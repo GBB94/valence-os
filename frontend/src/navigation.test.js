@@ -33,6 +33,38 @@ test("Commercial company routes preserve an exact record focus", () => {
   }), { dest: "account", accountId: "acct-1", tab: "commercial" });
 });
 
+test("the People sub-tab round-trips, and each tab validates section against its own keys", () => {
+  // Readiness evidence routes here (RELATIONSHIP-READINESS-SPEC.md §5.3): a champion_candidate
+  // opens People/Champions rather than People's default Map.
+  const nav = parseNavigation({
+    pathname: "/accounts/acct-1/people", search: "?section=champions",
+  });
+  assert.deepEqual(nav, {
+    dest: "account", accountId: "acct-1", tab: "people", section: "champions",
+  });
+  assert.equal(navigationUrl(nav), "/accounts/acct-1/people?section=champions");
+
+  // `section` is one shared nav field, so the allowlist is per tab, not merged. A Commercial
+  // section arriving on People — or the reverse — is dropped rather than round-tripped into a
+  // value that tab cannot render, which would blank the panel.
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/people", search: "?section=pipeline",
+  }), { dest: "account", accountId: "acct-1", tab: "people" });
+  assert.deepEqual(parseNavigation({
+    pathname: "/accounts/acct-1/commercial", search: "?section=champions",
+  }), { dest: "account", accountId: "acct-1", tab: "commercial" });
+
+  // A tab with no sub-views never serializes one.
+  assert.equal(navigationUrl({
+    dest: "account", accountId: "acct-1", tab: "ledger", section: "map",
+  }), "/accounts/acct-1/ledger");
+
+  // `record` stays a Commercial/company affordance: People focuses a panel, not a row.
+  assert.equal(navigationUrl({
+    dest: "account", accountId: "acct-1", tab: "people", section: "map", recordId: "person-9",
+  }), "/accounts/acct-1/people?section=map");
+});
+
 test("account Overview preserves lens and meeting focus canonically", () => {
   const nav = parseNavigation({
     pathname: "/accounts/acct-1/overview",

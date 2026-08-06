@@ -2,6 +2,26 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { AgeChip, Loading, useToast, fmtDate } from "../ui";
 
+/**
+ * One funnel's counts. Rendered from a `totals` block rather than from the response, so the
+ * aggregate and each per-ruleset block are drawn by the same code and cannot describe themselves
+ * differently. "left the list" is the event's own name: Account Path never closes anything, so a
+ * row's absence is all that was observed — a cancellation looks identical to a completion here.
+ */
+function FunnelChips({ totals }) {
+  return (
+    <div className="chiprow">
+      <span className="badge">views · {totals.views}</span>
+      <span className="badge">with a move · {totals.views_with_next_move}</span>
+      <span className="badge">opened · {totals.next_move_opened}</span>
+      <span className="badge">left the list · {totals.next_move_left_list}</span>
+      <span className="badge">snoozed · {totals.next_move_snoozed}</span>
+      <span className="badge">successors · {totals.successor_actions_created}</span>
+      <span className="badge">incomplete coverage · {totals.views_with_incomplete_coverage}</span>
+    </div>
+  );
+}
+
 // Operations screen (Module P): say when the tool is broken without reading server logs.
 export default function Operations({ reloadKey }) {
   const toast = useToast();
@@ -13,6 +33,16 @@ export default function Operations({ reloadKey }) {
   const [feedbackReview, setFeedbackReview] = useState({});
   const [styleName, setStyleName] = useState("Operator concise internal");
   const [maxChars, setMaxChars] = useState(6000);
+  // Product measurement (ACCOUNT-PATH-SPEC.md §17). Loaded and failed independently of everything
+  // else on this screen: the diagnostics sink must never be able to blank Operations.
+  const [measurement, setMeasurement] = useState(null);
+  const [rules, setRules] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [comparing, setComparing] = useState(false);
+  const loadMeasurement = useCallback(() => Promise.all([
+    api.telemetryFunnel().then((result) => setMeasurement(result)),
+    api.rankingRules().then((result) => setRules(result)),
+  ]).catch(() => {}), []);
   const loadStyles = useCallback(() => api.copilotStyles().then((result) => setStyles(result.profiles || [])).catch(() => {}), []);
   const loadCopilotOps = useCallback(() => Promise.all([
     api.copilotConfigurations().then((result) => setConfigs(result.configurations || [])),
@@ -23,7 +53,8 @@ export default function Operations({ reloadKey }) {
     api.campaignLearning().then(setLearning).catch((e) => toast(e.message, "err"));
     loadStyles();
     loadCopilotOps();
-  }, [reloadKey, loadStyles, loadCopilotOps, toast]);
+    loadMeasurement();
+  }, [reloadKey, loadStyles, loadCopilotOps, loadMeasurement, toast]);
   if (!ops) return <Loading what="operations" />;
 
   return (
@@ -196,6 +227,126 @@ export default function Operations({ reloadKey }) {
           <tbody>{(ops.internal_record_counts || []).map((r) => <tr key={r.record_type}>
             <td>{r.record_type.replaceAll("_", " ")}</td><td className="num">{r.count ?? "migration missing"}</td>
           </tr>)}</tbody></table>
+      </div>
+
+      <h2>Product measurement</h2>
+      <div className="card" aria-label="Product measurement">
+        {!measurement ? <div className="rowmeta" style={{ padding: 12 }}>
+          Measurement could not be read. Treat the absence as unknown, not as zero use.
+        </div> : <>
+          <div className="grid2" style={{ padding: 12 }}>
+            <div>
+              <div className="rowmeta">Local diagnostics</div>
+              <div>
+                {measurement.settings.enabled ? "Recording" : "Disabled"} · retention{" "}
+                {measurement.settings.retention_days} days · nothing leaves this installation
+              </div>
+              <div className="actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+                {/* §17.4: a local setting can disable measurement. Turning it off also discards
+                    what was collected, which the button says rather than leaving to be found. */}
+                <button className="btn small" onClick={async () => {
+                  try {
+                    await api.patchTelemetrySettings({ enabled: !measurement.settings.enabled });
+                    await loadMeasurement();
+                    toast(measurement.settings.enabled
+                      ? "Measurement disabled and existing events discarded."
+                      : "Measurement recording.");
+                  } catch (error) { toast(error.message, "err"); }
+                }}>
+                  {measurement.settings.enabled
+                    ? "Disable and delete collected events" : "Enable measurement"}
+                </button>
+              </div>
+            </div>
+            <div>
+              <div className="rowmeta">
+                Funnel{measurement.rule_versions.length > 0 && <>
+                  {" · "}{measurement.rule_versions.map((v) => v.ranking_rule_version).join(", ")}
+                </>}
+              </div>
+              <FunnelChips totals={measurement.totals} />
+            </div>
+          </div>
+          {/* Which ordering produced these numbers is part of the numbers. When the data spans
+              more than one ruleset the aggregate above describes no single ordering, so the
+              separable ones render underneath rather than being left in the payload. */}
+          {measurement.spans_multiple_rule_versions && <div style={{ padding: "0 12px 12px" }}>
+            {measurement.by_rule_version.map((block) => (
+              <div key={block.ranking_rule_version} style={{ marginTop: 8 }}>
+                <div className="rowmeta">Ranked by {block.ranking_rule_version}</div>
+                <FunnelChips totals={block.totals} />
+              </div>
+            ))}
+          </div>}
+          {measurement.by_reason_code.length > 0 && <table>
+            <thead><tr>
+              <th scope="col">Ranking reason</th><th scope="col" className="num">Opened</th>
+              <th scope="col" className="num">Left the list</th>
+              <th scope="col" className="num">Snoozed</th>
+            </tr></thead>
+            <tbody>{measurement.by_reason_code.map((row) => <tr key={row.reason_code}>
+              <td>{row.reason_code.replaceAll("_", " ")}</td>
+              <td className="num">{row.opened}</td><td className="num">{row.left_list}</td>
+              <td className="num">{row.snoozed}</td>
+            </tr>)}</tbody>
+          </table>}
+          {/* The §17.5 caveat, on screen rather than only in the payload: this is the number most
+              likely to be quoted on its own. */}
+          <div className="rowmeta" style={{ padding: 12 }}>{measurement.caveat}</div>
+        </>}
+      </div>
+
+      <h2>Ranking rule versions</h2>
+      <div className="card" aria-label="Ranking rule versions">
+        {!rules ? <div className="rowmeta" style={{ padding: 12 }}>Rule versions unavailable.</div> : <>
+          <table><thead><tr>
+            <th scope="col">Version</th><th scope="col">State</th><th scope="col">What it changes</th>
+          </tr></thead>
+            <tbody>{rules.versions.map((version) => <tr key={version.version}>
+              <td>{version.version}</td>
+              <td><span className="badge">
+                {version.version === rules.active_version ? "live" : version.status}
+              </span></td>
+              <td className="rowmeta">{version.summary}</td>
+            </tr>)}</tbody>
+          </table>
+          <div className="actions" style={{ padding: 12, flexWrap: "wrap" }}>
+            {/* §17.6 step 4. Comparing is a read: it builds each account's path twice and diffs the
+                ordering. It never selects a ruleset — that is the `VALENCE_OS_RANKING_RULES` flag,
+                deliberately outside the app so an ordering change is a deployment decision. */}
+            <button className="btn small" disabled={comparing} onClick={async () => {
+              setComparing(true);
+              try { setComparison(await api.compareRankingRules({})); }
+              catch (error) { toast(error.message, "err"); }
+              finally { setComparing(false); }
+            }}>Compare orderings across seeded accounts</button>
+            <span className="rowmeta">
+              Selected by {rules.flag} at deployment, never from this screen.
+            </span>
+          </div>
+          {comparison && <>
+            <table><thead><tr>
+              <th scope="col">Account</th><th scope="col">Next move changes</th>
+              <th scope="col" className="num">Rows that move</th>
+            </tr></thead>
+              <tbody>{comparison.accounts.map((row) => <tr key={row.account_id}>
+                <td>{row.account_name}</td>
+                <td>{row.next_move_changed
+                  ? <span className="badge" style={{ borderColor: "var(--status-warn)" }}>
+                    changes
+                  </span>
+                  : <span className="rowmeta">unchanged</span>}</td>
+                <td className="num">{row.moved_rows.length}</td>
+              </tr>)}</tbody>
+            </table>
+            <div className="rowmeta" style={{ padding: 12 }}>
+              {comparison.version_a} → {comparison.version_b} · {comparison.accounts_with_changes} of{" "}
+              {comparison.accounts.length} accounts reorder. §17.6 asks for the surprising ones to be
+              reviewed by a person before a version ships; this table is the input to that review,
+              not the decision.
+            </div>
+          </>}
+        </>}
       </div>
 
       <h2>Connection registry</h2>

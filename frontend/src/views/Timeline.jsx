@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, useToast, fmtDate } from "../ui";
+import { DependencyLines } from "./PathAdvance";
 
 // Program-scoped timeline (Section 6b): milestones as diamonds, deployment moments
 // as dots, renewal marker, today line. Limited palette; color for status/key markers only.
@@ -91,6 +92,11 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
               </div>
             </div>
           ))}
+          {/* §15.8 — dependency lines, and only the explicit ones. Rendered under the chart as a
+              secondary band rather than drawn across it: a dependency is real but subordinate to
+              the dated marker it hangs off, and nothing here is inferred from a shared date. */}
+          <TimelineDependencies milestones={(data.program.execution?.milestones ?? [])
+            .filter((m) => m.target_date)} />
           <div className="rowmeta" style={{ marginTop: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
             <span><Marker kind="milestone" status="complete" /> milestone complete</span>
             <span><Marker kind="milestone" /> milestone due</span>
@@ -101,6 +107,43 @@ export default function Timeline({ accounts, accountId, setAccountId, reloadKey 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One row per milestone that has at least one accepted relation. A milestone with none draws
+ * nothing — the absence of a line is the absence of a recorded dependency, not a rendering gap,
+ * and inventing one from a shared date or owner is what §15.2 forbids.
+ */
+function TimelineDependencies({ milestones }) {
+  const [links, setLinks] = useState({});
+  useEffect(() => {
+    let live = true;
+    setLinks({});
+    Promise.all(milestones.map((m) => api.milestoneActionLinks(m.id)
+      .then((r) => [m.id, r.links || []])
+      .catch(() => [m.id, []])))
+      .then((pairs) => { if (live) setLinks(Object.fromEntries(pairs)); });
+    return () => { live = false; };
+  }, [milestones.map((m) => m.id).join(",")]);
+
+  const withLinks = milestones.filter((m) => (links[m.id] || []).length > 0);
+  if (withLinks.length === 0) return null;
+  return (
+    <div className="path-deps-band">
+      <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em" }}>
+        Dependencies
+      </div>
+      {withLinks.map((m) => (
+        <div key={m.id} className="path-deps-milestone">
+          <span className="rowmeta">{m.name}</span>
+          <DependencyLines milestoneId={m.id} />
+        </div>
+      ))}
+      <div className="rowmeta">
+        Explicit relationships only. Nothing here is inferred from a shared date, owner, or wording.
+      </div>
     </div>
   );
 }

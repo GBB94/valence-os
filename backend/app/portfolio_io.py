@@ -83,6 +83,13 @@ _INSERT_ORDER = [
     "generated_document_sources", "forecast_submissions", "forecast_submission_lines",
     # 0025 — Stage 9 learning records (after cells/history, before tag joins)
     "playbook_entries", "playbook_entry_tags",
+    # 0042 — Account Path plans. Order is the FK chain: a plan holds its instances, and an
+    # exception may point at an instance.
+    "readiness_plans", "readiness_plan_instances", "readiness_exceptions",
+    # 0046 — Account Path relationships. After the plan instances and after tasks/commitments,
+    # milestones, and phase gates, all of which these rows point at.
+    "readiness_requirement_action_links", "readiness_requirement_evidence_links",
+    "milestone_action_links", "gate_requirement_links", "program_phase_events",
 ]
 
 
@@ -314,6 +321,21 @@ def export_account(conn: sqlite3.Connection, account_id: str) -> dict:
     # --- 0023: Stage 7.5 ------------------------------------------------------
     for tbl in ("operational_agreements", "operational_agreement_events",
                 "account_growth_plans", "growth_plan_lines", "playbook_entries"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+
+    # --- 0042: Account Path plans. Readiness itself has nothing to export — it is a projection —
+    # so what travels with the account is the plan (which conditions, which versions, due when)
+    # and the governed exceptions. Definitions stay installation-level, like every other
+    # definition table, so a restored account is measured by the receiving install's rules.
+    for tbl in ("readiness_plans", "readiness_plan_instances", "readiness_exceptions"):
+        t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
+
+    # --- 0046: Account Path relationships. A link is an operator-recorded fact, so unlike the
+    # readiness projection it has to travel with the account or the restored copy would quietly
+    # lose why a requirement was considered covered. `program_phase_events` travels for the same
+    # reason: it is the append-only record of what was advanced, waived, or overridden and when.
+    for tbl in ("readiness_requirement_action_links", "readiness_requirement_evidence_links",
+                "milestone_action_links", "gate_requirement_links", "program_phase_events"):
         t[tbl] = _all(conn, f"SELECT * FROM {tbl} WHERE account_id=?", (account_id,))
 
     playbook_ids = [r["id"] for r in t["playbook_entries"]]

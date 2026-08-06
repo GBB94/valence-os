@@ -22,6 +22,9 @@ from .routers import (
     relationships, search as search_router, stage7 as stage7_router, stage75 as stage75_router,
     stage9 as stage9_router, viz, internal_forecast, internal_asks, internal_reviews,
     internal_reporting, internal_roster, product_feedback, adoption_comms, company_intel as company_intel_router,
+    readiness as readiness_router, execution_path as execution_path_router,
+    playbooks as playbooks_router, path_links as path_links_router,
+    telemetry as telemetry_router, intake_drops as intake_drops_router,
 )
 
 
@@ -144,6 +147,12 @@ app.include_router(internal_roster.router)
 app.include_router(product_feedback.router)
 app.include_router(adoption_comms.router)
 app.include_router(company_intel_router.router)
+app.include_router(readiness_router.router)
+app.include_router(execution_path_router.router)
+app.include_router(playbooks_router.router)
+app.include_router(path_links_router.router)
+app.include_router(telemetry_router.router)
+app.include_router(intake_drops_router.router)
 
 
 @app.get("/api/health")

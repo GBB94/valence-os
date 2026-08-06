@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, SectionHelp, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
 import ConvertPanel from "./ConvertPanel";
+import { ActionPathContext, DependencyLines } from "./PathAdvance";
+import { PromotionPreview } from "./MutualActionPlan";
 
 // The Ledger (DESIGN-GUIDE §2.3): one chronological, filterable record of everything on an
 // account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture —
@@ -249,6 +251,7 @@ function RecordsLedger({ accountId, programId, reloadKey, onChanged, focusedReco
   const [selKey, setSelKey] = useState(null);
   const [converting, setConverting] = useState(null);
   const [closing, setClosing] = useState(null);
+  const [sharing, setSharing] = useState(null);
 
   async function load() {
     if (!accountId) return;
@@ -356,20 +359,22 @@ function RecordsLedger({ accountId, programId, reloadKey, onChanged, focusedReco
         <div className="card ledger-detail">
           {!selected ? <div className="empty"><h3>Select a record</h3><div>Its detail and actions appear here.</div></div> : (
             <Detail row={selected} onConvert={() => setConverting(selected.raw)} onClose={() => setClosing(selected)}
-                    onShare={async () => {
-                      try {
-                        await api.mapPromote({ object_type: selected.kind, object_id: selected.raw.id,
-                          client_visible: !Boolean(selected.raw.client_visible) });
-                        toast(selected.raw.client_visible ? "Removed from mutual plan" : "Added to mutual plan");
-                        await load(); onChanged?.();
-                      } catch (e) { toast(e.message, "err"); }
-                    }} />
+                    // ACCOUNT-PATH-SPEC.md §16.4 puts a preview between opening the item and
+                    // confirming: what a customer would read is shown before it is shared, not
+                    // afterwards on the plan.
+                    onShare={() => setSharing({ kind: selected.kind, id: selected.raw.id,
+                      promoted: Boolean(selected.raw.client_visible) })} />
           )}
         </div>
       </div>
 
       {converting && <ConvertPanel item={converting} onClose={() => setConverting(null)} onConverted={afterMutation} />}
       {closing && <CloseItemPanel row={closing} onClose={() => setClosing(null)} onDone={afterMutation} />}
+      {sharing && (
+        <PromotionPreview objectType={sharing.kind} objectId={sharing.id} promoted={sharing.promoted}
+                          onClose={() => setSharing(null)}
+                          onDone={async () => { await load(); onChanged?.(); }} />
+      )}
     </div>
   );
 }
@@ -398,6 +403,26 @@ function Detail({ row, onConvert, onClose, onShare }) {
         {row.kind === "interaction" && r.participants?.length > 0 && <><dt>Participants</dt><dd>{r.participants.map((p) => p.name).filter(Boolean).join(", ")}</dd></>}
         {r.close_note && <><dt>Close note</dt><dd>{r.close_note}</dd></>}
       </dl>
+
+      {/* §15.8 — the inverse read. What this action advances, from accepted explicit links only.
+          A milestone gets its dependency lines instead: the same relations read from the other
+          end, and secondary by design so they never compete with the milestone itself. */}
+      {["task", "commitment"].includes(row.kind) && (
+        <div style={{ marginTop: 12 }}>
+          <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            What this advances
+          </div>
+          <ActionPathContext actionType={row.kind} actionId={r.id} />
+        </div>
+      )}
+      {row.kind === "milestone" && (
+        <div style={{ marginTop: 12 }}>
+          <div className="rowmeta" style={{ textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            Depends on
+          </div>
+          <DependencyLines milestoneId={r.id} />
+        </div>
+      )}
 
       {row.kind === "interaction" && r.created_records?.length > 0 && (
         <div style={{ marginTop: 12 }}>

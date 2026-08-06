@@ -36,40 +36,134 @@ def transcribe(reference: str) -> str:
     return reference or ""
 
 
+def recording_provider() -> str:
+    """Who produced the transcript. Recorded on the extraction run so the §6.6 source-version key
+    names its origin: two providers can hand back the same reference and mean different material.
+    Flipping this to a real engine is a CONNECTIONS.md decision, not a code change here."""
+    return "mock-transcription"
+
+
 def list_transcript_fixtures() -> list[str]:
     return sorted(p.name for p in TRANSCRIPT_DIR.glob("*.txt")) if TRANSCRIPT_DIR.exists() else []
 
 
 # --- Email adapter -----------------------------------------------------------
 
-def _body(msg) -> str:
+def _body(msg) -> tuple[str, str]:
+    """`(text, body_source)` — the readable body and which part it came from.
+
+    `body_source` is `text/plain`, `html_only`, or `empty`, and it exists because the empty string
+    means three different things. A synced fixture never hit that ambiguity; a *dropped* message
+    can (§7.2), and "there was no plain-text part" has to reach the receipt as its own sentence
+    rather than as "nothing in that was clear enough to draft", which would blame the document for
+    a shape we declined to read. Reading `text/html` instead would mean running a tag stripper over
+    untrusted markup, which is a parser-hardening question nobody has reviewed — so it is named,
+    not attempted.
+
+    Decoding is per part, with the charset the part declares. `decode=True` hands back the
+    transfer-decoded bytes; `get_content_charset()` is what the message says they are.
+    """
     if msg.is_multipart():
+        html = False
         for part in msg.walk():
-            if part.get_content_type() == "text/plain":
-                return part.get_payload(decode=True).decode(errors="replace")
-        return ""
+            ctype = part.get_content_type()
+            if ctype == "text/plain":
+                return _decode_part(part), "text/plain"
+            html = html or ctype == "text/html"
+        return "", ("html_only" if html else "empty")
     payload = msg.get_payload(decode=True)
-    return payload.decode(errors="replace") if payload else (msg.get_payload() or "")
+    if not payload:
+        text = msg.get_payload() or ""
+        return text, ("text/plain" if text else "empty")
+    if msg.get_content_type() == "text/html":
+        return "", "html_only"
+    return _decode_part(msg), "text/plain"
 
 
-def _parse_eml(path: Path) -> dict:
-    msg = email.message_from_string(path.read_text(encoding="utf-8"))
+def _decode_part(part) -> str:
+    """One MIME part's bytes, decoded with the charset **that part declares**.
+
+    Not UTF-8, and not the whole message's charset: a message is allowed to carry parts in
+    different encodings, and a citation is only worth having if it is byte-accurate to what the
+    source said. `errors="replace"` is the last resort for a part whose declared charset is a lie —
+    a mangled character is preferable to refusing a message we can otherwise read in full, and the
+    refusal would name the wrong culprit.
+    """
+    raw = part.get_payload(decode=True) or b""
+    charset = part.get_content_charset() or "utf-8"
+    try:
+        return raw.decode(charset, errors="replace")
+    except LookupError:                      # a charset name Python has never heard of
+        return raw.decode("utf-8", errors="replace")
+
+
+def _attachments(msg) -> list[str]:
+    """Attachment filenames only. §14.8 wants attachments referenced when they support a proposal;
+    the name and the link to the source `.eml` are that reference. Nothing reads the bytes."""
+    if not msg.is_multipart():
+        return []
+    return [n for n in (p.get_filename() for p in msg.walk()) if n]
+
+
+def parse_eml_bytes(raw: bytes, source_name: str) -> dict:
+    """One RFC-822 message, parsed from bytes. The only `.eml` parser in this codebase.
+
+    `_parse_eml` (the fixture sync) and the account drop zone (ACCOUNT-INTAKE-SPEC.md §7.3) both
+    come through here, and that is the point: a second parser for drops is how the sync path and
+    the drop path start disagreeing about what a message said, which would surface not as an error
+    but as a comms timeline and a set of relationship-health counts that are quietly wrong.
+
+    Parsed from BYTES, not text. `get_payload(decode=True)` on a str-parsed message falls back to
+    `raw-unicode-escape`, which rewrites a real em dash as the six literal characters of its escape
+    sequence — and that mangled text goes straight into a proposal description and span.
+
+    `source_name` names where the bytes came from — a fixture filename for the sync path, the
+    dropped filename for a drop. It is a fallback identity only: a message with no `Message-ID` is
+    still identifiable rather than un-dedupable.
+    """
+    msg = email.message_from_bytes(raw)
     from_name, from_addr = parseaddr(msg.get("From", ""))
     tos = [addr for _n, addr in getaddresses([msg.get("To", "")]) if addr]
+    ccs = [addr for _n, addr in getaddresses([msg.get("Cc", "")]) if addr]
     try:
         dt = parsedate_to_datetime(msg.get("Date", ""))
         date_iso = dt.isoformat() if dt else None
     except (TypeError, ValueError):
         date_iso = None
+    # §14.8 message identity: the Message-ID is the message, and In-Reply-To/References are what
+    # make the conversation reconstructible. Falling back to the fixture name keeps a malformed
+    # fixture identifiable rather than un-dedupable.
+    message_id = (msg.get("Message-ID") or source_name).strip("<>")
+    body, body_source = _body(msg)
     return {
-        "external_id": (msg.get("Message-ID") or path.name).strip("<>"),
+        "external_id": message_id,
+        "message_id": message_id,
+        "in_reply_to": msg.get("In-Reply-To"),
+        "references": msg.get("References"),
         "from_name": from_name, "from_addr": from_addr.lower(),
         "to_addrs": [a.lower() for a in tos],
+        "cc_addrs": [a.lower() for a in ccs],
         "subject": msg.get("Subject", ""),
         "date_iso": date_iso,
-        "body": _body(msg).strip(),
-        "fixture": path.name,
+        "body": body.strip(),
+        # Which part the body came from, so a caller can tell "empty message" from "we declined to
+        # read the only part there was". §7.2.
+        "body_source": body_source,
+        "attachments": _attachments(msg),
+        "fixture": source_name,
     }
+
+
+def _parse_eml(path: Path) -> dict:
+    """The fixture caller. Behaviour is unchanged — one implementation, two callers (§7.3)."""
+    return parse_eml_bytes(path.read_bytes(), path.name)
+
+
+def email_provider() -> str:
+    """Who supplied the message. Recorded on an email extraction run so its §6.6 source-version key
+    names its origin, exactly as `recording_provider` does for transcripts. Two providers can hand
+    back the same Message-ID and mean different material. Real provider = CONNECTIONS.md switch."""
+    return "mock-inbox"
 
 
 def fetch_emails() -> list[dict]:

@@ -17,6 +17,16 @@ export const COMMERCIAL_SECTIONS = [
   "whitespace", "ledger", "funding", "signals", "company", "growth", "pipeline",
 ];
 const COMMERCIAL_SECTION_KEYS = new Set(COMMERCIAL_SECTIONS);
+export const PEOPLE_SECTIONS = ["map", "champions", "influence", "exec", "changes", "messaging"];
+
+// `section` is one nav field shared by the tabs that have sub-views, and each tab owns its own
+// keys. Validating per tab rather than against a merged set is what stops a Commercial section
+// surviving a hop to People — the URL would round-trip a value that tab cannot render.
+const SECTION_KEYS = { commercial: COMMERCIAL_SECTION_KEYS, people: new Set(PEOPLE_SECTIONS) };
+
+function sectionFor(tab, value) {
+  return SECTION_KEYS[tab]?.has(value) ? value : undefined;
+}
 
 function cleanSegment(value) {
   if (!value) return "";
@@ -41,8 +51,7 @@ export function parseNavigation(locationLike) {
     const lens = tab === "overview" && isCommandCenterLens(search.get("lens"))
       ? search.get("lens") : undefined;
     const meetingId = lens === "prepare" ? cleanPreference(search.get("meeting")) : undefined;
-    const section = tab === "commercial" && COMMERCIAL_SECTION_KEYS.has(search.get("section"))
-      ? search.get("section") : undefined;
+    const section = sectionFor(tab, search.get("section"));
     const recordId = section === "company" ? cleanPreference(search.get("record")) : undefined;
     return {
       dest: "account", accountId, tab,
@@ -80,8 +89,7 @@ export function navigationUrl(nav) {
     const lens = tab === "overview" && isCommandCenterLens(nav.lens) ? nav.lens : undefined;
     if (lens) params.set("lens", lens);
     if (lens === "prepare" && cleanPreference(nav.meetingId)) params.set("meeting", nav.meetingId);
-    const section = tab === "commercial" && COMMERCIAL_SECTION_KEYS.has(nav.section)
-      ? nav.section : undefined;
+    const section = sectionFor(tab, nav.section);
     if (section) params.set("section", section);
     if (section === "company" && cleanPreference(nav.recordId)) params.set("record", nav.recordId);
     const search = params.size ? `?${params}` : "";

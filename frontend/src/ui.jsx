@@ -294,9 +294,29 @@ export function Empty({ title, children }) {
 export function SlideOver({ title, onClose, children, footer }) {
   const panelRef = useRef(null);
   const closeRef = useRef(null);
+  // Captured during the first render and never re-read. Two things were breaking the restore, and
+  // both are avoided by reading it here rather than inside an effect: `onClose` is an inline arrow
+  // at nearly every call site, so a `[onClose]`-keyed effect re-runs on every render and would
+  // re-capture the opener as a control *inside* the panel; and a child `autoFocus` is applied during
+  // commit, before any effect, so even a mount-only effect can see the wrong element. Restoring to a
+  // panel-internal node means restoring to a node that is already detached — focus fell to <body>
+  // with no symptom, which is why the suite stayed green through it.
+  const openerRef = useRef(undefined);
+  if (openerRef.current === undefined) openerRef.current = document.activeElement;
+  // Mount-only, and deliberately separate from the keyboard effect below. Entering and restoring
+  // focus are things that happen once per open; the keyboard effect re-subscribes whenever the
+  // caller's `onClose` identity changes, and running the restore from *that* cleanup would yank
+  // focus out of the panel on every parent re-render.
   useEffect(() => {
-    const opener = document.activeElement;
     closeRef.current?.focus();
+    return () => {
+      // `isConnected`, not a truthiness check: focusing a detached node silently does nothing and
+      // leaves focus on <body>, which is the failure this guard is here to make visible.
+      const opener = openerRef.current;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+  useEffect(() => {
     const key = (event) => {
       if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
       if (event.key !== "Tab") return;
@@ -308,7 +328,7 @@ export function SlideOver({ title, onClose, children, footer }) {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     window.addEventListener("keydown", key);
-    return () => { window.removeEventListener("keydown", key); if (opener?.focus) opener.focus(); };
+    return () => window.removeEventListener("keydown", key);
   }, [onClose]);
   // Portal to <body> so the panel escapes the account workspace's isolated stacking context
   // (.main has `isolation: isolate`). Rendered inline, its z-index only ranked within .content,
