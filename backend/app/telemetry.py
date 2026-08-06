@@ -9,7 +9,8 @@ Three rules carry the design:
 - **Measurement never blocks work (§17.8).** `record()` cannot raise. Every failure — validation,
   a disabled setting, a locked database, a missing table — returns a reason and is dropped.
 - **The contract is an allowlist, not a filter.** An event name must be one of the sixteen in
-  §17.3, and each carries its own set of permitted property keys. A property the event does not
+  §17.3 or one of the six `ACCOUNT-INTAKE-SPEC.md` §17 amends in, and each carries its own set of
+  permitted property keys. A property the event does not
   declare is rejected rather than trimmed, because a trimmed payload is one nobody notices.
 - **Values are shaped, not merely typed.** Every string property must be a lower-case slug. That
   is what structurally excludes the things §17.2 prohibits — titles, descriptions, transcript
@@ -84,6 +85,31 @@ EVENTS: dict[str, tuple[str, ...]] = {
     "phase_transition_completed": ("from_phase", "to_phase", "waived_count", "override"),
     "execution_native_target_opened": ("source_type", "target_tab", "from_surface"),
     "execution_path_retry": ("failure_kind", "omitted_source", "attempt"),
+
+    # --- ACCOUNT-INTAKE-SPEC.md §17 (D-246) — the drop zone's six -----------------------------
+    # The amendment §17 asked for, and the reason it is an amendment rather than a new module: a
+    # second event store would have its own contract, and two contracts about what may leave a
+    # record eventually disagree. Sixteen becomes twenty-two here and in `frontend/src/telemetry.js`.
+    #
+    # §17's property rule is narrower than the surrounding events, and deliberately so: **a
+    # filename is document content by another name**. So none of these carries a filename, a
+    # kind, a size, a byte count, or a proposal count — only the account id and session token
+    # every event already carries, plus a reason code where the operator was told "no". `kind`
+    # and `proposal_count` were both considered and left out: they can be added at this review
+    # point later, and they cannot be un-collected.
+    "drop_zone_shown": (),
+    "drop_received": (),
+    # The only one §17 gives a property, and the code is the drop's own `outcome` vocabulary —
+    # already a bounded five-value enum the schema checks, so nothing new is being invented to
+    # measure with.
+    "drop_refused": ("reason_code",),
+    "drop_drafted": (),
+    # No reason code, though "was it HTML-only or all-quoted?" is the diagnostic somebody will
+    # eventually want. There is no such code on the server — only the operator's sentence — and
+    # the client deriving one by matching that prose would be a view reconstructing server
+    # semantics from a sentence the server authored (D-153). It gets a column first, or not at all.
+    "drop_no_proposals": (),
+    "drop_receipt_opened": (),
 }
 
 # Names that must never appear as a property key, whatever an event declares. The per-event

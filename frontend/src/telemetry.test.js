@@ -51,11 +51,13 @@ function everyValue(object) {
   return Object.values(object).map((value) => String(value));
 }
 
-test("the client event names are exactly the sixteen in §17.3", () => {
-  assert.equal(EVENT_NAMES.length, 16);
-  assert.equal(new Set(EVENT_NAMES).size, 16);
+test("the client event names are §17.3's sixteen plus the drop zone's six", () => {
+  assert.equal(EVENT_NAMES.length, 22);
+  assert.equal(new Set(EVENT_NAMES).size, 22);
   assert.ok(EVENT_NAMES.includes("account_path_viewed"));
   assert.ok(EVENT_NAMES.includes("execution_path_retry"));
+  assert.ok(EVENT_NAMES.includes("drop_zone_shown"));
+  assert.ok(EVENT_NAMES.includes("drop_receipt_opened"));
   // Frozen because a view that pushed onto it would be inventing an event the server will drop.
   assert.throws(() => EVENT_NAMES.push("account_renamed"));
 });

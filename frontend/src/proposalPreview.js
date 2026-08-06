@@ -21,7 +21,7 @@ export const PREVIEW_CAP = 3;   // §8.1 — "up to three proposals from the lat
 const TARGET_LABEL = {
   task: "task", commitment: "commitment", risk: "risk", issue: "issue", decision: "decision",
   person: "person", pull_signal: "pull signal", deployment_moment: "deployment moment",
-  value_story: "value story",
+  value_story: "value story", milestone: "milestone",
 };
 
 const INTENT_LABEL = { create: "New", update: "Change to", link: "Link", close: "Close",

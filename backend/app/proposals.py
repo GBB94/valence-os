@@ -57,6 +57,12 @@ TARGET_ALLOWLIST: dict[str, frozenset[str]] = {
     "pull_signal":       frozenset({"create", "no_change"}),
     "deployment_moment": frozenset({"create", "no_change"}),
     "value_story":       frozenset({"create", "no_change"}),
+    # ACCOUNT-INTAKE-SPEC.md §10 / D-207. The one widening in that spec, and the first proposable
+    # target carrying a date the rest of the app plans against. It has no `LEGACY_MUTATIONS` entry
+    # on purpose: inventing `create_milestone` for the old enum would have to pass a CHECK written
+    # over nine values, so the pair travels normalized and `mutation_type` stays NULL — which is
+    # exactly what migration 0043 made the column nullable for.
+    "milestone":         frozenset({"create", "no_change"}),
 }
 
 # For an `update`, the payload may name only these fields. An unlisted field is not silently
@@ -77,6 +83,13 @@ FORBIDDEN_FIELDS: dict[str, frozenset[str]] = {
     # Promotion to a client-facing artifact is an operator act. A source that could set it would
     # publish itself.
     "value_story": frozenset({"visibility_class", "identifiable", "evidence_tier"}),
+    # A milestone is a dated event, and these three are judgements about it rather than facts in
+    # the document. `completed_on`/`completion_note` are a closure, and no document ticks anything
+    # (§10 — `close` is a deferred intent for the same reason). `at_risk` is an operator's reading
+    # of a plan, which is why D-05 made it a manual flag; a source that could set it would put a
+    # status on the timeline that nobody assessed. `MilestoneCreate` would drop all three silently,
+    # and a silently-dropped field is one nobody reviews — so they fail the proposal instead.
+    "milestone": frozenset({"completed_on", "completion_note", "completed", "at_risk"}),
     # Derived from interactions, never asserted (CLAUDE.md).
     "*": frozenset({"last_touch_at", "archived", "archived_at", "archived_by",
                     # Readiness is a query-time projection. No proposal may name one.

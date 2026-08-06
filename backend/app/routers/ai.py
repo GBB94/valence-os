@@ -14,7 +14,7 @@ from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
     CommitmentCreate, DecisionCreate, ExtractionRequest, IssueCreate, ManualExtractionRequest,
-    MomentCreate, PlayDefinitionCreate, PlayEffectiveness, ProposalAccept, ProposalReject,
+    MilestoneCreate, MomentCreate, PlayDefinitionCreate, PlayEffectiveness, ProposalAccept, ProposalReject,
     ProposalResolveExisting, ProposalSupersede, PullSignalCreate, RiskCreate, TaskCreate,
     ValueStoryCreate,
 )
@@ -22,10 +22,16 @@ from ..schemas import (
 _TARGET_SCHEMA = {
     "task": TaskCreate, "commitment": CommitmentCreate, "decision": DecisionCreate,
     "risk": RiskCreate, "issue": IssueCreate,
+    # ACCOUNT-INTAKE-SPEC.md §10. `MilestoneCreate` requires `program_id` and `name`, so §10's
+    # "program required and never inferred from the text" is enforced by the same 422 every other
+    # execution target already gets rather than by a rule of its own.
+    "milestone": MilestoneCreate,
 }
 
 # §4.4 targets that create relationship / commercial records (not program-scoped execution objects).
-_STAGE5_MUTATIONS = ("fill_placeholder", "log_pull_signal", "create_deployment_moment", "create_value_story")
+# Keyed on `target_type`, not on the legacy enum: `create_milestone` has no legacy name, so
+# `mutation_type` is NULL on those rows and every dispatch that read it would raise on the None.
+_STAGE5_TARGETS = frozenset({"person", "pull_signal", "deployment_moment", "value_story"})
 
 router = APIRouter(prefix="/api", tags=["ai"])
 
@@ -64,17 +70,30 @@ def _persist_run(conn, *, account_id, program_id, interaction_id, model_version,
     """Store an extraction run + its proposals. Nothing touches domain tables here —
     proposals await per-item human acceptance. Shared by every backend + manual paste.
 
-    Every proposal is written in the normalized §6.4 shape (intent + target, fingerprinted) AND in
-    the legacy `mutation_type` the current review UI still reads — §6.5 keeps both until the last
-    reader moves. `proposals.legacy_pair` is the only place the two vocabularies meet, so they
-    cannot drift.
+    Every proposal arrives in the normalized §6.4 shape (intent + target, fingerprinted) carrying
+    the legacy `mutation_type` the current review UI still reads where one exists — §6.5 keeps both
+    until the last reader moves. `extractor.KIND_PAIRS` and `proposals.legacy_mutation` are the only
+    place the two vocabularies meet, so they cannot drift. A pair with no legacy name — `("create",
+    "milestone")` is the first — carries `mutation_type` NULL, which is what migration 0043 made
+    the column nullable for.
 
     `coverage` is what the source contained that this run did **not** read — the drop zone's §14
     object, stored on the run's own `coverage_json` (migration 0043 added the column for exactly
     this). It is a parameter here rather than a second table because a run and its coverage
     disagreeing about what was read is the failure the single-store rule exists to prevent. Callers
     with nothing omitted pass None, which is the honest value: no claim rather than an empty one.
+
+    §10's undraftable screen runs here rather than in each caller because *every* path into an
+    extraction run — drop, `.eml`, transcript, manual paste — must report the same omissions. The
+    caller's `coverage` dict is mutated in place on purpose: the drop paths hand the same object to
+    `_record` for the receipt, so the receipt sees what the run stored without a second read.
     """
+    proposals, omissions = extractor.screen_undraftable(proposals, program_id=program_id)
+    if omissions:
+        if coverage is None:
+            coverage = {}
+        for key, entries in omissions.items():
+            coverage.setdefault(key, []).extend(entries)
     ts = now_utc()
     run_id = new_id()
     hash_ = proposals_mod.content_hash(source_text)
@@ -95,7 +114,12 @@ def _persist_run(conn, *, account_id, program_id, interaction_id, model_version,
                      after={"model_version": model_version, "prompt_version": prompt_version,
                             "backend": extractor_backend, "proposals": len(proposals)})
         for p in proposals:
-            intent, target_type = proposals_mod.legacy_pair(p["mutation_type"])
+            # The normalized pair when the caller speaks it, translated from the legacy name when
+            # it does not. §6.5 keeps both vocabularies until the last reader moves, and this is
+            # the one place they meet — a second translation site is how they would drift.
+            intent, target_type = p.get("intent"), p.get("target_type")
+            if not (intent and target_type):
+                intent, target_type = proposals_mod.legacy_pair(p["mutation_type"])
             fingerprint = proposals_mod.proposal_fingerprint(
                 intent=intent, target_type=target_type, payload=p["payload"],
                 source_span=p["source_span"], extractor_version=extractor_version)
@@ -108,7 +132,7 @@ def _persist_run(conn, *, account_id, program_id, interaction_id, model_version,
                 "payload_json, source_span, proposal_fingerprint, confidence, target_id, "
                 "expected_target_updated_at, status, created_at, updated_at) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?, 'proposed', ?, ?)",
-                (new_id(), run_id, intent, target_type, p["mutation_type"], json.dumps(p["payload"]),
+                (new_id(), run_id, intent, target_type, p.get("mutation_type"), json.dumps(p["payload"]),
                  p["source_span"], fingerprint, p["confidence"], target_id, expected, ts, ts),
             )
     return run_id
@@ -363,7 +387,7 @@ def accept_proposal(proposal_id: str, b: ProposalAccept, conn: sqlite3.Connectio
         raise HTTPException(409, {"error": "stale_proposal", "conflict": conflict})
 
     # §4.4 relationship/commercial targets take a different (non-execution) write path.
-    if prop["mutation_type"] in _STAGE5_MUTATIONS:
+    if prop["target_type"] in _STAGE5_TARGETS:
         return _accept_stage5(conn, prop, run, payload)
 
     program_id = payload.get("program_id") or run.get("program_id")
@@ -372,7 +396,9 @@ def accept_proposal(proposal_id: str, b: ProposalAccept, conn: sqlite3.Connectio
     payload["program_id"] = program_id
     if run.get("interaction_id"):
         payload.setdefault("source_interaction_id", run["interaction_id"])
-    target = prop["mutation_type"].replace("create_", "")
+    # The target *is* the target: derived from the normalized column rather than by stripping a
+    # prefix off the legacy name, which is NULL for a pair that never had one (§10).
+    target = prop["target_type"]
     # validate against the same schema the manual API uses, so required fields
     # (e.g. a commitment's two owners + due date) yield a clean 422, not a DB error
     try:
@@ -421,7 +447,7 @@ def _accept_blocker(conn, prop, run) -> str | None:
     if conflict and conflict["stale"]:
         return "the record changed after this was drafted"
 
-    if prop["mutation_type"] in _STAGE5_MUTATIONS:
+    if prop["target_type"] in _STAGE5_TARGETS:
         mt = prop["mutation_type"]
         if mt == "fill_placeholder" and not (payload.get("name") or payload.get("description")):
             return "it needs a name"
@@ -431,7 +457,7 @@ def _accept_blocker(conn, prop, run) -> str | None:
 
     if not (payload.get("program_id") or run.get("program_id")):
         return "it needs a program"
-    target = prop["mutation_type"].replace("create_", "")
+    target = prop["target_type"]
     schema = _TARGET_SCHEMA.get(target)
     if schema is None:
         return f"nothing here knows how to create a {target}"

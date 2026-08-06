@@ -27,21 +27,27 @@ from . import proposals
 # module does not know how to compare two of them.
 _TABLE = {
     "task": "tasks", "commitment": "commitments", "risk": "risks", "issue": "issues",
-    "decision": "decisions", "pull_signal": "pull_signals",
+    "decision": "decisions", "pull_signal": "pull_signals", "milestone": "milestones",
     "deployment_moment": "deployment_moments", "value_story": "value_stories", "person": "persons",
 }
 _TEXT_FIELD = {
     "task": "description", "commitment": "description", "risk": "description",
     "issue": "description", "decision": "description", "pull_signal": "description",
     "deployment_moment": "name", "value_story": "outcome", "person": "name",
+    "milestone": "name",
 }
 # The payload key that carries the same text as `_TEXT_FIELD`. `create_*` proposals all speak
 # "description"; the native column does not always agree.
-_PAYLOAD_TEXT_KEY = {"deployment_moment": "name", "value_story": "outcome", "person": "name"}
+_PAYLOAD_TEXT_KEY = {"deployment_moment": "name", "value_story": "outcome", "person": "name",
+                     "milestone": "name"}
 _ACCOUNT_COL = {"commitment", "decision", "pull_signal", "value_story", "person"}
 _PROGRAM_COL = {"task", "commitment", "risk", "issue", "decision", "pull_signal",
-                "deployment_moment", "value_story"}
+                "deployment_moment", "value_story", "milestone"}
 # Targets whose duplicates are identified by more than their text (§6.7 check 3 and check 5).
+# `milestone` is deliberately absent: the check requires at least two agreeing fields, and a
+# milestone's only identity field beyond its name is `target_date`. An entry here would name a
+# check that can never fire, which reads as coverage that does not exist. Name equality within the
+# program is the real duplicate signal, and it runs.
 _IDENTITY_FIELDS = {
     "task": ("internal_owner_id", "due_date"),
     "commitment": ("responsible_party_id", "internal_owner_id", "due_date"),

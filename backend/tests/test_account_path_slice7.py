@@ -60,8 +60,12 @@ def _program(c, account_id, name="Europe Deployment", phase="launch"):
 
 # --- §17.2 / §17.3 the event contract -------------------------------------------------------
 
-def test_the_sixteen_named_events_are_exactly_the_allowlist():
-    """§17.3 names sixteen events. The allowlist is the contract, so it is asserted literally."""
+def test_the_twenty_two_named_events_are_exactly_the_allowlist():
+    """§17.3's sixteen, plus the six `ACCOUNT-INTAKE-SPEC.md` §17 amends in (D-246).
+
+    Asserted literally, in one set, because the amendment is the whole point: the drop zone's
+    events live under the same contract as the rest rather than in a store of their own.
+    """
     from app import telemetry
     assert set(telemetry.EVENTS) == {
         "account_path_viewed", "next_move_opened", "next_move_snoozed", "next_move_left_list",
@@ -69,7 +73,20 @@ def test_the_sixteen_named_events_are_exactly_the_allowlist():
         "requirement_opened", "requirement_action_created", "proposal_review_opened",
         "proposal_accepted", "proposal_rejected", "phase_readiness_opened",
         "phase_transition_completed", "execution_native_target_opened", "execution_path_retry",
+        "drop_zone_shown", "drop_received", "drop_refused", "drop_drafted",
+        "drop_no_proposals", "drop_receipt_opened",
     }
+
+
+def test_no_drop_event_can_carry_anything_that_could_hold_a_filename():
+    """`ACCOUNT-INTAKE-SPEC.md` §17 — "a filename is document content by another name".
+
+    The per-event allowlists are the enforcement, so the assertion is that they are *empty* apart
+    from a reason code. A future key added to one of these six has to fail here first.
+    """
+    from app import telemetry
+    for name in [e for e in telemetry.EVENTS if e.startswith("drop_")]:
+        assert set(telemetry.EVENTS[name]) <= {"reason_code"}, name
 
 
 def test_an_unknown_event_is_rejected_in_development_and_dropped_in_production(client):

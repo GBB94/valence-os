@@ -27,8 +27,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Empty, SlideOver, useToast } from "../ui";
 import {
-  acceptFileList, isActivationKey, orderReceipts, receipt, screenFile, zoneHint, zoneLabel,
+  acceptFileList, clientRefusalCode, dropEvent, isActivationKey, orderReceipts, receipt,
+  screenFile, zoneHint, zoneLabel,
 } from "../intakeDrop";
+import { useMeasure } from "../measure";
 import ProposalReview from "./ProposalReview";
 
 /** Bytes → base64 without a data-URL round trip. The bytes reach the server as bytes because the
@@ -59,10 +61,13 @@ function CoverageList({ view }) {
   );
 }
 
-function Receipt({ drop, onReview, onDeleteSnapshot, onDismiss }) {
+function Receipt({ drop, onReview, onDeleteSnapshot, onDismiss, track }) {
   const view = receipt(drop);
   const [showing, setShowing] = useState(false);
   if (!view) return null;
+  // §17 `drop_receipt_opened` — the source text, which is the only thing on a receipt that is
+  // hidden until asked for. Fired on reveal only, so a hide is not counted as a second read.
+  const reveal = () => setShowing((s) => { if (!s) track?.("drop_receipt_opened"); return !s; });
   return (
     <article className={`intake-receipt intake-receipt-${view.tone}`}>
       <div className="intake-receipt-head">
@@ -120,7 +125,7 @@ function Receipt({ drop, onReview, onDeleteSnapshot, onDismiss }) {
       <div className="intake-receipt-foot">
         {view.snapshotPresent ? (
           <>
-            <button className="btn small ghost" onClick={() => setShowing((s) => !s)}>
+            <button className="btn small ghost" onClick={reveal}>
               {showing ? "Hide source text" : "View source text"}
             </button>
             <button className="btn small ghost" onClick={() => onDeleteSnapshot(drop.id)}>
@@ -160,8 +165,14 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
   const [tick, setTick] = useState(0);
   const fileInput = useRef(null);
   const dragDepth = useRef(0);
+  const track = useMeasure({ accountId, programId: programId || null });
 
   useEffect(() => { api.intakeLimits().then(setLimits).catch(() => setLimits(null)); }, []);
+
+  // §17 `drop_zone_shown` — the denominator. Without it every other count in this funnel is a
+  // numerator with nothing under it, and "drops per account" would silently mean "per account that
+  // already drops things".
+  useEffect(() => { track("drop_zone_shown"); }, [track]);
 
   useEffect(() => {
     let live = true;
@@ -200,25 +211,35 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
 
   const send = useCallback(async (body) => {
     setBusy(true);
+    // §17 `drop_received`. Fired when the material is handed over, not when the answer comes back:
+    // a request that fails is still a drop the operator made, and counting only completions would
+    // make a broken parser look like a feature nobody uses.
+    track("drop_received");
     try {
       const drop = await api.createIntakeDrop(accountId, { ...body, program_id: programId || null });
       setTick((n) => n + 1);
+      const event = dropEvent(drop);
+      if (event) track(event.name, event.properties);
       if (drop.outcome === "drafted") {
         toast(`Drafted ${drop.proposals_drafted} update${drop.proposals_drafted === 1 ? "" : "s"}`);
         onDrafted?.();
       }
       return drop;
     } catch (error) {
+      // The message is the server's sentence and never leaves the toast. What is measured is that
+      // the request did not complete.
+      track("drop_refused", { reason_code: "request_failed" });
       toast(error.message, "err");
       return null;
     } finally {
       setBusy(false);
     }
-  }, [accountId, programId, onDrafted, toast]);
+  }, [accountId, programId, onDrafted, toast, track]);
 
   const sendFiles = useCallback(async (fileList) => {
     const { files, overflow } = acceptFileList(fileList, limits);
     if (overflow) {
+      track("drop_refused", { reason_code: clientRefusalCode({ overflow }) });
       toast(`${overflow.count} files at once is over the ${overflow.cap} limit — drop them in smaller batches`, "err");
       return;
     }
@@ -226,11 +247,18 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
       // Screened here so an obvious refusal is instant; the server screens again and its answer is
       // the one that gets recorded.
       const refused = screenFile(file, limits);
-      if (refused?.reason) { toast(refused.reason, "err"); continue; }
+      if (refused?.reason) {
+        // Measured here too, or the funnel would read as though every file the operator chose was
+        // one we accepted — the refusals that never left the browser are exactly the ones a
+        // completion rate would hide.
+        track("drop_refused", { reason_code: clientRefusalCode({ refusal: refused }) });
+        toast(refused.reason, "err");
+        continue;
+      }
       const buffer = await file.arrayBuffer();
       await send({ content_b64: toBase64(buffer), filename: file.name });
     }
-  }, [limits, send, toast]);
+  }, [limits, send, toast, track]);
 
   // The window-level listeners exist so the whole card is a target rather than a 40px strip.
   // `preventDefault` on both dragover and drop is mandatory: without it the browser navigates to
@@ -302,7 +330,7 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
       ) : (
         <div className="intake-receipts">
           {drops.map((drop) => (
-            <Receipt key={drop.id} drop={drop}
+            <Receipt key={drop.id} drop={drop} track={track}
               onReview={(runId) => setReviewRun(runId)}
               onDeleteSnapshot={async (id) => {
                 await api.deleteIntakeSnapshot(id);

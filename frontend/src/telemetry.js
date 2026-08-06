@@ -9,7 +9,7 @@
  * never reaches the view.
  *
  * The client is deliberately **not** a second validator. `backend/app/telemetry.py` holds the one
- * contract: the sixteen event names, the per-event property allowlist, and the slug rule that
+ * contract: the twenty-two event names, the per-event property allowlist, and the slug rule that
  * structurally excludes titles, names, and free text (§17.2). What lives here instead are the
  * *derivers* — the functions that turn a response body or a path row into bounded enum fields.
  * They are the place a person name could leak into a payload, so they are what the tests point at:
@@ -39,6 +39,15 @@ export const EVENT_NAMES = Object.freeze([
   "phase_transition_completed",
   "execution_native_target_opened",
   "execution_path_retry",
+  // `ACCOUNT-INTAKE-SPEC.md` §17 (D-246). No deriver accompanies these on purpose: the only
+  // property any of them carries is a reason code the server already authored, and a deriver here
+  // would be a place to read the dropped document.
+  "drop_zone_shown",
+  "drop_received",
+  "drop_refused",
+  "drop_drafted",
+  "drop_no_proposals",
+  "drop_receipt_opened",
 ]);
 
 const NAMES = new Set(EVENT_NAMES);

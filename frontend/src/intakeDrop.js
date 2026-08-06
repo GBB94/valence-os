@@ -169,6 +169,49 @@ export function acceptFileList(files, limits) {
   return { files: list, overflow: null };
 }
 
+// --- measurement derivers — ACCOUNT-INTAKE-SPEC.md §17 (D-246) ---------------------------------
+//
+// Pure, and here rather than in the view for the usual reason: logic in JSX is logic nothing tests,
+// and these are the two functions where a filename could leak into a payload. They take a receipt
+// and return an event name plus bounded codes; neither ever reads `filename`, `snapshot_text`, or
+// any sentence. `intakeDrop.test.js` feeds them receipts full of both and asserts nothing survives.
+
+/** The outcomes that mean "we did not read this", in the drop's own `outcome` vocabulary. */
+const REFUSED_OUTCOMES = new Set(["rejected_kind", "parse_failed", "duplicate"]);
+
+/**
+ * The event a completed drop produces, or null when its outcome is one nothing measures.
+ *
+ * The reason code is the server's `outcome`, verbatim. Not a code of the client's own: two
+ * vocabularies for why a drop was refused would eventually disagree, and the one that reached the
+ * funnel would be the one nobody wrote down.
+ */
+export function dropEvent(drop) {
+  const outcome = String(drop?.outcome || "");
+  if (outcome === "drafted") return { name: "drop_drafted", properties: {} };
+  if (outcome === "no_proposals") return { name: "drop_no_proposals", properties: {} };
+  if (REFUSED_OUTCOMES.has(outcome)) {
+    return { name: "drop_refused", properties: { reason_code: outcome } };
+  }
+  return null;
+}
+
+/**
+ * The code for a refusal the client made itself, before anything was sent, or null when there is
+ * nothing to report.
+ *
+ * These never reach the server, so they have no `outcome` to borrow — and leaving them unmeasured
+ * would make the funnel read as though every drop was accepted. Two codes, not three: `screenFile`
+ * returns no sentence for an oversized file precisely so the server authors that refusal, which
+ * means an over-cap file *is* sent and comes back as a `rejected_kind` receipt through
+ * `dropEvent`. A third code here would double-count it.
+ */
+export function clientRefusalCode({ overflow = null, refusal = null } = {}) {
+  if (overflow) return "too_many_files";
+  if (refusal && refusal.reason) return "unsupported_kind";
+  return null;
+}
+
 /** §16.2 — the label changes, not just the border. Colour alone is not a compliant state change,
  *  and the label is also what confirms which account will receive the drop. */
 export function zoneLabel({ dragging, busy, accountName }) {

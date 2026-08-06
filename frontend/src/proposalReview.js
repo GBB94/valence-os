@@ -35,10 +35,15 @@ const REQUIRED_FIELDS = {
     { key: "due_date", label: "Due date", control: "date" },
   ],
   "update:person": [{ key: "name", label: "Name", control: "text" }],
+  // ACCOUNT-INTAKE-SPEC.md §10. Required here even though the extractor can only ever draft a
+  // milestone that already has one — a dateless milestone is reported in coverage and never
+  // becomes a proposal. The field is required because the *reviewer* can clear it, and a milestone
+  // with no date is a plan entry the rest of the app cannot plan against.
+  "create:milestone": [{ key: "target_date", label: "Target date", control: "date" }],
 };
 
-// Fields the reviewer may change before applying. `description` is the drafted sentence for every
-// create; `update:person` edits the identity fields instead, because that is what it is proposing.
+// Fields the reviewer may change before applying, beyond the pair's text field and its required
+// ones. `update:person` edits the identity fields instead, because that is what it is proposing.
 const OPTIONAL_FIELDS = {
   "update:person": [{ key: "title", label: "Title", control: "text" }],
   "create:deployment_moment": [
@@ -47,6 +52,14 @@ const OPTIONAL_FIELDS = {
 };
 
 const DEFAULT_TEXT_FIELD = { key: "description", label: "Description", control: "textarea" };
+
+// The drafted sentence is `description` for most targets, but the native column does not always
+// agree — and the form has to edit the key the server will read, or an edit silently applies
+// nothing. `null` means this pair has no free-text field at all.
+const TEXT_FIELD = {
+  "update:person": null,
+  "create:milestone": { key: "name", label: "Milestone", control: "text" },
+};
 
 export function pairKey(proposal) {
   return `${proposal?.intent || "create"}:${proposal?.target_type || ""}`;
@@ -66,7 +79,8 @@ export function editableFields(proposal) {
   const key = pairKey(proposal);
   const required = (REQUIRED_FIELDS[key] || []).map((f) => ({ ...f, required: true }));
   const optional = (OPTIONAL_FIELDS[key] || []).map((f) => ({ ...f, required: false }));
-  const text = key === "update:person" ? [] : [{ ...DEFAULT_TEXT_FIELD, required: false }];
+  const field = key in TEXT_FIELD ? TEXT_FIELD[key] : DEFAULT_TEXT_FIELD;
+  const text = field ? [{ ...field, required: false }] : [];
   return [...required, ...text, ...optional];
 }
 

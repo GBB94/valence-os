@@ -462,7 +462,7 @@ extraction proposes today:
 | `deployment_moment` | create | Moments |
 | `value_story` | create | Value ledger, internal by default |
 
-**One addition is approved** (D-207, Slice 2): `("create", "milestone")`. A dated event — go-live,
+**One addition is approved** (D-207, built in Slice 4): `("create", "milestone")`. A dated event — go-live,
 pilot start, review — is the single most valuable thing in a dropped kickoff note, and it is the one
 that feeds the launch timeline built last week. Without it, the answer to "what did the onboarding
 call tell us" cannot include a date, which guts the feature.
@@ -483,8 +483,19 @@ upstream of it can carry a milestone:
 So it needs a new accept branch, `MilestoneCreate` wiring, a prompt-version bump, and either a table
 rebuild for the CHECK or a normalized-pair path through `_persist_run` that does not go through
 `legacy_pair` at all. The second is the better shape — the legacy fusion of intent and target is
-what migration 0043 set out to unwind — but either way this is its own slice with its own migration,
-and it does not ride along inside the drop feature.
+what migration 0043 set out to unwind — and it is its own slice either way, rather than riding along
+inside the drop feature.
+
+**Built as the second route (D-242), and it needed no migration.** `extractor.PROPOSAL_KINDS` is now
+the *wire* vocabulary a backend may name in JSON; `MUTATION_TYPES` stays the *legacy* set the 0043
+CHECK accepts; `KIND_PAIRS` maps one to the other and is built from `proposals.LEGACY_MUTATIONS`, so
+the two still meet in exactly one place. `create_milestone` has no legacy name, `legacy_mutation`
+returns `None` for it, and the row stores `mutation_type` NULL — which is what 0043 made the column
+nullable for. Every dispatch that read `mutation_type` to find the target now reads `target_type`
+instead, which is what closes the 500 in row four of the table above rather than merely avoiding it.
+The one shape this leaves behind is `_persist_run` accepting either vocabulary: a caller that speaks
+only the legacy name is still translated through `legacy_pair`, in that one function, until the last
+such caller moves (§6.5).
 
 Two constraints ride with it, because a milestone is the first proposable target that carries a date
 the rest of the app plans against:
@@ -854,7 +865,7 @@ both buttons, every receipt row, and every proposal action.
 
 ---
 
-## 17. Measurement — deferred to Slice 4, and it amends a contract
+## 17. Measurement — built in Slice 4, and it amended a contract
 
 Six events were proposed: `drop_zone_shown` · `drop_received` · `drop_refused` (reason code) ·
 `drop_drafted` · `drop_no_proposals` · `drop_receipt_opened`. Account id, reason code, and rotating
@@ -875,6 +886,24 @@ When it lands: `accept-all` is **not** counted separately from per-item accepts,
 acceptance-rate figure is rendered. §17.5 of `ACCOUNT-PATH-SPEC.md` applies unchanged — a rate
 cannot say whether a draft was correct, and an acceptance rate here would read as extraction quality
 when it is mostly a statement about what kind of documents got dropped that week.
+
+**Built (D-246).** Twenty-two events, one allowlist, one store. Three things settled in the building
+that the proposal left open:
+
+- **Only `drop_refused` carries a property**, and its `reason_code` is the drop's own `outcome`
+  column — an existing five-value enum the schema already checks, so nothing new was invented to
+  measure with. `kind` and `proposal_count` were considered and left out: this per-event list is the
+  review point for "is this still diagnostics?", and a property can be added there later but cannot
+  be un-collected.
+- **`drop_no_proposals` carries no reason code**, though "HTML-only or all-quoted?" is the diagnostic
+  somebody will want. There is no such code on the server — only the operator's sentence — and a
+  client deriving one by matching that prose would be a view reconstructing server semantics from a
+  refusal it did not author (D-153). It gets a column first, or not at all.
+- **Refusals the client makes itself are counted too**, with `too_many_files` and `unsupported_kind`.
+  They never reach the server, and leaving them out would make the funnel read as though every file
+  the operator chose was one we accepted. There is deliberately no third code for an oversized file:
+  `screenFile` returns no sentence for that case precisely so the server authors it, so it *is* sent
+  and comes back as a `rejected_kind` receipt. A client code would double-count it.
 
 ---
 
@@ -959,11 +988,40 @@ rather than guessing; an unknown document state is not folded into "deleted"; se
 through by identity, not substring; a failed fetch never reads like a missing source; accept-all
 enablement, its count-bearing reason, and each blocker.
 
+Slice 4 (`test_intake_drop_slice4.py`, 27 tests):
+
+- A relative phrase drafts **no** milestone and produces a `named_not_proposed` entry naming what was
+  seen; the sentence is asserted **identical to the server constant**, not merely non-empty (D-153).
+- `find_date` is asserted over eight inputs: three written forms it reads, two slash forms it refuses
+  because 03/04/2026 has two readings and nothing records which was taken, two dates in one sentence
+  which is a coin flip rather than a reading, and an out-of-range day.
+- A milestone with a date and **no program** lands in `coverage.refused` and `named_not_proposed`
+  stays empty — the two omissions are told apart by which one the operator can fix, and the sentences
+  are asserted to differ.
+- A drafted milestone stores `intent=create`, `target_type=milestone`, and `mutation_type` **NULL**,
+  and the `extraction_proposals` DDL is asserted to contain no `milestone` at all — the proof that
+  the CHECK was gone around rather than widened, and that Slice 4 added no migration.
+- Each of `at_risk`, `completed_on`, `completion_note`, `completed` fails `check_payload`, and an
+  **override** carrying `at_risk` 422s at accept time with no `milestones` row written (§6.8).
+- Acceptance writes a real `milestones` row through `execution_ops` with an audit entry, `at_risk` 0
+  and `status` `upcoming`; a reviewer's corrected date is the one stored; accept-all applies it with
+  the rest of its run; a second drop of the same milestone surfaces as `exact_content`.
+- The six drop events are in the same `EVENTS` allowlist as the other sixteen, `drop_refused` rejects
+  six filename-shaped keys and a reason *sentence* while accepting the code, and the five events that
+  report nothing reject every property.
+
 Frontend (`node --test`, pure modules — **there is no React renderer or jsdom in this harness**, and
 that has caught eight consecutive slices; all logic goes in `src/intakeDrop.js` and the JSX draws it):
 
 - Kind → label/limit mapping, refusal sentence selection, receipt summarisation, coverage rendering
   order, keyboard command map, and the accept-all enablement predicate.
+- Slice 4 (11 tests): `dropEvent` maps each outcome to its event and an unrecognized one to `null`
+  rather than a guess; a receipt loaded with a filename, a reason sentence, and snapshot text yields
+  exactly one property and it satisfies the server's slug rule; a client-side refusal is counted so
+  the funnel cannot read as "every drop was accepted", and an oversized file — which the server
+  authors the refusal for — is **not** counted twice. A milestone's review form edits `name` rather
+  than `description`, cannot be applied with the date cleared, needs a program, and reports a changed
+  date as an edit.
 
 ---
 
@@ -974,7 +1032,14 @@ that has caught eight consecutive slices; all logic goes in `src/intakeDrop.js` 
 | **1** ✅ **built** | Drop zone and paste on Operate → screen → kind detect → parse from bytes → **existing extractor** → `_persist_run` → the **existing** `ProposalPreview` / `ProposalReview`. `intake_drops`, receipt as an outcome line, named refusals, coverage, cross-account mention, `document_drop_intake` in `CONNECTIONS.md`. **All three text kinds**, including quoted-thread splitting and transcript cue-stripping. | End to end on the first slice, because the whole value is "drop it and the drafts appear." Reusing the extractor and the review surface is what makes that one slice instead of two. |
 | **2** ✅ **built** | `.eml` from bytes (`parse_eml_bytes` refactor) and a dropped email creating a `comm_message` through the existing ingestion path (§7.4), via `ingestion.DropOrigin`. Migration 0053 adds the `email_file` kind; `.msg` gets its own refusal. | Fidelity, and the correctness fix that stops dropped and synced mail diverging. It is now the whole slice, because it is the only genuinely expensive part of what used to be here. |
 | **3** ✅ **built** | Grounding split view **in `ProposalReview`**, accept-all scoped to a run, duplicate detection. **No migration** — `duplicate_of_id` already existed from 0052, unwritten. | The review-speed slice. It improves every proposal, not just dropped ones. |
-| **4** | `("create","milestone")` with its own migration (§10); telemetry with the §17 contract amendment. | The two pieces that are each a slice's worth of work in their own right. |
+| **4** ✅ **built** | `("create","milestone")` (§10); telemetry with the §17 contract amendment (16 → 22 events). **No migration** — see below. | The two pieces that are each a slice's worth of work in their own right. |
+
+This row said "with its own migration" until Slice 4 was built (D-242). §10 offered two routes and
+preferred the second, and the second turns out to need no schema change at all: the pair travels
+**normalized**, `mutation_type` stays NULL, and migration 0043 already made that column nullable for
+exactly this case. Widening the nine-value CHECK would have meant a table rebuild to add a legacy
+name that nothing reads — the vocabulary the codebase is trying to leave. The estimate was the
+stale part, not the design.
 
 The first draft split this as "surface first, extraction second". That was the wrong seam: a drop
 zone that refuses politely and drafts nothing is not testable against the actual ask, and the
@@ -1031,9 +1096,9 @@ each one now binds, and — where a decision has a live edge — what would reop
    the reason and offers the working path; it never says "unsupported file type". This is a
    *deferral*, not a decline — the day `file_storage` opens, PDF text extraction becomes a scoped
    piece of work rather than a governance question, and §12's non-goal is written to be lifted.
-2. **`("create","milestone")`: add it.** (D-207) §10, Slice 2, with the two constraints recorded
-   there: program required and never inferred from the text, and no date drafted from a relative
-   phrase. This is the only widening of `TARGET_ALLOWLIST` in the spec.
+2. **`("create","milestone")`: add it.** (D-207) §10, built in Slice 4, with the two constraints
+   recorded there: program required and never inferred from the text, and no date drafted from a
+   relative phrase. This is the only widening of `TARGET_ALLOWLIST` in the spec.
 3. **Accept-all: one keystroke.** (D-208) §11.4 stands as written, and its three guards are the
    decision rather than decoration — enabled only when every item is `proposed` with no conflict or
    match candidate, an explicit act on a visible list, and a loop over the per-item native accept

@@ -276,3 +276,42 @@ test("a proposal needing a program is blocked without one and cleared by the gro
   // account workspace to have one selected.
   assert.equal(acceptAllBlocker(proposal({ program_id: "prog-2" }), null), null);
 });
+
+// --- Slice 4: ("create","milestone") — ACCOUNT-INTAKE-SPEC.md §10 ------------------------------
+
+const milestone = () => proposal({
+  intent: "create", target_type: "milestone",
+  payload: { name: "Pilot go-live", target_date: "2026-10-01" },
+  source: { kind: "notes", span: "Pilot go-live is 1 October 2026." },
+});
+
+test("a milestone's form edits the name, because that is the column it lands in", () => {
+  // The default text field is `description`, and a milestone has none. Offering one would let the
+  // reviewer edit a key the server never reads — an edit that silently applies nothing.
+  const keys = editableFields(milestone()).map((f) => f.key);
+  assert.ok(keys.includes("name"));
+  assert.ok(!keys.includes("description"));
+  assert.deepEqual(draftFrom(milestone()),
+                   { target_date: "2026-10-01", name: "Pilot go-live" });
+});
+
+test("a milestone cannot be applied without a date", () => {
+  // §10: the extractor never drafts a dateless one, but the reviewer can clear the field, and a
+  // milestone with no date is a plan entry the rest of the app cannot plan against.
+  assert.deepEqual(missingRequired(milestone(), { name: "Pilot go-live", target_date: "" }),
+                   ["Target date"]);
+  assert.deepEqual(missingRequired(milestone(), draftFrom(milestone())), []);
+});
+
+test("a milestone needs a program, and the date reaches the server as an override", () => {
+  assert.equal(needsProgram(milestone()), true);
+  const overrides = overridesFrom(milestone(), draftFrom(milestone()), { programId: "pg1" });
+  assert.equal(overrides.target_date, "2026-10-01");
+  assert.equal(overrides.program_id, "pg1");
+});
+
+test("changing a milestone's date is an edit, and is labelled as one", () => {
+  const draft = { ...draftFrom(milestone()), target_date: "2026-11-15" };
+  assert.equal(isEdited(milestone(), draft), true);
+  assert.equal(isEdited(milestone(), draftFrom(milestone())), false);
+});

@@ -2,6 +2,73 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Account drop zone — Slice 4 built, milestones and the §17 measurement amendment (2026-08-06)
+
+`("create", "milestone")` as the second proposal route, and the six drop-zone events §17 deferred.
+**No migration.** 795 backend tests green, 256 frontend (27 and 11 new). The slice's shape came out
+of one finding: §10 offered two routes to a new target and preferred the normalized one, and taking
+that route turns out to need no schema change at all — which makes §19's "with its own migration"
+estimate stale rather than merely conservative. Both specs now say so.
+
+- **D-242 — The new target is a normalized pair with a NULL legacy name, and `_persist_run` learned
+  to speak both vocabularies rather than one being converted.** `extractor.PROPOSAL_KINDS` is the
+  *wire* vocabulary (`MUTATION_TYPES + ("create_milestone",)`); `MUTATION_TYPES` stays exactly the
+  nine names migration 0043's CHECK accepts; `KIND_PAIRS` maps wire → `(intent, target_type)` and is
+  built from `proposals.LEGACY_MUTATIONS` so the two sets meet in one place. A milestone proposal
+  therefore stores `intent='create'`, `target_type='milestone'`, and `mutation_type` **NULL** — which
+  is what 0043 made the column nullable *for*, and why the CHECK is untouched by this slice (a test
+  asserts `"milestone"` appears nowhere in the `extraction_proposals` DDL). The consequence that
+  matters is at dispatch: every place that read `mutation_type` to work out what to build now reads
+  `target_type` directly, because stripping a `create_` prefix off NULL raises. §10 predicted that
+  500; reading the normalized column closes it rather than dodging it. `_persist_run` accepts either
+  shape — normalized keys when the caller speaks them, `legacy_pair(mutation_type)` when it does not
+  — because five tests in `test_readiness_review_fixes.py` call it directly with legacy dicts, and
+  the alternative was a second translation site, which is how two vocabularies drift.
+- **D-243 — The two ways a milestone is undraftable produce different coverage entries, and
+  `screen_undraftable` mutates the run's coverage in place.** A proposal with no date and one with
+  no program are both refused, but a reader who cannot tell them apart cannot act: the first means
+  "the document did not say when", the second means "tell me which program". Both sentences are
+  authored on the server (`extractor._NO_DATE`, `_NO_PROGRAM`) and a test asserts identity with the
+  constants rather than matching prose, because a view that composes any part of an "I did not do
+  this" statement can soften one (D-153). The screen runs inside `_persist_run` and appends into the
+  caller's `coverage` dict, which is the same object the drop-text path and the `.eml` path each
+  hand to `_record` — so the receipt sees the omissions, and the transcript and manual-paste callers
+  get them from the same change rather than three.
+- **D-244 — A proposal may name a milestone and a date and nothing else.** `at_risk`,
+  `completed_on`, `completion_note`, and `completed` are rejected at validation and again at accept
+  time, so an override cannot smuggle one in after review. The rule is the readiness one one level
+  down: a plan says *when* something was expected, readiness says whether it is true, and a document
+  that could assert a milestone was completed would be a proposal asserting a state.
+- **D-245 — The mock's milestone rule is appended last and fires on a cue, and `find_date` refuses
+  more than it parses.** Appended last because `_RULES` matches in order and the commitment and
+  decision cues are broader; cue-only because a rule that fired on any future-tense sentence would
+  draft a milestone out of every plan mentioned in passing. `find_date` accepts ISO, `1 October
+  2026`, and `October 1, 2026` — **no slash forms**, since `03/04/2026` is two different dates
+  depending on who typed it, and returns `None` when a sentence carries two candidates rather than
+  taking the first. A relative phrase ("end of next quarter") is not a date and drafts nothing.
+  Both prompt versions were bumped (`cue-rules-2`, `structured-2`) because the extraction fingerprint
+  includes them and a re-run under the old version would otherwise be treated as identical work.
+- **D-246 — §17.3's sixteen events become twenty-two, and only one of the six carries a property.**
+  An amendment to the existing allowlist rather than a second event store, because two contracts
+  about what may leave a record eventually disagree. The property rule here is narrower than the
+  surrounding events on purpose: **a filename is document content by another name**, so none of the
+  six carries a filename, kind, size, byte count, or proposal count. `drop_refused` gets
+  `reason_code`, and the code is the drop's own five-value `outcome` enum rather than a client
+  vocabulary. `drop_no_proposals` gets none, though "HTML-only or all-quoted?" is the diagnostic
+  somebody will want — there is no such code on the server, and the client deriving one by matching
+  the operator's sentence would be a view reconstructing server semantics from prose the server
+  authored. `kind` and `proposal_count` were considered and left out: they can be added at this
+  review point later and they cannot be un-collected. Client-side refusals are counted with two
+  codes (`too_many_files`, `unsupported_kind`) and deliberately not three — `screenFile` returns no
+  sentence for an oversized file precisely so the server authors that refusal, which means the file
+  *is* sent and returns as a `rejected_kind` receipt, and a third code would double-count it.
+- **D-247 — The milestone review form edits the name, and there is no `_IDENTITY_FIELDS` entry.**
+  `create:milestone` is the first target whose text field is not the default one, so `editableFields`
+  now reads a `TEXT_FIELD` map with an explicit `null` for `update:person` instead of special-casing.
+  The duplicate check is left with name-equality-within-program only: `_IDENTITY_FIELDS` requires two
+  agreeing fields, and a milestone's only identity field beyond its name is `target_date`, so an
+  entry there would name a check that can never fire — which reads as coverage that does not exist.
+
 ## Documentation currency pass, and VISIBILITY-SPEC proposed but not in force (2026-08-06)
 
 No code changed. `README.md`, `docs/README.md`, and `CLAUDE.md` had all stopped describing the

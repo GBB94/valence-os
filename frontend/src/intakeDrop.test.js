@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  acceptFileList, byteLabel, isActivationKey, kindLabel, orderReceipts, outcomeLabel, outcomeTone,
-  receipt, screenFile, zoneHint, zoneLabel,
+  acceptFileList, byteLabel, clientRefusalCode, dropEvent, isActivationKey, kindLabel,
+  orderReceipts, outcomeLabel, outcomeTone, receipt, screenFile, zoneHint, zoneLabel,
 } from "./intakeDrop.js";
 
 const LIMITS = {
@@ -178,4 +178,61 @@ test("an .eml that only duplicates an existing record earns no failure colour", 
   assert.equal(view.outcomeLabel, "Already dropped");
   assert.equal(view.tone, "quiet");
   assert.equal(view.reason, "That message is already here.");
+});
+
+// --- §17 measurement derivers (D-246) --------------------------------------------------------
+
+test("a drafted receipt is measured as drafted, with no property at all", () => {
+  // The count is the whole point. How many were drafted is not measured: `proposal_count` was
+  // considered and left out, and it can be added at the server's review point later.
+  assert.deepEqual(dropEvent(DRAFTED), { name: "drop_drafted", properties: {} });
+});
+
+test("every refusing outcome is measured with the server's own code, verbatim", () => {
+  for (const outcome of ["rejected_kind", "parse_failed", "duplicate"]) {
+    assert.deepEqual(dropEvent({ ...DRAFTED, outcome }),
+                     { name: "drop_refused", properties: { reason_code: outcome } });
+  }
+});
+
+test("nothing found is its own event and carries no reason", () => {
+  // There is no reason *code* on the server for this — only the operator's sentence — and a client
+  // deriving one by matching that prose would be reconstructing server semantics from a refusal.
+  assert.deepEqual(dropEvent({ ...DRAFTED, outcome: "no_proposals" }),
+                   { name: "drop_no_proposals", properties: {} });
+});
+
+test("an outcome nothing measures produces no event rather than a guessed one", () => {
+  assert.equal(dropEvent({ ...DRAFTED, outcome: "something_new" }), null);
+  assert.equal(dropEvent({}), null);
+  assert.equal(dropEvent(null), null);
+});
+
+test("no drop event carries a filename, a sentence, or anything from the document", () => {
+  const loaded = {
+    ...DRAFTED, filename: "Q3 renewal — Robin Vale.eml", outcome: "parse_failed",
+    outcome_reason: "That file had no readable text in it.",
+    snapshot_text: "Robin Vale wrote: we are worried about the March date.",
+  };
+  const event = dropEvent(loaded);
+  const values = Object.values(event.properties).map(String);
+  assert.deepEqual(values, ["parse_failed"]);
+  // The same slug rule the server enforces (§17.2). It cannot express a name or a sentence.
+  for (const value of values) assert.match(value, /^[a-z0-9][a-z0-9_.:-]{0,63}$/);
+});
+
+test("a refusal the client made itself is still counted", () => {
+  // Otherwise the funnel reads as though every file the operator chose was one we accepted.
+  assert.equal(clientRefusalCode({ overflow: { count: 40, cap: 10 } }), "too_many_files");
+  assert.equal(clientRefusalCode({ refusal: screenFile({ name: "deck.pdf", size: 10 }, LIMITS) }),
+               "unsupported_kind");
+});
+
+test("an oversized file is not counted twice", () => {
+  // `screenFile` returns no sentence for it on purpose — the server authors that refusal — so it
+  // is sent, and it comes back through `dropEvent` as a receipt. A code here would double-count it.
+  const refusal = screenFile({ name: "long.txt", size: 9999999 }, LIMITS);
+  assert.equal(refusal.tooBig, true);
+  assert.equal(clientRefusalCode({ refusal }), null);
+  assert.equal(clientRefusalCode({}), null);
 });

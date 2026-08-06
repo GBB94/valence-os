@@ -1,6 +1,6 @@
 # Valence OS Account Path and execution-plan specification
 
-**Status:** Slices 1–3 **built** and green; Slice 3 landed 2026-08-05 (D-143), Slices 1–2 on 2026-08-04 (D-141, D-142). Slice 3 shipped migration 0042 — versioned playbooks, plan instances, governed exceptions, and checklist compatibility — under the constraint that none of its six tables stores an evaluation, asserted by schema introspection; §13.5.2's label-matching prohibition held, so compatibility maps exact `template_key` values only and an `na` mapping *proposes* an exception rather than applying one. Playbook versions do not retire each other, so an upgrade is an explicit previewed action rather than a silent rewrite. Slices 4–7 remain proposed and unapproved. Sections 5.2, 6.2, and 11.11 were revised after the Slice 2 build to record what shipped: the Operate "Needs action" list is removed rather than reordered, the phase filter narrows to gate items because only they carry a phase, and the §11.11 tests are pure-module rather than rendered-component tests because the repo has no React renderer. Approved for Slices 1–2, 2026-08-04; revised earlier the same day after the Stage 15 readiness build landed — sections 4.6, 6.1, 6.5, 7.1, 7.2, 9, 9.1, 10.2–10.11, 11.1, 11.9, 12.1, 13, 18, 19, and 21 were updated to consume the shipped contract and the shipped suppression overlay instead of hypothetical ones.
+**Status:** Slices 1–3 **built** and green; Slice 3 landed 2026-08-05 (D-143), Slices 1–2 on 2026-08-04 (D-141, D-142). Slice 3 shipped migration 0042 — versioned playbooks, plan instances, governed exceptions, and checklist compatibility — under the constraint that none of its six tables stores an evaluation, asserted by schema introspection; §13.5.2's label-matching prohibition held, so compatibility maps exact `template_key` values only and an `na` mapping *proposes* an exception rather than applying one. Playbook versions do not retire each other, so an upgrade is an explicit previewed action rather than a silent rewrite. Slices 4–7 were approved by Zach on 2026-08-05 and are **built** and green (D-148, D-149…D-155, D-156…D-161); §17.3's event list was later amended from sixteen to twenty-two by `ACCOUNT-INTAKE-SPEC.md` §17 (D-246). Sections 5.2, 6.2, and 11.11 were revised after the Slice 2 build to record what shipped: the Operate "Needs action" list is removed rather than reordered, the phase filter narrows to gate items because only they carry a phase, and the §11.11 tests are pure-module rather than rendered-component tests because the repo has no React renderer. Approved for Slices 1–2, 2026-08-04; revised earlier the same day after the Stage 15 readiness build landed — sections 4.6, 6.1, 6.5, 7.1, 7.2, 9, 9.1, 10.2–10.11, 11.1, 11.9, 12.1, 13, 18, 19, and 21 were updated to consume the shipped contract and the shipped suppression overlay instead of hypothetical ones.
 
 **Parent authorities:** `UX-FOUNDATION-SPEC.md`, `ACCOUNT-COMMAND-CENTER-SPEC.md`
 
@@ -1479,6 +1479,14 @@ Do not send titles, descriptions, transcript text, source spans, person names, e
 - `phase_transition_completed`
 - `execution_native_target_opened`
 - `execution_path_retry`
+
+**Amended to twenty-two by `ACCOUNT-INTAKE-SPEC.md` §17** (D-246). Six drop-zone events —
+`drop_zone_shown`, `drop_received`, `drop_refused`, `drop_drafted`, `drop_no_proposals`,
+`drop_receipt_opened` — join this allowlist rather than getting a store of their own, because two
+contracts about what may leave a record eventually disagree. Their property rule is narrower than
+everything above it: only `drop_refused` carries anything, a bounded `reason_code`, because a
+filename is document content by another name. That amending spec is the authority for their
+rationale; this list is the authority for the set.
 
 Event names and property schemas are versioned and validated at the adapter boundary. Unknown events are rejected in development and ignored with a diagnostic in production.
 

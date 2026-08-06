@@ -2,6 +2,40 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## The account drop zone, Slice 4 — milestones, and §17's six events (2026-08-06, D-242…D-247)
+
+The last slice of `ACCOUNT-INTAKE-SPEC.md`. All four are now built. It adds the second proposal
+route — `("create", "milestone")` — and the measurement §17 deferred. **No migration**, which makes
+§19's "with its own migration" estimate stale rather than conservative; both specs are corrected.
+
+New or changed: `PROPOSAL_KINDS` / `KIND_PAIRS` / `find_date` / `screen_undraftable` and the
+appended-last cue rule in `app/extractor.py`; `_TARGET_SCHEMA`, `_STAGE5_TARGETS`, and the
+`target_type`-based dispatch in `routers/ai.py`; `milestone` in four maps in `app/proposal_review.py`;
+six events in `app/telemetry.py`; `dropEvent` + `clientRefusalCode` in `src/intakeDrop.js`; the
+`TEXT_FIELD` map and the `create:milestone` date requirement in `src/proposalReview.js`; tracking
+calls in `AccountIntakeDrop.jsx`. Suites: **795 backend, 256 frontend, clean build** (was 767 / 245).
+
+What you must not undo:
+
+- **`mutation_type` is NULL on a milestone proposal, and that is the design.** Migration 0043 made
+  the column nullable precisely so a normalized pair with no legacy name could be stored, and the
+  0043 CHECK still lists exactly nine values — a test asserts `"milestone"` appears nowhere in the
+  `extraction_proposals` DDL. Every dispatch reads `target_type`; do not reintroduce a `create_`
+  prefix strip, which raises on the None. `_persist_run` accepts either vocabulary and translates in
+  **one** place, because five tests in `test_readiness_review_fixes.py` still call it with legacy
+  dicts and a second translation site is how the two would drift.
+- **A milestone proposal may carry a name and a date and nothing else.** `at_risk`, `completed_on`,
+  `completion_note`, and `completed` are rejected at validation *and* at accept time. A proposal
+  that could assert completion would be a document asserting a state.
+- **Neither the date nor the program is ever guessed.** `find_date` takes ISO, `1 October 2026`, and
+  `October 1, 2026` — no slash forms, and `None` when a sentence carries two candidates. A relative
+  phrase is not a date. A missing program is a 422 from `MilestoneCreate`, the same one every other
+  execution target gets. Each refusal is a server-authored sentence in its own coverage key.
+- **The six drop events carry no filename, kind, size, or count.** A filename is document content by
+  another name. Only `drop_refused` has a property, and it is the drop's own `outcome` enum.
+  Client-side refusals get two codes, not three: an oversized file is *sent* so the server can author
+  that refusal, and it returns as `rejected_kind` — a third code would double-count it.
+
 ## The account drop zone, Slice 3 — grounding, accept-all, duplicates (2026-08-06, D-226…D-238)
 
 The review-speed slice, and it is **not** scoped to dropped material: an extraction started from an
@@ -735,7 +769,7 @@ Frontend: `views/AccountPath.jsx` renders the orientation band (Next best move +
 
 **444 backend tests pass (41 in `tests/test_account_path_slice1.py`); frontend 31 tests, lint, and production build pass.** Both themes, a 620px width, contrast (floor 4.80), focus, and reduced motion verified live — `design-screenshots/account-path/VERIFICATION.md`.
 
-**Account Path Slice 3 — done (2026-08-05, D-143).** Approved by Zach; Slices 4–7 remain proposed and unapproved. This is the first Account Path slice with a migration. **0042 adds six tables and none of them stores an evaluation**: `readiness_playbook_definitions` / `readiness_playbook_entries` (versioned templates), `readiness_plans` + `readiness_plan_instances` (a scope's live plan and the requirements it schedules), `readiness_exceptions` (governed `not_applicable` and waivers), and `readiness_checklist_requirement_map`. A schema-introspection test walks all six and fails on any column named or suffixed `state`, `met`, `freshness`, `coverage`, `applicability`, `score`, or `weight` — a cached evaluation would be the second source of truth `RELATIONSHIP-READINESS-SPEC.md` §2 forbids.
+**Account Path Slice 3 — done (2026-08-05, D-143).** Approved by Zach; Slices 4–7 were approved the same day and are also built (see their own sections above). This is the first Account Path slice with a migration. **0042 adds six tables and none of them stores an evaluation**: `readiness_playbook_definitions` / `readiness_playbook_entries` (versioned templates), `readiness_plans` + `readiness_plan_instances` (a scope's live plan and the requirements it schedules), `readiness_exceptions` (governed `not_applicable` and waivers), and `readiness_checklist_requirement_map`. A schema-introspection test walks all six and fails on any column named or suffixed `state`, `met`, `freshness`, `coverage`, `applicability`, `score`, or `weight` — a cached evaluation would be the second source of truth `RELATIONSHIP-READINESS-SPEC.md` §2 forbids.
 
 The line to hold: **a plan says when something was expected; readiness says whether it is true.** A due date rides beside the four readiness axes and may say `overdue`, which is a claim about the plan. A legacy checkbox becomes `recorded_complete`, never a state. A suppression is subtractive and reported, never dropped — a fully-suppressed pillar returns `not_applicable` rather than `met`, and `suppressed_count`/`waived_count` ship on the wire. Unlike readiness definitions, **playbook versions do not retire each other**: an account stays pinned to the version it instantiated, so `enterprise-launch` v1 and v2 both ship live and an upgrade is an explicit previewed action (`preview_upgrade` returns additions, removals, timing, definition, and necessity changes and writes nothing).
 
