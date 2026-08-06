@@ -14,7 +14,7 @@ The repository root contains only active authority, current handoff, and operati
 - `COMPANY-INTEL-SPEC.md` — implemented additive Stage 14 authority; cited outside-in company events and grounded briefs.
 - `RELATIONSHIP-READINESS-SPEC.md` — implemented additive Stage 15 authority; readiness as a query-time projection over six independent pillars, plus the RR-2 proposal layer.
 - `ACCOUNT-PATH-SPEC.md` — implemented additive Account Path authority; Slices 1–7 all built (next-best-move, planning and playbooks, relationship links, the shared plan, local aggregate measurement).
-- `ACCOUNT-INTAKE-SPEC.md` — additive Stage 16 authority; the account drop zone. Slices 1–3 built, Slice 4 not.
+- `ACCOUNT-INTAKE-SPEC.md` — additive Stage 16 authority; the account drop zone. Slices 1–4 all built (drop and screen, `.eml` on the shared ingestion path, grounding and accept-all, milestone proposals).
 - `UX-FOUNDATION-SPEC.md` — staged UX authority; Release 1 canonical navigation and saved portfolio views, with later command-center/activity/outcomes contracts.
 - `ACCOUNT-COMMAND-CENTER-SPEC.md` — Release 2 detail under `UX-FOUNDATION-SPEC.md`; command center and unified activity, Slices 2.0–2.4 implemented.
 - `DESIGN-GUIDE.md` — presentation and information-architecture authority.

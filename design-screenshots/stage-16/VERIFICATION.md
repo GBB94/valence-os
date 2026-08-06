@@ -34,7 +34,7 @@ redo, and what it does.
 - **Non-chromatic state.** The citation mark carries three signals — a border, a background shift,
   and an inline label — none of which is colour alone. It renders as a mark in a monochrome
   rendering.
-- **Suites.** 767 backend, 245 frontend, clean `npx vite build`.
+- **Suites.** 795 backend, 256 frontend, clean `npx vite build` (Slices 1–4).
 
 ## What is still unverified, and needs the captures
 

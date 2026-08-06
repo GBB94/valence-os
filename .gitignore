@@ -16,3 +16,10 @@ dist/
 .vite/
 .nimbalyst/
 nimbalyst-local/
+
+# Local reference material only. Real client documents live outside this repo by
+# rule (CLAUDE.md: mock/synthetic data only, including in tests, seeds, and
+# commit messages). Nothing here is ever committed.
+Valence-Interview-Docs.zip
+Valence-Interview-Docs/
+*.zip
