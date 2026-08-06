@@ -96,18 +96,22 @@ Two bugs in existing code that these tests found, both now fixed: `proposed_upda
 `run_id` parameter as a loop variable (so an *unfiltered* read reported itself narrowed and dropped
 manual capture), and `prior_drop`'s `id` tie-break above.
 
-Still owed and still blocked: the both-theme screenshot pair, now covering the split view and the
-bulk bar as well as the drop zone. Retried on 2026-08-06 and re-confirmed blocked at the capture
-layer, not the app — a trivial static probe page fails the same way (*"Current display surface not
-available for capture"*), so this is an environment limitation for whoever picks it up, not a
-rendering problem to debug. **`design-screenshots/stage-16/VERIFICATION.md` is the record**: the
-probe that localized the failure, the compensating checks, what is still unverified because of it,
-and the table of surfaces to capture when the environment allows. What was verified without it:
-every new rule resolves from `tokens.css`
-and every token used (`--bg-surface`, `--bg-sunken`, `--line-hairline`, `--line-strong`,
-`--shadow-control`, `--ink-primary`, `--ink-secondary`, `--font-mono`, `--t-micro`) is defined in
-both themes, and the mark's three signals (surface lift, left rule, primary-ink weight) are all
-non-chromatic, so neither theme carries it on colour.
+**The screenshot pair is captured (2026-08-06, D-248…D-250).** Eleven images in
+`design-screenshots/stage-16/` — drop zone, drag-over, review slide-over, duplicate receipt, and a
+degraded citation, each in both themes, plus a 620px narrow shot.
+
+This paragraph previously said capture was blocked at the environment's capture layer. **It was
+not.** `browser_open_local_preview` cannot be screenshotted, but `browser_open_session` with
+`headless: true` captures fine; one failing code path had been generalized into a fact about the
+environment, and that reading is what kept the pair unwritten. If you hit *"Current display surface
+not available for capture"*, switch tools rather than recording a blocker.
+
+Capturing found two rendering defects that the suite, the token audit, and DOM inspection had all
+passed over — `Accept all 3` silently clipped to `Accept all`, and the grounding split never stacked
+inside the 480px slide-over, rendering a `sha256:` hash one character per line. Both fixed;
+`design-screenshots/stage-16/VERIFICATION.md` has the measurements, the container-query rationale,
+and the two states still uncaptured (`never_captured` and unlocatable citations). Contrast measured
+live in both themes, all ≥ 4.5:1 (floor 4.81 light / 5.71 dark).
 
 ## The account drop zone, Slice 2 — `.eml` (2026-08-06, D-219…D-225)
 
@@ -149,9 +153,9 @@ What you must not undo:
   skipped, because declining to read markup is a fact about our parser, not about whether the message
   happened. That is why `_body` returns `body_source` at all.
 
-Still owed from Slice 1 and still blocked: the both-theme screenshot pair. Nothing in Slice 2 changed
-the drop zone's visual design — it adds one `rowmeta` line to the receipt — so the Slice 1 contrast
-verification still stands.
+The both-theme pair was captured on 2026-08-06 and covers this slice too; see the Slice 3 section
+above and `design-screenshots/stage-16/VERIFICATION.md`. Nothing in Slice 2 changed the drop zone's
+visual design — it adds one `rowmeta` line to the receipt.
 
 Next: Slice 3 is the grounding split view inside `ProposalReview`, run-scoped accept-all, and
 duplicate detection. Slice 4 is `("create","milestone")` plus telemetry.
@@ -166,12 +170,12 @@ New: migration 0052 (`intake_drops`), `app/intake_kind.py`, `app/intake_drop.py`
 `app/routers/intake_drops.py`, `src/intakeDrop.js`, `src/views/AccountIntakeDrop.jsx`, and
 `document_drop_intake` in `CONNECTIONS.md`. Suites: **719 backend, 225 frontend, clean build.**
 
-Screenshots could not be captured this session — the browser extension reported no display surface
-available across two sessions and four attempts — so both themes were verified by computing
+Screenshots could not be captured when this slice landed, so both themes were verified by computing
 rendered colours and contrast in the running app instead: every string ≥ 4.5:1 in light and dark
-(lowest 4.81), and drag-over differs by border style, colour, background, **and** label text. That
-is a stronger check than eyeballing a PNG for these particular rules, but it is not a substitute for
-the screenshot pair: **take them when the capture path works again.**
+(lowest 4.81), and drag-over differs by border style, colour, background, **and** label text. **The
+pair was captured on 2026-08-06** — `dropzone-{light,dark}.png` and `dragover-{light,dark}.png` in
+`design-screenshots/stage-16/` — and the measured values held. The capture path was never broken;
+the wrong browser tool was being used. See D-248.
 
 What you must not undo:
 
