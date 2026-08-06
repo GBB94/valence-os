@@ -345,7 +345,11 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 
 /* Buttons */
 .btn {
-  position: relative; overflow: hidden; height: 30px; padding: 0 12px; border-radius: var(--r-md); border: 1px solid var(--line-strong);
+  /* nowrap is load-bearing, not cosmetic: the fixed height above and the overflow:hidden that the
+     ::after sheen needs will silently clip a second line. "Accept all 3" lost its count that way —
+     the button still read "Accept all" and the number simply was not there. A control that states
+     how many records a command touches must not be able to drop that number. */
+  position: relative; overflow: hidden; white-space: nowrap; flex-shrink: 0; height: 30px; padding: 0 12px; border-radius: var(--r-md); border: 1px solid var(--line-strong);
   background: var(--bg-elevated); color: var(--ink-primary); cursor: pointer; font-weight: 500;
   box-shadow: var(--shadow-control);
   transition: background var(--dur-fast) var(--ease-expo), border-color var(--dur-fast) var(--ease-expo),
@@ -1034,11 +1038,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* Every unavailable command states its reason in text as well as in the disabled control, so the
    surface never reads as broken. */
 .proposal-why { margin-top: var(--sp-3); display: grid; gap: var(--sp-1); }
-.proposal-facts { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline); padding-top: var(--sp-4); }
+/* These two layouts stack by *container* width, not viewport width. The distinction is the whole
+   bug: this review renders both full-width on Extraction and inside a 480px slide-over, so a
+   viewport breakpoint reads 1440px while the actual column is 207px and never fires. The 12rem
+   label track then leaves the value 7px, and the `overflow-wrap: anywhere` below — which is
+   correct, a sha256 has no break opportunity — turns a hash into one character per line. */
+.proposal-review { container-type: inline-size; }
+.proposal-facts { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline); padding-top: var(--sp-4);
+  container-type: inline-size; }
 .proposal-facts dl { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); margin: var(--sp-3) 0; }
 .proposal-facts dl > div { display: grid; grid-template-columns: 12rem 1fr; gap: var(--sp-4); }
 .proposal-facts dd { margin: 0; font-family: var(--font-mono); font-size: var(--t-small); overflow-wrap: anywhere; }
-@media (max-width: 40rem) {
+/* Queried against .proposal-facts itself: inside the split it gets half the pane, so the threshold
+   has to be the fact column's own width and not the review's. */
+@container (max-width: 26rem) {
   .proposal-facts dl > div { grid-template-columns: 1fr; gap: var(--sp-1); }
 }
 
@@ -1046,7 +1059,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    drafted from on the right. It stacks rather than shrinking into two unreadable columns. */
 .proposal-split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
 .proposal-split > .proposal-facts { margin-top: var(--sp-5); }
-@media (max-width: 60rem) {
+@container (max-width: 60rem) {
   .proposal-split { grid-template-columns: 1fr; }
 }
 .proposal-grounding { margin-top: var(--sp-5); border-top: 1px solid var(--line-hairline);

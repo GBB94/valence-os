@@ -1,57 +1,83 @@
 # Stage 16 — the account drop zone — verification (2026-08-06)
 
-**There are no captures in this folder, and that is the finding.**
+Eleven captures, both themes, plus one narrow viewport. **Two rendering defects were found by
+capturing and both are fixed** — which is the argument for doing this rather than reasoning about
+it, since neither was visible in the tests, the token audit, or the DOM.
 
-Every other stage in `design-screenshots/` carries a both-theme pair because `CLAUDE.md` requires
-one: *"a change that only works in one theme is not done."* Slices 1–3 of `ACCOUNT-INTAKE-SPEC.md`
-shipped without that pair. This file records why, what was done instead, and what is therefore still
-unverified — rather than leaving an empty folder that reads as an oversight, or a claim of visual
-verification that was never performed.
+## Correction to the previous version of this file
 
-## Why there are no captures
+The earlier version of this file said there were no captures because capture was *"blocked at the
+environment's capture layer."* **That was wrong.** The failure was the tool, not the environment:
+`browser_open_local_preview` cannot be screenshotted (*"Current display surface not available for
+capture"*), but `browser_open_session` with `headless: true` captures normally. Every image in this
+folder came from a headless session against the running dev server. Nothing about the environment
+had to change.
 
-Capture is blocked at the environment's capture layer, not in the app. Established by probe:
+The mistake mattered, so it is worth naming: a blocked capture was recorded as a fact about the
+world when it was a fact about one code path, and that reading is what kept the pair unwritten.
 
-1. `browser_open_local_preview` first rejected a page written to the session scratchpad —
-   *"File is not under any active workspace root."*
-2. Moved to `.scratch/probe.html` inside the workspace, the preview opened normally.
-3. `browser_screenshot` against that trivial static page failed with *"Current display surface not
-   available for capture."*
+## What was found
 
-A page with no application code, no theme, and no JavaScript fails identically. The failure is
-therefore not attributable to the drop zone, the dev server, or anything Stage 16 changed. The
-probe file was removed afterwards.
+**1. `Accept all 3` lost its count.** The accept-all control rendered as `Accept all` — the number
+was simply absent. `.btn` sets a fixed `height` and `overflow: hidden` (the latter for the `::after`
+sheen), and with `white-space` unset the label wrapped to a second line that was then clipped:
+`clientHeight: 24, scrollHeight: 32`. A control that states how many records a command touches must
+not be able to drop that number. Fixed with `white-space: nowrap`; that turned it into a 3px
+horizontal clip under flex pressure, fixed in turn with `flex-shrink: 0`.
 
-## Compensating verification that was performed
+**2. The grounding split view never stacked, and broke a hash one character per line.**
+`ACCOUNT-INTAKE-SPEC.md` §11.2 requires the split to stack "rather than shrinking into two
+unreadable columns," and the CSS had a rule for it — but as `@media (max-width: 60rem)`, against the
+*viewport*. `ProposalReview` renders both full-width on the Ledger tab and inside a 480px slide-over,
+so on a 1440px viewport the breakpoint read 1440px while the actual column was 391px and never
+fired. The 12rem label track then left the value column **7px** wide, and `overflow-wrap: anywhere`
+— which is correct, a `sha256:` digest has no break opportunity — turned the content hash into a
+1136px-tall column of single characters. Both breakpoints are now `@container` queries against the
+box that actually constrains the layout: `.proposal-review` for the split, `.proposal-facts` for the
+fact rows (inside the split it only gets half the pane, so the review's width is the wrong number to
+ask about).
 
-Not a substitute for the captures. Recorded so the next session knows what it does not have to
-redo, and what it does.
+Both branches measured after the fix:
 
-- **Token audit.** Every token used by the new CSS is defined in **both** theme blocks of
-  `tokens.css`: `--bg-surface`, `--bg-sunken`, `--line-hairline`, `--line-strong`,
-  `--shadow-control`, `--ink-primary`, `--ink-secondary`, `--font-mono`, `--t-micro`. No raw hex and
-  no arbitrary pixel values were introduced.
-- **Non-chromatic state.** The citation mark carries three signals — a border, a background shift,
-  and an inline label — none of which is colour alone. It renders as a mark in a monochrome
-  rendering.
-- **Suites.** 795 backend, 256 frontend, clean `npx vite build` (Slices 1–4).
+| `.proposal-review` width | split columns | fact row | `dd` |
+| --- | --- | --- | --- |
+| 1284px (Ledger tab) | `608px 608px` | `192px 408px` | 408 × 16 |
+| 443px (slide-over) | `391px` — stacked | `1fr` | 391 × 16 |
 
-## What is still unverified, and needs the captures
+## Captures
 
-- Rendered contrast at 4.5:1 for the citation mark against both surfaces, measured rather than
-  reasoned about.
-- The split view at a narrow viewport — whether the source pane and the proposal list stack or
-  scroll, and whether the marked passage stays in view when they do.
-- Focus-visible treatment on the drop target and on the accept-all control.
-- That a long retained document's scroll container does not push the page into horizontal overflow.
-
-## Surfaces to capture when the environment allows
-
-| Surface | Both themes |
+| File | Surface |
 | --- | --- |
-| Drop target on the Operate lens, idle and mid-drag | required |
-| Drop receipt naming a duplicate and its earlier drop | required |
-| `ProposalReview` split view — marked passage located, exact match | required |
-| The same with a degraded citation: `deleted`, `never_captured`, and unlocatable | required |
-| Accept-all bar in its offered state, and blocked with the reason | required |
-| Narrow viewport (620px) for the split view | light is sufficient |
+| `dropzone-{light,dark}.png` | Drop target on the Operate lens, at rest |
+| `dragover-{light,dark}.png` | Mid-drag — accent border **and** the label changes to "Drop to add to …" |
+| `review-{light,dark}.png` | `ProposalReview` slide-over: `Accept all 3`, spans quoted, `Cited` marks |
+| `duplicate-{light,dark}.png` | Duplicate receipt naming the earlier drop and offering its drafts |
+| `citation-deleted-{light,dark}.png` | Split view with a degraded citation — source deleted |
+| `dropzone-narrow-620-light.png` | 620px viewport |
+
+## Measured, not reasoned about
+
+- **Contrast, both themes, all ≥ 4.5:1.** Primary ink 15.98 (light) / 16.44 (dark); secondary ink
+  4.81 (light) / 5.71 (dark) — the floor across the drop zone label and hint, the grounding heading,
+  filename and note, and the fact-row `dt`/`dd`.
+- **No horizontal overflow** at 1440px or 620px, before or after the split fix.
+- **No clipped controls** across 8 routes × 2 themes (94–118 buttons per page): every
+  `scrollWidth ≤ clientWidth` and `scrollHeight ≤ clientHeight`.
+- **Focus-visible** rules present — the global rule at `index.css:413`, and `.intake-zone`'s own.
+- **Keyboard and ARIA on the drop zone**: `role="button"`, `tabIndex={0}`, an `aria-label` naming
+  the account, `aria-busy` while sending, and Enter/Space opening the file picker.
+- **Degraded citation marks nothing.** With the source deleted, the pane shows the heading, the
+  filename and a server-authored sentence, and renders **no** `<mark>` — the span is degraded, not
+  removed, and nothing arbitrary is highlighted.
+- **State is never colour alone.** Receipt outcomes are text (`DRAFTED`, `ALREADY DROPPED`); the
+  drag state changes the label as well as the fill.
+- **Suites after the fixes:** 256 frontend, `npm run lint` exit 0, clean `npx vite build`. The
+  changes are CSS-only.
+
+## Not captured
+
+- `never_captured` and unlocatable citations. `deleted` is captured and the three share one render
+  path, differing only in the server-authored heading and note — but that is an argument, not a
+  capture, and it is recorded here as one.
+- The 620px viewport for the split view specifically. The split's stacking is now measured directly
+  at 391px, which is narrower than the 620px case would produce.

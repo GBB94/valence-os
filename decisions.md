@@ -2,6 +2,37 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Stage 16 screenshot pair captured, and the two defects it found (2026-08-06)
+
+The both-theme pair `CLAUDE.md` requires was finally captured, and capturing it found two rendering
+defects that the tests, the token audit, and DOM inspection had all passed over. Eleven captures in
+`design-screenshots/stage-16/`, whose `VERIFICATION.md` is rewritten. CSS-only; 256 frontend tests,
+lint exit 0, clean build.
+
+- **D-248 — The claim that screenshot capture was blocked by the environment was wrong, and the
+  correction is recorded where the claim was made.** `browser_open_local_preview` cannot be
+  screenshotted, but `browser_open_session` with `headless: true` can. The previous
+  `VERIFICATION.md` generalized one failing code path into a fact about the environment, and that
+  reading is what kept the pair unwritten across several stages. The file now opens with the
+  correction rather than quietly dropping it, because the next session's default should be "try the
+  headless session," not "capture is blocked here."
+- **D-249 — A control that states a count must not be able to drop the count, so `.btn` sets
+  `white-space: nowrap` and `flex-shrink: 0`.** `Accept all 3` rendered as `Accept all`: the fixed
+  `height` plus the `overflow: hidden` that the `::after` sheen needs will silently clip a second
+  line (`clientHeight: 24, scrollHeight: 32`). `nowrap` alone converted it into a 3px horizontal clip
+  under flex pressure, hence both properties. The failure mode is the dangerous one — not a broken
+  layout but a control that reads as a complete, different sentence.
+- **D-250 — The split view stacks by *container* width, not viewport width; both breakpoints are now
+  `@container` queries.** `ACCOUNT-INTAKE-SPEC.md` §11.2 requires stacking and the CSS had a rule
+  for it, but as `@media (max-width: 60rem)`. `ProposalReview` renders full-width on the Ledger tab
+  *and* inside a 480px slide-over, so on a 1440px viewport the query read 1440px while the column was
+  391px and never fired; the 12rem label track then left the value 7px wide and `overflow-wrap:
+  anywhere` — correct, since a `sha256:` digest offers no break point — rendered the content hash one
+  character per line, 1136px tall. The container is `.proposal-review` for the split and
+  `.proposal-facts` for the fact rows: inside the split the fact column gets only half the pane, so
+  the review's width is the wrong number to ask about. First `@container` use in the codebase.
+  Verified at both widths — 1284px keeps `608px 608px` and the 12rem label, 443px stacks.
+
 ## Account drop zone — Slice 4 built, milestones and the §17 measurement amendment (2026-08-06)
 
 `("create", "milestone")` as the second proposal route, and the six drop-zone events §17 deferred.
