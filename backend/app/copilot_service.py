@@ -5,7 +5,7 @@ import hashlib
 import json
 import sqlite3
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -18,6 +18,15 @@ FORBIDDEN_REQUESTS = (
     "raw sql", "run sql", "schema dump", "read a file", "browse the web", "search the web",
     "send email", "send an email", "create a task", "ignore the account", "ignore scope",
 )
+# The evidence window a completed answer speaks for, by scope (VISIBILITY-SPEC §3, rule 4). It is a
+# property of the run's scope rather than a constant a component picks: a program-scoped answer
+# describes work that moves weekly, a portfolio-scoped one a shape that moves quarterly. It is a
+# coverage threshold, not a benchmark — it asserts nothing about whether a 40-day-old answer is good,
+# only that we stop restating it as current. The number rides on the payload so the refusal can name
+# it rather than referring to "the threshold".
+ANSWER_WINDOW_DAYS = {"program": 14, "account": 30, "portfolio": 45}
+_SCOPE_PHRASE = {"program": "a program-scoped run", "account": "an account-scoped run",
+                 "portfolio": "a portfolio-scoped run"}
 RELEASE_THRESHOLDS = {
     "max_latency_ms": 1000,
     "max_packet_bytes": 65536,
@@ -399,7 +408,46 @@ def _source_archived(conn: sqlite3.Connection, source: dict) -> bool | None:
     return True if not row else bool(row["archived"])
 
 
-def detail(conn: sqlite3.Connection, run_id: str) -> dict:
+def _age_days(stamp: str | None) -> int | None:
+    """Whole days between `stamp` and now, or None if it is missing or unparseable."""
+    if not stamp:
+        return None
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return max(0, (datetime.now(UTC) - moment).days)
+
+
+def answer_freshness(run: dict) -> dict:
+    """
+    Whether a persisted run's prose still speaks for itself, as a query-time projection.
+
+    Nothing is stored and nothing is regenerated: this reads `generated_at` against the window for
+    the run's scope. Past the window the answer body is *withheld* rather than dimmed, because a
+    dimmed paragraph is still a rendering of the claim — an operator reads a greyed sentence as the
+    sentence. The reason is authored here as a lower-case clause completing "held back because …",
+    the same frame `shared_plan` uses, because a view that composes any part of a refusal can soften
+    one (D-153).
+
+    A run answered a minute ago and one re-opened from history six months later go through this
+    identically. The freshness signal comes from the date, never from how the run reached the screen.
+    """
+    threshold = ANSWER_WINDOW_DAYS.get(run.get("scope_type"), 30)
+    age = _age_days(run.get("generated_at"))
+    withheld = run.get("status") == "completed" and age is not None and age > threshold
+    reason = None
+    if withheld:
+        reason = (f"this answer was written {age} days ago, past the {threshold}-day evidence "
+                  f"window for {_SCOPE_PHRASE.get(run['scope_type'], 'a run of this scope')}")
+    return {"generated_at": run.get("generated_at"), "age_days": age,
+            "threshold_days": threshold, "withheld": withheld, "withheld_reason": reason,
+            "revealed": False}
+
+
+def detail(conn: sqlite3.Connection, run_id: str, *, reveal: bool = False) -> dict:
     run = _run_row(conn, run_id)
     sources = [dict(row) for row in conn.execute(
         "SELECT * FROM copilot_run_sources WHERE run_id=? ORDER BY retrieval_rank,packet_id", (run_id,))]
@@ -424,6 +472,16 @@ def detail(conn: sqlite3.Connection, run_id: str) -> dict:
     run["excluded"] = _loads(run.pop("excluded_json"), [])
     run["sources"] = sources
     run["claims"] = claims
+    # The claims and sources block above is assembled before the withholding below and is never
+    # subject to it (§3, rule 5). The evidence is what makes the staleness legible; hiding it with
+    # the prose would leave an operator holding a refusal with no way to check it.
+    freshness = answer_freshness(run)
+    if freshness["withheld"]:
+        if reveal:
+            freshness["revealed"] = True
+        else:
+            run["answer_markdown"] = None
+    run["freshness"] = freshness
     return run
 
 
@@ -438,9 +496,17 @@ def list_runs(conn: sqlite3.Connection, *, scope_type: str | None = None,
             where.append(f"{column}=?")
             params.append(value)
     params.append(max(1, min(limit, 100)))
-    return [dict(row) for row in conn.execute(
+    runs = [dict(row) for row in conn.execute(
         f"SELECT * FROM copilot_runs WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT ?",
         tuple(params))]
+    # Same projection as `detail`, for the same reason: the saved-runs list is where a stale answer
+    # is most likely to be re-opened, and a list that shipped the body would let a caller render what
+    # the detail endpoint withholds.
+    for run in runs:
+        run["freshness"] = answer_freshness(run)
+        if run["freshness"]["withheld"]:
+            run["answer_markdown"] = None
+    return runs
 
 
 def archive_run(conn: sqlite3.Connection, run_id: str) -> None:
@@ -611,9 +677,15 @@ def create_style(conn: sqlite3.Connection, values: dict) -> dict:
 
 
 def preview_internal_note(conn: sqlite3.Connection, run_id: str, title: str) -> dict:
-    run = detail(conn, run_id)
+    run = detail(conn, run_id, reveal=True)
     if run["status"] != "completed" or run["evidence_state"] == "insufficient":
         raise HTTPException(409, "only a completed, supported answer can seed a draft")
+    # A withheld answer cannot seed a saved document. The panel collapses the prose behind an
+    # explicit action so an operator reads it as a record of what was said then; copying it into a
+    # new internal note would carry it forward without the refusal that came with it, which is the
+    # same failure one step removed. The server's own clause is reused rather than restated.
+    if run["freshness"]["withheld"]:
+        raise HTTPException(409, f"this answer is held back because {run['freshness']['withheld_reason']}")
     profile = conn.execute(
         "SELECT * FROM writing_style_profiles WHERE audience='internal' AND is_active=1 AND archived=0"
     ).fetchone()

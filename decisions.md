@@ -2,6 +2,54 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## VISIBILITY-SPEC Slice 1 — decay and withholding on persisted copilot runs (2026-08-06)
+
+The first slice of `VISIBILITY-SPEC.md`: a completed copilot answer stops being rendered as current
+once it is past the evidence window for its scope. **No migration.** 807 backend tests (was 795),
+263 frontend (was 256), lint exit 0, clean build. Six captures in `design-screenshots/visibility-slice-1/`.
+
+- **D-251 — This slice was built on Zach's instruction "continue building with what's specc'ed out",
+  not on a formal naming of `VISIBILITY-SPEC.md` into `CLAUDE.md`'s authority chain.** Recording the
+  provenance exactly, because D-239 says a proposed root spec is a candidate and not a permission,
+  and an entry that read "in force" would manufacture an approval that was never given. Everything
+  in the named chain is built, so the instruction has no other referent; §10 of the spec names Slice 1
+  first; the slice stores nothing and reverts in one commit. **Slices 2–6 are not started** and
+  `SURFACE-USAGE-SPEC.md` is untouched, pending Zach's confirmation.
+- **D-252 — Answer freshness is a query-time projection over `generated_at`, never a stored state.**
+  `copilot_service.answer_freshness` computes it on every read; a schema-introspection test asserts
+  no `freshness` / `withheld` / `threshold_days` / `age_days` / `is_stale` / `revealed` column on
+  `copilot_runs` and no freshness or decay table. The same reason readiness is a projection: a stored
+  "this is still current" is a second source of truth that can disagree with the date it came from,
+  and it would disagree silently, in the direction of looking fresher.
+- **D-253 — The window is a property of the run's scope, and the payload carries it so the refusal
+  can name it.** `ANSWER_WINDOW_DAYS` is program 14 / account 30 / portfolio 45: a program-scoped
+  answer describes work that moves weekly, a portfolio-scoped one a shape that moves quarterly. This
+  is a coverage threshold, not a benchmark — it asserts nothing about whether a 40-day-old answer is
+  good, only that we stop restating it as current. The sentence says "the 30-day evidence window"
+  rather than "the threshold", which is why `threshold_days` rides on the wire.
+- **D-254 — A past-window answer is withheld, not dimmed.** The server sets `answer_markdown` to
+  `None`; the client collapses the prose behind an explicit control that names the date
+  ("Show what was written on 2026-02-14") and re-reads with `?reveal=true`. A greyed paragraph is
+  still a rendering of the claim and an operator reads it as the claim. Revealing changes nothing and
+  regenerates nothing: `withheld` stays `true`, `revealed` becomes `true`, the age chip stays stale.
+  The two are separate fields for that reason.
+- **D-255 — The claims and sources block is assembled before the withholding and is never subject to
+  it.** An operator handed a refusal needs the evidence that explains it; hiding the evidence with
+  the prose leaves them holding an assertion they cannot check.
+- **D-256 — The refusal reuses `sharedPlan.withheldSentence`, the same function and not a copy.**
+  The server authors a lower-case clause completing "held back because …" and the view frames it
+  unedited; a frontend test asserts identity against that function rather than a substring. Two
+  frames are two places a refusal can be softened independently (D-153).
+- **D-257 — A withheld answer cannot seed an internal draft; both draft endpoints 409 and reuse the
+  server's own clause.** Copying the prose into a saved document would carry it forward without the
+  refusal that came with it — the same failure one step removed. Before this the draft path would
+  have silently received `answer_markdown=None`.
+- **D-258 — Ageing a run in a test lifts `trg_copilot_run_answer_frozen` for one statement and
+  restores it from `sqlite_master`'s own text.** A completed run is immutable and correctly so, which
+  is why no application path can age one; reading the trigger's DDL back rather than keeping a copy
+  in the fixture means a test cannot leave the invariant weaker than it found it, and the restore is
+  asserted.
+
 ## Stage 16 screenshot pair captured, and the two defects it found (2026-08-06)
 
 The both-theme pair `CLAUDE.md` requires was finally captured, and capturing it found two rendering

@@ -447,7 +447,10 @@ export const api = {
 
   // Stage 12 — grounded, read-only Account Copilot
   createCopilotRun: (b) => req("POST", "/api/copilot/runs", b),
-  copilotRun: (id) => req("GET", `/api/copilot/runs/${id}`),
+  // `reveal` is the explicit action a withheld (past-window) answer is collapsed behind. It reads;
+  // it never regenerates.
+  copilotRun: (id, { reveal = false } = {}) =>
+    req("GET", `/api/copilot/runs/${id}${reveal ? "?reveal=true" : ""}`),
   copilotRuns: ({ scopeType = "", accountId = "", programId = "" } = {}) => {
     const p = new URLSearchParams();
     if (scopeType) p.set("scope_type", scopeType); if (accountId) p.set("account_id", accountId);

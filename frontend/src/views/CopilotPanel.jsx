@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
 import { answerBlocks } from "../copilotAnswer";
-import { Badge, Btn, Empty, useToast } from "../ui";
+import { answerState, revealLabel } from "../copilotFreshness";
+import { AgeChip, Badge, Btn, Empty, useToast } from "../ui";
 
 const STARTERS = [
   ["fact", "What did we promise and where does it stand?"],
@@ -134,6 +135,13 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
     finally { setSavingDraft(false); }
   }
 
+  // The explicit action a past-window answer sits behind. It re-reads the same run and asks the
+  // server for the body; it starts no new run, so what comes back is still what was written then.
+  async function revealAnswer() {
+    try { setRun(await api.copilotRun(run.id, { reveal: true })); }
+    catch (error) { toast(error.message, "err"); }
+  }
+
   async function markReviewed() {
     try { setRun(await api.copilotMarkReviewed(run.id)); toast("Change cursor advanced explicitly."); }
     catch (error) { toast(error.message, "err"); }
@@ -141,6 +149,7 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
 
   const scopeLabel = scope.scope_type === "portfolio" ? "Portfolio · all accounts"
     : scope.scope_type === "program" ? `${accountName} · selected program` : accountName;
+  const answer = answerState(run);
 
   // Portal to <body> so the panel clears the workspace's isolated stacking context; rendered
   // inline the sticky topbar painted over its header (same fix as the shared SlideOver).
@@ -192,14 +201,31 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
             <div className="card" style={{ padding: 14 }}>
               <div className="actions">
                 <Badge>{STATE_LABEL[run.evidence_state] || run.status}</Badge>
-                <span className="rowmeta">Current through {run.generated_at?.slice(0, 10) || "unknown"}</span>
+                {/* The decay ramp, on the one surface that persists generated prose. A run asked a
+                    minute ago and one re-opened from history six months later reach this line the
+                    same way — the signal is the date, not how the run arrived. */}
+                <span className="rowmeta">Answered {run.generated_at?.slice(0, 10) || "unknown"}</span>
+                <AgeChip date={run.generated_at} />
               </div>
               {run.intent === "changes" && <div className="rowmeta" style={{ marginTop: 6 }}>
                 Interpreted window: {run.time_window_start || "first recorded change"} → {run.time_window_end || run.generated_at || "now"}
                 {run.context_run_id ? " · bounded follow-up" : ""}
               </div>}
-              {run.status === "abstained" ? <Empty title="I can't defend an answer from this scope">
-                {run.failure_detail}</Empty> : <CopilotAnswer markdown={run.answer_markdown} />}
+              {run.status === "abstained"
+                ? <Empty title="I can't defend an answer from this scope">{run.failure_detail}</Empty>
+                : answer.withheld && !answer.revealed
+                  // Withheld, not dimmed. A greyed paragraph is still a rendering of the claim, and
+                  // an operator reads it as the claim. The sentence is the server's, unedited; the
+                  // claims block below stays open either way, because an operator handed a refusal
+                  // needs the evidence that explains it.
+                  ? <div className="copilot-withheld" role="note">
+                      <p>{answer.sentence}</p>
+                      <Btn variant="ghost" onClick={revealAnswer}>{revealLabel(run)}</Btn>
+                    </div>
+                  : <>
+                      {answer.revealed && <p className="copilot-withheld-note">{answer.sentence}</p>}
+                      <CopilotAnswer markdown={run.answer_markdown} />
+                    </>}
               {!!run.gaps?.length && <div className="copilot-gaps">
                 <strong>Named gaps</strong>
                 <ul>{run.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul>
@@ -253,7 +279,11 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
             </div>}
 
             <div className="actions">
-              {run.status === "completed" && <Btn onClick={previewDraft}>Preview internal draft</Btn>}
+              {/* A withheld answer cannot seed a saved note either — the server refuses it, and a
+                  control that looks available up to the moment it fails is worse than one that says
+                  why. Disabled, with the same clause. */}
+              {run.status === "completed" && <Btn onClick={previewDraft} disabled={answer.withheld}
+                title={answer.withheld ? answer.sentence : undefined}>Preview internal draft</Btn>}
               {run.intent === "changes" && run.status === "completed" && !run.reviewed_at &&
                 <Btn onClick={markReviewed}>Mark brief reviewed</Btn>}
               <Btn variant="ghost" onClick={() => feedback("helpful")}>Helpful</Btn>
@@ -279,7 +309,9 @@ export default function CopilotPanel({ scope, accountName, starter, onClose, onN
             <div className="card">
               {history.slice(0, 6).map((item) => <button key={item.id} className="copilot-history"
                 onClick={() => api.copilotRun(item.id).then(setRun).catch((error) => toast(error.message, "err"))}>
-                <span>{item.query_text}</span><span className="rowmeta">{item.status} · {item.created_at?.slice(0, 10)}</span>
+                <span>{item.query_text}</span>
+                <span className="rowmeta">{item.status} · {item.created_at?.slice(0, 10)}
+                  {" "}<AgeChip date={item.generated_at || item.created_at} /></span>
               </button>)}
             </div>
           </section>}

@@ -411,6 +411,13 @@ tbody tr.clickable:hover { background: var(--bg-hover); }
 .copilot-source-fields dt { color: var(--ink-tertiary); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: .04em; }
 .copilot-source-fields dd { margin: 0; overflow-wrap: anywhere; }
 .copilot-draft-preview .copilot-answer { padding: 0 12px 4px; max-height: 260px; overflow: auto; }
+/* A past-window answer is withheld, not dimmed — see VISIBILITY-SPEC §3. Deliberately no status
+   hue: an old answer is not an error, and the amber tint `.copilot-gaps` carries would read as one.
+   The neutral hairline and the explicit control are the whole treatment. */
+.copilot-withheld { margin-top: 12px; padding: 12px; border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md); background: var(--bg-sunken); }
+.copilot-withheld p { margin: 0 0 10px; color: var(--ink-secondary); }
+.copilot-withheld-note { margin: 12px 0 0; color: var(--ink-secondary); font-size: var(--t-small); }
 
 /* Keyboard focus (DESIGN-GUIDE §11): a visible accent ring on every interactive element,
    in both themes. Text inputs get the border+ring treatment instead of a doubled outline. */

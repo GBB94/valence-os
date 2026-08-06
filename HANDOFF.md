@@ -2,6 +2,43 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## VISIBILITY-SPEC Slice 1 — decay on persisted copilot runs (2026-08-06, D-251…D-258)
+
+**Read D-251 before you build anything else from this spec.** `VISIBILITY-SPEC.md` is *not* named in
+`CLAUDE.md`'s authority chain. Slice 1 was built on Zach's instruction "continue building with what's
+specc'ed out" after everything in the named chain was finished — that is an instruction, not a
+formal naming, and the difference matters under D-239. **Slices 2–6 are not started.** Slice 6 is the
+one with a migration and stays held for the schema conversation regardless.
+
+`copilot_runs` is the only table that persists generated prose and re-opens it by id, so it is the
+only place a February answer can render in August at full weight. Past the evidence window for its
+scope, a completed run's body is withheld and the server authors the reason. **No migration.**
+
+New or changed: `ANSWER_WINDOW_DAYS`, `_age_days`, `answer_freshness`, `detail(..., reveal=)`, and
+the `list_runs` projection in `app/copilot_service.py`; the `reveal` query param in
+`routers/copilot.py`; `api.copilotRun(id, {reveal})`; new `src/copilotFreshness.js`; the withheld
+branch in `views/CopilotPanel.jsx`; `.copilot-withheld` in `index.css`. New suites:
+`tests/test_visibility_run_decay.py` (12), `src/copilotFreshness.test.js` (7). **807 backend, 263
+frontend** (was 795 / 256), lint exit 0, clean build.
+
+What you must not undo:
+
+- **Nothing is stored.** `freshness` is computed on every read from `generated_at` and `scope_type`.
+  `test_this_slice_stores_nothing` asserts no freshness column on `copilot_runs` and no freshness or
+  decay table. A cached "still current" would disagree with the date, silently and in the flattering
+  direction.
+- **Withheld, not dimmed, and `withheld` ≠ `revealed`.** Revealing re-reads the same row; it starts
+  no run and clears no flag. If you ever find yourself rendering `answer_markdown` behind opacity
+  instead of behind the control, that is the failure this slice exists to prevent.
+- **The claims and sources block is never withheld.** It is assembled before the withholding, in both
+  `detail` and the reveal path. The evidence is what makes the refusal checkable.
+- **The refusal sentence is the server's, framed by `sharedPlan.withheldSentence`.** Do not add a
+  second frame in `copilotFreshness.js`; a frontend test asserts identity against that function.
+- **`draft-preview` and `draft` 409 on a withheld run.** They previously would have taken
+  `answer_markdown=None` and produced a hollow document. The 409 reuses the server's clause verbatim.
+- **The scope windows are 14 / 30 / 45 and the number rides on the payload.** The sentence names the
+  window; it does not refer to "the threshold".
+
 ## The account drop zone, Slice 4 — milestones, and §17's six events (2026-08-06, D-242…D-247)
 
 The last slice of `ACCOUNT-INTAKE-SPEC.md`. All four are now built. It adds the second proposal

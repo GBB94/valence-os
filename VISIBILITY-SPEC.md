@@ -1,7 +1,11 @@
 # VISIBILITY-SPEC.md
 
-**Status:** proposed, additive. Not in force. `CLAUDE.md`'s authority chain is unchanged until Zach
-says otherwise; nothing here may be built on the strength of this file alone.
+**Status:** proposed, additive. **Slice 1 is built** (2026-08-06, D-251…D-258); slices 2–6 are not
+started. `CLAUDE.md`'s authority chain does **not** name this file, and nothing here may be built on
+the strength of this file alone — Slice 1 proceeded on Zach's instruction "continue building with
+what's specc'ed out", given after everything in the named chain was finished. That is an instruction,
+not a naming, and D-251 records the difference rather than papering over it. Slices 2–5 wait on
+Zach's confirmation; Slice 6 waits on the schema conversation in any case.
 
 **Origin:** the competitive review of a Vitally demo call (2026-08-06, session "Vitally call review").
 That review produced nine candidate borrowings. Six survived verification against the repo, two were
@@ -348,14 +352,19 @@ that its data model permits and ours does not.
 
 ## 10. Build order and gates
 
-1. Slice 1 (decay on persisted runs) — the one with a live example of what its absence costs.
+1. ~~Slice 1 (decay on persisted runs) — the one with a live example of what its absence costs.~~
+   **Built 2026-08-06** (D-251…D-258). No migration; 12 backend and 7 frontend tests; six captures in
+   `design-screenshots/visibility-slice-1/`.
 2. Slice 2 (absence counters).
 3. Slice 5 (presentation), which can interleave freely; nothing depends on it.
 4. Slice 3 (playbook counts), Slice 4 (plan variance).
 5. Slice 6 last, and only after the schema change is agreed.
 
-Each slice lands with tests, a decision entry, and a `HANDOFF.md` update. Both-theme screenshots are
-owed and currently **blocked at this environment's capture layer** — a static probe page fails
-identically, so the block is not the app. Recorded rather than skipped.
+Each slice lands with tests, both-theme screenshots, a decision entry, and a `HANDOFF.md` update.
+
+**Correction (2026-08-06):** an earlier draft of this section recorded that screenshots were
+"blocked at this environment's capture layer". That was wrong, and D-248 records the same correction
+where it was first made. `browser_open_local_preview` cannot be screenshotted, but
+`browser_open_session` with `headless: true` can. Slice 1's six captures were taken that way.
 
 **Nothing in slices 1–5 flips an adapter, adds a network boundary, or changes `CONNECTIONS.md`.**

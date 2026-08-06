@@ -30,8 +30,11 @@ def list_runs(scope_type: str | None = None, account_id: str | None = None,
 
 
 @router.get("/copilot/runs/{run_id}")
-def get_run(run_id: str, conn: sqlite3.Connection = Depends(get_conn)):
-    return copilot_service.detail(conn, run_id)
+def get_run(run_id: str, reveal: bool = False, conn: sqlite3.Connection = Depends(get_conn)):
+    # `reveal` is the explicit action a withheld answer is collapsed behind. It changes nothing and
+    # regenerates nothing — a stale run is a record of what was said then, and asking to read it is
+    # not the same as asking for it to still be true.
+    return copilot_service.detail(conn, run_id, reveal=reveal)
 
 
 @router.delete("/copilot/runs/{run_id}", status_code=204)
