@@ -2,6 +2,57 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Architecture audit — dependency direction and single write paths (2026-08-12)
+
+An adversarial architecture review of the account layers (prompt authored in the Company
+intelligence continuation session), executed as a targeted refactor: no product semantics changed
+except one reported edge case (D-355), and `tests/test_architecture.py` now pins the structure.
+
+- **D-357 — Proposal-run persistence is a domain service, not a router private.** `routers.ai
+  ._persist_run` moved verbatim to `extraction_runs.persist_run`; the AI router, drop zone, `.eml`
+  ingestion, Call Coach, and the seed all call the service. Three domain modules were importing a
+  private function from `app.routers`, which put the dependency arrow backwards and made the one
+  proposal store's writer live in HTTP wiring. An architecture test now fails any domain module
+  that imports from `app.routers`, and a second asserts `extraction_runs.py` is the only file that
+  inserts into `extraction_runs`/`extraction_proposals`.
+- **D-356 — Gate-item ticking moved out of the delivery router for the same reason.**
+  `gate_items.patch_item`/`maybe_autopass`/`gate_with_items` own the tick, the date push, the §1e
+  field fill, and the auto-pass; the router wraps them and the seed's onboarded-launch demo calls
+  the service instead of importing a route handler. The seed's comment said "through the same PATCH
+  code path an operator uses" — that intent survives; only the layer it names changed.
+- **D-355 — Recording ingestion now creates its Interaction through `interaction_ops.create`.** It
+  was the one remaining second writer (a raw `repo.insert`), which skipped the participant scope
+  check. Consequence, deliberate and reported rather than silent: a person whose *name* matched on
+  a different account is no longer attached as a participant, because a foreign person on this
+  account's timeline is exactly the cross-account labeling the activity projection's tests forbid.
+  The normal same-account path is byte-identical. An architecture test pins `interaction_ops.py`
+  (plus the fixture-assembling seed) as the only Interaction writers.
+- **D-354 — The program lifecycle has one authority, `program_phases.py`.** `execution_path` and
+  `phase_readiness` carried identical copies of `PHASE_ORDER`/`PHASE_LABELS`; both now import the
+  shared tuple, `schemas.Phase` is asserted equal to it by test (a pydantic `Literal` must be
+  spelled out, so it is checked rather than derived), and only the genuinely shared vocabulary
+  moved — readiness states, urgencies, and band names stay with their owners because those are
+  different vocabularies that mention phases, not the phase graph.
+- **D-353 — Command-center attention and the Account Path answer different questions, now named and
+  pinned.** Attention (ACCOUNT-COMMAND-CENTER-SPEC §9) states facts by native status and ignores
+  the queue's snooze overlay on purpose — snoozing defers *working* a task, not the fact that it is
+  overdue, and a fact surface that honored snooze would let a suppression rewrite account status.
+  The Path ranks the next move, honors snooze, and states the suppression. A cross-surface test
+  drives one snoozed overdue task through both endpoints and asserts the divergence, so neither
+  list can drift into masquerading as the other. No ranking changed.
+- **D-352 — The command-center family shares one scope check, and the rest deliberately do not.**
+  `account_activity.validate_scope` is now called by activity, the command center, Prepare, and
+  Leadership (four identical copies collapsed, same message, same 422), with a cross-account test
+  driving all four HTTP surfaces. The ~70 other ownership checks (proposals, campaigns, comms,
+  coaching, company intel) were left where they are: they enforce *different* rules with different
+  messages, and similar SQL is not the same rule. Also moved: the activity endpoint's ~70 lines of
+  filter/facet/cursor behavior into `account_activity.activity_page`, and Coach retry eligibility
+  into `coaching.retry_run`, so routers validate, call, and translate. Efficiency was measured
+  before optimizing (SQLite trace + cProfile over the seeded scene): every account endpoint runs in
+  single-digit milliseconds of app work (execution-path ≈ 4 ms, 188 statements; the rest ≤ 100
+  statements), so nothing was cached and no projection state was stored — the demonstrated waste
+  the review hunted for does not exist at this scale, and recording that is the honest outcome.
+
 ## Stage 18 — private Call Coach (2026-08-11)
 
 - **D-351 — The built rehearsal is one cited text attempt, not a simulated multi-turn call.** The

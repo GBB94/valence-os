@@ -430,11 +430,7 @@ def build_meeting_prep(
     program_id: str | None = None,
     meeting_id: str | None = None,
 ) -> dict:
-    repo.get_row(conn, "accounts", account_id)
-    if program_id:
-        program = repo.get_row(conn, "programs", program_id)
-        if program["account_id"] != account_id:
-            raise HTTPException(422, "program does not belong to account")
+    account_activity.validate_scope(conn, account_id, program_id)
     stamp = now_utc()
     now = _instant(stamp)
     rows = _meeting_rows(conn, account_id, program_id, stamp)

@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import audit, phase_readiness, repo
+from .. import gate_items, phase_readiness, repo
 from ..db import new_id, now_utc
 from ..deps import get_conn
 from ..schemas import (
@@ -27,7 +27,7 @@ def create_gate(b: PhaseGateCreate, conn: sqlite3.Connection = Depends(get_conn)
                     "INSERT INTO phase_gate_items (id, gate_id, description, complete, created_at, updated_at) "
                     "VALUES (?,?,?,0,?,?)", (new_id(), gate["id"], desc.strip(), ts, ts),
                 )
-    return _gate_with_items(conn, gate["id"])
+    return gate_items.gate_with_items(conn, gate["id"])
 
 
 @router.post("/gate-items/{item_id}/toggle")
@@ -39,8 +39,8 @@ def toggle_gate_item(item_id: str, b: GateItemToggle, conn: sqlite3.Connection =
     with conn:
         conn.execute("UPDATE phase_gate_items SET complete=?, completed_on=?, updated_at=? WHERE id=?",
                      (1 if b.complete else 0, ts[:10] if b.complete else None, ts, item_id))
-    _maybe_autopass(conn, row["gate_id"])
-    return _gate_with_items(conn, row["gate_id"])
+    gate_items.maybe_autopass(conn, row["gate_id"])
+    return gate_items.gate_with_items(conn, row["gate_id"])
 
 
 @router.patch("/gate-items/{item_id}")
@@ -59,41 +59,10 @@ def patch_gate_item(item_id: str, b: GateItemPatch, conn: sqlite3.Connection = D
     `fills_field` still never writes on its own — nothing infers a value from a completion. The
     operator supplies `fill_value` and this patches exactly the one field the template named.
     """
-    row = conn.execute(
-        "SELECT gi.*, g.program_id, p.account_id FROM phase_gate_items gi "
-        "JOIN phase_gates g ON g.id = gi.gate_id JOIN programs p ON p.id = g.program_id "
-        "WHERE gi.id=?", (item_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "gate item not found")
-
-    ts = now_utc()
-    sets, params = [], []
-    if b.complete is not None:
-        sets += ["complete=?", "completed_on=?"]
-        params += [1 if b.complete else 0, ts[:10] if b.complete else None]
-    if b.due_date is not None:
-        sets.append("due_date=?")
-        params.append(b.due_date)
-    if sets:
-        with conn:
-            conn.execute(f"UPDATE phase_gate_items SET {', '.join(sets)}, updated_at=? WHERE id=?",
-                         (*params, ts, item_id))
-
-    filled = None
-    if b.fill_value and row["fills_field"]:
-        target, _, field = row["fills_field"].partition(".")
-        if target == "account":
-            repo.patch(conn, "accounts", row["account_id"], {field: b.fill_value},
-                       object_type="account")
-            filled = row["fills_field"]
-        elif target == "program":
-            repo.patch(conn, "programs", row["program_id"], {field: b.fill_value},
-                       object_type="program")
-            filled = row["fills_field"]
-
-    if b.complete:
-        _maybe_autopass(conn, row["gate_id"])
-    return {"gate": _gate_with_items(conn, row["gate_id"]), "filled_field": filled}
+    result = gate_items.patch_item(conn, item_id, complete=b.complete, due_date=b.due_date,
+                                   fill_value=b.fill_value)
+    return {"gate": gate_items.gate_with_items(conn, result["gate_id"]),
+            "filled_field": result["filled_field"]}
 
 
 @router.post("/phase-gates/{gate_id}/waive")
@@ -107,29 +76,9 @@ def waive_gate(gate_id: str, b: GateWaive, conn: sqlite3.Connection = Depends(ge
     accepted gaps returned so the operator sees what the waiver did not fill.
     """
     waiver = phase_readiness.waive_gate(conn, gate_id, reason=b.waiver_reason)
-    gate = _gate_with_items(conn, gate_id)
+    gate = gate_items.gate_with_items(conn, gate_id)
     gate["waiver"] = {key: waiver[key] for key in
                       ("event_id", "phase_unchanged", "unmet_at_waiver", "note")}
-    return gate
-
-
-def _maybe_autopass(conn, gate_id):
-    gate = repo.get_row(conn, "phase_gates", gate_id)
-    if gate["status"] != "open":
-        return
-    items = conn.execute("SELECT complete FROM phase_gate_items WHERE gate_id=?", (gate_id,)).fetchall()
-    if items and all(i["complete"] for i in items):
-        with conn:
-            conn.execute("UPDATE phase_gates SET status='passed', passed_on=?, updated_at=? WHERE id=?",
-                         (now_utc()[:10], now_utc(), gate_id))
-            audit.record(conn, object_type="phase_gate", object_id=gate_id, action="close",
-                         before=gate, after=repo.get_row(conn, "phase_gates", gate_id))
-
-
-def _gate_with_items(conn, gate_id):
-    gate = repo.get_row(conn, "phase_gates", gate_id)
-    gate["items"] = [repo.row_to_dict(r) for r in
-                     conn.execute("SELECT * FROM phase_gate_items WHERE gate_id=? ORDER BY created_at", (gate_id,))]
     return gate
 
 

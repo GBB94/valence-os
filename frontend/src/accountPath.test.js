@@ -204,3 +204,17 @@ test("a blocked phase names its reason to assistive technology", () => {
   assert.equal(phaseAria({ label: "Renewal", state: "future", missing_count: 0 }),
     "Renewal: Not started");
 });
+
+test("candidate order arrives from the server and no helper reorders it", () => {
+  // The one .sort in this module is laneOrder, which orders program *lanes* (§6.3), never the
+  // candidates inside a group. capped() must slice in place: if a helper ever starts reranking,
+  // the promoted band order — computed once on the server, versioned, and cited by telemetry —
+  // would silently fork in the client.
+  const items = [
+    { id: "task:9", band: 8 },
+    { id: "gate:1", band: 2 },
+    { id: "task:1", band: 3 },
+  ];
+  assert.deepEqual(capped(items, 2).shown.map((c) => c.id), ["task:9", "gate:1"]);
+  assert.deepEqual(capped(items, 99).shown.map((c) => c.id), ["task:9", "gate:1", "task:1"]);
+});

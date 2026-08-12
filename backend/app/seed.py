@@ -954,7 +954,7 @@ def _seed_rr2_demo(conn):
     """
     from . import proposals as proposals_mod
     from .extractor import MockExtractor
-    from .routers import ai
+    from . import extraction_runs
 
     row = conn.execute("SELECT * FROM interactions WHERE id='int-nw-kickoff'").fetchone()
     if not row or conn.execute(
@@ -962,7 +962,7 @@ def _seed_rr2_demo(conn):
         return
     transcript = (FIXTURES / "transcripts" / "kickoff-call.txt").read_text()
     ex = MockExtractor()
-    ai._persist_run(conn, account_id=row["account_id"], program_id=row["program_id"],
+    extraction_runs.persist_run(conn, account_id=row["account_id"], program_id=row["program_id"],
                     interaction_id=row["id"], model_version=ex.model_version,
                     prompt_version=ex.prompt_version, source_text=transcript,
                     proposals=ex.extract(transcript), extractor_backend="mock")
@@ -999,9 +999,7 @@ def _seed_onboarded_launch_demo(conn):
     overdue, the comms plan due now, governance next — because a launch where everything is
     outstanding and a launch where everything is done both hide the ordering.
     """
-    from . import onboarding
-    from .routers.delivery import patch_gate_item
-    from .schemas import GateItemPatch
+    from . import gate_items, onboarding
 
     program_id = "prog-bp-foundation"
     prog = conn.execute("SELECT * FROM programs WHERE id = ?", (program_id,)).fetchone()
@@ -1015,7 +1013,8 @@ def _seed_onboarded_launch_demo(conn):
         result = onboarding.seed_onboarding(conn, "acc-bluepeak", kickoff_date=kickoff,
                                             program_id=program_id)
 
-    # Ticked through the router, so nothing here can record a completion the app would refuse —
+    # Ticked through the same gate-item service the PATCH route uses, so nothing here can
+    # record a completion the app would refuse —
     # including the rule that a tick alone writes only the tick.
     done = {
         "Confirm the success definition": "80% of people managers running weekly 1:1s by day 60",
@@ -1027,8 +1026,8 @@ def _seed_onboarded_launch_demo(conn):
         "ON g.id = gi.gate_id WHERE g.program_id = ?", (program_id,)).fetchall()
     for row in items:
         if row["description"] in done:
-            patch_gate_item(row["id"], GateItemPatch(complete=True,
-                                                     fill_value=done[row["description"]]), conn)
+            gate_items.patch_item(conn, row["id"], complete=True,
+                                  fill_value=done[row["description"]])
 
     seeded = result["seeded"]
     print(f"[seed] onboarded launch: kickoff {kickoff}, {sum(seeded.values())} dated records, "

@@ -109,7 +109,7 @@ def _extract_from_email(conn, row: dict, new_text: str, msg: dict, src_id: str,
       * Nothing extracts from quoted history. `new_text` is what this sender added; a bare forward
         adds nothing and produces no run at all rather than an empty one.
     """
-    from .routers import ai            # shared, security-reviewed persistence — never a second path
+    from . import extraction_runs      # shared, security-reviewed persistence — never a second path
     if not row.get("account_id") or (row.get("confidence") or 0) < association.LOW_CONFIDENCE:
         return None
     if not new_text.strip():
@@ -121,7 +121,7 @@ def _extract_from_email(conn, row: dict, new_text: str, msg: dict, src_id: str,
         return None
     # `source_text` is the new text, so the run's content hash — and therefore its §6.6
     # source-version key — covers what this message added and not the thread below it.
-    return ai._persist_run(
+    return extraction_runs.persist_run(
         conn, account_id=row["account_id"], program_id=row.get("program_id"),
         interaction_id=None, model_version=ex.model_version, prompt_version=ex.prompt_version,
         source_text=new_text, proposals=proposals, extractor_backend=backend,
@@ -252,7 +252,7 @@ def ingest_recording(conn: sqlite3.Connection, reference: str,
                      attendees: list[str] | None = None, keywords: list[str] | None = None) -> dict:
     """§4.1 — transcribe (mock), associate, create a draft interaction, run extraction. Low
     confidence drops a capture-inbox note for manual assignment instead of guessing."""
-    from .routers import ai  # reuse the shared, security-reviewed extraction persistence
+    from . import extraction_runs  # reuse the shared, security-reviewed extraction persistence
     attendees = attendees or []
     transcript = adapters.transcribe(reference)
     res = association.resolve(conn, names=attendees, keywords=keywords or [])
@@ -263,15 +263,22 @@ def ingest_recording(conn: sqlite3.Connection, reference: str,
         "type": "transcript_span", "label": f"Recording: {reference}",
         "url": f"fixture://transcripts/{reference}",
     }, object_type="source_reference")
-    interaction = repo.insert(conn, "interactions", {
-        "account_id": res["account_id"], "program_id": res["program_id"], "occurred_on": now_utc()[:10],
-        "type": "call", "summary": f"Auto-ingested recording ({reference})",
-        "source_reference_id": src["id"], "meaningful_touch": 1,
-    }, object_type="interaction")
-    with conn:
-        for pid in res["matched_person_ids"]:
-            conn.execute("INSERT OR IGNORE INTO interaction_participants (interaction_id, person_id) VALUES (?,?)",
-                         (interaction["id"], pid))
+    # The one native Interaction writer (`interaction_ops`) — the same path QuickEntry and Call
+    # Coach use — so an auto-ingested call cannot be a subtly weaker record. Association can match
+    # a *name* against a person on a different account than the one that won; the writer would
+    # rightly refuse that participant (a foreign person on this account's timeline is the
+    # cross-account labeling the activity projection tests forbid), so filter to the resolved
+    # account's own people first rather than attaching the mismatch.
+    from . import interaction_ops
+    from .schemas import InteractionCreate
+    own = [pid for pid in res["matched_person_ids"] if conn.execute(
+        "SELECT 1 FROM persons WHERE id=? AND archived=0 "
+        "AND (affiliation='valence' OR account_id=?)", (pid, res["account_id"])).fetchone()]
+    interaction = interaction_ops.create(conn, InteractionCreate(
+        account_id=res["account_id"], program_id=res["program_id"],
+        occurred_on=now_utc()[:10], type="call",
+        summary=f"Auto-ingested recording ({reference})",
+        source_reference_id=src["id"], meaningful_touch=True, participant_ids=own))
 
     ex = __import__("app.extractor", fromlist=["get_extractor"]).get_extractor("mock")
     proposals = ex.extract(transcript)
@@ -279,7 +286,7 @@ def ingest_recording(conn: sqlite3.Connection, reference: str,
     # the §6.6 source-version identity: the recording adapter, the reference it was asked for, and
     # a hash of what came back. A retranscription of the same reference hashes differently and is
     # therefore new material, which is exactly the case `external_id` alone would have missed.
-    run_id = ai._persist_run(conn, account_id=res["account_id"], program_id=res["program_id"],
+    run_id = extraction_runs.persist_run(conn, account_id=res["account_id"], program_id=res["program_id"],
                              interaction_id=interaction["id"], model_version=ex.model_version,
                              prompt_version=ex.prompt_version, source_text=transcript,
                              proposals=proposals, extractor_backend="mock",

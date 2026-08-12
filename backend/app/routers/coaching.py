@@ -92,11 +92,7 @@ def create_run(session_id: str, conn: sqlite3.Connection = Depends(get_conn)):
 
 @router.post("/sessions/{session_id}/retry", status_code=201)
 def retry(session_id: str, conn: sqlite3.Connection = Depends(get_conn)):
-    latest = conn.execute("SELECT status FROM coaching_runs WHERE session_id=? "
-                          "ORDER BY created_at DESC LIMIT 1", (session_id,)).fetchone()
-    if latest and latest["status"] not in {"failed", "partial"}:
-        raise HTTPException(409, "only a failed or partial coaching run can be retried")
-    return coaching.enqueue_run(conn, session_id)
+    return coaching.retry_run(conn, session_id)
 
 
 @router.patch("/observations/{observation_id}/response")

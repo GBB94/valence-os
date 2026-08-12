@@ -280,11 +280,11 @@ def _run_with_proposal(client, account_id, program_id, mutation="create_task",
                        payload=None, span="We will draft the rollout plan."):
     """A run written straight through the repo layer — the mock extractor picks its own shapes."""
     from app.db import connect
-    from app.routers.ai import _persist_run
+    from app.extraction_runs import persist_run
 
     conn = connect()
     with conn:
-        run_id = _persist_run(
+        run_id = persist_run(
             conn, account_id=account_id, program_id=program_id, interaction_id=None,
             model_version="mock-1", prompt_version="p1", extractor_backend="mock",
             source_kind="manual", source_text=span,

@@ -478,6 +478,32 @@ def test_the_snooze_key_reuses_the_queue_key_and_suppresses_in_both_places(clien
         _path(client, account["id"])["coverage"]["warnings"])
 
 
+def test_attention_states_facts_while_the_path_honors_snooze(client):
+    """The two "needs attention" surfaces answer different questions, and the difference is pinned.
+
+    The Operate lens's attention block (ACCOUNT-COMMAND-CENTER-SPEC.md §9) states facts by native
+    status; the Account Path ranks the next best move and honors the queue's snooze overlay. A
+    snoozed overdue task therefore disappears from the Path — with the suppression stated — while
+    the attention block keeps reporting the fact that it is overdue. If a change makes attention
+    honor snooze (a suppression rewriting account status) or makes the Path ignore it, this fails.
+    """
+    account = _account(client)
+    program = _program(client, account["id"], "Launch program")
+    task = _task(client, program["id"], "Chase the integration note", due_date=utc_day(-6))
+
+    key = _path(client, account["id"])["next_move"]["snooze_key"]
+    assert client.post("/api/queue/snooze", json={
+        "item_key": key, "snooze_until": utc_day(7)}).status_code in (200, 201)
+
+    assert f"task:{task['id']}" not in _ids(_path(client, account["id"]))
+
+    center = client.get(f"/api/accounts/{account['id']}/command-center").json()
+    attention_ids = [row["id"] for row in center["attention"]]
+    assert f"attention:task:{task['id']}" in attention_ids
+    row = next(r for r in center["attention"] if r["id"] == f"attention:task:{task['id']}")
+    assert row["reason"] == "Task is overdue"
+
+
 def test_a_snooze_resurfaces_on_its_return_date(client):
     """§10.4: Account Path does not invent a second expiry rule; it reuses the queue's."""
     account = _account(client)

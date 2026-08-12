@@ -2,6 +2,32 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Architecture audit — direction and single write paths (2026-08-12, D-352…D-357)
+
+A targeted refactor, not a redesign: behavior is unchanged (one reported edge case, D-355) and the
+structure is now pinned by `backend/tests/test_architecture.py`. The intended layering is routers →
+application/domain services → read models and canonical writers → repo/audit/db, with measurement
+strictly to the side.
+
+What moved: proposal-run persistence to `app/extraction_runs.py` (the one writer for the one
+proposal store — the AI router, drop zone, `.eml` ingestion, Call Coach, and seed all call it);
+gate-item tick/date/fill/auto-pass to `app/gate_items.py`; recording ingestion's Interaction create
+onto `interaction_ops.create`; the phase graph to `app/program_phases.py` (one `PHASE_ORDER`, the
+API `Literal` asserted against it); the command-center family's scope check onto
+`account_activity.validate_scope`; the activity endpoint's filter/facet/cursor behavior into
+`account_activity.activity_page`; Coach retry eligibility into `coaching.retry_run`.
+
+What deliberately did not move: command-center attention vs the Account Path — they answer
+different questions (facts by native status vs ranked next move honoring snooze), now documented on
+`_attention` and pinned by a cross-surface snooze test rather than merged; the ~70 non-identical
+ownership checks across proposals/campaigns/comms/coaching, because different trust rules must stay
+separate; and no caching or stored projection state anywhere — measured app work per account
+endpoint is single-digit milliseconds on the seeded scene, so there was no demonstrated waste to
+remove.
+
+Verification: backend 1,033 passed; frontend 337 passed; lint (79 pre-existing warnings, 0 errors)
+and build clean; `git diff --check` clean.
+
 ## Stage 18 — private Call Coach (2026-08-11, D-343…D-351)
 
 `CALL-COACHING-SPEC.md` is now the additive Stage 18 authority. Its tightened text-first release,

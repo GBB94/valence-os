@@ -15,6 +15,24 @@ def _target(tab: str, record_type: str, record_id: str) -> dict:
 def _attention(
     conn: sqlite3.Connection, account_id: str, program_id: str | None, today: str
 ) -> list[dict]:
+    """The Operate lens's deterministic attention facts (ACCOUNT-COMMAND-CENTER-SPEC.md §9).
+
+    This list and the Account Path (`execution_path.py`) both mention overdue work, and they are
+    deliberately **not** the same claim — naming the difference is what keeps either from
+    masquerading as the other:
+
+    - **Attention states facts by native status.** An overdue commitment is listed because it is
+      overdue, ordered by severity band, due date, and stable id. It ignores the queue's
+      `attention_state` overlay on purpose: snoozing a task defers *working* it, not the fact that
+      it is overdue, so a snoozed item still appears here while the Path and queue suppress it
+      (and say so in their coverage line). A fact-stating surface that honored snooze would let a
+      suppression quietly rewrite account status.
+    - **The Path ranks the next best move.** It applies the §10.5 banded ruleset, carries a
+      ranking rule version, honors snooze, and adds readiness/playbook context. Nothing here
+      re-ranks it and it never re-states attention.
+
+    A cross-surface test pins the snooze divergence so neither side can drift into the other.
+    """
     horizon = (date.fromisoformat(today) + timedelta(days=7)).isoformat()
     rows: list[dict] = []
 
@@ -132,12 +150,7 @@ def build_command_center(
     program_id: str | None = None,
     recorded_after: str | None = None,
 ) -> dict:
-    account = repo.get_row(conn, "accounts", account_id)
-    if program_id:
-        program = repo.get_row(conn, "programs", program_id)
-        if program["account_id"] != account_id:
-            from fastapi import HTTPException
-            raise HTTPException(422, "program does not belong to account")
+    account = account_activity.validate_scope(conn, account_id, program_id)
     stamp = now_utc()
     projection = account_activity.project_account_activity(
         conn, account_id, program_id=program_id, as_of=stamp

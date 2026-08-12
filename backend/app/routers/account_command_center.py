@@ -1,7 +1,5 @@
 """HTTP boundary for Release 2 account activity and the Operate command center."""
 import sqlite3
-from collections import Counter
-from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -34,72 +32,12 @@ def activity(
     limit: int = Query(default=50, ge=1, le=200),
     conn: sqlite3.Connection = Depends(get_conn),
 ):
-    if recorded_after:
-        try:
-            account_activity.ActivityQuery(account_id=account_id, program_id=program_id, as_of=recorded_after)
-        except ValidationError as exc:
-            raise HTTPException(422, "recorded_after must be an ISO-8601 UTC timestamp") from exc
-    projection = account_activity.project_account_activity(conn, account_id, program_id=program_id)
-    items = projection.items
-    # Validate against the vocabulary, never against this account's current rows: a typo is still
-    # rejected, but a legitimate kind that currently matches nothing is an empty page rather than
-    # a 422 that breaks a saved or deep-linked filter.
-    unknown_event_kinds = sorted(set(event_kind) - account_activity.event_kinds(conn))
-    if unknown_event_kinds:
-        raise HTTPException(422, f"unknown event_kind: {', '.join(unknown_event_kinds)}")
-    for label, value in (("display_from", display_from), ("display_to", display_to)):
-        if value:
-            try:
-                if len(value) != 10:
-                    raise ValueError
-                date.fromisoformat(value)
-            except ValueError as exc:
-                raise HTTPException(422, f"{label} must be an ISO-8601 date") from exc
-    if display_from and display_to and display_from > display_to:
-        raise HTTPException(422, "display_from must not be after display_to")
-    facets = {
-        "streams": dict(sorted(Counter(item.stream for item in items).items())),
-        "source_types": dict(sorted(Counter(item.source_type for item in items).items())),
-        "states": dict(sorted(Counter(item.state for item in items).items())),
-        "materiality": dict(sorted(Counter(item.materiality for item in items).items())),
-        "directions": dict(sorted(Counter(item.direction for item in items).items())),
-    }
-    if stream:
-        items = [item for item in items if item.stream in stream]
-    if source_type:
-        items = [item for item in items if item.source_type in source_type]
-    if event_kind:
-        items = [item for item in items if item.event_kind in event_kind]
-    if state:
-        items = [item for item in items if item.state == state]
-    if direction != "all":
-        items = [item for item in items if item.direction == direction]
-    if materiality:
-        items = [item for item in items if item.materiality == materiality]
-    if recorded_after:
-        items = [item for item in items if item.recorded_at > recorded_after]
-    if display_from:
-        items = [item for item in items if item.display_at[:10] >= display_from]
-    if display_to:
-        items = [item for item in items if item.display_at[:10] <= display_to]
-    items.sort(
-        key=lambda item: (item.display_at, item.recorded_at, item.id),
-        reverse=direction != "future",
+    return account_activity.activity_page(
+        conn, account_id, program_id=program_id, stream=stream, source_type=source_type,
+        event_kind=event_kind, state=state, direction=direction, materiality=materiality,
+        recorded_after=recorded_after, display_from=display_from, display_to=display_to,
+        cursor=cursor, limit=limit,
     )
-    matched_count = len(items)
-    if cursor:
-        positions = [index for index, item in enumerate(items) if item.id == cursor]
-        if not positions:
-            raise HTTPException(422, "activity cursor is not valid for these filters")
-        items = items[positions[0] + 1:]
-    page = items[:limit]
-    return {
-        "stamp": projection.stamp.model_dump(),
-        "items": [item.model_dump() for item in page],
-        "next_cursor": page[-1].id if len(items) > limit else None,
-        "facets": facets,
-        "matched_count": matched_count,
-    }
 
 
 @router.get("/{account_id}/command-center")

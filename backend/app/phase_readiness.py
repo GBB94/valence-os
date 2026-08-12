@@ -29,12 +29,9 @@ from fastapi import HTTPException
 from . import audit, playbooks, readiness
 from .db import new_id, now_utc
 
-# The approved phase graph, in order. Normal advancement is one step along it (§15.6).
-PHASE_ORDER = ("foundation", "launch", "programmatic", "expansion", "renewal", "closed")
-PHASE_LABELS = {
-    "foundation": "Foundation", "launch": "Launch", "programmatic": "Programmatic",
-    "expansion": "Expansion", "renewal": "Renewal", "closed": "Closed",
-}
+# The approved phase graph lives in `program_phases` — one lifecycle authority shared with the
+# Account Path ranking. Normal advancement is one step along it (§15.6).
+from .program_phases import PHASE_LABELS, PHASE_ORDER, next_phase as _shared_next_phase  # noqa: E402
 READINESS_STATES = ("passed", "ready", "blocked", "insufficient_data")
 OUTCOMES = ("proposed", "completed", "waived", "rejected")
 MIN_REASON_LENGTH = playbooks.MIN_REASON_LENGTH
@@ -53,10 +50,7 @@ def _program(conn: sqlite3.Connection, program_id: str) -> dict:
 
 
 def _next_phase(phase: str) -> str | None:
-    index = PHASE_ORDER.index(phase) if phase in PHASE_ORDER else None
-    if index is None or index + 1 >= len(PHASE_ORDER):
-        return None
-    return PHASE_ORDER[index + 1]
+    return _shared_next_phase(phase)
 
 
 def _stamp(payload: dict) -> str:

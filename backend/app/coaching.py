@@ -243,6 +243,19 @@ def enqueue_run(conn: sqlite3.Connection, session_id: str) -> dict:
     return dict(conn.execute("SELECT * FROM coaching_runs WHERE id=?", (run_id,)).fetchone())
 
 
+def retry_run(conn: sqlite3.Connection, session_id: str) -> dict:
+    """Retry eligibility is domain behavior, not routing: only a failed or partial run retries.
+
+    A completed run re-analyzing the same immutable source would produce a second authoritative
+    reading with nothing new behind it; the UI offers Retry only on failure, and the rule lives
+    here so any future non-HTTP caller gets the same refusal.
+    """
+    latest = conn.execute("SELECT status FROM coaching_runs WHERE session_id=? "
+                          "ORDER BY created_at DESC LIMIT 1", (session_id,)).fetchone()
+    if latest and latest["status"] not in {"failed", "partial"}:
+        raise HTTPException(409, "only a failed or partial coaching run can be retried")
+    return enqueue_run(conn, session_id)
+
 def _turns_for_session(session: dict, source: str) -> tuple[list[dict], dict]:
     turns = coaching_contract.transcript_turns(source)
     if session["speaker_status"] == "confirmed_by_operator":
@@ -736,10 +749,10 @@ def draft_account_updates(conn: sqlite3.Connection, session_id: str, run_id: str
                 "already_drafted": True,
                 "note": "These account drafts were already waiting in Proposal Review; no duplicate run was created."}
     from . import extractor
-    from .routers.ai import _persist_run
+    from .extraction_runs import persist_run
     engine = extractor.get_extractor("mock")
     proposals = engine.extract(source["snapshot_text"])
-    extraction_run_id = _persist_run(
+    extraction_run_id = persist_run(
         conn, account_id=session["account_id"], program_id=session["program_id"],
         interaction_id=session["interaction_id"], model_version=engine.model_version,
         prompt_version=engine.prompt_version, source_text=source["snapshot_text"],

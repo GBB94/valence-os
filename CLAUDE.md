@@ -76,6 +76,7 @@ _Superseded by the above, retained for history:_ ~~The scope is frozen; new obje
 - Long-running work goes through the job table; routine edits and navigation must feel instant.
 - Timestamps in UTC; contractual dates (renewal, notice) stored as dates, not timestamps.
 - Keep it boring: no caching layers, no external queues, no microservices, no speculative abstractions. The dataset is a few thousand rows.
+- Dependency direction and single write paths are tested, not conventional (`backend/tests/test_architecture.py`, D-352…D-357): no domain module imports from `app.routers` or from the measurement side; `interaction_ops.create` is the only Interaction writer and `extraction_runs.persist_run` the only proposal-store writer; `program_phases.py` owns the program lifecycle. Extend those services rather than writing beside them — the tests fail a second writer or a backwards import.
 
 ## Design
 

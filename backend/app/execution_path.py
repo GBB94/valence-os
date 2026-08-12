@@ -22,13 +22,7 @@ from fastapi import HTTPException
 
 from . import checklist_compatibility, path_links, playbooks, queue, readiness
 from .db import now_utc
-
-# The canonical program lifecycle, in order. `closed` is terminal, presented after renewal.
-PHASE_ORDER = ("foundation", "launch", "programmatic", "expansion", "renewal", "closed")
-PHASE_LABELS = {
-    "foundation": "Foundation", "launch": "Launch", "programmatic": "Programmatic",
-    "expansion": "Expansion", "renewal": "Renewal", "closed": "Closed",
-}
+from .program_phases import PHASE_LABELS, PHASE_ORDER  # one lifecycle authority (see program_phases.py)
 PHASE_STATES = ("complete", "current", "future", "blocked", "waived", "not_applicable", "unknown")
 URGENCIES = ("now", "soon", "later")
 # Matches `readiness.py` exactly: the two services must not describe the same condition with

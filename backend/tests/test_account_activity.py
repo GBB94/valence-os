@@ -808,3 +808,32 @@ def test_valid_event_kind_with_no_rows_is_an_empty_page_not_an_error(client):
     typo = c.get(f"/api/accounts/{account['id']}/activity",
                  params={"event_kind": "invented_transition"})
     assert typo.status_code == 422 and "unknown event_kind" in typo.text
+
+
+def test_every_command_center_surface_shares_one_scope_rule(client):
+    """Cross-account guard at the shared boundary (`account_activity.validate_scope`).
+
+    Activity, the command center, Prepare, and Leadership consolidated on one account/program
+    ownership check; this drives a wrong-program pair through all four HTTP surfaces plus the
+    checkpoint write so a future caller cannot pick up a laxer copy of the rule.
+    """
+    account = client.post("/api/accounts", json={"name": "Alpine Synthetic"}).json()
+    other = client.post("/api/accounts", json={"name": "Summit Synthetic"}).json()
+    foreign_program = client.post("/api/programs", json={
+        "account_id": other["id"], "name": "Foreign", "phase": "launch",
+    }).json()
+
+    for path in ("activity", "command-center", "command-center/prepare", "command-center/leadership"):
+        response = client.get(
+            f"/api/accounts/{account['id']}/{path}",
+            params={"program_id": foreign_program["id"]})
+        assert response.status_code == 422, (path, response.text)
+        assert response.json()["detail"] == "program does not belong to account", path
+
+    checkpoint = client.post(f"/api/accounts/{account['id']}/change-checkpoints", json={
+        "scope_type": "program", "program_id": foreign_program["id"],
+        "reviewed_through": now_utc()})
+    assert checkpoint.status_code == 422
+
+    missing = client.get("/api/accounts/acc-does-not-exist/command-center")
+    assert missing.status_code == 404

@@ -17,13 +17,7 @@ def _target(tab: str, record_type: str, record_id: str) -> dict:
 def _validate_scope(
     conn: sqlite3.Connection, account_id: str, program_id: str | None
 ) -> dict:
-    account = repo.get_row(conn, "accounts", account_id)
-    if not program_id:
-        return account
-    program = repo.get_row(conn, "programs", program_id)
-    if program["account_id"] != account_id:
-        raise HTTPException(422, "program does not belong to account")
-    return account
+    return account_activity.validate_scope(conn, account_id, program_id)
 
 
 def _scoped_program_ids(

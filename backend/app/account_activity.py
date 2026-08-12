@@ -8,6 +8,7 @@ the projection stamp rather than silently represented as an empty result.
 from __future__ import annotations
 
 import sqlite3
+from collections import Counter
 from collections.abc import Callable, Iterable
 from datetime import date, datetime, timedelta, timezone
 from time import perf_counter_ns
@@ -15,6 +16,7 @@ from typing import Literal
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import ValidationError as PydanticValidationError
 
 from . import audit, repo
 from .db import new_id, now_utc
@@ -247,13 +249,22 @@ def event_kinds(conn: sqlite3.Connection | None = None) -> frozenset[str]:
     return frozenset(kinds)
 
 
-def _validate_scope(conn: sqlite3.Connection, account_id: str, program_id: str | None) -> None:
-    repo.get_row(conn, "accounts", account_id)
+def validate_scope(conn: sqlite3.Connection, account_id: str, program_id: str | None) -> dict:
+    """The account/program ownership check the whole command-center family shares.
+
+    One rule, one message: the account must exist, and a named program must belong to it. Activity,
+    the command center, Prepare, and Leadership all call this rather than restating the SQL, so a
+    cross-account request cannot get four different answers. Trust-boundary checks with *different*
+    rules (proposal review's account match, coaching's interaction scope) deliberately stay where
+    they are — similar SQL is not the same rule. Returns the account row for callers that need it.
+    """
+    account = repo.get_row(conn, "accounts", account_id)
     if not program_id:
-        return
+        return account
     program = repo.get_row(conn, "programs", program_id)
     if program["account_id"] != account_id:
         raise HTTPException(422, "program does not belong to account")
+    return account
 
 
 def latest_change_checkpoint(
@@ -282,7 +293,7 @@ def insert_change_checkpoint(
 ) -> dict:
     """Insert inside the caller's transaction; never move a scope backward or into the future."""
     body = values if isinstance(values, ChangeCheckpointCreate) else ChangeCheckpointCreate(**values)
-    _validate_scope(conn, account_id, body.program_id)
+    validate_scope(conn, account_id, body.program_id)
     now = now_utc()
     if _utc_datetime(body.reviewed_through) > _utc_datetime(now):
         raise HTTPException(422, "reviewed_through cannot be in the future")
@@ -340,7 +351,7 @@ def project_account_activity(
     as_of: str | None = None,
 ) -> ActivityProjection:
     """Project covered sources newest-first and name any adapter that could not be read."""
-    _validate_scope(conn, account_id, program_id)
+    validate_scope(conn, account_id, program_id)
     stamp = as_of or now_utc()
     query = ActivityQuery(account_id=account_id, program_id=program_id, as_of=stamp)
     requested = tuple(dict.fromkeys(include_adapters)) if include_adapters is not None else adapter_names()
@@ -911,3 +922,96 @@ def company_activity(conn: sqlite3.Connection, query: ActivityQuery) -> list[Act
             ),
         ))
     return out
+
+
+# --- filtered activity page (the /activity endpoint's behavior) -------------------------------
+
+def activity_page(
+    conn: sqlite3.Connection,
+    account_id: str,
+    *,
+    program_id: str | None = None,
+    stream: list[str] | None = None,
+    source_type: list[str] | None = None,
+    event_kind: list[str] | None = None,
+    state: str | None = None,
+    direction: str = "all",
+    materiality: str | None = None,
+    recorded_after: str | None = None,
+    display_from: str | None = None,
+    display_to: str | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """Project, facet, filter, sort, and page account activity — the whole behavior of
+    `GET /api/accounts/{id}/activity`, owned here so a non-HTTP caller gets the identical answer
+    and the router stays a validation-and-translation wrapper.
+
+    Two deliberate orderings survive from the route: facets are counted over the *unfiltered*
+    projection (they describe what exists, not what the current filter kept), and the `event_kind`
+    vocabulary check runs against the app-wide vocabulary rather than this account's rows, so a
+    saved filter whose last match closed is an empty page, not a 422.
+    """
+    if recorded_after:
+        try:
+            ActivityQuery(account_id=account_id, program_id=program_id, as_of=recorded_after)
+        except PydanticValidationError as exc:
+            raise HTTPException(422, "recorded_after must be an ISO-8601 UTC timestamp") from exc
+    projection = project_account_activity(conn, account_id, program_id=program_id)
+    items = projection.items
+    unknown_event_kinds = sorted(set(event_kind or []) - event_kinds(conn))
+    if unknown_event_kinds:
+        raise HTTPException(422, f"unknown event_kind: {', '.join(unknown_event_kinds)}")
+    for label, value in (("display_from", display_from), ("display_to", display_to)):
+        if value:
+            try:
+                if len(value) != 10:
+                    raise ValueError
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise HTTPException(422, f"{label} must be an ISO-8601 date") from exc
+    if display_from and display_to and display_from > display_to:
+        raise HTTPException(422, "display_from must not be after display_to")
+    facets = {
+        "streams": dict(sorted(Counter(item.stream for item in items).items())),
+        "source_types": dict(sorted(Counter(item.source_type for item in items).items())),
+        "states": dict(sorted(Counter(item.state for item in items).items())),
+        "materiality": dict(sorted(Counter(item.materiality for item in items).items())),
+        "directions": dict(sorted(Counter(item.direction for item in items).items())),
+    }
+    if stream:
+        items = [item for item in items if item.stream in stream]
+    if source_type:
+        items = [item for item in items if item.source_type in source_type]
+    if event_kind:
+        items = [item for item in items if item.event_kind in event_kind]
+    if state:
+        items = [item for item in items if item.state == state]
+    if direction != "all":
+        items = [item for item in items if item.direction == direction]
+    if materiality:
+        items = [item for item in items if item.materiality == materiality]
+    if recorded_after:
+        items = [item for item in items if item.recorded_at > recorded_after]
+    if display_from:
+        items = [item for item in items if item.display_at[:10] >= display_from]
+    if display_to:
+        items = [item for item in items if item.display_at[:10] <= display_to]
+    items.sort(
+        key=lambda item: (item.display_at, item.recorded_at, item.id),
+        reverse=direction != "future",
+    )
+    matched_count = len(items)
+    if cursor:
+        positions = [index for index, item in enumerate(items) if item.id == cursor]
+        if not positions:
+            raise HTTPException(422, "activity cursor is not valid for these filters")
+        items = items[positions[0] + 1:]
+    page = items[:limit]
+    return {
+        "stamp": projection.stamp.model_dump(),
+        "items": [item.model_dump() for item in page],
+        "next_cursor": page[-1].id if len(items) > limit else None,
+        "facets": facets,
+        "matched_count": matched_count,
+    }

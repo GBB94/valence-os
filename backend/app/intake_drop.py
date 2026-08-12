@@ -11,7 +11,7 @@ Six steps, each of which can fail and say so:
     4  segment     kind-specific parse *from bytes*     → outcome=parse_failed
                    (decoding happens HERE, per kind, not before — §6)
     5  extract     new text only, the existing extractor → outcome=no_proposals
-    6  persist     one extraction_run + proposals, via routers.ai._persist_run
+    6  persist     one extraction_run + proposals, via extraction_runs.persist_run
     7  report      what was drafted, what was not, what was skipped (§14)
 
 **Decoding is inside step 4, and the ordering is the point.** An earlier draft of this pipeline
@@ -23,7 +23,7 @@ is only worth having if it is byte-accurate to what the source said. Text kinds 
 which is the right answer for them; `.eml` never reaches `decode_text` at all and decodes per MIME
 part with the charset that part declares (§4.1, §7.3).
 
-**No new proposal store, no new acceptance path.** Step 6 calls the same `_persist_run` a transcript
+**No new proposal store, no new acceptance path.** Step 6 calls the same `persist_run` a transcript
 extraction calls. A drop is one more `source_kind`. Nothing in this module accepts, rejects, edits,
 resolves, or supersedes anything — that happens in `ProposalReview`, which is the one place a
 drafted proposal becomes a decision.
@@ -422,8 +422,8 @@ def process_drop(conn: sqlite3.Connection, *, account_id: str, raw: bytes,
                        reason=_NOTHING_FOUND, new_chars=len(new_text), quoted_chars=len(set_aside),
                        coverage=coverage, actor=actor)
 
-    from .routers.ai import _persist_run          # local: the router imports this module's siblings
-    run_id = _persist_run(
+    from .extraction_runs import persist_run      # the one proposal store's one writer
+    run_id = persist_run(
         conn, account_id=account_id, program_id=program_id, interaction_id=None,
         model_version=ex.model_version, prompt_version=ex.prompt_version, source_text=new_text,
         proposals=proposals, extractor_backend=(backend or extractor.configured_backend()),
