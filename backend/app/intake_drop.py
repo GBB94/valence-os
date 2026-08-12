@@ -139,7 +139,8 @@ def limits() -> dict:
                              ".vtt, .srt."),
         "paste_is_first_class": True,
         # The trust statement. It is what makes the first drop safe to try, and it is not optional.
-        "assurance": "Nothing is saved to your trackers until you say so.",
+        "assurance": ("The source and proposed drafts are stored locally for review. "
+                      "No account record changes until you accept a draft."),
         "refusals": dict(sorted(_REFUSALS.items())),
         "generic_refusal": _GENERIC_REFUSAL,
     }

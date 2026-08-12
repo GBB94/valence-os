@@ -45,7 +45,7 @@ def test_registry_is_complete_documented_and_local_by_default(client):
     assert ids == {
         "recording_source", "transcription_source", "email_provider", "calendar_provider",
             "enrichment_source", "headcount_source", "metric_source", "notification_channel",
-            "llm_endpoint", "copilot_endpoint", "company_intel_source",
+            "llm_endpoint", "copilot_endpoint", "call_coaching_endpoint", "company_intel_source",
             "intel_extraction_endpoint", "file_storage", "hosting",
             # ACCOUNT-PATH-SPEC.md §17.4. Local SQLite today, but pointing it at an analytics
             # vendor would send behavioural data about how accounts are worked out of the

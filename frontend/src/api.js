@@ -522,6 +522,36 @@ export const api = {
   supersedeProposal: (id, b) => req("POST", `/api/extraction/proposals/${id}/supersede`, b),
   previewReadinessUpgrade: (b) => req("POST", "/api/readiness/definition-upgrades/preview", b),
 
+  // Stage 18 — private Call Coach. Coaching observations stay in this API family; the only
+  // account-fact bridge returns an extraction run in the existing Proposal Review store.
+  coachingConfig: () => req("GET", "/api/coaching/config"),
+  coachingSessions: ({ accountId = "", mode = "", limit = 50 } = {}) => {
+    const p = new URLSearchParams();
+    if (accountId) p.set("account_id", accountId);
+    if (mode) p.set("mode", mode);
+    if (limit) p.set("limit", String(limit));
+    return req("GET", `/api/coaching/sessions?${p.toString()}`);
+  },
+  coachingSession: (id) => req("GET", `/api/coaching/sessions/${id}`),
+  createCoachingSession: (b) => req("POST", "/api/coaching/sessions", b),
+  rerunCoachingSession: (id) => req("POST", `/api/coaching/sessions/${id}/runs`, {}),
+  retryCoachingSession: (id) => req("POST", `/api/coaching/sessions/${id}/retry`, {}),
+  respondCoachingObservation: (id, b) =>
+    req("PATCH", `/api/coaching/observations/${id}/response`, b),
+  createCoachingGoal: (b) => req("POST", "/api/coaching/goals", b),
+  completeCoachingGoal: (id) => req("POST", `/api/coaching/goals/${id}/complete`, {}),
+  createCoachingRehearsal: (id, b) =>
+    req("POST", `/api/coaching/sessions/${id}/rehearsals`, b),
+  previewCoachingLink: (id, b) => req("POST", `/api/coaching/sessions/${id}/link-preview`, b),
+  linkCoachingSession: (id, b) => req("POST", `/api/coaching/sessions/${id}/link`, b),
+  previewCoachingUnlink: (id) => req("POST", `/api/coaching/sessions/${id}/unlink-preview`, {}),
+  unlinkCoachingSession: (id) => req("POST", `/api/coaching/sessions/${id}/unlink`, {}),
+  logCoachingInteraction: (id) => req("POST", `/api/coaching/sessions/${id}/log-interaction`, {}),
+  draftCoachingAccountUpdates: (id, runId = null) =>
+    req("POST", `/api/coaching/sessions/${id}/draft-account-updates`, { run_id: runId }),
+  deleteCoachingSource: (id) => req("DELETE", `/api/coaching/sources/${id}/snapshot`),
+  archiveCoachingSession: (id) => req("DELETE", `/api/coaching/sessions/${id}`),
+
   // Playbooks and plan instances — the planning layer readiness declines to store. These write
   // *plans* and *decisions*; none of them writes a state, so there is no state-setting route to
   // call from the requirement panel.
@@ -599,4 +629,27 @@ export const api = {
     req("GET", `/api/telemetry/funnel${accountId ? `?account_id=${accountId}` : ""}`),
   rankingRules: () => req("GET", "/api/telemetry/ranking-rules"),
   compareRankingRules: (b) => req("POST", "/api/telemetry/ranking-rules/compare", b),
+  // SURFACE-USAGE-SPEC.md §8. `sort` defaults to navigation order on the server; passing
+  // `least_used` is an explicit operator choice, never a default this client supplies quietly.
+  surfaceRetirement: () => req("GET", "/api/telemetry/surface-retirement"),
+  surfaceRetirementHistory: (surface = null) =>
+    req("GET", `/api/telemetry/surface-retirement/history${surface ? `?surface=${encodeURIComponent(surface)}` : ""}`),
+  surfaceRetirementPreview: (staged) =>
+    req("POST", "/api/telemetry/surface-retirement/preview", { staged }),
+  surfaceRetirementApply: (staged) =>
+    req("POST", "/api/telemetry/surface-retirement/apply", { staged }),
+  surfaceRetirementUndo: (batchId) =>
+    req("POST", "/api/telemetry/surface-retirement/undo", { batch_id: batchId }),
+  surfaceRetirementRestore: (surface) =>
+    req("POST", "/api/telemetry/surface-retirement/restore", { surface }),
+  surfaceUsage: ({ windowDays = null, sort = null } = {}) => {
+    const query = new URLSearchParams();
+    if (windowDays) query.set("window_days", String(windowDays));
+    if (sort) query.set("sort", sort);
+    const suffix = query.toString();
+    return req("GET", `/api/telemetry/surface-usage${suffix ? `?${suffix}` : ""}`);
+  },
+  // §7.0's manual pass. A read over the registry, not over the events — it is the complement to
+  // measurement rather than part of it, which is why it takes no window and no sort.
+  surfaceRedundancy: () => req("GET", "/api/telemetry/surface-usage/redundancy"),
 };

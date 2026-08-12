@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { Surface } from "../Surface";
+import SurfaceRetirement from "./SurfaceRetirement";
+import SurfaceUsage from "./SurfaceUsage";
 import { AgeChip, Loading, useToast, fmtDate } from "../ui";
 
 /**
@@ -117,6 +120,7 @@ export default function Operations({ reloadKey }) {
       </div>
 
       <h2>Account Copilot</h2>
+      <Surface surfaceKey="operations.copilot_governance"><div>
       <div className="card" aria-label="Account Copilot operations">
         <div className="grid2" style={{ padding: 12 }}>
           <div><div className="rowmeta">Configuration</div>
@@ -175,6 +179,7 @@ export default function Operations({ reloadKey }) {
         })}
         <div className="rowmeta" style={{ padding: 12 }}>Feedback never edits frozen answers. Correct the native record, then record the disposition here.</div>
       </div>
+      </div></Surface>
 
       <h2>Writing style versions</h2>
       <div className="card">
@@ -230,6 +235,7 @@ export default function Operations({ reloadKey }) {
       </div>
 
       <h2>Product measurement</h2>
+      <Surface surfaceKey="operations.measurement">
       <div className="card" aria-label="Product measurement">
         {!measurement ? <div className="rowmeta" style={{ padding: 12 }}>
           Measurement could not be read. Treat the absence as unknown, not as zero use.
@@ -237,24 +243,40 @@ export default function Operations({ reloadKey }) {
           <div className="grid2" style={{ padding: 12 }}>
             <div>
               <div className="rowmeta">Local diagnostics</div>
+              {/* Both retentions, and what is actually in the rows. "Retention 90 days" was the raw
+                  window only, so the line understated by a factor of twelve what the installation
+                  still holds — the monthly counts outlive the events they came from, which is the
+                  whole point of the rollup and exactly the sort of thing a trust line exists to
+                  say out loud. `settings` has carried both numbers since migration 0055 for this
+                  reason; only the screen was reading one of them. */}
               <div>
-                {measurement.settings.enabled ? "Recording" : "Disabled"} · retention{" "}
-                {measurement.settings.retention_days} days · nothing leaves this installation
+                {measurement.settings.enabled ? "Recording" : "Disabled"} · events kept{" "}
+                {measurement.settings.retention_days} days, monthly counts{" "}
+                {measurement.settings.rollup_retention_months} months
+              </div>
+              <div className="rowmeta" style={{ marginTop: 4 }}>
+                Each row is an event name, a time, an account, and a fixed set of slugs, against a
+                per-session id that is not a person and maps to nobody. No names, no record
+                content, no free text, and nothing leaves this installation.
               </div>
               <div className="actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
                 {/* §17.4: a local setting can disable measurement. Turning it off also discards
-                    what was collected, which the button says rather than leaving to be found. */}
+                    what was collected, which the button says rather than leaving to be found —
+                    and it names *both* stores, because the line above has just told the operator
+                    the monthly counts outlive the events. "Delete collected events" would read as
+                    leaving the rollup standing, which is the one thing the off switch must not be
+                    ambiguous about. */}
                 <button className="btn small" onClick={async () => {
                   try {
                     await api.patchTelemetrySettings({ enabled: !measurement.settings.enabled });
                     await loadMeasurement();
                     toast(measurement.settings.enabled
-                      ? "Measurement disabled and existing events discarded."
+                      ? "Measurement disabled. Events and monthly counts discarded."
                       : "Measurement recording.");
                   } catch (error) { toast(error.message, "err"); }
                 }}>
                   {measurement.settings.enabled
-                    ? "Disable and delete collected events" : "Enable measurement"}
+                    ? "Disable and delete events and monthly counts" : "Enable measurement"}
                 </button>
               </div>
             </div>
@@ -295,6 +317,24 @@ export default function Operations({ reloadKey }) {
           <div className="rowmeta" style={{ padding: 12 }}>{measurement.caveat}</div>
         </>}
       </div>
+      </Surface>
+
+      {/* SURFACE-USAGE-SPEC.md §8 — beside the measurement panel, not inside it. The funnel above
+          asks whether a recommendation was acted on; this asks whether a screen was ever on screen.
+          They are different questions over the same sink and merging them would produce a table
+          that answers neither. */}
+      <h2>Surface usage</h2>
+      <Surface surfaceKey="operations.surface_usage">
+        <SurfaceUsage />
+      </Surface>
+
+      {/* SURFACE-USAGE-SPEC.md §7.8 — a separate heading, because recording a cause is a different
+          act from reading counts and the two should not blur into one form. The report above is
+          evidence; this is a decision, and it is applied as a reviewed sitting rather than a row at
+          a time. This panel is not itself registered: it is reached only from here, and a registry
+          row for the control that retires surfaces would be the one row nobody could act on. */}
+      <h2>Record a cause</h2>
+      <SurfaceRetirement />
 
       <h2>Ranking rule versions</h2>
       <div className="card" aria-label="Ranking rule versions">

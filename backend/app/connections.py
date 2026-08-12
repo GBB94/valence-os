@@ -113,6 +113,16 @@ _CONNECTIONS = (
         "real_modes": ("api",),
     },
     {
+        "id": "call_coaching_endpoint",
+        "label": "Private call coaching analysis and rehearsal",
+        "current_mode": "deterministic_local",
+        "config_switch": "No real implementation; Stage 18 runs the strict contract locally",
+        "fixture_glob": "coaching/*.json",
+        "real_requires": "Separate approved model/provider, transcript and reflection field allow-list, processing region, retention and training terms, speaker-consent review, prompt-injection evaluation, redacted logging, credentials, and rollback",
+        "code_owner": "app/coaching.py + app/coaching_contract.py",
+        "real_modes": ("api",),
+    },
+    {
         "id": "company_intel_source",
         "label": "Public company artifact source",
         "current_mode": "mock_json",

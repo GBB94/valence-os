@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import date
 
 from . import connections, proposals as proposals_mod
 
@@ -53,6 +54,23 @@ KIND_PAIRS: dict[str, tuple[str, str]] = {
 # A date, not a timestamp, and not a phrase (CLAUDE.md; §10). Anchored, so "in Q4 2026" cannot
 # match on the year alone.
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def iso_date_or_none(value: str | None) -> str | None:
+    """The value as `YYYY-MM-DD`, or None. Shape *and* calendar, because shape alone is not a date.
+
+    `2026-02-31` matches `_ISO_DATE` and is not a day. Checking only the pattern let an impossible
+    date through extraction, through proposal validation, and into `MilestoneCreate`, whose
+    `target_date` is an unconstrained string — three gates that each assumed one of the others was
+    looking at the calendar.
+    """
+    text = (value or "").strip()
+    if not _ISO_DATE.match(text):
+        return None
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        return None
 
 MOMENT_TYPES = ("talent_calendar", "manager_workflow", "business_event",
                 "proactive_coaching", "comms_campaign")
@@ -159,11 +177,12 @@ def validate_proposals(raw) -> list[dict]:
             # with no name. A stray `description` is dropped rather than carried, because a payload
             # key nothing reads is a key somebody later wires to something.
             payload = {"name": desc}
-            date = (it.get("target_date") or "").strip()
             # Held as None rather than refused here: this function validates the *contract*, and a
             # milestone with no date is expressible. Whether it is draftable is §10's question, and
-            # `screen_undraftable` answers it where the coverage report is written.
-            payload["target_date"] = date if _ISO_DATE.match(date) else None
+            # `screen_undraftable` answers it where the coverage report is written. An impossible
+            # calendar day is None for the same reason a missing one is — `2026-02-31` is not a
+            # date the operator can be asked to confirm.
+            payload["target_date"] = iso_date_or_none(it.get("target_date"))
         intent, target_type = KIND_PAIRS[mt]
         out.append({
             # NULL for any kind the pre-RR-2 enum has no name for. `legacy_mutation` returns None
@@ -263,6 +282,13 @@ def find_date(text: str) -> str | None:
 
     None on *any* uncertainty, including two different dates in one sentence: picking the first
     would be a coin flip presented as a reading of the document.
+
+    The day is checked against the month it is in, not against 1–31. "31 February" and "April 31"
+    are not dates, and a range check that lets them through hands the proposal — and then the
+    milestone — a day that does not exist. That is worse than reading nothing: a refusal is visible
+    in the coverage report and §10 asks for the date, while `2026-02-31` looks like an answer all
+    the way to the canonical record. A document containing only an impossible date yields no date,
+    which is the same conclusion this function already reaches for a slash form.
     """
     found = set()
     for i, rx in enumerate(_DATE_FORMS):
@@ -276,9 +302,10 @@ def find_date(text: str) -> str | None:
                 if mo is None:
                     continue
                 y, d = int(year), int(day)
-            if not (1 <= mo <= 12 and 1 <= d <= 31):
+            try:
+                found.add(date(y, mo, d).isoformat())
+            except ValueError:
                 continue
-            found.add(f"{y:04d}-{mo:02d}-{d:02d}")
     return found.pop() if len(found) == 1 else None
 
 

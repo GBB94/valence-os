@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useCallback, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { api } from "./api";
+import { measure } from "./measure";
 import { nextTabKey } from "./segTabs";
+import { commandProperties } from "./surfaces";
 
 // Canvas/SVG charts can't use CSS var() in attributes — resolve the token to a concrete color,
 // and re-render when the theme flips so both themes render correctly (DESIGN-GUIDE §8).
@@ -462,7 +464,8 @@ export const TYPE_LABEL = {
 
 // Command palette (Section 6: keyboard-first, cmd-K). Nav commands + account jumps + live search.
 const NAV_COMMANDS = [
-  ["Today", { dest: "today" }], ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
+  ["Today", { dest: "today" }], ["Coach", { dest: "coach", coachView: "home" }],
+  ["Library", { dest: "library" }], ["Operations", { dest: "operations" }],
 ];
 
 export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount, openQuick, openCopilot }) {
@@ -474,6 +477,11 @@ export function CommandPalette({ accounts, onClose, onNavigate, go, openAccount,
   const ql = q.trim().toLowerCase();
   const commands = [
     { kind: "action", label: "Log interaction", hint: "capture", run: () => { openQuick(); onClose(); } },
+    { kind: "action", label: "Review a call", hint: "private coach", run: () => {
+      const properties = commandProperties("command.review_call", "menu");
+      if (properties) measure()("command_invoked", properties);
+      go({ dest: "coach", coachView: "new" }); onClose();
+    } },
     { kind: "action", label: "Ask current scope", hint: "copilot", run: () => { openCopilot?.("fact"); onClose(); } },
     { kind: "action", label: "What changed", hint: "copilot", run: () => { openCopilot?.("changes", "What changed since last week?"); onClose(); } },
     { kind: "action", label: "Plan this week", hint: "copilot", run: () => { openCopilot?.("weekly", "What needs my attention this week?"); onClose(); } },

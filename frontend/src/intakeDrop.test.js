@@ -11,7 +11,7 @@ const LIMITS = {
   max_items_per_drop: 10,
   accepted_extensions: [".txt", ".md", ".vtt", ".srt"],
   accepted_summary: "Email threads, transcripts, or notes.",
-  assurance: "Nothing is saved to your trackers until you say so.",
+  assurance: "The source and proposed drafts are stored locally for review. No account record changes until you accept a draft.",
   refusals: { ".pdf": "PDF isn't accepted yet. Open it and paste the text." },
   generic_refusal: "Only text can be dropped here.",
 };
@@ -109,7 +109,8 @@ test("drag-over changes the label, and the label names the account", () => {
 test("the hint states the limits and the trust sentence before anyone can hit them", () => {
   const hint = zoneHint(LIMITS);
   assert.ok(hint.includes("1 MB"));
-  assert.ok(hint.includes("until you say so"));
+  assert.ok(hint.includes("stored locally"));
+  assert.ok(hint.includes("No account record changes"));
   assert.equal(zoneHint(null), "");
 });
 

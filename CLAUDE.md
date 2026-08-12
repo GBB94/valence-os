@@ -10,7 +10,31 @@ Two further documents sit at the root and are **in force for presentation only**
 
 `VISIBILITY-SPEC.md` is **in force and fully built** (D-251…D-274). Zach authorized it on 2026-08-06 — "please build the visibility spec and then we'll move on to surface usage" — after Slice 1 had already been built on the earlier, looser instruction "continue building with what's specc'ed out". D-251 records that provenance distinction exactly; keep it, because the two are different kinds of permission and a later session should be able to tell them apart. All six slices are built, Slice 6 carrying the one migration (`0054_advocacy_tags.sql`).
 
-`SURFACE-USAGE-SPEC.md` (Stage 17) is **proposed and confers no authority**. It may not be built from until it is named here. A proposed spec at the root is a candidate, not a permission — the fact that it is written, detailed, and internally consistent is not approval (D-239).
+`SURFACE-USAGE-SPEC.md` is the additive **Stage 17** authority (Zach, 2026-08-06 — "it means build it"), and all four slices are built (D-275…D-328). Its §14 asked five questions before Slice 1; Zach's answer authorized the build without answering them individually, so each is taken at the spec's own recommended default and recorded as an assumption in `decisions.md`, not as an approval. Zach also waived the both-theme screenshot gate for this stage and for VISIBILITY-SPEC Slices 2–6 ("don't worry about the screenshots that's not a big deal") — that waiver is his to give and is scoped to those; the rest of `DESIGN-GUIDE.md`'s quality floor is untouched. Its governing rule is that **§6's four axes never combine** — `rendered` and `engaged` stay two counters all the way through, there is no total, rate, or percentage anywhere, and a grep asserts that no name for a combination exists (D-291). The non-obvious consequences: a fresh installation claims **nothing** about any surface, because `insufficient_window` is decided *before* the counts are read, so a zero on an uncovered window can never slip through as disuse; the monthly rollup is monotone and never a recompute, since a month recomputed after the raw purge would shrink out from under the retirement note written against it; the current retirement action is **derived from the latest note** with no state column on either table, and nothing is ever deleted — a retired surface stops being offered while its route keeps resolving; the §7.7 safety check takes a **set**, because two individually safe retirements can between them empty the last route to a record type, which is why a batch is applied all-or-nothing; and every client-side failure falls towards **showing**, since wrongly hiding costs a thing the operator cannot find while the usage data stays silent about it. §6.4's event-driven triggers are legal only because **§17.1's import boundary is one-directional** — no domain module may import measurement, and measurement reading domain tables is the permitted direction (D-320). A trigger decides coverage and is never divided by `rendered` or `engaged`; a zero count, an unrecognized evaluator, and a failed query are three different facts each keeping its own sentence and each leaving the surface unobservable; and a registry row *selects* an evaluator and can never *create* one, failing closed at read time rather than at import. §7.0's redundancy checklist stores nothing and answers nothing, because telemetry finds clutter and is blind to redundancy — two surfaces answering the same question in two places will both read as healthy.
+
+`CALL-COACHING-SPEC.md` is the additive **Stage 18** authority (Zach, 2026-08-11 — review the
+Surface Usage work, tighten the spec, then build it), and its private text-first release in
+§§18.0–18.4 is built and hardened (D-343…D-351). It is a single-operator Coach, not a manager platform. A
+coaching session may be standalone or explicitly account-linked; transcript text can never choose
+scope or the coached speaker. Completed-call observations are private interpretation, capped at two
+strengths and two opportunities, with at most one priority and an exact source span for every
+material claim. There is no score, sentiment, emotion, personality, deception, confidence, or
+employment evaluation. Account context is a stored read snapshot and never writes readiness. The
+only account-write bridges are an explicit native Interaction and the existing extraction/proposal
+workflow; rehearsal is never an Interaction, touch, proposal, or account event. Coach inherits
+Stage 17 through five registered surfaces, one separate command, generic content-free events, and
+two measurement-side triggers; no coaching domain module imports telemetry and no trigger count is
+divided by anything. The deterministic local backend is the only enabled mode. §18.5 history/trends
+is evidence-gated and not built; §18.6 real model, audio, transcription, calendar, voice, live,
+sharing, and manager capabilities are outside the authority and remain closed connections.
+The hardened flow (D-348…D-351) makes private analysis the only intake submit effect: Interaction
+logging and account-fact drafting are separate post-analysis commands, neither default-on, each with
+its own receipt. The Interaction bridge is link-idempotent; the proposal bridge is idempotent per
+coaching run and rejects foreign runs. Intent-bearing routes carry the exact observation or
+extraction run so Practice and Proposal Review open the promised control. Coaching audit entries use
+only the canonical create/update action vocabulary, with the lifecycle event in the payload. The
+built rehearsal is one deterministic cited text attempt against one skill; multi-turn simulation is
+not hidden behind the local UI and remains outside Stage 18.
 
 - The one remaining gate is **data governance, not scope**: build everything, connect nothing real. Every external touchpoint (email, recordings, calendar, transcription, LLM endpoint, notification channel, file storage, hosting) is an adapter with a mock implementation. Flipping any adapter to a real source requires the hosting/data-handling conversation at Valence to have happened and is recorded in `decisions.md`. `CONNECTIONS.md` is the registry.
 - Phase 3 through Stage 10 is complete. New numbered scope requires an explicit authority update; each stage lands with tests, both-theme screenshots, a decision entry, and a HANDOFF update before the next begins.

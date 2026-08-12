@@ -51,13 +51,17 @@ function everyValue(object) {
   return Object.values(object).map((value) => String(value));
 }
 
-test("the client event names are §17.3's sixteen plus the drop zone's six", () => {
-  assert.equal(EVENT_NAMES.length, 22);
-  assert.equal(new Set(EVENT_NAMES).size, 22);
+test("the client event names are §17.3's sixteen, the drop zone's six, and Stage 17's six", () => {
+  assert.equal(EVENT_NAMES.length, 28);
+  assert.equal(new Set(EVENT_NAMES).size, 28);
   assert.ok(EVENT_NAMES.includes("account_path_viewed"));
   assert.ok(EVENT_NAMES.includes("execution_path_retry"));
   assert.ok(EVENT_NAMES.includes("drop_zone_shown"));
   assert.ok(EVENT_NAMES.includes("drop_receipt_opened"));
+  assert.ok(EVENT_NAMES.includes("surface_rendered"));
+  // `surface_dismissed` is its own name rather than an `engagement` value, so a collapse can never
+  // be counted as engagement — §6.3 reads exposure-without-engagement as the case for removal.
+  assert.ok(EVENT_NAMES.includes("surface_dismissed"));
   // Frozen because a view that pushed onto it would be inventing an event the server will drop.
   assert.throws(() => EVENT_NAMES.push("account_renamed"));
 });
@@ -116,6 +120,19 @@ test("the session identifier is minted once and reused", () => {
   assert.equal(store.get(SESSION_STORAGE_KEY), first);
   // The server's rule: a pseudonymous slug, never anything that could name a person.
   assert.match(first, /^[a-z0-9][a-z0-9-]{7,63}$/);
+});
+
+test("a new session mints a new identifier rather than reusing the last one", () => {
+  // The reason `measure.js` passes `sessionStorage`. Under `localStorage` the id outlived every
+  // session, so one identifier threaded the installation's whole history into a single behavioural
+  // trace — stronger than the rotating token the migration and the spec both describe, and bought
+  // for nothing, since nothing on the server groups by it.
+  const mint = (n) => () => `7f3c2a10-9b4d-4e21-8f60-1c2d3e4f5a${String(n).padStart(2, "0")}`;
+  const fresh = () => {
+    const store = new Map();
+    return { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  };
+  assert.notEqual(ensureSessionId(fresh(), mint(1)), ensureSessionId(fresh(), mint(2)));
 });
 
 test("storage that refuses to write still yields a usable session", () => {

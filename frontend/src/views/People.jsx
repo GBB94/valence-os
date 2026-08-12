@@ -3,6 +3,7 @@ import { api } from "../api";
 import { SectionHelp, SegTabs, useToast, AgeChip, Empty, Loading, fmtDate } from "../ui";
 import StakeholderGraph from "./StakeholderGraph";
 import PersonCard from "./PersonCard";
+import { Surface } from "../Surface";
 import OrgChanges from "./OrgChanges";
 
 // The People tab (Comprehensive Spec Part 3). Map is the existing stakeholder graph + coverage;
@@ -28,12 +29,26 @@ export default function People({ accounts, accountId, setAccountId, reloadKey,
         <SegTabs tabs={TABS} value={sub} onChange={(value) => onSectionChange?.(value)} />
         <SectionHelp group="people" active={sub} />
       </div>
-      {sub === "map" && <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAccountId} reloadKey={reloadKey} />}
-      {sub === "champions" && <Champions accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "influence" && <Influence accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "exec" && <ExecAlignment accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "changes" && <OrgChanges accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "messaging" && <Messaging />}
+      {sub === "map" && <Surface surfaceKey="people.stakeholder_map">
+        <StakeholderGraph accounts={accounts} accountId={accountId} setAccountId={setAccountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "champions" && <Surface surfaceKey="people.champions">
+        <Champions accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "influence" && <Surface surfaceKey="people.influence">
+        <Influence accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "exec" && <Surface surfaceKey="people.exec_alignment">
+        <ExecAlignment accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "changes" && <Surface surfaceKey="people.org_changes">
+        {({ engage }) => (
+          <OrgChanges accountId={accountId} reloadKey={reloadKey} onEngage={engage} />
+        )}
+      </Surface>}
+      {sub === "messaging" && <Surface surfaceKey="people.messaging">
+        <Messaging />
+      </Surface>}
     </div>
   );
 }
@@ -119,7 +134,16 @@ function Champions({ accountId, reloadKey }) {
         ))}
       </div>
       <div className="rowmeta" style={{ marginTop: 8 }}>identify → develop → validate → arm → maintain. Validate and beyond require a logged advocacy-without-us event (the same evidence gate as coach-vs-champion).</div>
-      {card && <PersonCard personId={card} onClose={() => setCard(null)} onChanged={() => setTick((t) => t + 1)} />}
+      {/* A panel, not a section: it is opened deliberately, so `surface_rendered` here is a
+          near-duplicate of the click that opened it. It is registered anyway because §7.4
+          treats a panel differently from a section when a retirement is considered, and a
+          surface with no exposure count is one the report can only say nothing about. */}
+      {card && <Surface surfaceKey="people.person_card">
+        {({ engage, dismiss }) => (
+          <PersonCard personId={card} onClose={() => { dismiss("closed"); setCard(null); }}
+            onChanged={() => { engage("edited"); setTick((t) => t + 1); }} />
+        )}
+      </Surface>}
     </div>
   );
 }

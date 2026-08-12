@@ -4,6 +4,7 @@ Only v0.1 fields are accepted. Enums use Literal so bad values 422 at the edge.
 """
 from __future__ import annotations
 
+from datetime import date as _date
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -305,6 +306,28 @@ class MilestoneCreate(BaseModel):
     success_criteria: Optional[str] = None
     at_risk: bool = False
     source_interaction_id: Optional[str] = None
+
+    @field_validator("target_date")
+    @classmethod
+    def target_date_is_a_real_day(cls, v):
+        """Shape *and* calendar. `2026-02-31` is the right shape and is not a day.
+
+        This is the last gate before the column, and both writers reach it — the native create in
+        `routers/execution.py` and the proposal accept in `routers/ai.py`. A milestone date is a
+        planning fact everything downstream subtracts from and compares against, so an impossible
+        one is worse than a missing one: it reads as an answer. 422 here rather than a silent drop,
+        because a date the operator typed and the app quietly discarded is a date they still think
+        they set.
+        """
+        if v is None:
+            return v
+        text = v.strip()
+        if not text:
+            return None
+        try:
+            return _date.fromisoformat(text).isoformat()
+        except ValueError:
+            raise ValueError(f"target_date must be a real calendar day as YYYY-MM-DD, not {text!r}")
 
 
 # --- transitions (closure rules from Section 4 "definitions of done") ---

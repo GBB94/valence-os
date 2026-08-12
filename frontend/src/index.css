@@ -1840,3 +1840,213 @@ button.ptl-mark { cursor: pointer; }
   border: 1px solid var(--line-strong); background: var(--bg-surface); color: var(--ink-primary);
   padding: var(--sp-2) var(--sp-3); font: inherit; font-size: var(--t-small); resize: vertical; }
 .advocacy-tag-actions { display: flex; gap: var(--sp-3); }
+
+/* --- SURFACE-USAGE-SPEC.md §7.3 — the instrumentation wrapper -------------------------------
+   `display: contents` so the wrapper adds no box and no layout of its own. Twenty screens were
+   wrapped in Slice 1; any of them changing spacing would be an instrumentation pass that redesigned
+   the app as a side effect. The wrapper is therefore invisible to CSS, and the visibility probe
+   watches its first element child, which does have geometry. */
+.surface { display: contents; }
+
+/* --- SURFACE-USAGE-SPEC.md §8 — the surface usage report -------------------------------------
+   `insufficient_window` rows carry the cross-hatched unknown treatment the design guide already
+   uses for stale data, because that is exactly what they are: not-yet-knowable, not zero. No hue
+   is involved — colour carries state only, and "we cannot say yet" is not a state of the surface,
+   it is a state of our observation. The hatch and the row's own label are what distinguish it, so
+   the treatment survives both themes and conveys nothing by colour alone. */
+.surface-usage-table { overflow-x: auto; }
+.surface-usage-table tr.row-unknowable {
+  background-image: repeating-linear-gradient(45deg,
+    var(--status-unknown-tint), var(--status-unknown-tint) 4px,
+    transparent 4px, transparent 9px);
+}
+.surface-usage-table tr.row-unknowable td, .surface-usage-table tr.row-unknowable th {
+  color: var(--ink-secondary);
+}
+
+/* Stage 17 Slice 3 — a collapsed or demoted surface (SURFACE-USAGE-SPEC.md §7.2).
+   The disclosure keeps the surface exactly where it was: fixed location, varying expansion, so
+   spatial memory survives the change. No status hue anywhere here — a collapse is a layout choice
+   the operator made, not a state of the record, and green/amber/red are reserved for status. */
+.surface-disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-4) 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-hairline);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.surface-disclosure:hover { color: var(--ink-primary); }
+.surface-disclosure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Demoted is a one-time relocation the operator chose, marked by an inset rather than a colour so
+   it reads as "moved" rather than as a state. */
+.surface-demoted {
+  padding-left: var(--sp-5);
+  border-left: 2px solid var(--line-hairline);
+}
+
+/* --- Stage 18 · private Call Coach -------------------------------------------------------------
+   The Coach uses the same atmospheric surfaces as the rest of the app, with stronger hierarchy
+   around one next behavior. Accent marks interaction and focus; readiness and coaching labels do
+   not borrow health hues. */
+.coach-page { max-width: 1440px; margin: 0 auto; padding-bottom: var(--sp-11); }
+.coach-page::before {
+  content: ""; position: fixed; inset: 48px 0 0 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 45% -10%, var(--ambient-primary), transparent 42%),
+    radial-gradient(ellipse at 85% 35%, var(--ambient-tertiary), transparent 36%),
+    linear-gradient(to bottom, var(--ambient-page), transparent 65%);
+}
+.coach-home-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+  gap: var(--sp-6); margin-bottom: var(--sp-9); }
+.coach-focus-card, .coach-start-card, .coach-form-card, .coach-priority-card,
+.coach-practice-result, .coach-practice-composer { border-radius: var(--r-xl); }
+.coach-focus-card { min-height: 270px; padding: var(--sp-9); display: flex; flex-direction: column;
+  justify-content: center; overflow: hidden; position: relative; }
+.coach-focus-card::after { content: ""; position: absolute; width: 280px; height: 280px; right: -120px;
+  top: -120px; border-radius: var(--r-pill); background: var(--ambient-primary); filter: blur(60px);
+  pointer-events: none; }
+.coach-focus-card h2 { font-size: var(--t-metric); letter-spacing: -.025em; margin: var(--sp-4) 0; max-width: 720px; }
+.coach-lead { font-size: var(--t-body-lg); line-height: 1.65; color: var(--ink-secondary); }
+.coach-card-kicker { color: var(--accent); font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: .12em; text-transform: uppercase; font-weight: 500; }
+.coach-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4); margin-top: var(--sp-6); }
+.coach-start-card { padding: var(--sp-8); }
+.coach-start-card .coach-card-kicker { margin-bottom: var(--sp-5); }
+.coach-path { width: 100%; display: flex; align-items: center; gap: var(--sp-5); text-align: left;
+  color: var(--ink-primary); background: transparent; border: 0; border-top: 1px solid var(--line-hairline);
+  padding: var(--sp-6) 0; cursor: pointer; transition: transform var(--dur-standard) var(--ease-expo), color var(--dur-fast); }
+.coach-path:hover { transform: translateX(var(--sp-2)); color: var(--accent); }
+.coach-path-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-lg);
+  background: var(--accent-tint); color: var(--accent); font-size: var(--t-h2); }
+.coach-path span:nth-child(2) { display: grid; gap: var(--sp-2); }
+.coach-path small { color: var(--ink-tertiary); font-weight: 400; }
+.coach-history { margin-top: var(--sp-8); }
+.section-title-row { display: flex; align-items: end; justify-content: space-between; gap: var(--sp-6); margin-bottom: var(--sp-5); }
+.section-title-row h2 { margin: var(--sp-2) 0 0; }
+.coach-session-list { border: 1px solid var(--line-hairline); border-radius: var(--r-xl); overflow: hidden;
+  box-shadow: var(--shadow-card); background: var(--bg-glass); backdrop-filter: blur(18px); }
+.coach-session-row { width: 100%; display: grid; grid-template-columns: 12px minmax(0, 1fr) 180px 20px;
+  align-items: center; gap: var(--sp-5); padding: var(--sp-6); border: 0; border-bottom: 1px solid var(--line-hairline);
+  background: transparent; color: var(--ink-primary); text-align: left; cursor: pointer;
+  transition: background var(--dur-fast), padding-left var(--dur-standard) var(--ease-expo); }
+.coach-session-row:last-child { border-bottom: 0; }
+.coach-session-row:hover { background: var(--bg-hover); padding-left: var(--sp-7); }
+.coach-mode-mark { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--accent); }
+.coach-mode-mark.rehearsal { border-radius: var(--r-sm); background: transparent; border: 2px solid var(--data-2); }
+.coach-session-copy { display: grid; gap: var(--sp-2); }
+.coach-session-copy small, .coach-session-meta { color: var(--ink-tertiary); }
+.coach-session-meta { text-align: right; font-size: var(--t-small); line-height: 1.5; }
+
+.coach-new-page > .tabstrip { margin-bottom: var(--sp-6); }
+.coach-intake-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: var(--sp-7); align-items: start; }
+.coach-form-stack { display: grid; gap: var(--sp-6); }
+.coach-form-card { padding: var(--sp-8); }
+.coach-step { display: flex; align-items: flex-start; gap: var(--sp-5); margin-bottom: var(--sp-6); }
+.coach-step > span { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: var(--r-pill); background: var(--accent-tint); color: var(--accent); font-family: var(--font-mono); }
+.coach-step h2 { margin: 0 0 var(--sp-2); }
+.coach-step p { margin: 0; color: var(--ink-tertiary); }
+.coach-file-row { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-4); }
+.coach-boundary-note { padding: var(--sp-5); margin-top: var(--sp-5); color: var(--ink-secondary);
+  line-height: 1.55;
+  border-radius: var(--r-lg); background: var(--bg-sunken); border: 1px solid var(--line-hairline); }
+.coach-reflection { border: 1px solid var(--line-hairline); border-radius: var(--r-xl); background: var(--bg-glass); }
+.coach-reflection summary { cursor: pointer; padding: var(--sp-6) var(--sp-8); font-weight: 600; }
+.coach-reflection summary span { color: var(--ink-tertiary); font-weight: 400; margin-left: var(--sp-3); }
+.coach-reflection[open] .form-grid { padding: 0 var(--sp-8) var(--sp-8); }
+.coach-submit-panel { position: sticky; top: 68px; }
+.coach-submit-panel .card { padding: var(--sp-7); border-radius: var(--r-xl); }
+.coach-submit-panel .btn { width: 100%; margin-top: var(--sp-4); }
+.coach-trust-list { padding-left: var(--sp-6); color: var(--ink-secondary); line-height: 1.6; }
+.coach-trust-list li { margin-bottom: var(--sp-3); }
+
+.coach-call-frame { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4);
+  margin-bottom: var(--sp-8); padding: var(--sp-5) var(--sp-6); border: 1px solid var(--line-hairline);
+  border-radius: var(--r-lg); background: var(--bg-glass); backdrop-filter: blur(16px); }
+.coach-call-frame span { display: grid; gap: var(--sp-2); text-transform: capitalize; }
+.coach-call-frame small, .coach-next-adjustment small, .coach-source-analysis small { color: var(--ink-tertiary);
+  text-transform: uppercase; letter-spacing: .08em; font-family: var(--font-mono); font-size: var(--t-micro); }
+.coach-priority-section { margin-bottom: var(--sp-8); }
+.coach-priority-card { margin-top: var(--sp-4); padding: var(--sp-9); position: relative; overflow: hidden;
+  border-color: var(--accent-ring); }
+.coach-priority-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
+.coach-priority-heading { display: flex; gap: var(--sp-6); align-items: flex-start; }
+.coach-priority-number { font-family: var(--font-mono); font-size: var(--t-h2); color: var(--accent); }
+.coach-priority-heading h2 { font-size: var(--t-h1); letter-spacing: -.02em; margin: var(--sp-4) 0; }
+.coach-quote, .coach-inline-quote { display: flex; justify-content: space-between; gap: var(--sp-5); width: 100%;
+  padding: var(--sp-5); border: 1px solid var(--line-hairline); border-radius: var(--r-lg); color: var(--ink-secondary);
+  background: var(--bg-sunken); text-align: left; cursor: pointer; font: inherit; line-height: 1.55; }
+.coach-quote:hover, .coach-inline-quote:hover { border-color: var(--accent-ring); color: var(--ink-primary); }
+.coach-quote small, .coach-inline-quote span { color: var(--accent); white-space: nowrap; }
+.coach-two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6); margin: var(--sp-9) 0; }
+.coach-observation-stack { display: grid; gap: var(--sp-4); margin-top: var(--sp-4); }
+.coach-observation { padding: var(--sp-6); border-radius: var(--r-xl); }
+.coach-observation h3 { margin: var(--sp-4) 0; }
+.coach-observation p { line-height: 1.55; }
+.coach-inline-quote { font-size: var(--t-small); }
+.coach-feedback { display: inline-flex; border: 1px solid var(--line-hairline); border-radius: var(--r-lg); overflow: hidden; }
+.coach-feedback button { border: 0; border-right: 1px solid var(--line-hairline); padding: var(--sp-3) var(--sp-4);
+  background: transparent; color: var(--ink-tertiary); font: inherit; font-size: var(--t-micro); cursor: pointer; }
+.coach-feedback button:last-child { border-right: 0; }
+.coach-feedback button:hover, .coach-feedback button.active { background: var(--accent-tint); color: var(--accent); }
+.coach-practice-composer { padding: var(--sp-8); margin-bottom: var(--sp-8); }
+.coach-practice-composer h2 { margin: var(--sp-3) 0; }
+.coach-account-lens { margin: var(--sp-10) 0; }
+.coach-account-lens > h2 { margin: var(--sp-3) 0 var(--sp-6); }
+.coach-lens-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); }
+.coach-lens { padding: var(--sp-5); border-radius: var(--r-lg); }
+.coach-lens-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); }
+.coach-lens p { color: var(--ink-secondary); line-height: 1.5; }
+.coach-lens blockquote { margin: var(--sp-4) 0; padding-left: var(--sp-4); border-left: 2px solid var(--data-2);
+  color: var(--ink-secondary); }
+.coach-lens small { color: var(--ink-tertiary); }
+.coach-account-actions, .coach-source-control { display: flex; justify-content: space-between; align-items: center;
+  gap: var(--sp-8); padding: var(--sp-7); margin-top: var(--sp-6); border-radius: var(--r-xl); }
+.coach-account-actions { flex-wrap: wrap; }
+.coach-account-actions h2, .coach-source-control h2 { margin: var(--sp-3) 0; }
+.coach-account-actions p, .coach-source-control p { color: var(--ink-secondary); margin: 0; max-width: 680px; }
+.coach-account-receipt { flex: 1 0 100%; padding-top: var(--sp-4); border-top: 1px solid var(--line-hairline);
+  color: var(--ink-secondary); font-size: var(--t-small); }
+.coach-practice-result { padding: var(--sp-9); }
+.coach-practice-status { display: flex; gap: var(--sp-5); align-items: center; margin: var(--sp-6) 0; }
+.coach-practice-status h2 { margin: 0 0 var(--sp-2); }
+.coach-practice-status p { margin: 0; color: var(--ink-secondary); }
+.coach-status-shape { width: 34px; height: 34px; border: 2px solid var(--accent); border-radius: var(--r-pill); }
+.coach-status-shape.observed { background: var(--accent); }
+.coach-status-shape.partial { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+.coach-status-shape.not_observed { border-radius: var(--r-sm); transform: rotate(45deg); }
+.coach-status-shape.unable_to_assess { border-color: var(--status-unknown); border-style: dashed; }
+.coach-practice-result blockquote { font-size: var(--t-h3); margin: var(--sp-7) 0; padding: var(--sp-6);
+  background: var(--bg-sunken); border-radius: var(--r-lg); }
+.coach-next-adjustment { display: grid; gap: var(--sp-3); padding: var(--sp-5); border-left: 2px solid var(--accent); }
+.coach-source-modal { width: min(900px, calc(100vw - 48px)); max-height: calc(100vh - 64px); overflow: auto; }
+.coach-source-context { white-space: pre-wrap; line-height: 1.7; padding: var(--sp-7); border-radius: var(--r-lg);
+  background: var(--bg-sunken); color: var(--ink-secondary); }
+.coach-source-context mark { background: var(--accent-tint); color: var(--accent); padding: var(--sp-1); border-radius: var(--r-sm); }
+.coach-source-analysis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-5); margin-top: var(--sp-6); }
+.coach-source-analysis p { line-height: 1.55; }
+
+@media (max-width: 1050px) {
+  .coach-home-grid, .coach-intake-layout, .coach-two-column { grid-template-columns: 1fr; }
+  .coach-submit-panel { position: static; }
+  .coach-lens-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .coach-call-frame { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .coach-lens-grid, .coach-source-analysis, .coach-call-frame { grid-template-columns: 1fr; }
+  .coach-session-row { grid-template-columns: 10px minmax(0, 1fr) 18px; }
+  .coach-session-meta { display: none; }
+  .coach-account-actions, .coach-source-control { align-items: flex-start; flex-direction: column; }
+  .coach-priority-card, .coach-focus-card, .coach-form-card { padding: var(--sp-6); }
+}

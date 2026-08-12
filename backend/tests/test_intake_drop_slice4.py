@@ -136,10 +136,66 @@ def test_the_refusal_sentence_is_authored_on_the_server(client):
     ("Go-live is 1 October 2026, moved from 15 November 2026.", None),
     ("Go-live is in the autumn.", None),
     ("Go-live is 2026-13-45.", None),
+    # The right shape and not a day. A month check and a 1..31 range check together still admit
+    # every one of these, because neither of them knows how long the month actually is.
+    ("Go-live is 2026-02-31.", None),
+    ("Go-live is 31 February 2026.", None),
+    ("Go-live is April 31, 2026.", None),
+    ("Go-live is 2026-02-29.", None),          # 2026 is not a leap year
+    # ...and the fix is a calendar, not a blocklist: the legitimate neighbours still read.
+    ("Go-live is 2028-02-29.", "2028-02-29"),  # 2028 is
+    ("Go-live is April 30, 2026.", "2026-04-30"),
+    ("Go-live is 28 February 2026.", "2026-02-28"),
 ])
 def test_find_date_returns_a_date_only_when_there_is_exactly_one_unambiguous_one(text, expected):
     from app import extractor
     assert extractor.find_date(text) == expected
+
+
+def test_an_impossible_calendar_day_is_reported_like_a_missing_one_rather_than_drafted(client):
+    """31 February is not a date, and it must not become a milestone the app plans against.
+
+    The failure mode this closes is quiet: a refusal is visible in the coverage report, while
+    `2026-02-31` looks like an answer all the way to the canonical record — and then every date
+    arithmetic downstream either raises on it or, worse, silently doesn't.
+    """
+    account = _account(client)
+    program = _program(client, account["id"])
+    drop = _drop(client, account["id"], program_id=program["id"], text=(
+        "Rollout planning notes for the synthetic programme, written up after the session so the "
+        "dates are all in one place and nothing has to be reconstructed from memory later on.\n"
+        "The pilot go-live is 31 February 2026.\n"
+        "Everything else in this note is background and needs no follow-up from anybody.\n"))
+
+    kinds = [p["target_type"] for p in _proposals(client, drop["extraction_run_id"] or "")]
+    assert "milestone" not in kinds
+
+    # Same treatment as "some time in the autumn", and for the same reason: the document did not
+    # supply a date. That it supplied ten characters shaped like one changes nothing.
+    from app import extractor
+    named = drop["coverage"]["named_not_proposed"]
+    assert len(named) == 1
+    assert "go-live" in named[0]["what"]
+    assert named[0]["why"] == extractor._NO_DATE
+
+
+@pytest.mark.parametrize("bad", ["2026-02-31", "2026-04-31", "2026-02-29", "2026-13-01"])
+def test_the_column_itself_refuses_an_impossible_day_whichever_writer_asks(client, bad):
+    """The last gate. Both writers reach `MilestoneCreate`, so it is the one place to hold.
+
+    422 rather than a silent drop: a date the operator typed and the app quietly discarded is a
+    date they still believe they set.
+    """
+    account = _account(client)
+    program = _program(client, account["id"])
+    r = client.post("/api/milestones", json={"program_id": program["id"],
+                                         "name": "Synthetic go-live", "target_date": bad})
+    assert r.status_code == 422, r.text
+
+    ok = client.post("/api/milestones", json={"program_id": program["id"],
+                                          "name": "Synthetic go-live", "target_date": "2028-02-29"})
+    assert ok.status_code in (200, 201), ok.text
+    assert ok.json()["target_date"] == "2028-02-29"
 
 
 # --- §10 a program that was inferred -----------------------------------------------------------

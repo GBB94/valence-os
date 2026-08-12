@@ -12,6 +12,7 @@ import LeadershipReview from "./LeadershipReview";
 import MeetingPrepare from "./MeetingPrepare";
 import ProposalPreview from "./ProposalPreview";
 import { ReadinessSummary } from "./Readiness";
+import { Surface } from "../Surface";
 
 const LENSES = [
   ["operate", "Operate"],
@@ -134,8 +135,10 @@ function OperateLens({ data, firstVisit, reviewing, accountId, programId, reload
    * the machine. The paste shortcut is what makes it reachable without scrolling at all.
    */
   const dropZone = (
-    <AccountIntakeDrop accountId={accountId} accountName={data.account.name}
-      programId={programId} reloadKey={reloadKey} onDrafted={onSaved} />
+    <Surface surfaceKey="overview.intake_drop">
+      <AccountIntakeDrop accountId={accountId} accountName={data.account.name}
+        programId={programId} reloadKey={reloadKey} onDrafted={onSaved} />
+    </Surface>
   );
 
   const sinceReview = (
@@ -162,42 +165,67 @@ function OperateLens({ data, firstVisit, reviewing, accountId, programId, reload
           scope is evaluated on its own evidence and never merged with its siblings. It keeps
           fetching its own data and reporting its own coverage: readiness coverage and execution
           coverage are different claims and must not be merged into one notice. */}
-      <ReadinessSummary accountId={accountId} programId={programId} mode="compact"
-        reloadKey={reloadKey} onOpenTarget={onOpenTarget} />
+      <Surface surfaceKey="overview.readiness_summary">
+        {({ engage }) => (
+          <ReadinessSummary accountId={accountId} programId={programId} mode="compact"
+            reloadKey={reloadKey}
+            onOpenTarget={(target) => { engage("opened"); onOpenTarget(target); }} />
+        )}
+      </Surface>
       {/* Up to three proposals from the newest source, plus a way to the full list
           (RELATIONSHIP-READINESS-SPEC.md §8.1). It sits below readiness on purpose: a draft
           nobody has accepted is not an account condition, and it must not read like one. */}
       <ProposalPreview accountId={accountId} programId={programId} reloadKey={reloadKey}
         onApplied={onSaved} />
-      <Section title="Next on account" tone="accent" meta="Confirmed future events">
-        <UpcomingRows items={data.upcoming} onOpenTarget={onOpenTarget} />
-      </Section>
-      <Section title="Current point of view" tone="quiet" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
-        {data.operator_view ? (
-          <div className="command-pov">
-            <p>{data.operator_view.body}</p>
-            <div className="rowmeta">{data.operator_view.author}</div>
-            <button className="btn small ghost" onClick={() => onOpenTarget({ tab: "internal" })}>Open review record</button>
-          </div>
-        ) : (
-          <Empty title="No point of view yet">Record a dated operator view in Internal before the next review.</Empty>
+      <Surface surfaceKey="overview.next_on_account">
+        {({ engage }) => (
+          <Section title="Next on account" tone="accent" meta="Confirmed future events">
+            <UpcomingRows items={data.upcoming}
+              onOpenTarget={(target) => { engage("followed_link"); onOpenTarget(target); }} />
+          </Section>
         )}
-      </Section>
+      </Surface>
+      <Surface surfaceKey="overview.current_point_of_view">
+        {({ engage }) => (
+          <Section title="Current point of view" tone="quiet" meta={data.operator_view ? `Assessed ${fmtDate(data.operator_view.assessed_on)}` : "Operator-authored"}>
+            {data.operator_view ? (
+              <div className="command-pov">
+                <p>{data.operator_view.body}</p>
+                <div className="rowmeta">{data.operator_view.author}</div>
+                <button className="btn small ghost"
+                  onClick={() => { engage("followed_link"); onOpenTarget({ tab: "internal" }); }}>Open review record</button>
+              </div>
+            ) : (
+              <Empty title="No point of view yet">Record a dated operator view in Internal before the next review.</Empty>
+            )}
+          </Section>
+        )}
+      </Surface>
     </>
   );
 
   return (
     <div className="stack operate-stack">
-      <AccountPath accountId={accountId} programId={programId} reloadKey={reloadKey}
-        onOpenTarget={onOpenTarget} onSaved={onSaved}
-        mainSlot={<>{dropZone}{sinceReview}</>} sideSlot={sideExtras} />
+      {/* The path already emits its own §17 funnel events (D-156…D-161). The wrapper is added
+          anyway, because those events answer "was the recommendation acted on" and this one
+          answers "was this section on screen at all" — the exposure denominator §6.1 needs, which
+          the funnel has never had. */}
+      <Surface surfaceKey="overview.account_path">
+        <AccountPath accountId={accountId} programId={programId} reloadKey={reloadKey}
+          onOpenTarget={onOpenTarget} onSaved={onSaved}
+          mainSlot={<>{dropZone}{sinceReview}</>} sideSlot={sideExtras} />
+      </Surface>
       {/* Retained and deliberately subordinate (§5.2 item 10): a personal recency band, not a
           statement about the account. */}
-      <Section title="Since last visit" tone="quiet" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
-        <ActivityRows items={data.changes_since_visit} emptyTitle={firstVisit ? "Visit baseline set" : "Nothing new since your last visit"}
-          emptyBody={firstVisit ? "New material changes will appear here on your next visit." : "The review cursor is separate; this only tracks browser visits."}
-          onOpenTarget={onOpenTarget} />
-      </Section>
+      <Surface surfaceKey="overview.since_last_visit">
+        {({ engage }) => (
+          <Section title="Since last visit" tone="quiet" meta={firstVisit ? "First visit in this browser" : "This browser and selected scope"}>
+            <ActivityRows items={data.changes_since_visit} emptyTitle={firstVisit ? "Visit baseline set" : "Nothing new since your last visit"}
+              emptyBody={firstVisit ? "New material changes will appear here on your next visit." : "The review cursor is separate; this only tracks browser visits."}
+              onOpenTarget={(target) => { engage("followed_link"); onOpenTarget(target); }} />
+          </Section>
+        )}
+      </Surface>
     </div>
   );
 }

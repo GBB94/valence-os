@@ -24,11 +24,16 @@ import AccountPlan from "./views/AccountPlan";
 import CalendarPanel from "./views/CalendarPanel";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
+import ProposalReview from "./views/ProposalReview";
 import Plays from "./views/Plays";
 import Internal from "./views/Internal";
+import Coach from "./views/Coach";
 import CopilotPanel from "./views/CopilotPanel";
 import AdoptionComms from "./views/AdoptionComms";
 import { WORKSPACE_TABS, navigationUrl, parseNavigation } from "./navigation";
+import { SurfaceRetirementProvider, SurfaceScopeProvider, measure } from "./measure";
+import { commandProperties, navigationProperties } from "./surfaces";
+import { Surface } from "./Surface";
 
 export default function App() {
   return (
@@ -63,6 +68,7 @@ const INFO = {
   today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
   library: "Link-first, tagged, searchable source references and files, with the records that cite each. Points to originals, never copies.",
   operations: "System health for this single-editor tool: imports, data freshness, backups, search-index health, and the plays engine.",
+  coach: "Your private call-coaching workspace: evidence-grounded review, one active behavior, and targeted practice. Coaching never becomes account truth.",
   overview: "The account command center. Switch among three lenses without losing scope: Operate for what changed and what needs you, Prepare to organize the next meeting, Leadership for movement, forecast, and asks.",
   ledger: "One chronological record of everything on this account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture.",
   people: "The stakeholder network — stance, influence, relationships, and who has not been touched. Every assessment carries a date and evidence.",
@@ -75,7 +81,7 @@ const INFO = {
 
 function Shell() {
   const [accounts, setAccounts] = useState([]);
-  // nav: { dest: 'today'|'account'|'library'|'operations', accountId?, tab?, programId? }
+  // nav: { dest: 'today'|'coach'|'account'|'library'|'operations', accountId?, tab?, programId? }
   const initialNavRef = useRef(parseNavigation(window.location));
   const [nav, setNav] = useState(initialNavRef.current);
   const navRef = useRef(initialNavRef.current);
@@ -95,6 +101,12 @@ function Shell() {
   const [copilot, setCopilot] = useState(null);
   const copilotTriggerRef = useRef(null);
   const copilotReturnFocusRef = useRef(null);
+
+  // Stage 17 (`SURFACE-USAGE-SPEC.md` §5). How the current route was reached, and whether it was
+  // the first of the session. Refs rather than state: neither is anything a view renders, and
+  // putting them in state would re-render the whole shell to record a diagnostic.
+  const entryPointRef = useRef("navigation");
+  const landedOnceRef = useRef(false);
 
   // Navigation is deliberately a small internal route contract rather than a third-party
   // router. Every existing destination remains a state object, but the URL is now canonical
@@ -116,11 +128,28 @@ function Shell() {
     const onPopState = () => {
       const restored = parseNavigation(window.location);
       navRef.current = restored;
+      // Back/Forward is a different entry point from a click, and §5 keeps them apart: a route
+      // reached only by Back is a route with a discoverability problem, and folding the two
+      // together would hide exactly that.
+      entryPointRef.current = "restore";
       setNav(restored);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // §5 `navigation_landed` — the reachability half of §6.3. A surface that is never rendered is a
+  // navigation problem rather than a useless surface, and that reading is only available if we know
+  // which routes the operator actually reaches.
+  useEffect(() => {
+    const properties = navigationProperties(
+      { dest: nav.dest, tab: nav.tab },
+      { entryPoint: entryPointRef.current, isFirstOfSession: !landedOnceRef.current },
+    );
+    entryPointRef.current = "navigation";
+    landedOnceRef.current = true;
+    if (properties) measure({ accountId: nav.accountId || null })("navigation_landed", properties);
+  }, [nav.dest, nav.tab, nav.accountId]);
 
   useEffect(() => {
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
@@ -178,6 +207,15 @@ function Shell() {
     return {};
   }, [nav]);
 
+  // §5 `command_invoked`. Capture is the one command reachable three ways — toolbar, keyboard, and
+  // the palette — and §6's discoverability question is exactly "which of those does anyone use".
+  // One function so a new entry point cannot be added without naming itself.
+  const openCapture = useCallback((entryPoint) => {
+    const properties = commandProperties("command.log_interaction", entryPoint);
+    if (properties) measure()("command_invoked", properties);
+    setQuick(capturePrefill());
+  }, [capturePrefill]);
+
   // Keyboard: cmd/ctrl-K opens the palette; "c" opens capture from anywhere (Section 2.4).
   useEffect(() => {
     const onKey = (e) => {
@@ -185,12 +223,12 @@ function Shell() {
       const typing = ["input", "textarea", "select"].includes((t.tagName || "").toLowerCase()) || t.isContentEditable;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); return; }
       if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c") {
-        e.preventDefault(); setQuick(capturePrefill());
+        e.preventDefault(); openCapture("keyboard");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [capturePrefill]);
+  }, [openCapture]);
 
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
@@ -297,6 +335,9 @@ function Shell() {
   }
 
   return (
+    <SurfaceRetirementProvider>
+    <SurfaceScopeProvider accountId={nav.dest === "account" ? nav.accountId : (nav.coachAccountId || null)}
+      programId={nav.programId || null}>
     <div className={"shell" + (railCollapsed ? " rail-collapsed" : "")}>
       <Rail
         accounts={accounts}
@@ -312,7 +353,7 @@ function Shell() {
         <div className="topbar">
           <Breadcrumb nav={nav} accounts={accounts} go={go} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
-          <button className="btn small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
+          <button className="btn small" onClick={() => openCapture("toolbar")} title="Log interaction (c)">Log interaction</button>
           <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
           <div style={{ position: "relative" }}>
             <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">
@@ -353,6 +394,7 @@ function Shell() {
               viewId={nav.view} onViewChange={setPortfolioView} />
           </div>
         )}
+        {nav.dest === "coach" && <Coach accounts={accounts} nav={nav} go={go} />}
         {nav.dest === "library" && <div className="content"><Library reloadKey={reloadKey} /></div>}
         {nav.dest === "operations" && (
           <div className="content">
@@ -371,6 +413,7 @@ function Shell() {
             meetingId={nav.meetingId}
             workspaceSection={nav.section}
             focusedRecordId={nav.recordId}
+            proposalRunId={nav.proposalRunId}
             reloadKey={reloadKey}
             setTab={setTab}
             setCommandCenterLens={setCommandCenterLens}
@@ -407,12 +450,12 @@ function Shell() {
           onNavigate={navigateToResult}
           go={go}
           openAccount={openAccount}
-          openQuick={() => setQuick(capturePrefill())}
+          openQuick={() => openCapture("menu")}
           openCopilot={openCopilot}
         />
       )}
 
-      {copilot && <CopilotPanel scope={copilotScope}
+      {copilot && <Surface surfaceKey="global.copilot"><CopilotPanel scope={copilotScope}
         accountName={accounts.find((account) => account.id === copilotScope.account_id)?.name}
         starter={copilot} onClose={closeCopilot}
         onNavigateSource={(source) => {
@@ -420,8 +463,10 @@ function Shell() {
           navigateToResult({ object_type: type, object_id: source.record_id,
             account_id: source.account_id, program_id: source.program_id });
           closeCopilot();
-        }} />}
+        }} /></Surface>}
     </div>
+    </SurfaceScopeProvider>
+    </SurfaceRetirementProvider>
   );
 }
 
@@ -444,6 +489,7 @@ function Rail({ accounts, nav, collapsed, onToggleCollapse, inboxCount, go, open
       </div>
       <div className="nav">
         {item(nav.dest === "today", "Today", "◎", () => go({ dest: "today" }))}
+        {item(nav.dest === "coach", "Coach", "◇", () => go({ dest: "coach", coachView: "home" }))}
 
         <button className={"rail-item" + (nav.dest === "accounts" ? " active" : "")} onClick={() => go({ dest: "accounts" })} title="All accounts">
           <span className="rail-icon" aria-hidden="true">▤</span>
@@ -475,6 +521,11 @@ function Breadcrumb({ nav, accounts, go }) {
   const acct = accounts.find((a) => a.id === nav.accountId);
   const tabLabel = WORKSPACE_TABS.find(([k]) => k === nav.tab)?.[1];
   if (nav.dest === "today") return <div className="crumb-bar">Today</div>;
+  if (nav.dest === "coach") return <div className="crumb-bar">
+    <button onClick={() => go({ dest: "coach", coachView: "home" })}>Coach</button>
+    {nav.coachView === "new" && <><span className="crumb-sep">›</span><span className="crumb-cur">New review</span></>}
+    {nav.coachView === "session" && <><span className="crumb-sep">›</span><span className="crumb-cur">Session</span></>}
+  </div>;
   if (nav.dest === "library") return <div className="crumb-bar">Library</div>;
   if (nav.dest === "operations") return <div className="crumb-bar">Operations</div>;
   return (
@@ -497,10 +548,15 @@ function DensityToggle({ density, setDensity }) {
   );
 }
 
-function Collapsible({ title, children, defaultOpen = false }) {
+function Collapsible({ title, children, defaultOpen = false, openWhen = false, id = undefined }) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (!openWhen) return;
+    setOpen(true);
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+  }, [openWhen, id]);
   return (
-    <div className="collapsible">
+    <div className="collapsible" id={id}>
       <button className="collapsible-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="rail-icon">{open ? "▾" : "▸"}</span> {title}
       </button>
@@ -510,7 +566,7 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, workspaceSection, focusedRecordId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, setPeopleSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, workspaceSection, focusedRecordId, proposalRunId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, setPeopleSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
@@ -562,12 +618,21 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
           <div className="stack">
             <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved}
               onOpenTarget={openWorkspaceTarget} focusedRecordId={focusedRecordId} />
-            <Collapsible title="Communications (email + recordings)">
-              <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
+            <Collapsible title="Proposal Review" defaultOpen={workspaceSection === "proposals"}
+              openWhen={workspaceSection === "proposals"} id="ledger-proposal-review">
+              <ProposalReview accountId={accountId} programId={programId || ""}
+                runId={proposalRunId || ""} reloadKey={reloadKey} onApplied={onSaved} />
             </Collapsible>
-            <Collapsible title="Extract from a transcript">
-              <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
-            </Collapsible>
+            <Surface surfaceKey="ledger.communications">
+              <Collapsible title="Communications (email + recordings)">
+                <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
+              </Collapsible>
+            </Surface>
+            <Surface surfaceKey="ledger.extraction">
+              <Collapsible title="Extract from a transcript">
+                <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
+              </Collapsible>
+            </Surface>
           </div>
         )}
         {tab === "people" && (
@@ -581,12 +646,22 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
                 detail against a plan that has to exist first. */}
             <AccountPlan accountId={accountId} programId={programId} reloadKey={reloadKey}
               onChanged={onSaved} />
-            <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
-            <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
-            <AdoptionComms accountId={accountId} programId={programId} reloadKey={reloadKey} />
-            <Campaigns accountId={accountId} reloadKey={reloadKey} />
+            <Surface surfaceKey="plan.checklists">
+              <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
+            </Surface>
+            <Surface surfaceKey="plan.calendar">
+              <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="plan.adoption_comms">
+              <AdoptionComms accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="plan.campaigns">
+              <Campaigns accountId={accountId} reloadKey={reloadKey} />
+            </Surface>
             {selProgram
-              ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
+              ? <Surface surfaceKey="plan.program_detail">
+                  <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
+                </Surface>
               : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
           </div>
         )}
@@ -597,8 +672,12 @@ function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId
         )}
         {tab === "evidence" && (
           <div className="stack">
-            <ValueLibrary accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
-            <Metrics reloadKey={reloadKey} />
+            <Surface surfaceKey="evidence.value_library">
+              <ValueLibrary accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="evidence.metrics">
+              <Metrics reloadKey={reloadKey} />
+            </Surface>
           </div>
         )}
         {tab === "outputs" && (
@@ -673,11 +752,19 @@ function OutputsTab({ accounts, accountId, programId, setAcct, reloadKey }) {
         <SegTabs tabs={[["artifacts", "Artifacts"], ["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
         <SectionHelp group="outputs" active={which} />
       </div>
-      {which === "artifacts" && <Artifacts accounts={accounts} accountId={accountId}
-        programId={programId} setAccountId={setAcct} reloadKey={reloadKey} />}
-      {which === "qbr" && <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
-      {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
-      {which === "map" && <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
+      {which === "artifacts" && <Surface surfaceKey="outputs.artifacts">
+        <Artifacts accounts={accounts} accountId={accountId}
+          programId={programId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
+      {which === "qbr" && <Surface surfaceKey="outputs.qbr">
+        <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
+      {which === "team" && <Surface surfaceKey="outputs.team_update">
+        <TeamUpdate reloadKey={reloadKey} />
+      </Surface>}
+      {which === "map" && <Surface surfaceKey="outputs.mutual_action_plan">
+        <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
     </div>
   );
 }

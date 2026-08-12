@@ -5,6 +5,7 @@ import Onboarding from "./Onboarding";
 import PortfolioAnalytics from "./PortfolioAnalytics";
 import PortfolioInternal from "./PortfolioInternal";
 import { SavedViewBar } from "../SavedViewControls";
+import { Surface } from "../Surface";
 import { useSavedViews } from "../useSavedViews";
 
 const ACCOUNT_VIEWS = [
@@ -102,7 +103,8 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
 
       <div className="subtab-strip" style={{ marginBottom: 14 }}><SegTabs tabs={[["accounts", "Book"], ["analytics", "Portfolio analytics"], ["internal", "Internal"]]} value={view} onChange={setView} /><SectionHelp group="accountsBook" active={view} /></div>
 
-      {view === "internal" ? <PortfolioInternal onOpen={onOpen} /> : view === "analytics" ? <PortfolioAnalytics /> : <>
+      {view === "internal" ? <PortfolioInternal onOpen={onOpen} /> : view === "analytics"
+        ? <Surface surfaceKey="accounts.portfolio_analytics"><PortfolioAnalytics /></Surface> : <>
 
       <SavedViewBar model={views}>
         <label className="view-filter">
@@ -147,6 +149,8 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
         </div>
       )}
 
+      <Surface surfaceKey="accounts.book">
+        {({ engage }) => (
       <div className="card">
         {accounts.length === 0 ? (
           <Empty title="No accounts yet">Create your first account to start capturing.</Empty>
@@ -159,7 +163,7 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
             </thead>
             <tbody>
               {visibleAccounts.map((a) => (
-                <tr key={a.id} className="clickable" {...rowActivation(() => onOpen(a.id))}>
+                <tr key={a.id} className="clickable" {...rowActivation(() => { engage("followed_link"); onOpen(a.id); })}>
                   <td><strong>{a.name}</strong></td>
                   <td className="subtle">{a.short_context || <span className="rowmeta">—</span>}</td>
                   <td><AccountStatus value={a.delivery_status} /></td>
@@ -171,6 +175,8 @@ export default function Accounts({ accounts, onOpen, onChanged, viewId, onViewCh
           </table>
         )}
       </div>
+        )}
+      </Surface>
       </>}
 
       {onboarding && (

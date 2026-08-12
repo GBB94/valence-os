@@ -10,10 +10,55 @@ test("global destinations parse and serialize canonically", () => {
   assert.deepEqual(parseNavigation({ pathname: "/operations", search: "" }), { dest: "operations" });
 });
 
+test("Coach routes preserve explicit intake scope and opaque session identity", () => {
+  assert.deepEqual(parseNavigation({ pathname: "/coach", search: "" }), {
+    dest: "coach", coachView: "home",
+  });
+  assert.deepEqual(parseNavigation({
+    pathname: "/coach/new", search: "?account=acct-1&program=program-2&interaction=call-3",
+  }), {
+    dest: "coach", coachView: "new", coachAccountId: "acct-1",
+    programId: "program-2", interactionId: "call-3",
+  });
+  assert.equal(navigationUrl({
+    dest: "coach", coachView: "new", coachAccountId: "acct-1", programId: "program-2",
+  }), "/coach/new?account=acct-1&program=program-2");
+  assert.equal(navigationUrl({
+    dest: "coach", coachView: "session", coachSessionId: "session/with spaces",
+  }), "/coach/sessions/session%2Fwith%20spaces");
+  assert.deepEqual(parseNavigation({
+    pathname: "/coach/sessions/session-1", search: "?practice=observation-2",
+  }), {
+    dest: "coach", coachView: "session", coachSessionId: "session-1",
+    coachObservationId: "observation-2",
+  });
+  assert.equal(navigationUrl({
+    dest: "coach", coachView: "session", coachSessionId: "session-1",
+    coachObservationId: "observation-2",
+  }), "/coach/sessions/session-1?practice=observation-2");
+  assert.equal(navigationUrl({
+    dest: "coach", coachView: "new", coachMode: "rehearsal",
+  }), "/coach/new?mode=rehearsal");
+  assert.deepEqual(parseNavigation({ pathname: "/coach/not-a-view", search: "" }), {
+    dest: "coach", coachView: "home",
+  });
+});
+
 test("account routes preserve tab and program scope", () => {
   const nav = parseNavigation({ pathname: "/accounts/acct-1/commercial", search: "?program=program-2" });
   assert.deepEqual(nav, { dest: "account", accountId: "acct-1", tab: "commercial", programId: "program-2" });
   assert.equal(navigationUrl(nav), "/accounts/acct-1/commercial?program=program-2");
+});
+
+test("Ledger proposal links preserve the exact review run", () => {
+  const nav = parseNavigation({
+    pathname: "/accounts/acct-1/ledger", search: "?section=proposals&run=run-2",
+  });
+  assert.deepEqual(nav, {
+    dest: "account", accountId: "acct-1", tab: "ledger",
+    section: "proposals", proposalRunId: "run-2",
+  });
+  assert.equal(navigationUrl(nav), "/accounts/acct-1/ledger?section=proposals&run=run-2");
 });
 
 test("Commercial company routes preserve an exact record focus", () => {

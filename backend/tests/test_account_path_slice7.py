@@ -60,11 +60,13 @@ def _program(c, account_id, name="Europe Deployment", phase="launch"):
 
 # --- §17.2 / §17.3 the event contract -------------------------------------------------------
 
-def test_the_twenty_two_named_events_are_exactly_the_allowlist():
-    """§17.3's sixteen, plus the six `ACCOUNT-INTAKE-SPEC.md` §17 amends in (D-246).
+def test_the_twenty_eight_named_events_are_exactly_the_allowlist():
+    """§17.3's sixteen, the six `ACCOUNT-INTAKE-SPEC.md` §17 amends in (D-246), and Stage 17's six.
 
-    Asserted literally, in one set, because the amendment is the whole point: the drop zone's
-    events live under the same contract as the rest rather than in a store of their own.
+    Asserted literally, in one set, because the amendment is the whole point: each later spec's
+    events live under the same contract as the rest rather than in a store of their own. Stage 17's
+    six are surface-usage measurement (`SURFACE-USAGE-SPEC.md` §5) and they are here, in the same
+    allowlist, with the same sensitive-key screen and the same off switch, for that same reason.
     """
     from app import telemetry
     assert set(telemetry.EVENTS) == {
@@ -75,6 +77,8 @@ def test_the_twenty_two_named_events_are_exactly_the_allowlist():
         "phase_transition_completed", "execution_native_target_opened", "execution_path_retry",
         "drop_zone_shown", "drop_received", "drop_refused", "drop_drafted",
         "drop_no_proposals", "drop_receipt_opened",
+        "surface_rendered", "surface_engaged", "surface_dismissed", "command_invoked",
+        "navigation_landed", "retirement_action_applied",
     }
 
 
@@ -281,7 +285,11 @@ def test_no_domain_module_reads_product_events():
     every module that could later be tempted, not the ones that exist today.
     """
     app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
-    allowed = {"telemetry.py", "routers/telemetry.py", "portfolio_io.py"}
+    # `surface_usage.py` reads `product_events` to fold the Stage 17 rollup and is added here for
+    # that reason and no other. It is not a domain module: nothing in it touches a canonical record,
+    # and `test_surface_usage.py` asserts the converse rule — that no domain module imports *it*.
+    allowed = {"telemetry.py", "routers/telemetry.py", "portfolio_io.py", "surface_usage.py",
+               "surface_retirement.py"}
     offenders = []
     for path in sorted(app_dir.rglob("*.py")):
         rel = str(path.relative_to(app_dir))

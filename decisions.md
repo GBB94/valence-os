@@ -2,6 +2,497 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Stage 18 — private Call Coach (2026-08-11)
+
+- **D-351 — The built rehearsal is one cited text attempt, not a simulated multi-turn call.** The
+  deterministic local release evaluates one line or short response against one selected skill and
+  returns one adjustment. Multi-turn persona simulation, harder variations, voice, and live
+  coaching remain later capabilities because claiming them in a built spec would overstate both
+  the UI and the evaluation quality.
+- **D-350 — Coaching lifecycle events use the canonical audit vocabulary.** `audit_events.action`
+  permits create/update/archive/convert/close. Goal activation therefore records `create`, goal
+  completion and observation feedback record `update`, and their precise event names live in the
+  structured `after` payload. Inventing `activate`, `complete`, or `operator_response` verbs caused
+  the transaction itself to fail its CHECK and made working UI controls look implemented when they
+  were not.
+- **D-349 — Intent-bearing navigation must land on the action, not merely its parent page.** Active
+  focus routes include the exact observation and open its prefilled practice composer. Account
+  draft receipts route to Ledger with `section=proposals` and the exact extraction run, which opens
+  Proposal Review automatically. A button labeled Practice or Proposal Review that leaves Zach to
+  find the relevant control is not a successful deep link.
+- **D-348 — Account writes happen after private analysis and are independently retryable.** The new
+  review form no longer defaults Interaction logging or proposal drafting on. A completed linked
+  review exposes two explicit post-analysis commands with separate receipts; Interaction logging
+  reuses its existing link, and proposal drafting is idempotent per coaching run and rejects a run
+  from another session. This removes the partial-success trap where a successful session could be
+  reported as failed by a later side effect and then duplicated on resubmit.
+- **D-347 — Stage 18 is the tightened private text-first boundary, not every future coaching idea.**
+  Zach authorized reviewing Stage 17 Surface Usage, tightening the Coach spec, and building the
+  whole result without waiting for questions. §§18.0–18.4 are therefore the built authority;
+  longitudinal trends remain gated on real use, and real-model/audio/transcription/calendar/voice/
+  live/sharing/manager modes remain separate governed capabilities. This is a scope boundary, not a
+  claim that those later ideas were implemented poorly or partially.
+- **D-346 — Coaching interpretation stays private; account truth has exactly two explicit bridges.**
+  A linked review may log one native account-bound Interaction through shared
+  `interaction_ops.create`, or send the retained source through the existing extraction-run and
+  Proposal Review workflow. Coaching observations themselves never become proposals, Ledger facts,
+  readiness evidence, MAP/QBR/team-update content, search results, or account export. Rehearsal has
+  neither bridge. Reusing the existing decision surface avoids a second proposal truth.
+- **D-345 — The local coach optimizes for a useful next behavior, not a measurement of Zach.**
+  Runs use code-owned versioned rubrics, at most two strengths and two opportunities, at most one
+  priority, and byte-exact citations restricted to the operator-confirmed speaker. The schema and
+  validator refuse scores, confidence, sentiment, emotion, personality, deception, talk ratio, and
+  similar proxies. Unknown speakers degrade to content-only review; they are not guessed.
+- **D-344 — Linking later creates a new account-aware run and preserves the standalone reading.**
+  Account context is snapshotted per run. Link and unlink are audited updates with previews;
+  linking never rewrites an older run, and unlinking never erases a historical snapshot or a native
+  Interaction already created. This makes the interpretation reproducible instead of silently
+  changing history when scope changes.
+- **D-343 — Coach inherits Stage 17 without content-shaped telemetry.** Five surfaces and one
+  command are registered. `coach.review` and `coach.practice` use measurement-side trigger
+  evaluators; `coach.intake` remains honestly unscheduled because a transcript-in-hand has no safe
+  database proxy. Generic rendered/engaged/command events carry keys and closed-vocabulary shape
+  only—never title, account, transcript, filename, speaker, quote, skill, reflection, observation,
+  or goal. Domain code does not import measurement, and trigger counts are never rates.
+
+## Stage 17 review — an adversarial read of the uncommitted work (2026-08-09)
+
+An external review pass over the uncommitted Stage 17 and intake work raised twelve findings. Every
+one was reproduced against the running code before anything was changed, and two were not accepted
+as stated (see D-341). The accepted ones share a shape worth naming: a rule the code argues for
+correctly in a docstring and does not actually hold to. Chasing them surfaced a thirteenth defect
+the review did not find (D-333), which is the argument for reproducing rather than reading. No
+migration anywhere in this pass; every fix is in an existing module.
+
+- **D-342 — Incomplete engagement wiring is now an explicit refusal, never retirement evidence.**
+  D-341 correctly declined to invent fifty-five meanings for “engaged,” but leaving every registry
+  row at `instrumented=True` still made the known gap operational: forty-four exposure-only wrappers
+  could read as *rendered, never operated*. The registry now defaults non-command surfaces to a
+  sentence saying exposure is measured but semantic engagement is not; only wrappers that actually
+  consume `engage(...)` opt into `True`, and a source-drift test keeps those sets
+  equal. `_observe` refuses before reading either counter, so incomplete rows are cross-hatched,
+  excluded from screen-weight “never operated,” and carry their reason into the retirement table.
+  This does not decide what the remaining interactions mean and does not forbid a manual retirement;
+  it prevents missing instrumentation from impersonating evidence. Org Changes was the one additional
+  surface wired in this pass: sync, confirm, and dismiss are explicit operations, bringing complete
+  coverage to twelve surfaces and leaving forty-three honestly incomplete. In the same correction, `demote`
+  now promises only the visual de-emphasis the wrapper performs — not a relocation it cannot — and
+  intake trust copy says the source and drafts are stored locally while canonical account records
+  remain unchanged until review.
+
+- **D-329 — An undo's reversing rows carry no `batch_id`, so a second undo cannot read its own
+  output.** `undo_batch` selected every note with the batch's id and then inserted its `restore`
+  rows carrying *that same id*, putting its output inside the set it selects. A second call
+  therefore reversed the reversal as well: 1 note → 2 → 4 → 8, duplicating the audit trail and the
+  `retirement_action_applied` funnel events on every pass, and reporting the same surface restored
+  twice. The reversing rows now carry `batch_id = NULL`, exactly like §7.2's single-surface
+  restore — they *are* restores, not a second sitting anybody can undo, and the `note` already
+  records which batch they undid. Chosen over a runtime "already undone" flag because it removes
+  the capability rather than checking for it, which is the same reason `retire` is absent from the
+  `field_group` matrix by construction (D-301) instead of guarded.
+- **D-330 — The undo asks the state of each surface, not the id, and states what it left alone.**
+  With the ids separated, "has this been undone already" is no longer an id question. Each row is
+  checked against `current_actions` — a surface already offered has nothing to reverse — which also
+  handles the mixed sitting where one surface of three was restored on its own. A fully-reversed
+  sitting refuses with a server-authored sentence pointing at what happened; a partly-reversed one
+  succeeds and returns `already_offered` plus a `note` naming the count. Subtractive answers are
+  always stated (D-160): an undo that reversed two of three surfaces and said "done" is claiming
+  work it did not do.
+- **D-331 — `report()` ships the `partial_months` block `_rollup_rows` already promised.** The
+  rollup sums whole calendar months, so a window labeled 10 July – 9 August counts a 1 July render.
+  Summing whole months is right — pro-rating would invent renders that may or may not have happened
+  on the days in the window — but `_rollup_rows`' docstring said the inclusion was "stated in the
+  response as `partial_months`" and no such key existed, so the counts silently spanned days the
+  window's own dates excluded. That is the confident lie §6.2 exists to stop, arriving through the
+  window rather than through a surface. The block names the months summed, which of them are only
+  partly inside the window, and the overhang in **days on each side** — never a share of anything,
+  because this is not a fifth axis and nothing divides by it. The sentence says the counts *span*
+  those days rather than *include* them: the trailing edge of a window ending today is days that
+  have not happened yet. Authored on the server whole (D-151…D-155), and absent entirely when the
+  window falls on month boundaries, because a disclosure that is always on is wallpaper.
+- **D-332 — The purge folds first, and then deletes only what the fold has read.** `purge_expired`
+  deleted raw events on age alone while `fold()` advanced its watermark on write, so any
+  `surface_rendered` older than the retention window that had not yet been folded was deleted
+  before it was ever counted — the monthly rollup, which exists precisely to outlive the raw rows,
+  quietly lost the oldest ones. Fixed at the **deletion** site rather than the write site, in two
+  parts that do different jobs: `purge_expired` calls `fold()` first, and the DELETE carries a
+  structural `rowid <= watermark` clause for surface events. The clause is the one that matters —
+  it makes "unfolded rows survive the purge" true of every caller, present and future, rather than
+  true of the callers that remembered. A fold that throws is logged and the purge continues,
+  deleting only folded rows: degrading to keeping data is the right direction for a diagnostic,
+  and the failure that keeps too much is recoverable while the one that deletes is not.
+- **D-333 — `MAX('','')` is `''`, which fails the column's own CHECK inside the UPSERT.** Not from
+  the review; found by a test written for D-332 and then reproduced standalone. `fold()`'s
+  `ON CONFLICT` used `MAX(COALESCE(last_engaged_on,''), COALESCE(excluded.last_engaged_on,''))` so
+  a later batch could not lower an already-recorded date. When neither side had an engagement — the
+  ordinary case of more renders landing on an already-folded month — that expression produced the
+  empty string, which the column's CHECK rejects, and the whole fold aborted with an
+  `IntegrityError` that the caller had no reason to expect. `NULLIF(MAX(...), '')` restores the
+  NULL. There was a normalising UPDATE further down that appeared to handle this; it was dead, and
+  is deleted, because a CHECK fires *inside* the statement and there is no afterwards to tidy in.
+  The watermark now also means something slightly different — every row up to here has been
+  **offered** to the fold, not necessarily written by it — which is what lets the purge trust it
+  after a fold that matched nothing.
+- **D-334 — An impossible date is refused at three gates, and the last one is a 422.**
+  `extractor.find_date` accepted `2026-02-31` because it range-checked `1 <= d <= 31` rather than
+  asking the calendar; the value then flowed into a milestone proposal, through accept, and into
+  the column. Every gate now constructs a real `date`: `find_date` returns None on a
+  `ValueError`, the milestone payload passes through a new `iso_date_or_none`, and
+  `MilestoneCreate.target_date` validates with `date.fromisoformat`. Three gates rather than one
+  because both writers — the native create in `routers/execution.py` and the proposal accept in
+  `routers/ai.py` — reach the schema, and the schema is the only one of the three that cannot be
+  bypassed. The last gate **raises** rather than dropping to None: a date the operator typed and
+  the app silently discarded is a date they still believe they set, and a milestone date is a
+  planning fact the whole path subtracts from and compares against, so an impossible one is worse
+  than a missing one — it reads as an answer (D-160's rule pointed at input).
+- **D-335 — Accept-all says exactly how far "all or none" reaches, and the server writes the
+  sentence.** The docstring promised all-or-nothing and the code delivers a **preflight** — every
+  proposal is validated before any is applied — but each `accept_proposal` commits, so a failure
+  in the apply loop leaves earlier records created. The claim is now bounded in the docstring, and
+  a partial batch returns a server-authored `note` naming how many were applied, that nothing was
+  rolled back, and that the remainder is still open; `ProposalReview` renders `r.note` instead of
+  composing its own sentence. A genuine single transaction was considered and declined: `get_conn`
+  yields one shared deferred-isolation connection where nested `with conn:` blocks each commit, so
+  real rollback needs non-committing internal accept functions — out of proportion to a branch the
+  preflight makes unreachable by design. Declining the refactor and overstating the guarantee are
+  different things; only the second was a defect. The client composing it was the D-151…D-155
+  violation: a view that writes any part of "I did not finish this" can soften one.
+- **D-336 — The measurement off switch is one transaction.** `set_settings` committed the `enabled`
+  flag, then deleted `product_events` and `surface_usage_months` in a second transaction. Anything
+  stopping the process in between left the installation reporting measurement off with every event
+  still in the table — not a stale read but exactly the loophole the off switch exists to close,
+  and invisible from the settings screen. Flag and both deletes now sit in a single `with conn:`.
+- **D-337 — The session identifier lives in `sessionStorage`, because which storage it is *is* the
+  privacy claim.** It was in `localStorage`, which never expires, so every event an installation
+  ever emitted shared one identifier and threaded into a single behavioural trace — materially
+  stronger than the "rotating session token" that migration 0050, `ACCOUNT-PATH-SPEC.md` §17, and
+  CLAUDE.md all describe. Bought for nothing, too: no server-side reading groups by it, so
+  rotating costs no analysis. A one-line storage change closes a gap between what the repo says it
+  collects and what it collected.
+- **D-338 — The drop zone stops being a button, and the window swallows strays.** The zone carried
+  `role="button"` with two real `<button>`s inside it, which is a nested interactive control: the
+  children needed `stopPropagation` to avoid firing the parent, screen readers announced a button
+  containing buttons, and the composite had no honest accessible name. The zone is now a plain
+  region and the two buttons are the only controls, each carrying an `sr-only` suffix naming the
+  account so they read as complete sentences out of context. Separately, a window-level
+  `dragover`/`drop` guard prevents a file dropped slightly off-target from navigating the browser
+  away from the app — losing whatever was in flight, which for a drop-to-capture surface is the
+  failure the surface exists to avoid.
+- **D-339 — The retirement map refetches on an applied decision.** Fetched once per session was the
+  right instinct about per-surface requests and the wrong amount of never: an operator who retired
+  four surfaces in Operations and then walked the app went on seeing all four, because the map they
+  were read against predated the decision. A retirement that appears to have done nothing is one
+  somebody applies twice. `refresh` is `useCallback`-stable on purpose — an identity that changed
+  on every load would churn the dependency list of any effect holding it and refetch forever — and
+  it is called from apply, undo, and restore rather than from `load`, which also runs on mount. A
+  failed *refetch* keeps the last good map instead of falling back to empty, because the
+  fail-towards-showing default is only correct for the first load; on a refetch it would reveal
+  every retired surface at once on a dropped connection.
+- **D-340 — The trust line states both retentions and what is in a row.** "Retention 90 days" was
+  the raw window only, so the panel understated by a factor of twelve what the installation still
+  holds — the monthly counts outlive the events they came from, which is the entire point of the
+  rollup and exactly what a trust line exists to say out loud. `settings` has carried both numbers
+  since migration 0055 for this reason; only the screen was reading one. The panel now names both,
+  and describes a row as an event name, a time, an account, and a fixed set of slugs against a
+  per-session id — the same claim §17.2's allowlist enforces structurally, said in words. The off
+  switch names both stores too: after telling the operator the monthly counts outlive the events,
+  a button offering to "delete collected events" reads as leaving the rollup standing.
+- **D-341 — Two findings reported rather than fixed, because both need a scope decision.** Only
+  eleven of the fifty-five registered surfaces call `engage`, so a heavily-operated surface can
+  read as *rendered, never operated* and feed that into the retirement UI as evidence of disuse —
+  a §6 axis being wrong is worse than it being absent, since `insufficient_window` at least
+  refuses to claim. Fixing it means deciding, per surface, which actions count as use, which is a
+  spec question and not a defect. And the `demote` presentation promises "a one-time relocation" a
+  `display: contents` wrapper cannot perform: `demote` and `collapse` do render differently (the
+  inset, the left border, the "Moved here" badge), so the review's framing was wrong, but the
+  server's own description still overstates what the client does. Honouring it needs host views to
+  grow a secondary-group slot. Neither is changed unilaterally; both are named here so the next
+  session finds them stated rather than rediscovers them.
+
+## Stage 17 Slice 4 — event-driven triggers, screen weight, and the pass telemetry cannot do (2026-08-06)
+
+The last slice, and the one that closes the registry: 29 more surfaces registered (26 → 55
+non-command, 58 with commands), §6.4's trigger counts, §8's screen-weight view, and §7.0's
+redundancy checklist. **No migration** — a trigger is a query over domain tables the report already
+had access to, and the checklist is a read over the registry.
+
+- **D-316 — A trigger decides coverage and never becomes an observation.** §6.4's job is to stop an
+  event-driven surface being permanently `insufficient_window`. Once its condition has occurred
+  twice, the surface is read from `rendered` and `engaged` exactly like a scheduled one. The trigger
+  count travels as its own field and is never compared with either: "rendered on 4 of the 4
+  occasions it mattered" is a rate, it reads as a compliance figure, and §12 forbids it. §6.4's own
+  example prints the three numbers side by side for exactly this reason.
+- **D-317 — The trigger threshold is §6.2's two occurrences, shared rather than re-chosen.** One
+  occurrence that happened to be missed looks identical to a dead surface. A second threshold here
+  would be a second definition of "enough to say something".
+- **D-318 — Zero triggers is not disuse, and neither is an unrecognised evaluator or a failed
+  query.** Three distinct facts, each keeping its own server-authored sentence and each leaving the
+  surface unobservable. The one that would do real damage is a broken query reading as zero, because
+  zero-with-coverage is the argument for removing something.
+- **D-319 — A registry row selects an evaluator and can never define one** (readiness' D-139 rule,
+  applied sideways). An unknown trigger name fails closed at read time — naming itself in the
+  refusal — rather than at import, because "the registry outlived its evaluator" is the state a
+  stale build is actually in, and validating at import would make that path unreachable and
+  untestable. A test asserts every registered name resolves *and* that no evaluator is unselected;
+  the two directions together are what keep the guard honest without turning it into a gate.
+- **D-320 — `surface_triggers.py` reading domain tables does not weaken §17.1.** The boundary is
+  one-directional: no domain module may import measurement. Measurement reading the domain is the
+  permitted direction and is what makes §6.4 legal at all. One allowlist widened, with the direction
+  named in the test. Every evaluator is a `COUNT(*)` over dates and statuses — no person id, no free
+  text, no `SELECT *` — asserted in a test, so record content cannot reach the report through it.
+- **D-321 — A trigger is refused on a scheduled cadence at import.** Elapsed time already answers
+  the coverage question there; a second answer would force the report to pick between them.
+- **D-322 — `overview.intake_drop` and `global.copilot` keep `trigger=None` deliberately.** They are
+  summoned by a document in hand and a question in the operator's head, neither of which is in our
+  data. §6.4's honest case: the surface says it cannot be computed and is never read as unused.
+  Giving them a plausible-looking trigger to tidy the report would be inventing the evidence.
+- **D-323 — `never_engaged` excludes `insufficient_window` rows.** One level up is exactly where
+  §6.2's refusal would get laundered into a layout finding: a section nobody could have known about
+  would appear on a never-operated list. It is counted separately, as `sections_not_yet_knowable`.
+- **D-324 — The screen-weight view is four counters and a list, never a proportion.** No "2 of 11",
+  no bar, no colour. A ratio would rank screens against each other when the useful reading is
+  *within* one screen, and it would be the composite §12 forbids.
+- **D-325 — `ROUTES` is registry order with commands excluded.** It had been alphabetical and
+  produced a phantom `command` route; it was unused, and the screen-weight view was about to use it.
+  Registry order is navigation order, which is §8's default; sorting would put `accounts` above
+  `today` and read as a ranking of nothing. Commands are excluded because a command has no resting
+  presence on a screen (§3) and would inflate a route's section count with something occupying no
+  space.
+- **D-326 — The redundancy checklist stores nothing, counts no events, and answers no question.**
+  §7.0's honest limit is that telemetry finds clutter and is blind to redundancy — two surfaces both
+  operated weekly can be answering the same question in two places, and the counts call both
+  healthy. So the output is a question list with no severity, no recommendation, and no `duplicate`
+  flag; the threshold of three is stated rather than tuneable, and the cadence is stated rather than
+  scheduled, because a due date the app enforced would make this the twelfth thing on a queue
+  instead of the twenty minutes it is meant to be.
+- **D-327 — The checklist reads the retirement state so a retired surface stops counting as a
+  duplicate route**, but a *collapsed* one still counts: collapse hides a surface, it does not stop
+  it answering the question it answers.
+- **D-328 — The Stage 17 tests are anchored on `conftest.utc_day`, not `date.today()`.** Four
+  failures came from fixtures stamped on the local calendar day while the app stamps in UTC — the
+  trap `conftest` already documents. Fixed in both Slice 2 files as well as the new one.
+
+## Stage 17 Slice 1 — the surface registry and its instrumentation (2026-08-06)
+
+Built on Zach's instruction "1. it means build it / 2. don't worry about the screenshots that's not
+a big deal" (2026-08-06), answering the question D-239 left open: `SURFACE-USAGE-SPEC.md` was a
+proposed root spec conferring no authority until named in `CLAUDE.md`, and "build it" is that
+naming. It is now Stage 17 in the authority chain. **No migration in this slice** — the registry is
+code, and the rollup table it feeds is Slice 2's `0055`.
+
+- **D-275 — `SURFACE-USAGE-SPEC.md` is Stage 17, in force, on Zach's word rather than on its own
+  completeness.** Recording the provenance separately from the build, the same way D-251 separated
+  "continue building with what's specc'ed out" from the later explicit naming. The spec did not
+  become authoritative by being finished; it became authoritative when Zach said to build it. A
+  later session reading a detailed spec at the root still may not build from it (D-239).
+- **D-276 — §14's five open calls are taken at their recommended defaults and recorded here as
+  assumptions, not approvals.** Stated to Zach before building and not objected to. (1) the ~20
+  highest-traffic surfaces first, not the whole app in one pass; (2) 36-month rollup retention;
+  (3) `retire` stops rendering and keeps the code; (4) a 14-day batch undo window with permanent
+  single-surface restore; (5) the two-window hold before any code deletion, cadence-scaled, so a
+  monthly surface waits six months. Any of the five is a one-line change if Zach decides otherwise —
+  what would not be recoverable is having built as if a default were a decision, so it is written
+  down as neither.
+- **D-277 — The screenshot pairs are waived for Stage 17 and for VISIBILITY Slices 2–6.** Zach,
+  2026-08-06: "don't worry about the screenshots that's not a big deal". This closes the outstanding
+  item the VISIBILITY entry below records; `browser_screenshot` in this host still fails with
+  "Current display surface not available for capture", but the waiver is the reason it no longer
+  blocks, not the failure.
+- **D-278 — The migration numbers are 0055 and 0056, not the spec's "0054".** §10 was written before
+  VISIBILITY Slice 6 landed `0054_advocacy_tags.sql`. The spec text is stale, the numbering rule is
+  not; Slice 2's `surface_usage_months` is `0055` and Slice 3's `surface_retirement_notes` is `0056`.
+- **D-279 — The registry is a frozen dataclass tuple in `app/surfaces.py`, not a table.** A surface
+  exists because a developer wrote a component, so its declaration belongs beside the code that
+  changes with it; a table would let the registry and the app drift and would offer no place for
+  the drift tests to stand. It validates at import as well as in the tests — a malformed registry
+  should fail the process that depends on it rather than wait for a suite nobody ran. `cadence` is a
+  *declaration* of how often a surface is meant to matter, never an observation of how often it did.
+- **D-280 — There is no `state`, `retirement`, or `current_state` field on a registry row.** Current
+  retirement action is derived from `surface_retirement_notes` (§7.3, Slice 3). A field here would be
+  a code constant and a database row claiming authority over the same question, and the constant
+  would win silently on every deploy. Asserted in `test_the_public_row_carries_the_window_and_never_a_state`.
+- **D-281 — An empty `reaches` requires a `renders_no_records` sentence.** §11.5 asks for a test that
+  a surface whose route renders records declares a non-empty `reaches`, and "renders records" is not
+  checkable from outside without a static-analysis project. So the rule is inverted into one that is:
+  an empty tuple must be accompanied by a stated reason, enforced in `_validate` and required to be
+  at least five words. That makes the default a claim somebody signed rather than a shrug — the same
+  move `instrumented="<reason>"` already makes, and the same reason: an unexplained gap reads in the
+  report as a zero, and a zero is a removal argument.
+- **D-282 — The first-draft registry described an app that does not exist, and the registry bent to
+  the app rather than the reverse.** It had registered `ledger.open_commitments`, `ledger.what_moved`,
+  `ledger.what_is_stuck`, `plan.readiness`, and `evidence.copilot`. Greps proved: "What moved" and
+  "What is stuck" are Sections in `LeadershipReview.jsx` on `account.overview`, not the Ledger tab;
+  the Ledger tab has Records and Activity sub-tabs and neither of those sections; `ReadinessSummary`
+  is only ever rendered `mode="compact"` on the overview; and the copilot is a global slide-over off
+  the topbar, not an evidence-tab section. Recorded because the failure is the one this whole stage
+  exists to catch, and it happened on day one: a tracking plan that describes an imagined product
+  produces a report about an imagined product, and every zero in it is unfalsifiable. Two tests now
+  close the loop in both directions — every `surfaceKey` in the views is registered, and every
+  registered surface is wrapped somewhere.
+- **D-283 — `frontend/src/surfaces.js` mirrors exactly `route`, `kind`, and `label`, and is
+  generated from `surfaces.REGISTRY` rather than hand-written.** It deliberately omits `reaches`,
+  `provides`, `explains_refusal`, `cadence`, and the window lengths, because those are what §7.7's
+  safety check and §6's four axes are computed from and a client copy would be a second place a
+  retirement could be judged safe. `label` lives here and is blocked outright from the sink by
+  `SENSITIVE_KEYS` — it has exactly one path to a screen and none to a payload.
+- **D-284 — `route` is derived from nav state, never from `window.location`.** A URL carries record
+  ids, saved-view ids, and search terms; reading the path into a measurement property is how an
+  account name reaches the sink through a field nobody thought of as content. `routeForNav` can only
+  ever return one of the strings this repo authored.
+- **D-285 — Exposure is observed with `IntersectionObserver`, and when there is no observer the
+  wrapper fires nothing rather than falling back to a mount count.** Counting a mount inflates
+  exposure for everything below the fold, and §6.3 reads high exposure with no engagement as
+  *clutter* — a case for removal. Over-counting would therefore manufacture a removal argument out
+  of a scroll position. A missing count is a gap window-coverage already knows how to report; an
+  inflated one is a wrong answer that looks like a finding. The wrapper fires once per mount, because
+  §6 asks whether a surface was in front of the operator, not how much scrolling happened.
+- **D-286 — `.surface { display: contents }`, so the wrapper adds no box.** An ordinary div around
+  twenty sections would change which parent flex and grid rules apply, and an instrumentation pass
+  that silently reflows twenty screens is worse than no instrumentation. The consequence — the
+  wrapper has no geometry of its own — is handled by observing `firstElementChild`.
+- **D-287 — `surface_dismissed` is its own event, not an `engagement: "dismissed"` value.** Folding
+  them would make the clutter case count as engagement, which is the one direction the report must
+  not be able to fool itself in.
+- **D-288 — An unregistered `surface` or `command` slug is rejected by `validate()`, not stored.** A
+  stored unknown appears in the report as a row nobody can act on, and the obvious repair — adding a
+  registry entry to match the data — is exactly how the registry stops describing the app and starts
+  describing the telemetry. Six closed vocabularies (`render_reason`, `engagement`, `dismiss_kind`,
+  `entry_point`, `kind`, `action`, `cause_code`) are enforced the same way, and §7.1's seven cause
+  codes carry no `other`, because a cause code with an escape hatch collects the escape hatch.
+- **D-289 — `command_invoked` fires after the write succeeds, not on the click.** In `AccountPlan`
+  (`command.start_plan`) and `TeamUpdate` (`command.export_team_update`) the event is emitted after
+  the server call resolves and after `navigator.clipboard.writeText` resolves respectively. A failed
+  invocation is not an invocation, and counting attempts as uses would make a broken command look
+  well-adopted — the precise inversion of what §6 is for.
+- **D-290 — No domain module may import `surfaces.py`, asserted on the import rather than on a
+  usage.** §17.1's rule, inherited from Stage 7: which screens an operator uses may never reach an
+  account record. The import is the point at which the coupling becomes possible, and this is a rule
+  about what could be built next as much as about what was built today.
+- **D-291 — No `usage_score`, `surface_score`, `usage_index`, `surface_rating`, `surface_health`, or
+  `engagement_score` may exist, asserted by grep over the Stage 17 files.** The composite usage score
+  is what every vendor analytics product ships and is exactly what would let a screen be removed
+  because a number moved rather than because somebody understood why. §6's four axes never combine,
+  so no name for a combination may exist. The assertion widens with each slice.
+- **D-292 — `window_days` returns `None` for `event_driven` and `unscheduled`, never `0`.** These two
+  can never be observed as unused by elapsed time at all (§6.4). A caller treating the answer as a
+  number would conclude that every window covers them, which is the confident lie §6.2's window
+  coverage exists to prevent.
+
+## Stage 17 Slices 2 and 3 — the report, and reversible retirement (2026-08-06)
+
+Same authority as Slice 1. **Two migrations** — `0055_surface_usage_months.sql` (Slice 2) and
+`0056_surface_retirement_notes.sql` (Slice 3); `SURFACE-USAGE-SPEC.md` §10's "Migration 0054" is
+stale, 0054 having gone to VISIBILITY's `advocacy_tags`. Screenshots waived, per the same
+instruction.
+
+### Slice 2 — the rollup and the report
+
+- **D-293 — The monthly fold is incremental and monotone over `product_events.rowid`, never a
+  recompute.** The first draft said the rollup could be re-run from scratch over the raw window,
+  which is wrong in a way that only shows up later: a month recomputed after it aged past the 90-day
+  raw purge would *shrink*, and the number an operator wrote a retirement note against would stop
+  matching the table it came from. A watermark advancing over `rowid` is monotone under insert and
+  unaffected by purge, so the counts only ever grow.
+  `test_the_fold_is_monotone_so_a_raw_purge_cannot_lower_a_month` deletes every raw event and
+  re-folds to prove it. The alternative to a rollup at all was raising raw retention to a year,
+  which would keep session-linked rows for a year — a worse trade for the same answer.
+- **D-294 — `measuring_since` is recorded on the settings singleton when measurement is enabled, not
+  inferred from the earliest surviving event.** Inferring it would make a quiet month look like a
+  short window, which is the exact inversion of §6.2 — the window would appear to refuse precisely
+  when it had the most to say. Turning measurement off clears it, because the off switch discards
+  the data the old start date would be claiming coverage over.
+- **D-295 — A fresh installation claims nothing about any surface.** With `observed_days == 0` every
+  row reads `insufficient_window` rather than `not_rendered`, and `insufficient_window` is decided
+  **before** the counts are read so a zero on an uncovered window cannot slip through as disuse.
+  This is the single most important behaviour in the slice: the first month of any deployment is
+  when the report is most likely to be quoted and least entitled to be.
+- **D-296 — A requested window never claims more than was observed.** Asking for 210 days on a
+  40-day-old installation yields 40, with `requested_window_days` stated beside it so the narrowing
+  is visible rather than silent.
+- **D-297 — The report registers itself as `operations.surface_usage`.** Not a joke: a registry that
+  quietly exempted the thing doing the measuring would leave exactly one screen that could never be
+  found unused. Its own row is read the same way as every other.
+
+### Slice 3 — recorded causes and reversible retirement
+
+- **D-298 — The current retirement action is derived from the latest note, and no `state`,
+  `current_state`, or `current_action` column exists on either Stage 17 table.** Same rule as
+  migrations 0042, 0046 and 0050, asserted the same way. `action` is permitted on
+  `surface_retirement_notes` because it records an operator command that *was applied* — a fact
+  about what happened — rather than a claim about what the surface currently is; the latest `action`
+  row **is** the derivation, not a cache of it.
+- **D-299 — `surface_retirement_notes` is append-only: restoring writes a new row rather than
+  deleting the one it reverses.** "I hid this in September and put it back in November" is the
+  question that actually gets asked six months later, and a mistaken retirement must be visible in
+  the record rather than quietly absent from it.
+- **D-300 — A note freezes its counts as integers and carries no foreign key to the rollup.** A
+  judgement made against 200 renders and 0 engagements is not the same judgement six months later
+  when the numbers have moved; recomputing on read would let the record silently change its own
+  basis, and an FK would invite exactly that join.
+- **D-301 — §7.4's per-kind matrix is data, not branches**, so the table in the spec and the
+  behaviour in the app are one thing. A panel offers only `retire` (there is nothing at rest to
+  close), a tab and a command cannot be collapsed, and `retire` is **absent by construction** for a
+  `field_group` rather than blocked by a check that could be skipped.
+- **D-302 — `data_columns` was added to the registry row, and a `field_group` must declare it.**
+  §7.6 refuses to retire a field group that holds data *and names the count*, which is only
+  computable if the group says which columns it shows. Inferring them from JSX is a static-analysis
+  project this repo does not need, and a declaration is a claim a code review sees change. A
+  declared column that does not exist counts as one row, so a registry typo keeps the refusal in
+  place rather than unlocking a retirement — the safe reading of an unanswerable "does this hold
+  data" is that it might.
+- **D-303 — §7.7's "another offered surface carries the same refusal" is read as *an offered peer
+  with `explains_refusal=True` sharing at least one `reaches` entry*.** Recorded as an assumption,
+  not an approval: the registry has no refusal identifier, and this is the closest computable
+  reading. It fails closed — a surface that explains a refusal and reaches nothing has no possible
+  peer and cannot be retired — which is the right direction, because a wrongly-blocked retirement
+  costs a `collapse` and a wrongly-allowed one costs a refusal nobody can read.
+- **D-304 — The safety check takes a *set*, not a key.** Two retirements that are each individually
+  safe can between them empty a `reaches` set, which is why §7.8 applies changes as a reviewed batch
+  and why `test_the_safety_check_is_evaluated_over_the_whole_set_not_one_key_at_a_time` proves the
+  pairwise case. §11's test 4 is written bidirectionally — every proper subset must *not* refuse —
+  because a one-directional version passes trivially by refusing everything.
+- **D-305 — Only `retire` removes a surface from `offered_keys`; `collapse` and `demote` do not.**
+  That is what makes §7.7 a question about *reachability* rather than about prominence: a collapsed
+  surface is still there, one click away, and the safety check has no business objecting to it.
+- **D-306 — A batch is all-or-nothing, and the preview runs the same projection the apply runs.**
+  Partial application leaves the app in a state nobody chose and an undo that has to guess what was
+  meant. The preview calls into the same `preview()` the apply refuses on, so it cannot drift from
+  it — the rule D-151…D-155 set for the shared plan's promotion preview.
+- **D-307 — The batch undo expires after 14 days; the single-surface restore never does.** Long
+  enough to cover a fortnight away, short enough that "undo everything" stops being the reflex. The
+  refusal names both facts, so the operator learns the second one at the moment it matters.
+- **D-308 — Retirement writes `update` to the audit log, with the applied action in `after`.** The
+  audit vocabulary is a closed five and adding a sixth verb would mean rebuilding the table for a
+  nuance the payload already carries. `archive` was the tempting fit and is wrong: it would be
+  incorrect for `collapse` and has no `unarchive` to pair with `restore`.
+- **D-309 — `retirement_action_applied` declares both `surface` and `command`, and requires exactly
+  one.** A command is retirable (§7.4), and naming one in the `surface` property is exactly the
+  confusion `test_the_two_vocabularies_are_not_interchangeable` forbids. The alternative was to drop
+  command retirements from the sink, which would leave the funnel quietly under-counting the one
+  action it exists to record. An action of `none` emits nothing at all — nothing moved, so a row in
+  the funnel would be noise.
+- **D-310 — An unrecognized action renders the surface normally.** Every failure in the client half
+  falls towards *showing*: wrongly showing something costs clutter, and wrongly hiding it costs a
+  thing the operator cannot find while the usage data stays silent, because the surface that stopped
+  rendering stopped emitting events too. A pending or failed fetch of the retirement map shows
+  everything for the same reason.
+- **D-311 — A hidden surface emits no render event.** Counting it would build the case for its own
+  removal out of the fact that it had already been removed. Its zero is not evidence of disuse, and
+  §6.2's window coverage is what keeps it from being read as one.
+- **D-312 — Opening a collapsed or demoted surface reports `expanded`, never `opened`.** Reading "I
+  had to open this because it was hidden" as an ordinary open would make a surface look more engaged
+  the more it had been hidden — the inversion of §6.3.
+- **D-313 — The client half mirrors no part of the matrix or the safety check**, asserted by a test
+  that greps its own source for `reaches`, `provides`, `explains_refusal`, `AVAILABLE_ACTIONS`, and
+  `field_group`. A client copy would be a second place a retirement could be judged safe.
+- **D-314 — The report joins the recorded cause rather than deriving a second latest-note query**,
+  and ships `retirement_action` beside it. A cause shown without its action would read as a decision
+  to remove, when `narrow_but_needed` plus `none` is a decision to keep. `surface_retirement` imports
+  `surface_usage` lazily inside `preview()` so this direction can be a plain top-level import.
+- **D-315 — The `Record a cause` panel is not itself registered as a surface.** It is reached only
+  from the report above it, and a registry row for the control that retires surfaces would be the
+  one row nobody could act on.
+
 ## VISIBILITY-SPEC Slices 2–6 — the rest of the spec (2026-08-06)
 
 Built on Zach's instruction "please build the visibility spec and then we'll move on to surface

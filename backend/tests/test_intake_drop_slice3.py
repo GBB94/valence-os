@@ -24,6 +24,7 @@ import sqlite3
 import tempfile
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -557,6 +558,56 @@ def test_accept_all_refuses_the_whole_batch_when_one_item_needs_a_decision(clien
     statuses = {p["status"] for p in
                 _rows(client, "SELECT status FROM extraction_proposals WHERE run_id=?", (run_id,))}
     assert statuses == {"proposed"}
+
+
+def test_a_batch_that_stops_part_way_says_the_records_it_made_are_real(client, monkeypatch):
+    """The one thing the preflight cannot promise, and the sentence that has to be right about it.
+
+    Every anticipated failure is caught before the first write, so this branch is unreachable by
+    design — but "unreachable" describes today's code, and each `accept_proposal` commits, so a
+    failure past the preflight leaves earlier records in place with nothing to roll them back. The
+    batch therefore stops rather than pressing on, and says so in the server's own words: the
+    client used to call the remainder "drafts that need a decision of their own", which is the
+    *preflight* refusal and never this — and it sends the operator looking for a judgement to make
+    instead of at work that half happened.
+    """
+    from app.routers import ai as ai_router
+
+    account = _account(client)
+    program = _program(client, account["id"])
+    receipt = _drop(client, account["id"], text=CLEAN_NOTES, filename="third-call.txt",
+                    program_id=program["id"])
+    run_id = receipt["extraction_run_id"]
+    total = len(client.get(f"/api/extraction/runs/{run_id}").json()["proposals"])
+    assert total >= 2
+
+    real_accept, calls = ai_router.accept_proposal, {"n": 0}
+
+    def fail_after_the_first(proposal_id, body, conn):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise HTTPException(500, "the sink went away mid-batch")
+        return real_accept(proposal_id, body, conn)
+    monkeypatch.setattr(ai_router, "accept_proposal", fail_after_the_first)
+
+    r = client.post(f"/api/extraction/runs/{run_id}/accept-all")
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    # It stopped. It did not press on through the rest hoping they would work.
+    assert body["complete"] is False
+    assert body["accepted"] == 1
+    assert len(body["failed"]) == 1
+
+    # And the first one really was written — which is the whole reason this has to be stated.
+    applied = _rows(client, "SELECT status FROM extraction_proposals WHERE run_id=? "
+                            "AND status='accepted'", (run_id,))
+    assert len(applied) == 1
+
+    note = body["note"]
+    assert note and "nothing was rolled back" in note
+    assert f"{total - 1} " in note                    # the remainder is counted, not implied
+    assert "decision of their own" not in note        # that is the preflight's sentence, not this
 
 
 def test_a_rejected_sibling_does_not_disable_accept_all_forever(client):

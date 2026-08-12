@@ -12,9 +12,14 @@
  *
  * Three things that look like details and are not:
  *
- *  - **WCAG 2.5.7.** Dragging is a convenience layer over two non-drag paths: the zone is a
- *    keyboard-activated button that opens the file picker, and "Paste text" opens a textarea.
- *    Speech-control and tremor users cannot hold-and-move; a drag-only zone is not shippable.
+ *  - **WCAG 2.5.7.** Dragging is a convenience layer over two non-drag paths: "Choose file" opens
+ *    the file picker and "Paste text" opens a textarea. Speech-control and tremor users cannot
+ *    hold-and-move; a drag-only zone is not shippable. Those two are real `<button>`s and the zone
+ *    around them is a drop target and nothing else — it used to also be a `role="button"` with its
+ *    own tab stop, which put two operable controls *inside* a single declared button. Assistive
+ *    technology flattens that: the container is announced as one button and the two real ones stop
+ *    being separately reachable, so the guarantee this bullet is about was the thing the wrapper
+ *    broke. The `stopPropagation` calls it needed to keep the clicks apart are gone with it.
  *  - **The drag-over label changes**, not only the border. `DESIGN-GUIDE.md` forbids conveying
  *    state by colour alone, and the label is also what confirms *which account* will receive the
  *    drop — the one thing a drag-over must never leave ambiguous.
@@ -27,7 +32,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Empty, SlideOver, useToast } from "../ui";
 import {
-  acceptFileList, clientRefusalCode, dropEvent, isActivationKey, orderReceipts, receipt,
+  acceptFileList, clientRefusalCode, dropEvent, orderReceipts, receipt,
   screenFile, zoneHint, zoneLabel,
 } from "../intakeDrop";
 import { useMeasure } from "../measure";
@@ -260,9 +265,22 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
     }
   }, [limits, send, toast, track]);
 
-  // The window-level listeners exist so the whole card is a target rather than a 40px strip.
   // `preventDefault` on both dragover and drop is mandatory: without it the browser navigates to
-  // the dropped file and the page is simply gone.
+  // the dropped file and the page is simply gone — with whatever was half-typed in a slide-over.
+  // This comment used to claim window-level listeners that were never here, so every drop that
+  // missed the zone did exactly that. They exist now, and they only cancel the browser's default:
+  // a miss is a no-op, never a silent ingestion of a file into an account the operator was not
+  // pointing at. Passive listeners cannot call `preventDefault`, hence the explicit `false`.
+  useEffect(() => {
+    const swallow = (event) => { event.preventDefault(); };
+    window.addEventListener("dragover", swallow, false);
+    window.addEventListener("drop", swallow, false);
+    return () => {
+      window.removeEventListener("dragover", swallow, false);
+      window.removeEventListener("drop", swallow, false);
+    };
+  }, []);
+
   const onDragOver = (event) => { event.preventDefault(); };
   const onDragEnter = (event) => {
     event.preventDefault();
@@ -288,34 +306,32 @@ export default function AccountIntakeDrop({ accountId, accountName, programId = 
       <div className="card-h">
         <h3>Add a document</h3>
         <div className="spacer" />
-        <span className="rowmeta">Drafts only — nothing is saved to a tracker until you say so</span>
+        <span className="rowmeta">Stored locally as a source and drafts — account records change only after review</span>
       </div>
 
       <div
         className={`intake-zone${dragging ? " is-dragging" : ""}${busy ? " is-busy" : ""}`}
-        role="button"
-        tabIndex={0}
-        aria-label={`Add a document to ${accountName || "this account"}. Press Enter to choose a file.`}
         aria-busy={busy || undefined}
         onDragOver={onDragOver}
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        onClick={() => fileInput.current?.click()}
-        onKeyDown={(event) => {
-          if (isActivationKey(event.key)) { event.preventDefault(); fileInput.current?.click(); }
-        }}
       >
         <div className="intake-zone-label">{label}</div>
         <div className="intake-zone-hint">{zoneHint(limits)}</div>
         <div className="intake-zone-actions">
-          {/* Both are real buttons. The single most common drop-zone failure is a zone that looks
-              droppable but only responds to one of the two. */}
-          <button className="btn small" onClick={(event) => { event.stopPropagation(); fileInput.current?.click(); }}>
+          {/* Both are real buttons, and they are the *only* controls here. The single most common
+              drop-zone failure is a zone that looks droppable but only responds to one of the two
+              paths; the second most common is wrapping the whole thing in a role that swallows the
+              controls inside it. Each button names the account, because a drop target that does not
+              say where the document lands is the one ambiguity this surface cannot have. */}
+          <button className="btn small" onClick={() => fileInput.current?.click()}>
             Choose file
+            <span className="sr-only"> to add to {accountName || "this account"}</span>
           </button>
-          <button className="btn small ghost" onClick={(event) => { event.stopPropagation(); setPasting(true); }}>
+          <button className="btn small ghost" onClick={() => setPasting(true)}>
             Paste text
+            <span className="sr-only"> to add to {accountName || "this account"}</span>
           </button>
         </div>
       </div>

@@ -476,6 +476,18 @@ def _accept_blocker(conn, prop, run) -> str | None:
 def accept_all_in_run(run_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     """Apply every open proposal in ONE run, or none of them (§11.4, D-208).
 
+    "Or none of them" is a claim about the **preflight**, and it is worth saying exactly how far it
+    reaches, because the honest boundary is narrower than the sentence sounds. `_accept_blocker` is
+    a dry run of the accept path in its own order, so every failure this endpoint can anticipate —
+    an already-resolved item, a match candidate, a stale conflict, a payload missing a required
+    field — is found before the first write, and the whole call refuses with the reasons. What it
+    cannot promise is a rollback: each `accept_proposal` commits, so a failure that gets past the
+    preflight leaves the records applied before it in place. That path is unreachable by design and
+    is still handled, because "unreachable" is a claim about today's code and the records would be
+    real either way. It stops at the first failure rather than pressing on, reports what it did,
+    and — since the operator is being told about a half-finished batch — the sentence saying so is
+    authored here rather than composed by a view that could soften it (D-153).
+
     **Scoped to a run, never to an account.** A key that applied everything pending would apply
     drafts from sources the operator has not looked at — the batch has to be a statement about
     something they can see on one screen, which is why the review surface takes a `run_id` filter in
@@ -516,10 +528,20 @@ def accept_all_in_run(run_id: str, conn: sqlite3.Connection = Depends(get_conn))
             # records created before this point are real and the operator has to be told which.
             failed.append({"proposal_id": row["id"], "why": str(e.detail)})
             break
+    remaining = len(rows) - len(applied)
     return {
         "run_id": run_id, "account_id": run["account_id"],
         "accepted": len(applied), "results": applied,
         "complete": not failed, "failed": failed,
+        # Named on the server, and named for what it is. The preflight passed, so this is not a
+        # draft that needed a decision — it is a batch that stopped part-way, and the records
+        # already applied are real. Telling the operator they have drafts to review would send them
+        # looking for a judgement to make instead of at work that half happened.
+        "note": None if not failed else (
+            f"{len(applied)} of these {len(rows)} drafts {'was' if len(applied) == 1 else 'were'} "
+            f"applied and the batch then stopped on an unexpected error, so "
+            f"{remaining} {'is' if remaining == 1 else 'are'} still open. The records already "
+            f"created are real — nothing was rolled back. Review the rest one at a time."),
     }
 
 

@@ -469,10 +469,14 @@ export default function ProposalReview({
           edited: false, bulk: true,
         });
       }
+      // The partial sentence is the server's whole. Composing one here got it wrong in a way that
+      // mattered: "the rest need a decision of their own" is the *preflight* refusal, which never
+      // reaches this branch — it throws. What reaches here is a batch that stopped part-way with
+      // records already written, and describing that as drafts awaiting judgement sends the
+      // operator looking for a decision instead of at work that half happened.
       toast(r.complete
         ? `Applied ${r.accepted} update${r.accepted === 1 ? "" : "s"}`
-        : `Applied ${r.accepted}, then stopped — the rest need a decision of their own`,
-        r.complete ? undefined : "err");
+        : r.note, r.complete ? undefined : "err");
       setOpenKey(null); setTick((n) => n + 1); onApplied?.();
     } catch (e) {
       toast(e.message, "err");

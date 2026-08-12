@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, SectionHelp, SlideOver, useToast, fmtDate, SegTabs, AgeChip, Badge, Btn, Input } from "../ui";
+import { Surface } from "../Surface";
 import ConvertPanel from "./ConvertPanel";
 import { ActionPathContext, DependencyLines } from "./PathAdvance";
 import { PromotionPreview } from "./MutualActionPlan";
@@ -65,8 +66,12 @@ export default function Ledger({ accountId, programId, reloadKey, onChanged, onO
     </div>
     <div className="ledger-view-body">
       {view === "records"
-        ? <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} focusedRecordId={focusedRecordId} />
-        : <ActivityTimeline accountId={accountId} programId={programId} reloadKey={reloadKey} onOpenTarget={onOpenTarget} />}
+        ? <Surface surfaceKey="ledger.records">
+          <RecordsLedger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onChanged} focusedRecordId={focusedRecordId} />
+        </Surface>
+        : <Surface surfaceKey="ledger.activity">
+          <ActivityTimeline accountId={accountId} programId={programId} reloadKey={reloadKey} onOpenTarget={onOpenTarget} />
+        </Surface>}
     </div>
   </div>;
 }

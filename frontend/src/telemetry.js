@@ -48,14 +48,33 @@ export const EVENT_NAMES = Object.freeze([
   "drop_drafted",
   "drop_no_proposals",
   "drop_receipt_opened",
+  // `SURFACE-USAGE-SPEC.md` §5 (Stage 17). These six observe our own surfaces, never the customer's
+  // records — the only identifiers they carry are registry keys and route names, both of which are
+  // strings this repo authored. The `surface` value must name a row in `./surfaces.js`; the server
+  // rejects an unregistered one rather than storing it.
+  "surface_rendered",
+  "surface_engaged",
+  "surface_dismissed",
+  "command_invoked",
+  "navigation_landed",
+  "retirement_action_applied",
 ]);
 
 const NAMES = new Set(EVENT_NAMES);
 export const SESSION_STORAGE_KEY = "valence-measurement-session";
 
 /**
- * A pseudonymous per-installation identifier, minted once and kept in local storage. It identifies
- * a browser profile, never a person: nothing anywhere maps it to a name, and the server's
+ * A pseudonymous identifier for **one browser session**, minted once per session and no longer.
+ *
+ * The caller passes `sessionStorage`, and which storage it is turns out to be the whole privacy
+ * claim rather than a detail. Kept in `localStorage` it never expired, so every event the
+ * installation ever emitted shared one identifier and the whole history threaded together into a
+ * single behavioural trace — a materially stronger identifier than migration 0050's "minted by the
+ * browser per session", `ACCOUNT-PATH-SPEC.md` §17's "rotating session token", and CLAUDE.md all
+ * describe. Nothing on the server groups by it, so rotating costs no reading; the permanent thread
+ * was bought for nothing.
+ *
+ * It identifies a session, never a person: nothing anywhere maps it to a name, and the server's
  * `^[a-z0-9][a-z0-9-]{7,63}$` rule means it can only ever hold a slug. `crypto.randomUUID()`
  * satisfies that shape; storage and the mint are arguments so this is testable without either.
  */

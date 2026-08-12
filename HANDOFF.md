@@ -2,11 +2,165 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Stage 18 — private Call Coach (2026-08-11, D-343…D-351)
+
+`CALL-COACHING-SPEC.md` is now the additive Stage 18 authority. Its tightened text-first release,
+§§18.0–18.4, is built end to end: a global private Coach; standalone or explicitly linked review;
+TXT/MD/VTT/SRT/paste intake; operator-confirmed speaker scope; deterministic versioned call-type
+rubrics; small exact-cited feedback; one current focus; targeted text rehearsal; recent history;
+source deletion and archive; account-context snapshots; native Interaction logging; and account-fact
+drafting through the existing extraction run / Proposal Review store.
+
+The adversarial hardening pass changed the workflow, not the trust model. Analysis now creates only
+the private session and run. Interaction logging and account-fact drafting are explicit
+post-analysis commands with independent receipts; neither is default-on. Both are safe to retry,
+and a proposal draft request cannot target another session's run. Active focus opens the exact
+prefilled practice composer and can be completed from Coach home. Proposal Review links carry the
+exact extraction run and open the Ledger section directly. Standalone practice clears hidden
+account scope, and the built local rehearsal is one text attempt against one skill—not the
+multi-turn simulation reserved for a later governed capability.
+
+Migration `0057_call_coaching.sql` adds five private tables. `app/coaching_contract.py` owns the
+model-neutral evidence and forbidden-inference contract, `app/coaching_rubrics.py` owns the rubric
+vocabulary, `app/coaching.py` owns the deterministic service and job, and
+`routers/coaching.py` exposes the API. `interaction_ops.py` is the shared native Interaction writer;
+do not fork it back into Coach and Quick Entry. Proposal grounding recognizes provider
+`call_coach`, so accepted account drafts keep exact source context without copying coaching
+observations into the account domain.
+
+The trust boundary is the feature. Transcript text cannot choose account/program/Interaction scope
+or decide which speaker is Zach. Every speaker-specific observation cites exact retained characters
+from the confirmed label. Unknown labels degrade to content-only. No coaching table stores a score,
+confidence, sentiment, emotion, personality, deception, readiness, or trend state. Account reads are
+snapshots; no coaching or rehearsal path writes readiness. A rehearsal is never a customer
+Interaction, meaningful touch, proposal, or account event. Source deletion preserves quoted spans
+and history but disables reruns and surrounding-context verification.
+
+Stage 17 is inherited, not bypassed: `coach.home`, `coach.intake`, `coach.review`,
+`coach.practice`, and `coach.history` are registered, with `command.review_call` kept in the command
+vocabulary. Review/practice use measurement-side triggers; intake deliberately has no fake proxy.
+Telemetry remains generic and content-free. The deterministic local endpoint is the only coaching
+mode. Real model, audio, transcription, calendar, voice, live prompts, sharing, manager tools, and
+organizational analytics remain closed in `CONNECTIONS.md`. §18.5 longitudinal trends is also not
+built until representative use makes the comparison questions honest.
+
+Validation at handoff after hardening: all 1,025 backend tests and all 336 frontend tests pass, lint exits 0
+with only the repository's existing warnings, and the production bundle builds. The in-app browser
+was not attached to this editor session, so a visual click-through is still an honest handoff check;
+no rendered verification is claimed for this pass.
+
+## Review pass over the uncommitted Stage 17 + intake work (2026-08-09, D-329…D-341)
+
+An adversarial external read raised twelve findings. Each was **reproduced against running code**
+before anything changed — which is how a thirteenth defect nobody had reported turned up (D-333, a
+`MAX('','')` that fails the column's own CHECK *inside* the UPSERT and aborted any fold adding
+renders to an already-folded month). D-341 originally reported two scope-dependent gaps. D-342 now
+contains them safely without inventing per-surface semantics: only the 12 wrappers that consume
+`engage(...)` declare full instrumentation, while the other 43 refuse to turn zero engagement into
+retirement evidence; and `demote` describes the visual de-emphasis it actually performs rather than
+promising a relocation. Defining engagement for the remaining surfaces is still future product
+work, but incomplete wiring can no longer impersonate disuse.
+
+No migration. Behaviour changed in: `surface_usage.fold` (the watermark now means *offered to the
+fold*, not *written by it*), `telemetry.purge_expired` (folds first, then deletes only folded rows —
+fixed at the deletion site so every caller inherits it), `telemetry.set_settings` (the off switch is
+one transaction), `extractor` + `schemas.MilestoneCreate` (an impossible calendar date is refused at
+three gates, the last a 422), `routers/ai.accept_all_in_run` (a bounded claim plus a server-authored
+`note`), `measure.js` (`sessionStorage`, and the retirement map refetches on an applied decision),
+`AccountIntakeDrop.jsx` (no nested interactive controls, plus a window drag guard), and the
+Operations trust line (**both** retentions — the rollup outlives the raw events by twelve times what
+the panel used to admit). 1011 backend and 330 frontend tests green; build clean.
+
+## Stage 17 — surface usage (2026-08-06, D-275…D-328)
+
+Built on Zach's "1. it means build it / 2. don't worry about the screenshots that's not a big deal",
+which is the naming D-239 required and which **waives the both-theme screenshot pairs** for this
+stage and for VISIBILITY Slices 2–6. `SURFACE-USAGE-SPEC.md` is now an authority, not a candidate.
+**All four slices are built.** Two migrations — `0055_surface_usage_months.sql` and
+`0056_surface_retirement_notes.sql`; Slice 4 needed none. The spec's §10 says "Migration 0054",
+which is stale: 0054 went to VISIBILITY's `advocacy_tags`.
+
+**Read §14 before touching this.** Its five defaults were taken as **assumptions, not approvals**
+(D-276), as was §7.7's reading of "the same refusal" (D-303). Both are marked in `decisions.md` and
+are the first things to raise with Zach.
+
+The governing rule: **§6's four axes never combine.** `rendered` and `engaged` stay two counters all
+the way through, there is no total, no rate, and no percentage, and a grep over every Stage 17 file
+asserts that no name for a combination exists — `usage_score`, `surface_score`, `usage_index`,
+`surface_rating`, `surface_health`, `engagement_score` (D-291).
+
+**Slice 1 — the registry and its instrumentation.** `app/surfaces.py` (26 surfaces + 3 commands at
+the time, validated at import; 55 + 3 after Slice 4), six new events in `app/telemetry.py` (22 → 28),
+`src/surfaces.js` (a mirror of exactly three fields), `src/Surface.jsx`, the `SurfaceScopeProvider`
+in `src/measure.js`. 22 backend, 11 frontend.
+
+**Slice 2 — the rollup and the report.** `0055`, `app/surface_usage.py`,
+`GET /api/telemetry/surface-usage`, `POST /api/telemetry/surface-usage/fold`,
+`views/SurfaceUsage.jsx` on Operations. 27 backend.
+
+**Slice 3 — recorded causes and reversible retirement.** `0056`, `app/surface_retirement.py`, six
+routes under `/api/telemetry/surface-retirement`, `src/surfaceRetirement.js`, the retirement half of
+`src/Surface.jsx`, `SurfaceRetirementProvider` in `src/measure.js`,
+`views/SurfaceRetirement.jsx` on Operations. 49 backend, 10 frontend.
+
+**Slice 4 — triggers, screen weight, and the pass telemetry cannot do.** `app/surface_triggers.py`
+(five evaluators, each a `COUNT(*)` over dates and statuses), the trigger-aware branch in
+`surface_usage._observe`, `_screen_weight`, `redundancy_checklist`,
+`GET /api/telemetry/surface-usage/redundancy`, `api.surfaceRedundancy`, and the `ScreenWeight` and
+`RedundancyChecklist` blocks in `views/SurfaceUsage.jsx`. **29 more surfaces registered** — the
+registry now covers every navigable route, asserted by a test. `ROUTES` was rewritten (D-325): it
+had been alphabetical and produced a phantom `command` route. 28 backend.
+
+**984 backend, 329 frontend**, lint exit 0, clean build.
+
+What you must not undo:
+
+- **A fresh installation claims nothing about any surface** (D-295). `insufficient_window` is decided
+  *before* the counts are read, so a zero on an uncovered window cannot slip through as disuse. This
+  is the one behaviour most likely to be "fixed" by someone who wants the report to say something.
+- **The monthly fold is monotone, never a recompute** (D-293). A month recomputed after it ages past
+  the raw purge would shrink, and the number an operator wrote a retirement note against would stop
+  matching the table it came from.
+- **The current retirement action is derived from the latest note** (D-298). No `state`,
+  `current_state`, or `current_action` column on either table; a schema-introspection test enforces
+  it.
+- **§7.7's safety check takes a set, not a key** (D-304). Two individually safe retirements can
+  between them empty a route to a record type, which is why a batch is reviewed as one and applied
+  all-or-nothing (D-306).
+- **Every client-side failure falls towards *showing*** (D-310). A pending fetch, a failed one, or an
+  action this build does not recognise all render the surface normally. Wrongly showing costs
+  clutter; wrongly hiding costs a thing the operator cannot find while the usage data stays silent.
+- **The report registers itself** (D-297), so the thing doing the measuring is not the one screen
+  that could never be found unused.
+- **Nothing here deletes code** (§7.9). A retired surface stops being offered, its route keeps
+  resolving, and the registry row outlives the code it described (`removed_on`).
+- **§17.1 is one-directional, and Slice 4 depends on that** (D-320). No domain module may import
+  measurement; measurement reading domain tables is the *permitted* direction, which is the only
+  reason §6.4's trigger counts are legal. `surface_triggers.py` is on the allowlist with the
+  direction named in the test. Do not "symmetrise" the boundary — it would delete §6.4.
+- **A trigger count decides coverage and is never divided by anything** (D-316). It is the
+  event-driven analogue of elapsed days. Comparing it with `rendered` gives a compliance rate, which
+  is the composite §12 forbids.
+- **A zero trigger count, an unknown evaluator, and a failed query are three different facts**
+  (D-318/D-319). Each keeps its own sentence and each leaves the surface unobservable. The unknown
+  evaluator fails closed at *read* time on purpose; validating trigger names at import would make
+  that path unreachable.
+- **`never_engaged` excludes not-yet-knowable rows** (D-323). Otherwise §6.2's refusal is laundered
+  into a layout finding one screen up.
+- **The redundancy checklist answers nothing** (D-326). No severity, no recommendation, no
+  `duplicate` flag, nothing stored. §7.0's honest limit — telemetry finds clutter and is blind to
+  redundancy — is rendered above the list, because it is the reason the list exists.
+
+Two things a later session will want and should not take: a `trigger` on a scheduled surface (D-321
+refuses it at import — elapsed time already answers that question), and a trigger for
+`overview.intake_drop` or `global.copilot` (D-322 — they are summoned by a document in hand and a
+question in the operator's head, and inventing a proxy would be inventing the evidence).
+
 ## VISIBILITY-SPEC Slices 2–6 — the rest of the spec (2026-08-06, D-259…D-274)
 
 **The whole spec is now built**, on Zach's instruction "please build the visibility spec and then
-we'll move on to surface usage". `CLAUDE.md` names it as in force. **`SURFACE-USAGE-SPEC.md` is the
-next thing and is not started** — it is still proposed, and D-239 applies to it until it is named.
+we'll move on to surface usage". `CLAUDE.md` names it as in force. `SURFACE-USAGE-SPEC.md` was
+proposed at the time of writing and is now an authority — see the Stage 17 section above.
 
 Its governing rule, which everything below is an instance of: **a surface may state a fact and may
 never score it.** No total, no percentage, no ratio, no rate anywhere in these five slices.

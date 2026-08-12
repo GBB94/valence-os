@@ -295,7 +295,8 @@ def test_limits_come_from_the_server(client):
     assert ".txt" in limits["accepted_extensions"]
     assert ".pdf" not in limits["accepted_extensions"]
     assert ".pdf" in limits["refusals"]
-    assert "until you say so" in limits["assurance"]
+    assert "stored locally" in limits["assurance"]
+    assert "No account record changes" in limits["assurance"]
 
 
 # --- §8: scope is the page, never a guess -----------------------------------------------------

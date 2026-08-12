@@ -1,11 +1,15 @@
 # VISIBILITY-SPEC.md
 
-**Status:** proposed, additive. **Slice 1 is built** (2026-08-06, D-251…D-258); slices 2–6 are not
-started. `CLAUDE.md`'s authority chain does **not** name this file, and nothing here may be built on
-the strength of this file alone — Slice 1 proceeded on Zach's instruction "continue building with
-what's specc'ed out", given after everything in the named chain was finished. That is an instruction,
-not a naming, and D-251 records the difference rather than papering over it. Slices 2–5 wait on
-Zach's confirmation; Slice 6 waits on the schema conversation in any case.
+**Status:** approved, additive, **built**. All six slices (D-251…D-274), Slice 6 carrying the one
+migration, `0054_advocacy_tags.sql`. `CLAUDE.md`'s authority chain now names this file.
+
+The provenance of the two halves differs and the difference is kept rather than papered over,
+because a later session should be able to tell them apart. **Slice 1** was built on Zach's
+instruction "continue building with what's specc'ed out", given after everything in the then-named
+chain was finished — an instruction, not a naming, which is what D-251 records. **Slices 2–6**
+followed his explicit authorization on 2026-08-06: "please build the visibility spec and then we'll
+move on to surface usage." Those are different kinds of permission. Zach waived the both-theme
+screenshot gate for Slices 2–6; the rest of `DESIGN-GUIDE.md`'s quality floor is untouched.
 
 **Origin:** the competitive review of a Vitally demo call (2026-08-06, session "Vitally call review").
 That review produced nine candidate borrowings. Six survived verification against the repo, two were

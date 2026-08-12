@@ -12,7 +12,7 @@ import sqlite3
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from .. import execution_path, telemetry
+from .. import execution_path, surface_retirement, surface_usage, telemetry
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api/telemetry", tags=["measurement"])
@@ -66,6 +66,95 @@ def patch_settings(payload: dict = Body(...), conn: sqlite3.Connection = Depends
 def funnel(account_id: str | None = Query(default=None),
            conn: sqlite3.Connection = Depends(get_conn)):
     return telemetry.funnel(conn, account_id)
+
+
+@router.get("/surface-usage")
+def surface_usage_report(window_days: int | None = Query(default=None, ge=1, le=1200),
+                         sort: str = Query(default="navigation"),
+                         today: str | None = Query(default=None),
+                         conn: sqlite3.Connection = Depends(get_conn)):
+    """`SURFACE-USAGE-SPEC.md` §8. Four axes, a window that can refuse, and a caveat beside them.
+
+    `sort` defaults to navigation order. `least_used` is available because an operator sometimes
+    genuinely wants it, but it is never the default: a leaderboard sorted by disuse reads as a kill
+    list, and its top row would be whichever surface has the least honest window.
+    """
+    return surface_usage.report(conn, today=today, window_days=window_days, sort=sort)
+
+
+@router.post("/surface-usage/fold")
+def fold_surface_usage(conn: sqlite3.Connection = Depends(get_conn)):
+    """Advance the monthly rollup and purge past its 36-month retention. Idempotent."""
+    result = surface_usage.fold(conn)
+    result["purged_months"] = surface_usage.purge_expired_rollups(conn)
+    return result
+
+
+@router.get("/surface-usage/redundancy")
+def surface_redundancy(conn: sqlite3.Connection = Depends(get_conn)):
+    """`SURFACE-USAGE-SPEC.md` §7.0 — the manual pass the counts cannot do.
+
+    Reads the registry, not the events: this is the complement to measurement, not part of it. Its
+    output is a list of questions, and the app never answers one.
+    """
+    return surface_usage.redundancy_checklist(conn)
+
+
+@router.get("/surface-retirement")
+def retirement_state(conn: sqlite3.Connection = Depends(get_conn)):
+    """§7.3. Every registered surface's current action, derived from the latest note.
+
+    Every key is present, including the untouched ones. A caller that had to tell "not retired" from
+    "absent from the response" would eventually get it wrong in the direction that hides something.
+    """
+    return {"surfaces": surface_retirement.state_of(conn),
+            "vocabulary": surface_retirement.vocabulary()}
+
+
+@router.get("/surface-retirement/history")
+def retirement_history(surface: str | None = Query(default=None),
+                       conn: sqlite3.Connection = Depends(get_conn)):
+    """The table is append-only, so this is the whole story including every reversal."""
+    return {"notes": surface_retirement.history(conn, surface)}
+
+
+@router.post("/surface-retirement/preview")
+def retirement_preview(payload: dict = Body(...), conn: sqlite3.Connection = Depends(get_conn)):
+    """§7.8. Runs the same checks and the same projection Apply runs — never a parallel path."""
+    return surface_retirement.preview(conn, payload.get("staged") or [],
+                                      today=payload.get("today"))
+
+
+@router.post("/surface-retirement/apply")
+def retirement_apply(payload: dict = Body(...), conn: sqlite3.Connection = Depends(get_conn)):
+    """All-or-nothing. A refusal is a 422 carrying the sentence, because unlike a dropped event
+    this is a command the operator is waiting on and must be told about."""
+    try:
+        return surface_retirement.apply_batch(conn, payload.get("staged") or [],
+                                              actor=payload.get("actor"),
+                                              today=payload.get("today"))
+    except surface_retirement.RetirementRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/surface-retirement/undo")
+def retirement_undo(payload: dict = Body(...), conn: sqlite3.Connection = Depends(get_conn)):
+    try:
+        return surface_retirement.undo_batch(conn, payload.get("batch_id") or "",
+                                             actor=payload.get("actor"),
+                                             today=payload.get("today"))
+    except surface_retirement.RetirementRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/surface-retirement/restore")
+def retirement_restore(payload: dict = Body(...), conn: sqlite3.Connection = Depends(get_conn)):
+    """§7.2's first-class rollback, available forever and independent of any batch."""
+    try:
+        return surface_retirement.restore(conn, payload.get("surface") or "",
+                                          actor=payload.get("actor"))
+    except surface_retirement.RetirementRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/ranking-rules")

@@ -7,6 +7,7 @@ import { accountFilterOptions } from "../queueView";
 import { viewScope } from "../viewScope";
 import { measure } from "../measure";
 import AbsenceStrip from "./AbsenceStrip";
+import { Surface } from "../Surface";
 
 const TODAY_VIEWS = [
   { id: "all", label: "All attention", state: { band: "all", accountId: "", query: "" } },
@@ -87,7 +88,9 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
 
       {/* VISIBILITY-SPEC §4.2 rule 5: a strip on Today, above the queue. The queue ranks what
           exists; this counts what does not, which is the one question nothing else here answers. */}
-      <AbsenceStrip reloadKey={reloadKey} onOpenAccount={onOpenAccount} />
+      <Surface surfaceKey="today.absence">
+        <AbsenceStrip reloadKey={reloadKey} onOpenAccount={onOpenAccount} />
+      </Surface>
 
       {/* §7.3. Above the band counts because it qualifies them, and below the absence strip
           because it does not: those counts are portfolio-wide and this view does not narrow them.
@@ -121,36 +124,52 @@ export default function Queue({ reloadKey, onOpenAccount, onChanged, viewId, onV
         })}
       </section>
 
-      <SavedViewBar model={views}>
-        <label className="view-filter">
-          <span className="rowmeta">Account</span>
-          <select aria-label="Filter attention by account" value={views.state.accountId}
-            onChange={(event) => views.setState((current) => ({ ...current, accountId: event.target.value }))}>
-            <option value="">All accounts</option>
-            {accountOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </label>
-        <input aria-label="Search attention" placeholder="Search attention…" value={views.state.query}
-          onChange={(event) => views.setState((current) => ({ ...current, query: event.target.value }))} />
-      </SavedViewBar>
+      {/* §5 `surface_engaged` with `engagement: "filtered"`. A saved-view bar nobody narrows with
+          is a different finding from one nobody sees, and only the engagement event separates
+          them. The value the operator typed is never measured — only that they typed. */}
+      <Surface surfaceKey="today.saved_views">
+        {({ engage }) => (
+          <SavedViewBar model={views}>
+            <label className="view-filter">
+              <span className="rowmeta">Account</span>
+              <select aria-label="Filter attention by account" value={views.state.accountId}
+                onChange={(event) => {
+                  engage("filtered");
+                  views.setState((current) => ({ ...current, accountId: event.target.value }));
+                }}>
+                <option value="">All accounts</option>
+                {accountOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </label>
+            <input aria-label="Search attention" placeholder="Search attention…" value={views.state.query}
+              onChange={(event) => views.setState((current) => ({ ...current, query: event.target.value }))}
+              onBlur={(event) => { if (event.target.value) engage("filtered"); }} />
+          </SavedViewBar>
+        )}
+      </Surface>
 
-      {q.items.length === 0 ? (
-        <div className="card"><Empty title="Queue clear">Nothing needs attention right now.</Empty></div>
-      ) : visibleItems.length === 0 ? (
-        <div className="card"><Empty title="No matching attention">Change this view's account or search filters.</Empty></div>
-      ) : (
-        bands.map((b) => (
-          <div key={b.key} className="attention-band">
-            <div className={`band-head band-head-${b.band}`}><span className={"state-mark " + b.band} />
-              <span>{b.label}</span><span className="band-count">{b.items.length}</span></div>
-            <div className="card attention-table">
-              <Table columns={[{ width: 2, pad: 0 }, { label: "What needs you" }, { label: "Account", width: 190 }, { label: "Timing", width: 104 }, { label: "", width: 168 }]}>
-                {b.items.map((it) => <QueueRow key={it.key} it={it} band={b.band} onOpenAccount={onOpenAccount} onSnooze={() => setSnoozing(it)} onResolve={() => setResolving(it)} />)}
-              </Table>
+      <Surface surfaceKey="today.queue">
+        {({ engage }) => (q.items.length === 0 ? (
+          <div className="card"><Empty title="Queue clear">Nothing needs attention right now.</Empty></div>
+        ) : visibleItems.length === 0 ? (
+          <div className="card"><Empty title="No matching attention">Change this view's account or search filters.</Empty></div>
+        ) : (
+          bands.map((b) => (
+            <div key={b.key} className="attention-band">
+              <div className={`band-head band-head-${b.band}`}><span className={"state-mark " + b.band} />
+                <span>{b.label}</span><span className="band-count">{b.items.length}</span></div>
+              <div className="card attention-table">
+                <Table columns={[{ width: 2, pad: 0 }, { label: "What needs you" }, { label: "Account", width: 190 }, { label: "Timing", width: 104 }, { label: "", width: 168 }]}>
+                  {b.items.map((it) => <QueueRow key={it.key} it={it} band={b.band}
+                    onOpenAccount={(id) => { engage("followed_link"); onOpenAccount(id); }}
+                    onSnooze={() => { engage("dismissed"); setSnoozing(it); }}
+                    onResolve={() => { engage("edited"); setResolving(it); }} />)}
+                </Table>
+              </div>
             </div>
-          </div>
-        ))
-      )}
+          ))
+        ))}
+      </Surface>
 
       {q.snoozed_count > 0 && (
         <div style={{ marginTop: 10 }}>

@@ -24,7 +24,10 @@ import {
   planStages, startableVersions, unmappedLegacy, upgradeOffers,
 } from "../planSetup";
 import { RequirementPanel, RequirementRow } from "./RequirementDetail";
+import { measure } from "../measure";
+import { commandProperties } from "../surfaces";
 import PlanTimeline from "./PlanTimeline";
+import { Surface } from "../Surface";
 
 function today() { return new Date().toISOString().slice(0, 10); }
 
@@ -78,6 +81,10 @@ function StartPlan({ accountId, programId, library, activeKeys, onStarted }) {
         // Sending an empty string instead of null would fail date validation.
         anchor_date: anchorDate || null,
       });
+      // §5. Recorded after the write succeeds: an invocation that failed is not an
+      // invocation of the command, and counting it would make a broken command look used.
+      measure({ accountId, programId: programId || null })(
+        "command_invoked", commandProperties("command.start_plan", "toolbar"));
       toast("Plan started");
       onStarted?.();
     } catch (e) {
@@ -525,7 +532,12 @@ export default function AccountPlan({ accountId, programId, reloadKey, onChanged
       {/* Primary, directly beneath the plan's identity: the first question on this tab is "where
           are we", and the stage cards below answer the second one, "what is owed now". It opens
           the same requirement panel the stage rows do, so there is one detail surface. */}
-      <PlanTimeline payload={payload} today={now} onOpenCondition={setSelected} />
+      <Surface surfaceKey="plan.timeline">
+        {({ engage }) => (
+          <PlanTimeline payload={payload} today={now}
+            onOpenCondition={(condition) => { engage("opened"); setSelected(condition); }} />
+        )}
+      </Surface>
 
       {offers.map((offer) => (
         <Card key={offer.planId} className="aplan-upgrade">
@@ -609,8 +621,13 @@ export default function AccountPlan({ accountId, programId, reloadKey, onChanged
       <LegacyItems accountId={accountId} payload={payload} onRan={refresh} />
 
       {selected && (
-        <RequirementPanel row={selected} accountId={accountId} coverage={payload.coverage}
-          today={now} onClose={() => setSelected(null)} onChanged={refresh} />
+        <Surface surfaceKey="plan.requirement_detail">
+          {({ engage, dismiss }) => (
+            <RequirementPanel row={selected} accountId={accountId} coverage={payload.coverage}
+              today={now} onClose={() => { dismiss("closed"); setSelected(null); }}
+              onChanged={() => { engage("edited"); refresh(); }} />
+          )}
+        </Surface>
       )}
       {upgrade && (
         <UpgradePreview accountId={accountId} offer={upgrade}

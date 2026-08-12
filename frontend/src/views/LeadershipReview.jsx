@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { AgeChip, Badge, Card, DueChip, Empty, Loading, ageDays, fmtDate } from "../ui";
+import { Surface } from "../Surface";
 
 function words(value) {
   return String(value || "").replaceAll("_", " ");
@@ -181,14 +182,24 @@ export default function LeadershipReview({ accountId, programId, reloadKey, onOp
           "Draft a concise internal leadership update using the governed statuses, recorded movement, stuck items, explicit asks, near-term commitments, and dated operator point of view. Name evidence gaps and do not invent a composite health score.")}>Draft leadership update</button>}
       </div>
     </div>
-    <Section title="Where the account stands" meta="Two independent governed statuses and the active account-wide forecast call">
-      <div className="leadership-statuses">{data.standing.statuses.map((item) => <StatusCard key={item.dimension} item={item} onOpenTarget={onOpenTarget} />)}</div>
-      <ForecastTable items={data.standing.forecast} onOpenTarget={onOpenTarget} />
-    </Section>
+    <Surface surfaceKey="overview.where_account_stands">
+      {({ engage }) => (
+        <Section title="Where the account stands" meta="Two independent governed statuses and the active account-wide forecast call">
+          <div className="leadership-statuses">{data.standing.statuses.map((item) => <StatusCard key={item.dimension} item={item}
+            onOpenTarget={(target) => { engage("followed_link"); onOpenTarget(target); }} />)}</div>
+          <ForecastTable items={data.standing.forecast}
+            onOpenTarget={(target) => { engage("followed_link"); onOpenTarget(target); }} />
+        </Section>
+      )}
+    </Surface>
     <div className="leadership-columns">
       <div className="stack">
-        <Section title="What moved" meta={windowLabel}><Movement items={data.movement} onOpenTarget={onOpenTarget} /></Section>
-        <Section title="What is stuck" meta="Blockers, overdue work, at-risk milestones, and named evidence gaps"><Stuck items={data.stuck} onOpenTarget={onOpenTarget} /></Section>
+        <Surface surfaceKey="overview.what_moved">
+          <Section title="What moved" meta={windowLabel}><Movement items={data.movement} onOpenTarget={onOpenTarget} /></Section>
+        </Surface>
+        <Surface surfaceKey="overview.what_is_stuck">
+          <Section title="What is stuck" meta="Blockers, overdue work, at-risk milestones, and named evidence gaps"><Stuck items={data.stuck} onOpenTarget={onOpenTarget} /></Section>
+        </Surface>
         <Section title="What I need" meta="Active account-wide asks with owners, deadlines, escalation state, and explicit next actions"><Needs items={data.needs} onOpenTarget={onOpenTarget} /></Section>
       </div>
       <aside className="stack">

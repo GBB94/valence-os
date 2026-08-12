@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { measure } from "../measure";
+import { commandProperties } from "../surfaces";
 import { Empty, Loading, useToast } from "../ui";
 import { DocPanel } from "./Artifacts";
 
@@ -33,7 +35,11 @@ export default function TeamUpdate({ reloadKey }) {
   useEffect(() => { generate(); loadWorkflow(); }, [reloadKey, tick]);
 
   async function copy() {
-    try { await navigator.clipboard.writeText(tu.markdown); toast("Copied to clipboard"); }
+    try {
+      await navigator.clipboard.writeText(tu.markdown);
+      measure()("command_invoked", commandProperties("command.export_team_update", "toolbar"));
+      toast("Copied to clipboard");
+    }
     catch { toast("Copy failed — select and copy manually", "err"); }
   }
 

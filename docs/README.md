@@ -15,6 +15,9 @@ The repository root contains only active authority, current handoff, and operati
 - `RELATIONSHIP-READINESS-SPEC.md` — implemented additive Stage 15 authority; readiness as a query-time projection over six independent pillars, plus the RR-2 proposal layer.
 - `ACCOUNT-PATH-SPEC.md` — implemented additive Account Path authority; Slices 1–7 all built (next-best-move, planning and playbooks, relationship links, the shared plan, local aggregate measurement).
 - `ACCOUNT-INTAKE-SPEC.md` — additive Stage 16 authority; the account drop zone. Slices 1–4 all built (drop and screen, `.eml` on the shared ingestion path, grounding and accept-all, milestone proposals).
+- `VISIBILITY-SPEC.md` — implemented additive visibility authority; six slices, ending with explicit advocacy tags.
+- `SURFACE-USAGE-SPEC.md` — implemented additive Stage 17 authority; usage evidence, retirement safety, and reversible presentation changes.
+- `CALL-COACHING-SPEC.md` — implemented additive Stage 18 authority; private deterministic text-first call review and targeted rehearsal. Real-model, audio, live, sharing, and manager modes remain closed.
 - `UX-FOUNDATION-SPEC.md` — staged UX authority; Release 1 canonical navigation and saved portfolio views, with later command-center/activity/outcomes contracts.
 - `ACCOUNT-COMMAND-CENTER-SPEC.md` — Release 2 detail under `UX-FOUNDATION-SPEC.md`; command center and unified activity, Slices 2.0–2.4 implemented.
 - `DESIGN-GUIDE.md` — presentation and information-architecture authority.
@@ -23,13 +26,10 @@ The repository root contains only active authority, current handoff, and operati
 - `decisions.md` — newest-first record of non-obvious decisions.
 - `HANDOFF.md` — current implementation state for a fresh engineering session.
 
-## Proposed, at the root, and **not in force**
+## Proposed documents
 
-Kept at the root because they are candidates for the next stage, not because they authorize
-anything. Nothing may be built on either until `CLAUDE.md`'s authority chain names it.
-
-- `SURFACE-USAGE-SPEC.md` — proposed Stage 17; surface usage and retirement evidence, additive to `ACCOUNT-PATH-SPEC.md` §17. Unapproved.
-- `VISIBILITY-SPEC.md` — proposed; the six borrowings that survived the 2026-08-06 competitive review, the three corrections where that review was wrong about what the records support, and five patterns refused with the rule each breaks. Unapproved.
+There are currently no root-level candidate specs awaiting authority. A new document becomes active
+only when Zach authorizes it and `CLAUDE.md` names it in the authority chain.
 
 ## Point-in-time reviews
 

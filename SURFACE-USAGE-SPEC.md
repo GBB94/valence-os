@@ -1,6 +1,12 @@
 # SURFACE-USAGE-SPEC.md — surface usage and retirement evidence
 
-**Status:** proposed, additive. Stage 17. Not yet approved; nothing here is built.
+**Status:** approved, additive, **built**. Stage 17. Authorized by Zach on 2026-08-06 ("it means
+build it"); all four slices are built (D-275…D-328), plus the review pass at D-329…D-341. No
+migration of its own beyond the ones its slices carry. §14's five questions were *not* answered
+individually — the authorization covered the build, so each question is taken at this document's
+own recommended default and recorded in `decisions.md` as an assumption rather than an approval.
+Zach also waived the both-theme screenshot gate for this stage; the rest of `DESIGN-GUIDE.md`'s
+quality floor is untouched.
 **Authority:** additive to `ACCOUNT-PATH-SPEC.md` §17 (local product measurement), which stays the
 authority for the sink, the allowlist discipline, retention, and the §17.5 caveat. This document
 extends that layer from *"was the recommendation acted on"* to *"which parts of this platform earn
@@ -606,6 +612,9 @@ The research's recurring warning is that tracking plans rot into wikis nobody ho
 turn the plan into a gate:
 
 1. **Every registered surface is instrumented**, or carries `instrumented="<reason>"` naming why not.
+   A render wrapper establishes exposure only. `instrumented=True` additionally requires a deliberate
+   semantic operation to emit `surface_engaged`; until then the reason wins before counters are read,
+   so missing engagement wiring cannot appear as disuse (D-342).
    An unexplained gap fails.
 2. **Every emitted `surface` / `command` slug is in the registry.** Validation rejects at write time
    and a test asserts the rejection.

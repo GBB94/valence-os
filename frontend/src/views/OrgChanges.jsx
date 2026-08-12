@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { AgeChip, Empty, Loading, SlideOver, useToast } from "../ui";
 
-export default function OrgChanges({ accountId, reloadKey }) {
+export default function OrgChanges({ accountId, reloadKey, onEngage }) {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [tick, setTick] = useState(0);
@@ -10,11 +10,11 @@ export default function OrgChanges({ accountId, reloadKey }) {
   const load = () => api.orgChanges(accountId).then(setData).catch((e) => toast(e.message, "err"));
   useEffect(() => { if (accountId) load(); }, [accountId, reloadKey, tick]);
   const sync = async () => {
-    try { const r = await api.syncOrgChanges(); toast(`${r.result?.created || 0} proposals synced`); setTick((x) => x + 1); }
+    try { const r = await api.syncOrgChanges(); onEngage?.("edited"); toast(`${r.result?.created || 0} proposals synced`); setTick((x) => x + 1); }
     catch (e) { toast(e.message, "err"); }
   };
   const confirm = async (id) => {
-    try { await api.confirmOrgChange(id); toast("Change confirmed and follow-up created"); setTick((x) => x + 1); }
+    try { await api.confirmOrgChange(id); onEngage?.("edited"); toast("Change confirmed and follow-up created"); setTick((x) => x + 1); }
     catch (e) { toast(e.message, "err"); }
   };
   if (!data) return <Loading what="org changes" />;
@@ -30,12 +30,12 @@ export default function OrgChanges({ accountId, reloadKey }) {
               <div className="rowmeta">{f.occurred_on ? <AgeChip date={f.occurred_on} /> : "date unknown"}</div></td>
             <td><span className="badge">{f.status}</span></td>
             <td>{f.status === "proposed" && <div className="actions"><button className="btn small" onClick={() => confirm(f.id)}>Confirm change</button>
-              <button className="btn small ghost" onClick={() => setDismissing(f)}>Dismiss</button></div>}</td>
+              <button className="btn small ghost" onClick={() => { onEngage?.("opened"); setDismissing(f); }}>Dismiss</button></div>}</td>
           </tr>)}</tbody></table>}
     </div>
     {data.successions.length > 0 && <div className="card" style={{ marginTop: 10 }}><div className="card-h"><h3>Succession</h3></div>
       <table><tbody>{data.successions.map((s) => <tr key={s.id}><td>Successor search<div className="rowmeta">Relationship snapshot retained · {s.departed_to ? `departed to ${s.departed_to}` : "destination unknown"}</div></td><td><span className="badge">{s.status}</span></td></tr>)}</tbody></table></div>}
-    {dismissing && <DismissChange flag={dismissing} onClose={() => setDismissing(null)} onSaved={() => { setDismissing(null); setTick((x) => x + 1); }} />}
+    {dismissing && <DismissChange flag={dismissing} onClose={() => setDismissing(null)} onSaved={() => { onEngage?.("edited"); setDismissing(null); setTick((x) => x + 1); }} />}
   </div>;
 }
 

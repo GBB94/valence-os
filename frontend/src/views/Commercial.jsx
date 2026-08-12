@@ -4,6 +4,7 @@ import { Empty, Loading, SectionHelp, SegTabs, SlideOver, useToast, fmtDate } fr
 import Waterfall from "./Waterfall";
 import Whitespace from "./Whitespace";
 import ValueLedger from "./ValueLedger";
+import { Surface } from "../Surface";
 import Funding from "./Funding";
 import Signals from "./Signals";
 import Growth from "./Growth";
@@ -71,15 +72,27 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
         <SectionHelp group="commercial" active={sub} />
       </div>
 
-      {sub === "whitespace" && <Whitespace accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "ledger" && <ValueLedger accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "funding" && <Funding accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "signals" && <Signals accountId={accountId} reloadKey={reloadKey} />}
-      {sub === "company" && <CompanyIntel accountId={accountId} reloadKey={reloadKey}
-        openCopilot={openCopilot} focusedEventId={focusedRecordId} />}
-      {sub === "growth" && <Growth accountId={accountId} reloadKey={reloadKey} />}
+      {sub === "whitespace" && <Surface surfaceKey="commercial.whitespace">
+        <Whitespace accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "ledger" && <Surface surfaceKey="commercial.value_ledger">
+        <ValueLedger accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "funding" && <Surface surfaceKey="commercial.funding">
+        <Funding accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "signals" && <Surface surfaceKey="commercial.signals">
+        <Signals accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
+      {sub === "company" && <Surface surfaceKey="commercial.company_intel">
+        <CompanyIntel accountId={accountId} reloadKey={reloadKey}
+          openCopilot={openCopilot} focusedEventId={focusedRecordId} />
+      </Surface>}
+      {sub === "growth" && <Surface surfaceKey="commercial.growth">
+        <Growth accountId={accountId} reloadKey={reloadKey} />
+      </Surface>}
 
-      {sub === "pipeline" && <>
+      {sub === "pipeline" && <Surface surfaceKey="commercial.pipeline"><>
       <div className="card">
         <div className="card-h"><h3>Expansion opportunities</h3><div className="spacer" />
           <button className="btn small" onClick={() => setPanel({ kind: "expansion" })}>New expansion</button></div>
@@ -142,7 +155,7 @@ export default function Commercial({ accounts, accountId, setAccountId, reloadKe
       </div>
 
       <Waterfall accountId={accountId} />
-      </>}
+      </></Surface>}
 
       {panel?.kind === "expansion" && <ExpansionForm accountId={accountId} people={people} onClose={() => setPanel(null)} onSaved={after} />}
       {panel?.kind === "close" && <CloseExpansion xo={panel.xo} onClose={() => setPanel(null)} onSaved={after} />}

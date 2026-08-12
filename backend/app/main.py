@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import (company_intel, copilot_service, ingestion, jobs, stage7,
+from . import (coaching, company_intel, copilot_service, ingestion, jobs, stage7,
                internal_reporting as internal_reporting_service)  # noqa: F401 — imports register job handlers
 from .db import connect, run_migrations
 from .routers import (
@@ -24,7 +24,7 @@ from .routers import (
     internal_reporting, internal_roster, product_feedback, adoption_comms, company_intel as company_intel_router,
     readiness as readiness_router, execution_path as execution_path_router,
     playbooks as playbooks_router, path_links as path_links_router,
-    telemetry as telemetry_router, intake_drops as intake_drops_router,
+    telemetry as telemetry_router, intake_drops as intake_drops_router, coaching as coaching_router,
 )
 
 
@@ -153,6 +153,7 @@ app.include_router(playbooks_router.router)
 app.include_router(path_links_router.router)
 app.include_router(telemetry_router.router)
 app.include_router(intake_drops_router.router)
+app.include_router(coaching_router.router)
 
 
 @app.get("/api/health")

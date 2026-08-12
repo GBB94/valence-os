@@ -17,8 +17,10 @@ most real quotes as unlocatable. Nothing fuzzier ships. A highlight that lands o
 draft cited, and the operator has no way to tell. When neither strategy matches, `found` is false
 and the pane says so.
 
-**A run has a snapshot iff a drop points at it.** `extraction_runs` stores no source text and never
-has; `intake_drops.snapshot_text` is the only retained source text in the system. There is a
+**A run has a snapshot iff an approved retained-source adapter points at it.** `extraction_runs`
+stores no source text and never has. Account drops retain text in `intake_drops`; Stage 18's private
+Call Coach retains its own source in `coaching_sources` and identifies the extraction run with the
+closed `call_coach` provider. There is a
 tempting shortcut here — an extraction started from an interaction has `interactions.raw_notes`
 sitting right there — and taking it would be wrong twice over: the run's `content_hash` is over the
 text handed to the extractor, not over `raw_notes`, so nothing links the two; and `raw_notes` is a
@@ -49,6 +51,8 @@ _NOT_FOUND = ("That quote is not in the retained text as written, so nothing is 
 _TRUNCATED = ("Showing {shown} of {total} characters, around the quote.")
 _TRUNCATED_HEAD = ("Showing the first {shown} of {total} characters.")
 _MULTIPLE = ("That passage appears {count} times in this document. The first is marked.")
+_COACH_DELETED = ("The private Call Coach source was deleted on {date}. This quote is what the "
+                  "account draft was made from.")
 
 
 # --- locating ------------------------------------------------------------------------------------
@@ -121,6 +125,28 @@ def _drop_for_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
 def _document(conn: sqlite3.Connection, run_id: str) -> dict:
     drop = _drop_for_run(conn, run_id)
     if drop is None:
+        # Stage 18 uses the existing extraction store without copying its private transcript into
+        # either an Interaction or an intake drop. `provider` is the closed resolver switch; an
+        # arbitrary external_id can never choose a table or query.
+        run = conn.execute("SELECT provider,external_id FROM extraction_runs WHERE id=?",
+                           (run_id,)).fetchone()
+        coach = None
+        if run and run["provider"] == "call_coach" and run["external_id"]:
+            coach = conn.execute(
+                "SELECT id,filename,source_kind,snapshot_text,snapshot_deleted_at "
+                "FROM coaching_sources WHERE session_id=?", (run["external_id"],)).fetchone()
+        if coach is not None:
+            if coach["snapshot_text"] is None:
+                return {"available": False, "state": "deleted",
+                        "note": _COACH_DELETED.format(
+                            date=str(coach["snapshot_deleted_at"] or "")[:10]),
+                        "text": None, "chars": 0, "drop_id": None,
+                        "filename": coach["filename"], "kind": "call_coach",
+                        "deleted_at": coach["snapshot_deleted_at"]}
+            return {"available": True, "state": "present", "note": None,
+                    "text": coach["snapshot_text"], "chars": len(coach["snapshot_text"]),
+                    "drop_id": None, "filename": coach["filename"], "kind": "call_coach",
+                    "deleted_at": None}
         return {"available": False, "state": "never_captured", "note": _NEVER_CAPTURED,
                 "text": None, "chars": 0, "drop_id": None, "filename": None, "kind": None,
                 "deleted_at": None}

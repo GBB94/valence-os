@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { Surface } from "../Surface";
 import { Card, SlideOver, Empty, Loading, useToast, PageHeader } from "../ui";
 import PlaybookLibrary from "./PlaybookLibrary";
 
@@ -32,6 +33,7 @@ export default function Library({ reloadKey }) {
         meta={data ? `${data.sources.length} source${data.sources.length === 1 ? "" : "s"}` : "Loading sources"}>
         <button className="btn primary" onClick={() => setAdding(true)}>Add link</button>
       </PageHeader>
+      <Surface surfaceKey="library.sources"><div>
       <Card spotlight className="actions library-filters">
         <input aria-label="Search source library" placeholder="Search files, links, accounts, tags…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select aria-label="Filter sources by type" value={type} onChange={(e) => setType(e.target.value)}>
@@ -73,8 +75,11 @@ export default function Library({ reloadKey }) {
           </table>
         )}
       </div>
+      </div></Surface>
 
-      <PlaybookLibrary reloadKey={reloadKey} />
+      <Surface surfaceKey="library.playbooks">
+        <PlaybookLibrary reloadKey={reloadKey} />
+      </Surface>
 
       {adding && <AddSource onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setTick((t) => t + 1); }} />}
       {tagging && <EditTags source={tagging} onClose={() => setTagging(null)} onSaved={() => { setTagging(null); setTick((t) => t + 1); }} />}

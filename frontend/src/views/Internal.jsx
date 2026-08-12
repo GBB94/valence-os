@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { Surface } from "../Surface";
 import { Card, Empty, Loading, SectionHelp, SegTabs, useToast } from "../ui";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -27,23 +28,31 @@ export default function Internal({ accountId, reloadKey, onChanged }) {
       <SectionHelp group="internal" active={section} />
       </div>
       {section === "forecast" && (
-        <Forecast accountId={accountId} reloadKey={reloadKey} />
+        <Surface surfaceKey="internal.forecast">
+          <Forecast accountId={accountId} reloadKey={reloadKey} />
+        </Surface>
       )}
       {section === "asks" && (
-        <Asks
-          accountId={accountId}
-          reloadKey={reloadKey}
-          onChanged={onChanged}
-        />
+        <Surface surfaceKey="internal.asks">
+          <Asks
+            accountId={accountId}
+            reloadKey={reloadKey}
+            onChanged={onChanged}
+          />
+        </Surface>
       )}
       {section === "reviews" && (
-        <>
-          <Reviews accountId={accountId} reloadKey={reloadKey} />
-          <FeedbackSummary accountId={accountId} reloadKey={reloadKey} />
-        </>
+        <Surface surfaceKey="internal.reviews">
+          <>
+            <Reviews accountId={accountId} reloadKey={reloadKey} />
+            <FeedbackSummary accountId={accountId} reloadKey={reloadKey} />
+          </>
+        </Surface>
       )}
       {section === "coverage" && (
-        <Coverage accountId={accountId} reloadKey={reloadKey} />
+        <Surface surfaceKey="internal.coverage">
+          <Coverage accountId={accountId} reloadKey={reloadKey} />
+        </Surface>
       )}
     </div>
   );

@@ -123,6 +123,12 @@ def test_export_covers_every_account_scoped_table():
             # hold raw source text, and exporting that would move a snapshot the operator can
             # delete into a file where deleting it does nothing.
             "intake_drops",
+            # CALL-COACHING-SPEC.md §14.4: optional account scope lets a private review read an
+            # accepted snapshot; it does not turn coaching into account data. Exporting this row
+            # would also pull a transcript-shaped private domain into a portable account bundle.
+            # Stage 18 tests assert the exclusion directly so this is a named boundary, not a hole
+            # in the registry guard.
+            "coaching_sessions",
         }
         account_scoped = set()
         with TestClient(app):
