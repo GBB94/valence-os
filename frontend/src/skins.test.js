@@ -175,6 +175,16 @@ test("the manifest starts with the default skin", () => {
   assert.equal(skinIds[0], "default");
 });
 
+test("every skin block in skins.css has a manifest row", () => {
+  // A block for a skin the manifest dropped is not dead code: a stale localStorage id
+  // still stamps data-skin pre-paint, so an orphaned block would keep applying a skin
+  // the picker no longer offers and the audit no longer covers.
+  const inCss = new Set([...skinsCss.matchAll(/data-skin="([a-z-]+)"/g)].map((m) => m[1]));
+  for (const id of inCss) {
+    assert.ok(skinIds.includes(id), `skins.css styles "${id}" but skins.js does not list it`);
+  }
+});
+
 test("every non-default skin ships both theme blocks with identical token sets", () => {
   for (const id of skinIds) {
     if (id === "default") continue;

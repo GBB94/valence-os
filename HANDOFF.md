@@ -11,13 +11,15 @@ migration, no API change, no behavior change. `DESIGN-GUIDE.md` §4.3 is the gov
   `valence-skin`; pre-paint stamped in `index.html`; picker (❖ popover) in the topbar. Skin and
   theme are independent — every skin has a light and a dark block in `frontend/src/skins.css`,
   the second and only other token file ("no raw hex outside the token files" is the amended rule).
-- **Collection** (`frontend/src/skins.js`): default Graphite (absence of the attribute — no block
-  exists that could drift from the audited base), Control Room (neon indigo), Newsprint (FT
-  salmon/claret + night edition), Nord, Catppuccin (Latte/Mocha), Solarized, Rosé Pine
-  (Dawn/main), High Contrast (doubles as the accessibility mode). The last three landed
-  2026-08-15 under D-362/D-363: official palette values, with every floor-forced departure
-  stated in a comment beside its block (Solarized ink one step past base00/base0, no olive
-  status green, Rosé Pine's derived greens, Latte's darkened text-role green/yellow).
+- **Collection** (`frontend/src/skins.js`): five options by Zach's instruction (D-364) — default
+  Graphite (absence of the attribute — no block exists that could drift from the audited base),
+  Control Room (neon indigo), Catppuccin (Latte/Mocha), Solarized, Rosé Pine (Dawn/main).
+  Published-palette skins use official values, with every floor-forced departure stated in a
+  comment beside its block (Solarized ink one step past base00/base0, no olive status green,
+  Rosé Pine's derived greens, Latte's darkened text-role green/yellow — D-362/D-363). Newsprint,
+  Nord, and High Contrast were built, audited, and retired at the five-option cap; their blocks
+  are in commit 4206eab, and the audit now fails any skin block without a manifest row so a
+  retired skin cannot keep applying through a stale localStorage id.
 - **Enforcement:** `frontend/src/skins.test.js` runs §11 per skin × theme — contrast on every
   documented text pairing (non-text tokens at WCAG 3:1 per §4.2's fill-and-hatch note), identical
   light/dark token sets, no invented tokens, no spacing/type changes, status hue ranges asserted.

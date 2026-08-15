@@ -11,10 +11,7 @@
 export const SKINS = [
   { id: "default", label: "Graphite", blurb: "The standard instrument — cool graphite, ink-indigo accent." },
   { id: "control-room", label: "Control Room", blurb: "Deep space, electric indigo, glow on the edges." },
-  { id: "newsprint", label: "Newsprint", blurb: "Financial-paper salmon and claret; ink-dark night edition." },
-  { id: "nord", label: "Nord", blurb: "Arctic blue-greys from the published Nord palette." },
   { id: "catppuccin", label: "Catppuccin", blurb: "Soft pastels — Latte by day, Mocha by night." },
   { id: "solarized", label: "Solarized", blurb: "The canonical sepia pair, precision-built in CIELAB." },
   { id: "rose-pine", label: "Rosé Pine", blurb: "Muted rose and iris — Dawn parchment, dusk-dark night." },
-  { id: "high-contrast", label: "High Contrast", blurb: "Pure grounds, hard borders, maximum legibility." },
 ];

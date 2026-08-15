@@ -45,6 +45,14 @@ researched collection. Presentation-only: no migration, no API, no behavior chan
   Control Room and the default dark already occupy. All values fetched from the official palette
   sources at build time, including the Rosé Pine Dawn `text` discrepancy (mirrors say #575279,
   the official repo says #464261 — official used).
+- **D-364 — The collection is capped at five options (Zach, 2026-08-15: "implement 5 skin options
+  total").** Kept: Graphite (default), Control Room, Catppuccin, Solarized, Rosé Pine — the
+  default, the one skin Zach asked for by name, and the three he commissioned; retired: Newsprint,
+  Nord, High Contrast, the three chosen without a per-skin request. Retirement is deletion from
+  `skins.css` and `skins.js`, not a hidden flag — a stale `valence-skin` id falls back to default
+  in both the pre-paint script and the React state — and a new audit assertion fails any orphaned
+  block, because a block without a manifest row would keep applying via stale localStorage while
+  the picker and the audit both ignored it. The retired blocks live in commit 4206eab.
 - **D-363 — A published palette bends to the floor, and the departure is stated, never silent.**
   The audit found 28 failing pairings across the three on canonical values alone. Where that
   happened the skin departs minimally and a comment beside the block says exactly how: Solarized's

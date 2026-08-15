@@ -305,15 +305,17 @@ The rules, all enforced mechanically by `frontend/src/skins.test.js`:
 - **"Default" is the absence of the attribute**, not a block restating the base — so the
   audited base design cannot drift by way of a copy.
 
-The shipped collection: Graphite (default, no block), Control Room, Newsprint, Nord,
-Catppuccin (official Latte/Mocha), Solarized (the canonical CIELAB pair), Rosé Pine
-(official Dawn/main), and High Contrast — the last doubling as the accessibility
-presentation, with shadows replaced by outline-equivalents. Where a published palette's
-own values fail the floor or the hue guard, the skin departs and says so in a comment
-beside the block: Solarized's inks run one step past the official body-text bases and its
-olive green is not the status green; Rosé Pine has no green at all, so status-ok is
-derived per ground. Adding a skin is a block pair in `skins.css`, a row in `skins.js`,
-and a green run of `skins.test.js`.
+The shipped collection is five options (Zach, 2026-08-15): Graphite (default, no block),
+Control Room, Catppuccin (official Latte/Mocha), Solarized (the canonical CIELAB pair),
+and Rosé Pine (official Dawn/main). Where a published palette's own values fail the floor
+or the hue guard, the skin departs and says so in a comment beside the block: Solarized's
+inks run one step past the official body-text bases and its olive green is not the status
+green; Rosé Pine has no green at all, so status-ok is derived per ground. Three earlier
+skins — Newsprint, Nord, High Contrast — were built, audited, and then retired when the
+collection was capped at five; their blocks live in git history (commit 4206eab) if one is
+ever wanted back. Adding a skin is a block pair in `skins.css`, a row in `skins.js`, and a
+green run of `skins.test.js` — which also fails an orphaned block, because a stale
+localStorage id would keep applying a skin the picker no longer offers.
 
 ---
 
