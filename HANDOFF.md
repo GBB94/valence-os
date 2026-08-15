@@ -2,6 +2,29 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Surface usage — deprecation instrument upgrades (2026-08-15, D-366…D-368)
+
+Stage 17 was already the tool for "what did I overbuild"; three gaps kept it from answering.
+All three closed at Zach's direction, spec amended (SURFACE-USAGE-SPEC.md, dated amendment at
+the top; §5 vocabulary now seven values).
+
+- **Generic engagement (D-366):** `<Surface>` itself emits `operated` when any interactive
+  control inside a surface is clicked — once per mount, bubble-phase, silenced by any semantic
+  engage/dismiss on the same mount. Registry default for non-commands is now `surfaces.GENERIC`;
+  report rows carry `engagement_instrumentation: semantic | generic`. Upgrading a surface means
+  wiring the render-prop `engage` and setting `instrumented=True` — the drift tests still hold
+  both directions equal.
+- **Dev exclusion (D-367):** the Vite dev server does not record (`measure.js` transport gate;
+  `VITE_MEASURE_IN_DEV=1` to override). Real use = built app served by FastAPI. Live-verified
+  both ways against a scratch DB.
+- **Deprecation lens (D-368):** `GET /api/telemetry/surface-usage/deprecation` + a card in
+  Operations under Surface usage — shown-never-operated and never-displayed (with route
+  landings), withheld remainder always stated, no combined names (tested).
+- **Reading the data:** as of 2026-08-15 the installation has ~9 observed days, so everything is
+  honestly `insufficient_window`. First readable verdicts: session-cadence surfaces at 14
+  observed days, weekly at 28, monthly at 90, quarterly at 210. The plan is: work normally, then
+  read the lens.
+
 ## Skins — operator-chosen repaint axis (2026-08-15, D-358…D-361)
 
 Zach asked for a toggleable skin system with a researched collection. Presentation-only — no

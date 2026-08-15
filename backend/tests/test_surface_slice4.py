@@ -408,11 +408,18 @@ def test_every_route_the_app_navigates_to_has_at_least_one_registered_surface():
 
 
 def test_incomplete_engagement_coverage_is_always_explained():
-    """Exposure-only wrappers must refuse interpretation rather than impersonating disuse."""
-    excused = [s.key for s in surfaces.REGISTRY if s.instrumented is not True]
-    assert excused, "remove this only when every surface has semantic engagement"
-    assert all(isinstance(s.instrumented, str) and "engagement" in s.instrumented
-               for s in surfaces.REGISTRY if s.instrumented is not True)
+    """A non-semantic surface either rides the generic operated-signal or says why it cannot.
+
+    Before D-366 the only non-True value was an explanatory sentence. The generic signal added a
+    middle state: `GENERIC` surfaces have a readable engagement counter (the wrapper emits
+    `operated`), and anything that is neither True nor GENERIC must still be a sentence — the
+    silent gap remains the thing being prevented.
+    """
+    non_semantic = [s for s in surfaces.REGISTRY if s.instrumented is not True]
+    assert non_semantic, "remove this only when every surface has semantic engagement"
+    for s in non_semantic:
+        assert s.instrumented == surfaces.GENERIC or (
+            isinstance(s.instrumented, str) and "engagement" in s.instrumented), s.key
 
 
 def test_no_rate_or_score_name_entered_the_report_with_slice_4(client):

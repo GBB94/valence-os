@@ -175,8 +175,12 @@ _REQUIRED_ONE_OF: dict[str, tuple[str, ...]] = {
 # category in §6 — an unexpected value would not fail, it would quietly open a new bucket.
 _ENUMS: dict[str, frozenset[str]] = {
     "render_reason": frozenset({"navigation", "restore", "filter_change"}),
+    # `operated` (D-366) is the generic seventh: emitted only by the wrapper's own listener when
+    # an interactive control inside a surface is operated and no semantic action is wired there.
+    # It is a separate value, never a synonym for the six, so a report reader can tell "we know
+    # which operation" apart from "we know a control was touched".
     "engagement": frozenset({"opened", "filtered", "expanded", "edited", "dismissed",
-                             "followed_link"}),
+                             "followed_link", "operated"}),
     "dismiss_kind": frozenset({"collapsed", "closed", "hidden"}),
     "entry_point": frozenset({"toolbar", "keyboard", "menu", "empty_state", "navigation",
                               "link", "restore"}),

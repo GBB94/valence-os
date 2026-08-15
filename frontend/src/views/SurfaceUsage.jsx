@@ -204,6 +204,101 @@ function RedundancyChecklist() {
   );
 }
 
+/**
+ * D-368 — the deprecation lens: the report re-shaped into the two candidate lists the
+ * "what did I overbuild" question needs, computed by the same server projection as the table
+ * above so the two can never disagree.
+ *
+ * Two lists, two different problems, never one "unused" list — a clutter candidate and a
+ * reachability finding need opposite responses, and the server's caveat saying so renders
+ * verbatim above both. No status hues anywhere here: a candidate is not a defect, and the
+ * withheld remainder renders in the unknown treatment because it is not-yet-knowable, not clear.
+ */
+function DeprecationLens() {
+  const [lens, setLens] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    api.surfaceDeprecationLens()
+      .then((result) => { setLens(result); setFailed(false); })
+      .catch(() => setFailed(true));
+  }, []);
+  if (failed) {
+    return (
+      <div className="card" aria-label="Deprecation candidates" style={{ marginTop: 12 }}>
+        <div className="rowmeta" style={{ padding: 12 }}>
+          The deprecation lens could not be read. Treat the absence as unknown, not as no candidates.
+        </div>
+      </div>
+    );
+  }
+  if (!lens) return null;
+  const anyGeneric = [...lens.shown_not_engaged, ...lens.not_rendered]
+    .some((row) => row.engagement_instrumentation === "generic");
+  const list = (rows, { landings }) => (
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Surface</th>
+          <th scope="col">Screen</th>
+          <th scope="col" className="num">Shown</th>
+          <th scope="col" className="num">Operated</th>
+          {landings && <th scope="col" className="num">Screen visits</th>}
+          <th scope="col">Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.surface}>
+            <th scope="row" style={{ fontWeight: 400 }}>{row.label}</th>
+            <td>{row.route}</td>
+            <td className="num">{row.rendered}</td>
+            <td className="num">{row.engaged}</td>
+            {landings && <td className="num">{row.route_landings}</td>}
+            <td className="rowmeta">{row.engagement_instrumentation}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+  return (
+    <div className="card" aria-label="Deprecation candidates" style={{ marginTop: 12 }}>
+      <div style={{ padding: 12 }}>
+        <div style={{ fontWeight: 500 }}>Deprecation candidates</div>
+        <div className="rowmeta" style={{ marginTop: 4 }}>{lens.caveat}</div>
+      </div>
+      <div style={{ padding: "0 12px 8px" }}>
+        <div style={{ fontWeight: 500 }}>Shown, never operated</div>
+        <div className="rowmeta">The clutter case — it costs screen every time and returns nothing.</div>
+      </div>
+      {lens.shown_not_engaged.length > 0
+        ? <div className="surface-usage-table">{list(lens.shown_not_engaged, { landings: false })}</div>
+        : <div className="rowmeta" style={{ padding: "0 12px 8px" }}>None in this window.</div>}
+      <div style={{ padding: "8px 12px 8px" }}>
+        <div style={{ fontWeight: 500 }}>Never displayed</div>
+        <div className="rowmeta">
+          The reachability case — fix how it is offered before judging whether it is wanted.
+        </div>
+      </div>
+      {lens.not_rendered.length > 0
+        ? <div className="surface-usage-table">{list(lens.not_rendered, { landings: true })}</div>
+        : <div className="rowmeta" style={{ padding: "0 12px 8px" }}>None in this window.</div>}
+      {/* The remainder, always stated (D-160): a lens listing only what it can judge, without
+          saying how much it cannot, reads as a clean bill for the rest. Unknown treatment, no
+          status hue — withheld is not a failure. */}
+      <div className="rowmeta" style={{ padding: "4px 12px 8px", display: "flex", gap: 6, alignItems: "baseline" }}>
+        <span className="unknown-hatch" aria-hidden="true" />
+        {lens.withheld_sentence}
+      </div>
+      {anyGeneric && (
+        <div className="rowmeta" style={{ padding: "0 12px 8px" }}>{lens.generic_evidence_note}</div>
+      )}
+      {lens.not_rendered.length > 0 && (
+        <div className="rowmeta" style={{ padding: "0 12px 12px" }}>{lens.landings_note}</div>
+      )}
+    </div>
+  );
+}
+
 export default function SurfaceUsage() {
   const [report, setReport] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -371,6 +466,7 @@ export default function SurfaceUsage() {
 
     {/* Below the per-surface table, because the screen-level reading is only meaningful once you
         have seen which rows were not yet knowable. */}
+    <DeprecationLens />
     <ScreenWeight screens={report.screens} caveat={report.screen_weight_caveat} />
     <RedundancyChecklist />
     </>

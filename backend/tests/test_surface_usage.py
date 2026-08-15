@@ -440,28 +440,116 @@ def test_an_uninstrumented_surface_says_so_rather_than_reading_zero(client):
         if not row["instrumented"]:
             assert row["instrumentation_note"]
     assert report["totals"]["uninstrumented"] == sum(
-        1 for s in surfaces.REGISTRY if s.kind != "command" and s.instrumented is not True)
+        1 for s in surfaces.REGISTRY
+        if s.kind != "command" and s.instrumented not in (True, surfaces.GENERIC))
 
 
-def test_incomplete_engagement_wiring_never_becomes_disuse_evidence(client):
+def test_incomplete_engagement_wiring_never_becomes_disuse_evidence():
     """Even synthetic counts cannot make an exposure-only surface knowable.
 
-    The adversarial case is a descendant control that is heavily used but never calls the wrapper's
-    `engage`: renders accumulate, engagement stays zero, and the old report called that clutter. A
-    registry sentence must win before either counter is interpreted.
+    The adversarial case is a descendant control that is heavily used but never emits engagement at
+    all: renders accumulate, engagement stays zero, and the old report called that clutter. A
+    registry sentence must win before either counter is interpreted. Since D-366 no shipped surface
+    carries the sentence (the wrapper's generic signal covers them all), so the rule is held at the
+    unit — it is what protects the next surface that genuinely cannot be instrumented.
+    """
+    sentence = "Rendered inside a third-party embed; no engagement events can be emitted."
+    surface = replace(surfaces.BY_KEY["commercial.whitespace"], instrumented=sentence)
+    observation, notice = surface_usage._observe(
+        surface, rendered=40, engaged=0, observed_days=300)
+    assert observation == "insufficient_window"
+    assert notice == sentence
+
+
+def test_generic_engagement_makes_the_counter_readable_and_says_which_kind(client):
+    """D-366. A GENERIC surface's zero is a real zero — and the row says the evidence is generic.
+
+    Both directions: rendered-with-no-operated reads as the clutter case now (the counter is
+    backed by the wrapper's operated-signal), and an `operated` event is accepted by the sink and
+    counts as engagement like any of the semantic six.
     """
     _measuring_since(client, 300)
     _emit(client, "surface_rendered", "commercial.whitespace")
     report = _report(client)
     row = _row(report, "commercial.whitespace")
-    assert row["rendered"] == 1
-    assert row["engaged"] == 0
-    assert row["instrumented"] is False
-    assert row["observation"] == "insufficient_window"
-    assert row["window_covered"] is False
-    assert "semantic engagement" in row["notice"]
-    assert all(item["surface"] != "commercial.whitespace"
-               for screen in report["screens"] for item in screen["never_engaged"])
+    assert surfaces.BY_KEY["commercial.whitespace"].instrumented == surfaces.GENERIC
+    assert row["observation"] == "rendered_not_engaged"
+    assert row["engagement_instrumentation"] == "generic"
+    assert row["instrumented"] is True
+
+    response = _emit(client, "surface_engaged", "commercial.whitespace", engagement="operated")
+    assert response.status_code in (200, 201, 202, 204), response.text
+    row = _row(_report(client), "commercial.whitespace")
+    assert row["engaged"] == 1
+    assert row["observation"] == "engaged"
+
+
+def test_a_semantic_surface_reports_semantic_instrumentation(client):
+    _measuring_since(client, 300)
+    row = _row(_report(client), "today.queue")
+    assert surfaces.BY_KEY["today.queue"].instrumented is True
+    assert row["engagement_instrumentation"] == "semantic"
+
+
+# --- D-368 the deprecation lens ------------------------------------------------------------------
+
+def _lens(c):
+    response = c.get("/api/telemetry/surface-usage/deprecation")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_the_lens_keeps_its_two_lists_apart_and_states_the_remainder(client):
+    """Two lists, two problems, and the withheld count always said out loud (the D-160 rule)."""
+    _measuring_since(client, 300)
+    _emit(client, "surface_rendered", "commercial.whitespace")
+    _emit(client, "surface_rendered", "today.queue")
+    _emit(client, "surface_engaged", "today.queue")
+    lens = _lens(client)
+
+    clutter = {row["surface"] for row in lens["shown_not_engaged"]}
+    unseen = {row["surface"] for row in lens["not_rendered"]}
+    assert "commercial.whitespace" in clutter
+    assert "today.queue" not in clutter and "today.queue" not in unseen  # engaged: listed nowhere
+    assert not clutter & unseen, "a surface cannot be both shown and never shown"
+
+    report = _report(client)
+    knowable = [r for r in report["surfaces"] if r["observation"] != "insufficient_window"]
+    assert len(lens["shown_not_engaged"]) + len(lens["not_rendered"]) + lens["in_use"] \
+        == len(knowable)
+    assert lens["withheld_insufficient_window"] == report["totals"]["insufficient_window"]
+    assert str(lens["withheld_insufficient_window"]) in lens["withheld_sentence"]
+    assert lens["caveat"]  # server-authored, rendered verbatim
+
+
+def test_the_lens_annotates_never_shown_with_route_landings(client):
+    """Landings split the reachability finding: visited-but-never-seen vs a route never visited."""
+    _measuring_since(client, 300)
+    response = client.post("/api/telemetry/events", json={
+        "event_name": "navigation_landed", "session_id": "local-abc12345",
+        "properties": {"route": "today", "entry_point": "navigation",
+                       "is_first_of_session": True}})
+    assert response.status_code in (200, 201, 202, 204), response.text
+    lens = _lens(client)
+    by_key = {row["surface"]: row for row in lens["not_rendered"]}
+    assert by_key["today.queue"]["route_landings"] == 1
+    assert by_key["commercial.whitespace"]["route_landings"] == 0
+
+
+def test_the_lens_carries_no_composite_name(client):
+    """The D-291 rule extends to the lens: no field may name a combination of the axes."""
+    _measuring_since(client, 300)
+    lens = _lens(client)
+    forbidden = re.compile(r"(?<![a-z_])(score|rating|health|usage_index)(?![a-z_])")
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                assert not forbidden.search(key), key
+                walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+    walk(lens)
 
 
 # --- §8 the report ------------------------------------------------------------------------------

@@ -652,4 +652,5 @@ export const api = {
   // §7.0's manual pass. A read over the registry, not over the events — it is the complement to
   // measurement rather than part of it, which is why it takes no window and no sort.
   surfaceRedundancy: () => req("GET", "/api/telemetry/surface-usage/redundancy"),
+  surfaceDeprecationLens: () => req("GET", "/api/telemetry/surface-usage/deprecation"),
 };

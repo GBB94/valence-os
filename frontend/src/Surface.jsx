@@ -98,14 +98,46 @@ export function Surface({ surfaceKey, renderReason = "navigation", position = nu
     return () => observer.disconnect();
   }, [surfaceKey, renderReason, position, track, presentation]);
 
+  // D-366: once any *semantic* engagement or dismissal is reported this mount, the generic
+  // operated-signal below stays silent for the rest of it — the surface has a better-quality
+  // account of the same interaction, and two events for one operation would inflate `engaged`.
+  const semanticFired = useRef(false);
+  const genericFired = useRef(false);
+  useEffect(() => {
+    semanticFired.current = false;
+    genericFired.current = false;
+  }, [surfaceKey]);
+
   const engage = useCallback((engagement) => {
     const properties = engagementProperties(surfaceKey, engagement);
-    if (properties) track("surface_engaged", properties);
+    if (properties) {
+      semanticFired.current = true;
+      track("surface_engaged", properties);
+    }
   }, [surfaceKey, track]);
 
   const dismiss = useCallback((dismissKind) => {
     const properties = dismissProperties(surfaceKey, dismissKind);
-    if (properties) track("surface_dismissed", properties);
+    if (properties) {
+      semanticFired.current = true;
+      track("surface_dismissed", properties);
+    }
+  }, [surfaceKey, track]);
+
+  // The generic half of the hybrid (D-366): any interactive control operated inside the surface
+  // reports `operated`, once per mount, on the bubble phase so a semantic handler on the same
+  // click runs first and wins. Once per mount for the same reason exposure is once per mount —
+  // the §6.3 question is "was this operated", not "how much clicking happened". A surface whose
+  // call site wires real semantic actions silences this signal simply by using them.
+  const genericEngage = useCallback((event) => {
+    if (genericFired.current || semanticFired.current) return;
+    const control = event.target.closest?.(
+      "button, a[href], input, select, textarea, summary, [role='button'], [role='option'], [role='tab']",
+    );
+    if (!control) return;
+    genericFired.current = true;
+    const properties = engagementProperties(surfaceKey, "operated");
+    if (properties) track("surface_engaged", properties);
   }, [surfaceKey, track]);
 
   const body = typeof children === "function" ? children({ engage, dismiss }) : children;
@@ -130,6 +162,7 @@ export function Surface({ surfaceKey, renderReason = "navigation", position = nu
         className={`surface surface-${presentation}`}
         ref={ref}
         data-surface={meta ? surfaceKey : undefined}
+        onClick={genericEngage}
       >
         <button
           type="button"
@@ -148,7 +181,8 @@ export function Surface({ surfaceKey, renderReason = "navigation", position = nu
   }
 
   return (
-    <div className="surface" ref={ref} data-surface={meta ? surfaceKey : undefined}>
+    <div className="surface" ref={ref} data-surface={meta ? surfaceKey : undefined}
+      onClick={genericEngage}>
       {body}
     </div>
   );

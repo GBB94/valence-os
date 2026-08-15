@@ -82,6 +82,19 @@ def surface_usage_report(window_days: int | None = Query(default=None, ge=1, le=
     return surface_usage.report(conn, today=today, window_days=window_days, sort=sort)
 
 
+@router.get("/surface-usage/deprecation")
+def surface_deprecation_lens(window_days: int | None = Query(default=None, ge=1, le=1200),
+                             today: str | None = Query(default=None),
+                             conn: sqlite3.Connection = Depends(get_conn)):
+    """D-368 — the two candidate lists Zach's deprecation question needs, and nothing else.
+
+    Runs the same `report()` the screen shows, so it can never disagree with it. Two lists kept
+    apart because they need opposite responses (clutter vs reachability), and the withheld
+    remainder is always stated (the D-160 rule).
+    """
+    return surface_usage.deprecation_lens(conn, today=today, window_days=window_days)
+
+
 @router.post("/surface-usage/fold")
 def fold_surface_usage(conn: sqlite3.Connection = Depends(get_conn)):
     """Advance the monthly rollup and purge past its 36-month retention. Idempotent."""

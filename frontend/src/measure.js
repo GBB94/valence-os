@@ -14,6 +14,22 @@ import {
 import { api } from "./api";
 import { createTracker, ensureSessionId, moveThatLeft } from "./telemetry";
 
+// D-367: the Vite dev server does not record. Real use runs the built app served by FastAPI
+// (D-13); dev-server sessions are tool runs, screenshots, and experiments, and counting them
+// wrote the only twenty render events this installation had. Suppression is at the transport so
+// every tracker inherits it, the payloads still build (a dev session exercises the same code
+// paths), and nothing downstream can tell the difference except the sink. Set
+// VITE_MEASURE_IN_DEV=1 to record from the dev server anyway — the escape hatch for anyone whose
+// daily driver genuinely is `npm run dev`.
+const DEV_SUPPRESSED =
+  typeof import.meta !== "undefined" && import.meta.env?.DEV &&
+  import.meta.env?.VITE_MEASURE_IN_DEV !== "1";
+if (DEV_SUPPRESSED && typeof console !== "undefined") {
+  // One line, once, so a dev session investigating "why is nothing recording" finds the answer.
+  console.info("valence: measurement suppressed in dev (set VITE_MEASURE_IN_DEV=1 to record)");
+}
+const recordEvent = DEV_SUPPRESSED ? () => {} : api.recordEvent;
+
 function mint() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   // Old-browser fallback. Still a slug, still says nothing about who is using the installation.
@@ -45,7 +61,7 @@ export function sessionId() {
  */
 export function useMeasure({ accountId = null, programId = null, rankingRuleVersion = null } = {}) {
   return useMemo(
-    () => createTracker(api.recordEvent, {
+    () => createTracker(recordEvent, {
       accountId, programId, rankingRuleVersion, sessionId: sessionId(),
     }),
     [accountId, programId, rankingRuleVersion],
@@ -54,7 +70,7 @@ export function useMeasure({ accountId = null, programId = null, rankingRuleVers
 
 /** The same tracker outside a component, for a module that has no hook to hang it on. */
 export function measure(context = {}) {
-  return createTracker(api.recordEvent, { ...context, sessionId: sessionId() });
+  return createTracker(recordEvent, { ...context, sessionId: sessionId() });
 }
 
 // --- Stage 17: ambient scope for the `<Surface>` wrapper -------------------------------------
@@ -72,7 +88,7 @@ const SurfaceScopeContext = createContext(null);
 
 export function SurfaceScopeProvider({ accountId = null, programId = null, children }) {
   const value = useMemo(
-    () => createTracker(api.recordEvent, { accountId, programId, sessionId: sessionId() }),
+    () => createTracker(recordEvent, { accountId, programId, sessionId: sessionId() }),
     [accountId, programId],
   );
   return createElement(SurfaceScopeContext.Provider, { value }, children);

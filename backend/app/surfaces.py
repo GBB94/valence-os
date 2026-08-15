@@ -74,7 +74,12 @@ class Surface:
     # Renders a withheld or refused reason (the D-153 family). A surface carrying one may only be
     # retired if another offered surface carries the same refusal.
     explains_refusal: bool = False
-    # `True`, or a sentence naming why this surface is registered but not instrumented (§11.1).
+    # `True` (a named semantic action emits engagement), `GENERIC` (engagement is observed by the
+    # wrapper's operated-signal — real, but coarse), or a sentence naming why neither holds
+    # (§11.1, amended 2026-08-15 / D-366). `GENERIC` is a distinct value rather than `True`
+    # because the two claims differ: semantic engagement says *which* operation happened, the
+    # generic signal only says a control inside the surface was operated. A reader weighing a
+    # retirement gets told which kind of evidence backs the zero.
     instrumented: bool | str = True
     # Required exactly when `reaches` is empty. See `_validate` for why this exists at all.
     renders_no_records: str | None = None
@@ -95,16 +100,22 @@ class Surface:
     data_columns: tuple[str, ...] = ()
 
 
+# The middle instrumentation state (D-366): the wrapper's generic operated-signal covers this
+# surface, so `engaged` is readable — a zero genuinely means no control inside it was operated —
+# but the events say only `operated`, never which operation. Wiring a named semantic action
+# upgrades a surface to `instrumented=True` and silences the generic signal at that call site.
+GENERIC = "generic"
+
+
 def _s(key, label, route, kind, cadence, **kw) -> Surface:
-    # A wrapper proves exposure coverage, not engagement coverage. Until a surface explicitly
-    # wires a meaningful operation to `engage(...)`, its zero-engagement reading is unknowable —
-    # otherwise the retirement report turns incomplete instrumentation into evidence of clutter.
-    # Commands are different: their only event is the explicitly-wired invocation itself.
+    # Every non-command surface sits inside the `<Surface>` wrapper, and since D-366 the wrapper
+    # itself emits `operated` engagement for any interactive control operated inside it. So the
+    # default is GENERIC, not an uninstrumented sentence: the zero is readable, and what remains
+    # per-surface work is naming the operation (upgrading to `instrumented=True`), not making the
+    # counter mean anything at all. Commands are different: their only event is the
+    # explicitly-wired invocation itself.
     if kind != "command" and "instrumented" not in kw:
-        kw["instrumented"] = (
-            "Exposure is measured, but no semantic engagement action is wired yet. "
-            "Do not read zero engagement as disuse."
-        )
+        kw["instrumented"] = GENERIC
     added_on = kw.pop("added_on", "2026-08-06")
     return Surface(key=key, label=label, route=route, kind=kind, cadence=cadence,
                    added_on=added_on, **kw)

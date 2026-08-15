@@ -251,8 +251,11 @@ def _observe(surface, *, rendered: int, engaged: int, observed_days: int,
     """
     # A wrapper can prove that the surface was exposed without proving that any of its meaningful
     # operations emit `surface_engaged`. In that state a zero is an instrumentation gap, not disuse.
-    # Refuse before reading the counters, exactly as a short observation window does.
-    if surface.instrumented is not True:
+    # Refuse before reading the counters, exactly as a short observation window does. GENERIC
+    # (D-366) passes: the wrapper's operated-signal makes the engagement counter readable — a zero
+    # there means no control inside the surface was operated, which is exactly the claim §6.3
+    # reads — while the row still names which kind of instrumentation backs it.
+    if surface.instrumented not in (True, surfaces.GENERIC):
         return "insufficient_window", str(surface.instrumented)
 
     required = surfaces.window_days(surface.cadence)
@@ -388,8 +391,15 @@ def report(conn: sqlite3.Connection, *, today: str | None = None,
             "recorded_cause": (causes.get(surface.key) or {}).get("cause_code"),
             "recorded_cause_on": (causes.get(surface.key) or {}).get("recorded_on"),
             "retirement_action": (causes.get(surface.key) or {}).get("action") or "none",
-            "instrumented": surface.instrumented is True,
-            "instrumentation_note": (None if surface.instrumented is True
+            "instrumented": surface.instrumented in (True, surfaces.GENERIC),
+            # Which kind of evidence backs the engagement counter (D-366): "semantic" names the
+            # operation, "generic" only proves a control inside the surface was operated. Stated
+            # on every row rather than inferred, because a retirement argument built on a generic
+            # zero is weaker and the reader deserves to know which one they are holding.
+            "engagement_instrumentation": ("semantic" if surface.instrumented is True
+                                           else "generic" if surface.instrumented == surfaces.GENERIC
+                                           else None),
+            "instrumentation_note": (None if surface.instrumented in (True, surfaces.GENERIC)
                                      else surface.instrumented),
         })
 
@@ -515,3 +525,117 @@ def _totals(rows: list[dict]) -> dict:
     totals["surfaces"] = len(rows)
     totals["uninstrumented"] = sum(1 for row in rows if not row["instrumented"])
     return totals
+
+
+# --- the deprecation lens (D-368) ---------------------------------------------------------------
+#
+# Zach's question, 2026-08-15: "for the things that I've probably overbuilt … a good understanding
+# of what's not being used so I can deprecate it." The report already computes the evidence; this
+# lens re-shapes it into the two candidate lists that question needs, and nothing else. It runs the
+# same `report()` the screen shows — the same projection discipline as the shared-plan preview —
+# so the lens can never disagree with the report it summarises.
+#
+# Two lists, never combined, because §6.3's two findings need opposite responses: a surface shown
+# and never operated is a *clutter* candidate (consider retiring it), and a surface never shown at
+# all is a *navigation* finding (fix how it is reached before judging whether it is wanted).
+# Folding them into one "unused" list would hand the operator a kill list with two different kinds
+# of evidence hiding in it.
+
+LENS_CAVEAT = (
+    "Two lists answering two different questions. Shown-and-never-operated is evidence a surface "
+    "may be clutter; never-shown says nothing about whether it is wanted — it was never offered "
+    "where you were looking. Neither list is a decision: each row links the evidence it stands on, "
+    "and retiring anything still goes through the safety check."
+)
+
+GENERIC_EVIDENCE_NOTE = (
+    "Rows marked generic count any operated control inside the surface as engagement. That zero "
+    "is real but coarse — a surface read without being clicked can appear here. Weigh it, don't "
+    "obey it."
+)
+
+LANDINGS_NOTE = (
+    "Route landings are counted from retained raw events only, so a window reaching past the raw "
+    "retention may undercount them. The surface counters come from the monthly rollup and do not "
+    "share that limit."
+)
+
+
+def _route_landings(conn: sqlite3.Connection, start: str, end: str) -> dict[str, int]:
+    """`navigation_landed` counts per route inside the window, from retained raw events."""
+    rows = conn.execute(
+        """
+        SELECT json_extract(properties_json, '$.route') AS route, COUNT(*) AS landings
+        FROM product_events
+        WHERE event_name = 'navigation_landed'
+          AND substr(occurred_at, 1, 10) BETWEEN ? AND ?
+        GROUP BY 1
+        """,
+        (start, end),
+    ).fetchall()
+    return {row["route"]: row["landings"] for row in rows if row["route"]}
+
+
+def _lens_row(row: dict) -> dict:
+    """The subset of a report row the lens repeats. A subset, never a recompute."""
+    return {
+        "surface": row["surface"],
+        "label": row["label"],
+        "route": row["route"],
+        "kind": row["kind"],
+        "cadence": row["cadence"],
+        "rendered": row["rendered"],
+        "engaged": row["engaged"],
+        "last_engaged_on": row["last_engaged_on"],
+        "engagement_instrumentation": row["engagement_instrumentation"],
+        "retirement_action": row["retirement_action"],
+    }
+
+
+def deprecation_lens(conn: sqlite3.Connection, *, today: str | None = None,
+                     window_days: int | None = None) -> dict:
+    """The two candidate lists, plus the statement of everything they leave out.
+
+    The withheld remainder is always stated (the D-160 rule): a lens that lists only what it can
+    judge, without saying how much it cannot, reads as a clean bill for the rest.
+    """
+    full = report(conn, today=today, window_days=window_days)
+    rows = full["surfaces"]
+    landings = _route_landings(conn, full["window"]["from"], full["window"]["to"])
+
+    shown_not_engaged = sorted(
+        (_lens_row(row) for row in rows if row["observation"] == "rendered_not_engaged"),
+        # A raw counter, descending. Not a composite: more exposures with zero engagement is
+        # simply more of the same evidence, and `rendered` is already one of the four axes.
+        key=lambda row: -row["rendered"],
+    )
+    not_rendered = []
+    for row in rows:
+        if row["observation"] != "not_rendered":
+            continue
+        entry = _lens_row(row)
+        # Whether the route was visited at all splits the navigation finding in two: landings
+        # with no render means "offered screen, never reached the surface" (position, tab, or
+        # fold); no landings means the whole route went unvisited and the surface is unjudged.
+        entry["route_landings"] = landings.get(row["route"], 0)
+        not_rendered.append(entry)
+    not_rendered.sort(key=lambda row: -row["route_landings"])
+
+    withheld = sum(1 for row in rows if row["observation"] == "insufficient_window")
+    engaged = sum(1 for row in rows if row["observation"] == "engaged")
+    return {
+        "window": full["window"],
+        "caveat": LENS_CAVEAT,
+        "generic_evidence_note": GENERIC_EVIDENCE_NOTE,
+        "landings_note": LANDINGS_NOTE,
+        "shown_not_engaged": shown_not_engaged,
+        "not_rendered": not_rendered,
+        # The remainder, stated. Counts, not a list — the report screen already lists them.
+        "withheld_insufficient_window": withheld,
+        "in_use": engaged,
+        "withheld_sentence": (
+            f"{withheld} surface{'s' if withheld != 1 else ''} withheld: their windows cannot yet "
+            "support a reading, so they are neither candidates nor cleared. "
+            f"{engaged} in use and not listed."
+        ),
+    }

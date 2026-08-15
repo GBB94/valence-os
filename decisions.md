@@ -2,6 +2,36 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
+## Surface usage — the deprecation instrument (2026-08-15)
+
+Zach's ask: know what's overbuilt so it can be deprecated. The Stage 17 tooling already existed;
+what it lacked was engagement coverage (43 of 64 surfaces exposure-only), separation from dev
+traffic (tool sessions had written the installation's only 20 render events), and a view shaped
+like the question. Zach chose all three fixes ("choose the first option on all 3").
+
+- **D-366 — Hybrid engagement: a generic `operated` signal from the wrapper, semantic wiring
+  wins.** §5's vocabulary gains a seventh value emitted only by `<Surface>` itself — any
+  interactive control operated inside a surface, once per mount, bubble-phase so a semantic
+  handler on the same click fires first and silences it. The registry's `instrumented` gains the
+  middle state `GENERIC` (now the non-command default): the zero is readable, but every report row
+  says which kind of evidence backs it (`engagement_instrumentation`), because a retirement
+  argument built on a generic zero is weaker and the reader deserves to know which one they hold.
+  The sentence state survives for surfaces that can do neither, and the §11.1 rule ("explained or
+  instrumented, never silent") holds across all three.
+- **D-367 — The Vite dev server does not record.** Suppressed at the transport in `measure.js`
+  so every tracker inherits it and payloads still build; `VITE_MEASURE_IN_DEV=1` is the escape
+  hatch, and one console line names the suppression. Real use is the built app served by FastAPI
+  (D-13). The existing polluted rows stay: the fold is monotone by design (D-332), the noise is
+  20 renders on the two Today surfaces, and row surgery on the telemetry store is exactly what
+  this repo does not do.
+- **D-368 — The deprecation lens runs the report's own projection.** `/surface-usage/deprecation`
+  re-shapes `report()` — never recomputes it — into two lists kept apart because they need
+  opposite responses: shown-never-operated (clutter) and never-displayed (reachability, each row
+  annotated with route landings so "visited but never seen" and "route never visited" stay
+  distinguishable). The withheld remainder is always stated (D-160), the caveats are
+  server-authored (D-151…D-155), landings are honestly noted as raw-retention-bounded, and a
+  walk-the-response test asserts no field names a combination of the axes (D-291).
+
 ## Skins — an operator-chosen repaint axis (2026-08-15)
 
 Zach asked for the Hermes-artifact "control room" style as a toggleable Valence OS option, plus a

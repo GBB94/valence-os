@@ -12,6 +12,25 @@ authority for the sink, the allowlist discipline, retention, and the §17.5 cave
 extends that layer from *"was the recommendation acted on"* to *"which parts of this platform earn
 their place on the screen"*. It adds no new sink and no new boundary.
 
+**Amendment 2026-08-15 (D-366…D-368, Zach: hybrid engagement, dev exclusion, deprecation lens).**
+Three additions, none of which changes §6's axes or their refusal rules. **(1) The generic
+operated-signal.** §5's engagement vocabulary gains a seventh value, `operated`, emitted only by
+the `<Surface>` wrapper itself: any interactive control operated inside a surface reports it, once
+per mount, on the bubble phase so a semantic handler on the same click wins and silences it. The
+registry's `instrumented` field gains the matching middle state `GENERIC` (now the default for
+non-command surfaces): the engagement counter is readable — a zero genuinely means no control was
+operated — but the events name no operation, and every report row states which kind of evidence
+backs it (`engagement_instrumentation: semantic | generic`). Wiring a real semantic action still
+upgrades a surface to `instrumented=True`; a surface that can do neither still carries a sentence
+and still refuses interpretation. **(2) Dev exclusion.** The Vite dev server does not record
+(suppressed at the transport; `VITE_MEASURE_IN_DEV=1` is the escape hatch), because tool sessions
+were this installation's only render events. **(3) The deprecation lens** (`§8`-adjacent,
+`/surface-usage/deprecation`): the same `report()` projection re-shaped into the two candidate
+lists the deprecation question needs — shown-never-operated (clutter) and never-displayed
+(reachability, annotated with route landings) — kept apart because they need opposite responses,
+with the withheld remainder always stated and no name for any combination of the axes.
+
+
 ---
 
 ## 1. Does this make sense?
@@ -215,7 +234,7 @@ structurally unable to reach the sink.
 | Event | Properties |
 |---|---|
 | `surface_rendered` | `surface`, `route`, `kind`, `render_reason` (`navigation`, `restore`, `filter_change`), `position` |
-| `surface_engaged` | `surface`, `route`, `kind`, `engagement` (`opened`, `filtered`, `expanded`, `edited`, `dismissed`, `followed_link`) |
+| `surface_engaged` | `surface`, `route`, `kind`, `engagement` (`opened`, `filtered`, `expanded`, `edited`, `dismissed`, `followed_link`, `operated` — the generic seventh, amendment 2026-08-15) |
 | `surface_dismissed` | `surface`, `route`, `dismiss_kind` (`collapsed`, `closed`, `hidden`) |
 | `command_invoked` | `command`, `route`, `entry_point` (`toolbar`, `keyboard`, `menu`, `empty_state`) |
 | `navigation_landed` | `route`, `entry_point`, `is_first_of_session` |
