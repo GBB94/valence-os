@@ -31,6 +31,7 @@ import Coach from "./views/Coach";
 import CopilotPanel from "./views/CopilotPanel";
 import AdoptionComms from "./views/AdoptionComms";
 import { WORKSPACE_TABS, navigationUrl, parseNavigation } from "./navigation";
+import { SKINS } from "./skins";
 import { SurfaceRetirementProvider, SurfaceScopeProvider, measure } from "./measure";
 import { commandProperties, navigationProperties } from "./surfaces";
 import { Surface } from "./Surface";
@@ -97,6 +98,16 @@ function Shell() {
   });
   const [density, setDensity] = useState(() => {
     try { return localStorage.getItem("valence-density") || "compact"; } catch { return "compact"; }
+  });
+  // Skin: a third presentation axis beside theme and density. The stored value is a skin id
+  // from SKINS (skins.js); "default" means no attribute and the base tokens apply untouched.
+  // Skin and theme are independent — every skin defines both a light and a dark variant in
+  // skins.css, so toggling the theme never changes the skin and vice versa.
+  const [skin, setSkin] = useState(() => {
+    try {
+      const s = localStorage.getItem("valence-skin");
+      return SKINS.some((k) => k.id === s) ? s : "default";
+    } catch { return "default"; }
   });
   const [copilot, setCopilot] = useState(null);
   const copilotTriggerRef = useRef(null);
@@ -166,6 +177,12 @@ function Shell() {
     document.documentElement.dataset.density = density;
     try { localStorage.setItem("valence-density", density); } catch { /* ignore */ }
   }, [density]);
+  useEffect(() => {
+    // Absent attribute = default skin, mirroring the pre-paint script in index.html.
+    if (skin === "default") delete document.documentElement.dataset.skin;
+    else document.documentElement.dataset.skin = skin;
+    try { localStorage.setItem("valence-skin", skin); } catch { /* ignore */ }
+  }, [skin]);
   useEffect(() => {
     try { localStorage.setItem("valence-rail", railCollapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [railCollapsed]);
@@ -373,6 +390,7 @@ function Shell() {
               </Card>
             )}
           </div>
+          <SkinPicker skin={skin} setSkin={setSkin} />
           <DensityToggle density={density} setDensity={setDensity} />
           <Tooltip text={INFO[nav.dest === "account" ? nav.tab : nav.dest]} />
           <button className="btn small" onClick={() => setPalette(true)} title="Command palette (⌘K)" aria-label="Command palette">⌘K</button>
@@ -534,6 +552,54 @@ function Breadcrumb({ nav, accounts, go }) {
       <span className="crumb-sep">›</span>
       <span className="crumb-cur">{acct?.name || "Account"}</span>
       {tabLabel && <><span className="crumb-sep">·</span><span className="crumb-cur">{tabLabel}</span></>}
+    </div>
+  );
+}
+
+// Skin picker: a popover list rather than a cycle button — with more than two options a blind
+// cycle makes the operator walk the whole ring to get back, and a skin change repaints the
+// entire app, so each step of that walk is a full visual jolt. Same popover pattern as the
+// notifications card. Skins and themes are independent axes; the picker says so.
+function SkinPicker({ skin, setSkin }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const current = SKINS.find((k) => k.id === skin) || SKINS[0];
+  return (
+    <div style={{ position: "relative" }} ref={ref}>
+      <button className="btn small" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox"
+        aria-expanded={open} title={`Skin: ${current.label} — click to change`}
+        aria-label={`Skin: ${current.label}. Click to change.`}>
+        ❖
+      </button>
+      {open && (
+        <Card style={{ position: "absolute", right: 0, top: 34, width: 260, zIndex: 30, boxShadow: "var(--shadow-panel)" }}>
+          <div className="card-h"><h3>Skin</h3></div>
+          <div role="listbox" aria-label="Skin">
+            {SKINS.map((k) => (
+              <button key={k.id} role="option" aria-selected={k.id === skin} className="btn small ghost"
+                style={{ display: "flex", width: "100%", textAlign: "left", gap: 8, alignItems: "baseline", borderRadius: 0 }}
+                onClick={() => { setSkin(k.id); setOpen(false); }}>
+                <span style={{ width: 14 }}>{k.id === skin ? "✓" : ""}</span>
+                <span>
+                  <span style={{ fontWeight: k.id === skin ? 600 : 400 }}>{k.label}</span>
+                  <span className="rowmeta" style={{ display: "block" }}>{k.blurb}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="rowmeta" style={{ padding: "6px 12px 8px" }}>
+            Independent of the light/dark toggle — every skin has both.
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

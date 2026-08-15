@@ -1,7 +1,8 @@
-/* Valence OS — design tokens (single source of truth).
-   Per DESIGN-GUIDE.md: no raw hex or arbitrary pixel values may live outside this file.
-   Cool graphite neutrals, one ink-indigo accent (interaction only), semantic hues for
-   status only. Both light and dark are first-class. Fonts are self-hosted (no CDN). */
+/* Valence OS — design tokens (single source of truth for the default skin).
+   Per DESIGN-GUIDE.md: no raw hex or arbitrary pixel values may live outside the token
+   files — this one and skins.css (§4.3), whose blocks may only redefine tokens declared
+   here. Cool graphite neutrals, one ink-indigo accent (interaction only), semantic hues
+   for status only. Both light and dark are first-class. Fonts are self-hosted (no CDN). */
 
 /* ---- Self-hosted faces (IBM Plex Sans / Mono, latin, woff2) ------------------------- */
 @font-face {

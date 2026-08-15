@@ -1,0 +1,876 @@
+/* Valence OS — skins (token overrides only).
+   Second token file beside tokens.css; DESIGN-GUIDE §4.3 governs it. A skin block may
+   only redefine tokens tokens.css already declares — never spacing, never the type
+   scale — and every skin ships a light AND a dark block with identical token sets,
+   because a token overridden on one side leaks the other theme's value through the
+   cascade. The theme attribute is always stamped resolved ("light"|"dark") by the
+   pre-paint script, so both blocks pair it with data-skin at equal specificity and
+   the base tokens win whenever data-skin is absent. Status hues stay semantic in
+   every skin: skins.test.js audits contrast and hue ranges over all of this. */
+
+/* ---- Control Room ---------------------------------------------------------------
+   The lit-up board: deep indigo space, electric accents, glow carried by shadows.
+   Dark is the native habitat; light is the same electricity on a cool bright ground. */
+
+:root[data-theme="light"][data-skin="control-room"] {
+  --bg-app:        #EEF0FB;
+  --bg-surface:    #FFFFFF;
+  --bg-elevated:   #FFFFFF;
+  --bg-sunken:     #E4E8F8;
+  --bg-hover:      #EDEFFC;
+  --bg-selected:   #E3E6FC;
+
+  --line-hairline: #D9DDF2;
+  --line-strong:   #BEC5E9;
+  --line-hover:    #A6AEE0;
+
+  --ink-primary:   #171A2E;
+  --ink-secondary: #4D5478;
+  --ink-tertiary:  #5A6183;
+  --ink-inverse:   #FFFFFF;
+
+  --accent:        #4650D8;
+  --accent-hover:  #3941B8;
+  --accent-tint:   #E3E6FC;
+  --accent-ring:   rgba(70, 80, 216, 0.38);
+
+  --status-ok:           #147244;
+  --status-ok-tint:      #E2F3EA;
+  --status-warn:         #875200;
+  --status-warn-tint:    #FAEFDC;
+  --status-risk:         #C0392F;
+  --status-risk-tint:    #FBE9E7;
+  --status-unknown:      #7B8093;
+  --status-unknown-tint: #ECEEF6;
+
+  --fin-positive:  #147244;
+  --fin-negative:  #C0392F;
+  --fin-total:     #4D5478;
+
+  --data-1: #4650D8;
+  --data-2: #8B47D8;
+  --data-3: #0E93AC;
+  --data-4: #8E88E8;
+  --data-muted: #C3C7E5;
+
+  --ambient-page: rgba(70,80,216,.05);
+  --ambient-primary: rgba(70,80,216,.16);
+  --ambient-secondary: rgba(139,71,216,.09);
+  --ambient-tertiary: rgba(14,147,172,.07);
+  --ambient-graph: rgba(70,80,216,.13);
+  --ambient-surface: rgba(70,80,216,.11);
+  --grid-line: rgba(23,26,46,.045);
+  --title-highlight: #14172B;
+  --title-shadow: #4A5180;
+
+  --shadow-primary: 0 0 0 1px rgba(70,80,216,.16), 0 4px 14px rgba(70,80,216,.22), inset 0 1px 0 rgba(255,255,255,.22);
+  --shadow-card: 0 0 0 1px rgba(23,26,46,.03), 0 2px 10px rgba(70,80,216,.07), 0 18px 46px rgba(70,80,216,.06), inset 0 1px 0 rgba(255,255,255,.85);
+  --shadow-card-hover: 0 0 0 1px rgba(70,80,216,.14), 0 8px 24px rgba(70,80,216,.12), 0 22px 58px rgba(139,71,216,.09), inset 0 1px 0 rgba(255,255,255,.92);
+  --shadow-panel: 0 1px 2px rgba(23,26,46,.06), 0 12px 32px rgba(70,80,216,.14);
+  --noise-opacity: .015;
+}
+
+:root[data-theme="dark"][data-skin="control-room"] {
+  --bg-app:        #0A0D1C;
+  --bg-surface:    #12162E;
+  --bg-elevated:   #171C3A;
+  --bg-sunken:     #070A16;
+  --bg-hover:      #1A2040;
+  --bg-selected:   #1D2350;
+
+  --line-hairline: #252C55;
+  --line-strong:   #333C6E;
+  --line-hover:    #47528F;
+
+  --ink-primary:   #ECEFFF;
+  --ink-secondary: #A6AFDA;
+  --ink-tertiary:  #8C95C4;
+  --ink-inverse:   #0A0D1C;
+
+  --accent:        #97A4FF;
+  --accent-hover:  #AFB9FF;
+  --accent-tint:   #1D2350;
+  --accent-ring:   rgba(151, 164, 255, 0.42);
+
+  --status-ok:           #46C98D;
+  --status-ok-tint:      #0F2A20;
+  --status-warn:         #E0A344;
+  --status-warn-tint:    #2E2312;
+  --status-risk:         #F0776C;
+  --status-risk-tint:    #331B18;
+  --status-unknown:      #8B91A6;
+  --status-unknown-tint: #1A1E33;
+
+  --fin-positive:  #46C98D;
+  --fin-negative:  #F0776C;
+  --fin-total:     #A6AFDA;
+
+  --data-1: #6D7CFF;
+  --data-2: #B36BFF;
+  --data-3: #22C8E6;
+  --data-4: #C9C5FB;
+  --data-muted: #3A4166;
+
+  --ambient-page: rgba(109,124,255,.14);
+  --ambient-primary: rgba(109,124,255,.30);
+  --ambient-secondary: rgba(179,107,255,.16);
+  --ambient-tertiary: rgba(34,200,230,.12);
+  --ambient-graph: rgba(109,124,255,.26);
+  --ambient-surface: rgba(109,124,255,.18);
+  --grid-line: rgba(255,255,255,.035);
+  --title-highlight: #F1F3FF;
+  --title-shadow: #A9B2E4;
+
+  --shadow-primary: 0 0 0 1px rgba(151,164,255,.34), 0 5px 18px rgba(109,124,255,.34), 0 0 40px rgba(179,107,255,.16), inset 0 1px 0 rgba(255,255,255,.22);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.03), 0 2px 18px rgba(0,0,0,.42), 0 24px 70px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.06);
+  --shadow-card-hover: 0 0 0 1px rgba(151,164,255,.22), 0 9px 34px rgba(0,0,0,.5), 0 0 70px rgba(109,124,255,.14), inset 0 1px 0 rgba(255,255,255,.09);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.5), 0 16px 42px rgba(0,0,0,.6), 0 0 70px rgba(109,124,255,.09);
+  --noise-opacity: .03;
+}
+
+/* ---- Newsprint ------------------------------------------------------------------
+   Financial-paper editorial: salmon ground, near-black ink, claret accent, tight
+   radii. Dark is the night edition — warm ink-black, same rules. Status greens and
+   ambers are re-tuned for the warm grounds but keep their hues (audited). */
+
+:root[data-theme="light"][data-skin="newsprint"] {
+  --bg-app:        #FFF1E5;
+  --bg-surface:    #FFF8F0;
+  --bg-elevated:   #FFFCF7;
+  --bg-sunken:     #F6E7D8;
+  --bg-hover:      #F9EBDD;
+  --bg-selected:   #F6E2DC;
+
+  --line-hairline: #E8D9C9;
+  --line-strong:   #D4C2AE;
+  --line-hover:    #BCA78F;
+
+  --ink-primary:   #33302E;
+  --ink-secondary: #635A51;
+  --ink-tertiary:  #6E6154;
+  --ink-inverse:   #FFF8F0;
+
+  --accent:        #990F3D;
+  --accent-hover:  #7A0C31;
+  --accent-tint:   #F6E1E4;
+  --accent-ring:   rgba(153, 15, 61, 0.35);
+
+  --status-ok:           #14683F;
+  --status-ok-tint:      #E5EFDE;
+  --status-warn:         #7E4E00;
+  --status-warn-tint:    #F7EAD2;
+  --status-risk:         #B03427;
+  --status-risk-tint:    #F8E3DD;
+  --status-unknown:      #7C766E;
+  --status-unknown-tint: #F1EAE0;
+
+  --fin-positive:  #14683F;
+  --fin-negative:  #B03427;
+  --fin-total:     #6E6154;
+
+  --data-1: #990F3D;
+  --data-2: #B8536B;
+  --data-3: #7A6855;
+  --data-4: #D1909A;
+  --data-muted: #DCC9B5;
+
+  --ambient-page: rgba(153,15,61,.03);
+  --ambient-primary: rgba(153,15,61,.09);
+  --ambient-secondary: rgba(122,104,85,.07);
+  --ambient-tertiary: rgba(153,15,61,.05);
+  --ambient-graph: rgba(153,15,61,.08);
+  --ambient-surface: rgba(153,15,61,.06);
+  --grid-line: rgba(51,48,46,.04);
+  --title-highlight: #2B2826;
+  --title-shadow: #635A51;
+
+  --r-sm: 2px;
+  --r-md: 3px;
+  --r-lg: 4px;
+  --r-xl: 6px;
+
+  --shadow-primary: 0 0 0 1px rgba(153,15,61,.14), 0 3px 10px rgba(153,15,61,.14), inset 0 1px 0 rgba(255,255,255,.25);
+  --shadow-card: 0 0 0 1px rgba(51,48,46,.05), 0 1px 4px rgba(51,48,46,.06);
+  --shadow-card-hover: 0 0 0 1px rgba(153,15,61,.14), 0 3px 12px rgba(51,48,46,.10);
+  --shadow-panel: 0 1px 2px rgba(51,48,46,.08), 0 10px 28px rgba(51,48,46,.14);
+  --noise-opacity: .012;
+}
+
+:root[data-theme="dark"][data-skin="newsprint"] {
+  --bg-app:        #171310;
+  --bg-surface:    #201B16;
+  --bg-elevated:   #262019;
+  --bg-sunken:     #120F0C;
+  --bg-hover:      #2A231C;
+  --bg-selected:   #33231F;
+
+  --line-hairline: #362E26;
+  --line-strong:   #463C31;
+  --line-hover:    #5A4D3F;
+
+  --ink-primary:   #EFE7DC;
+  --ink-secondary: #B5A995;
+  --ink-tertiary:  #9C9080;
+  --ink-inverse:   #171310;
+
+  --accent:        #E0748E;
+  --accent-hover:  #EB8FA3;
+  --accent-tint:   #3A2229;
+  --accent-ring:   rgba(224, 116, 142, 0.4);
+
+  --status-ok:           #52B682;
+  --status-ok-tint:      #17291E;
+  --status-warn:         #D6982F;
+  --status-warn-tint:    #2E2411;
+  --status-risk:         #E86A5E;
+  --status-risk-tint:    #331E19;
+  --status-unknown:      #918A80;
+  --status-unknown-tint: #221E18;
+
+  --fin-positive:  #52B682;
+  --fin-negative:  #E86A5E;
+  --fin-total:     #B5A995;
+
+  --data-1: #E0748E;
+  --data-2: #C08B9A;
+  --data-3: #B49578;
+  --data-4: #E5C9CE;
+  --data-muted: #4A4036;
+
+  --ambient-page: rgba(224,116,142,.07);
+  --ambient-primary: rgba(224,116,142,.16);
+  --ambient-secondary: rgba(180,149,120,.10);
+  --ambient-tertiary: rgba(224,116,142,.08);
+  --ambient-graph: rgba(224,116,142,.14);
+  --ambient-surface: rgba(224,116,142,.10);
+  --grid-line: rgba(255,255,255,.03);
+  --title-highlight: #F4EDE3;
+  --title-shadow: #B5A995;
+
+  --r-sm: 2px;
+  --r-md: 3px;
+  --r-lg: 4px;
+  --r-xl: 6px;
+
+  --shadow-primary: 0 0 0 1px rgba(224,116,142,.28), 0 4px 14px rgba(224,116,142,.2), inset 0 1px 0 rgba(255,255,255,.12);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.03), 0 2px 14px rgba(0,0,0,.4);
+  --shadow-card-hover: 0 0 0 1px rgba(224,116,142,.2), 0 6px 24px rgba(0,0,0,.5);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.46), 0 14px 38px rgba(0,0,0,.55);
+  --noise-opacity: .022;
+}
+
+/* ---- Nord -----------------------------------------------------------------------
+   The published palette (nordtheme.com): Polar Night grounds in dark, Snow Storm in
+   light per the spec's bright-ambiance rules, Frost for interaction. Aurora hues are
+   the starting point for status but darkened/brightened per ground to clear 4.5:1 —
+   the palette's own values are display colors, not text colors. */
+
+:root[data-theme="light"][data-skin="nord"] {
+  --bg-app:        #ECEFF4;
+  --bg-surface:    #FBFCFE;
+  --bg-elevated:   #FFFFFF;
+  --bg-sunken:     #E5E9F0;
+  --bg-hover:      #EDF0F5;
+  --bg-selected:   #DEE9F1;
+
+  --line-hairline: #D8DEE9;
+  --line-strong:   #C2CBD8;
+  --line-hover:    #AAB4C5;
+
+  --ink-primary:   #2E3440;
+  --ink-secondary: #4C566A;
+  --ink-tertiary:  #566175;
+  --ink-inverse:   #ECEFF4;
+
+  --accent:        #33607F;
+  --accent-hover:  #29506B;
+  --accent-tint:   #DCEAF2;
+  --accent-ring:   rgba(94, 129, 172, 0.4);
+
+  --status-ok:           #3E7350;
+  --status-ok-tint:      #E2EEE4;
+  --status-warn:         #8A5A00;
+  --status-warn-tint:    #F6EDD8;
+  --status-risk:         #A83E48;
+  --status-risk-tint:    #F6E4E5;
+  --status-unknown:      #737C8C;
+  --status-unknown-tint: #EAEDF2;
+
+  --fin-positive:  #3E7350;
+  --fin-negative:  #A83E48;
+  --fin-total:     #4C566A;
+
+  --data-1: #33607F;
+  --data-2: #5E81AC;
+  --data-3: #81A1C1;
+  --data-4: #A8BDD3;
+  --data-muted: #CBD3DF;
+
+  --ambient-page: rgba(94,129,172,.05);
+  --ambient-primary: rgba(94,129,172,.14);
+  --ambient-secondary: rgba(136,192,208,.08);
+  --ambient-tertiary: rgba(129,161,193,.07);
+  --ambient-graph: rgba(94,129,172,.12);
+  --ambient-surface: rgba(94,129,172,.09);
+  --grid-line: rgba(46,52,64,.04);
+  --title-highlight: #262B35;
+  --title-shadow: #4C566A;
+
+  --shadow-primary: 0 0 0 1px rgba(94,129,172,.14), 0 4px 12px rgba(94,129,172,.18), inset 0 1px 0 rgba(255,255,255,.25);
+  --shadow-card: 0 0 0 1px rgba(46,52,64,.03), 0 2px 10px rgba(46,52,64,.06), 0 18px 46px rgba(46,52,64,.05), inset 0 1px 0 rgba(255,255,255,.85);
+  --shadow-card-hover: 0 0 0 1px rgba(94,129,172,.12), 0 8px 24px rgba(46,52,64,.09), inset 0 1px 0 rgba(255,255,255,.9);
+  --shadow-panel: 0 1px 2px rgba(46,52,64,.06), 0 12px 32px rgba(46,52,64,.12);
+  --noise-opacity: .014;
+}
+
+:root[data-theme="dark"][data-skin="nord"] {
+  --bg-app:        #232831;
+  --bg-surface:    #2E3440;
+  --bg-elevated:   #353D4D;
+  --bg-sunken:     #1D222A;
+  --bg-hover:      #394252;
+  --bg-selected:   #3D4A61;
+
+  --line-hairline: #3B4252;
+  --line-strong:   #4C566A;
+  --line-hover:    #5E6A82;
+
+  --ink-primary:   #ECEFF4;
+  --ink-secondary: #C3CCDA;
+  --ink-tertiary:  #B2BCCE;
+  --ink-inverse:   #2E3440;
+
+  --accent:        #88C0D0;
+  --accent-hover:  #9AD0DF;
+  --accent-tint:   #23404A;
+  --accent-ring:   rgba(136, 192, 208, 0.4);
+
+  --status-ok:           #A3BE8C;
+  --status-ok-tint:      #26301F;
+  --status-warn:         #EBCB8B;
+  --status-warn-tint:    #332B15;
+  --status-risk:         #E28992;
+  --status-risk-tint:    #38222A;
+  --status-unknown:      #939CAD;
+  --status-unknown-tint: #262C38;
+
+  --fin-positive:  #A3BE8C;
+  --fin-negative:  #E28992;
+  --fin-total:     #C3CCDA;
+
+  --data-1: #88C0D0;
+  --data-2: #81A1C1;
+  --data-3: #5E81AC;
+  --data-4: #B48EAD;
+  --data-muted: #4C566A;
+
+  --ambient-page: rgba(136,192,208,.08);
+  --ambient-primary: rgba(129,161,193,.2);
+  --ambient-secondary: rgba(180,142,173,.1);
+  --ambient-tertiary: rgba(136,192,208,.09);
+  --ambient-graph: rgba(136,192,208,.16);
+  --ambient-surface: rgba(136,192,208,.12);
+  --grid-line: rgba(236,239,244,.03);
+  --title-highlight: #F0F3F8;
+  --title-shadow: #A8B2C4;
+
+  --shadow-primary: 0 0 0 1px rgba(136,192,208,.28), 0 5px 16px rgba(129,161,193,.24), inset 0 1px 0 rgba(255,255,255,.14);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.025), 0 2px 16px rgba(0,0,0,.3), 0 22px 60px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-card-hover: 0 0 0 1px rgba(136,192,208,.18), 0 8px 30px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.4), 0 14px 38px rgba(0,0,0,.5);
+  --noise-opacity: .02;
+}
+
+/* ---- High Contrast ---------------------------------------------------------------
+   Pure grounds, hard visible borders, status at its most saturated legible values.
+   Doubles as the accessibility skin and the Swiss/International look: shadows become
+   1px outline-equivalents, because depth-by-blur is exactly what this skin exists to
+   remove. Every text pairing here clears 7:1, not just the 4.5:1 floor. */
+
+:root[data-theme="light"][data-skin="high-contrast"] {
+  --bg-app:        #FFFFFF;
+  --bg-surface:    #FFFFFF;
+  --bg-elevated:   #FFFFFF;
+  --bg-sunken:     #F2F2F2;
+  --bg-hover:      #EBEBEB;
+  --bg-selected:   #E2E2F2;
+
+  --line-hairline: #6E6E6E;
+  --line-strong:   #3C3C3C;
+  --line-hover:    #000000;
+
+  --ink-primary:   #000000;
+  --ink-secondary: #1F1F1F;
+  --ink-tertiary:  #3C3C3C;
+  --ink-inverse:   #FFFFFF;
+
+  --accent:        #1414B8;
+  --accent-hover:  #00008A;
+  --accent-tint:   #E4E4FA;
+  --accent-ring:   rgba(20, 20, 184, 0.55);
+
+  --status-ok:           #0E5C2E;
+  --status-ok-tint:      #DFF0E2;
+  --status-warn:         #6E4400;
+  --status-warn-tint:    #F5E8D0;
+  --status-risk:         #A00020;
+  --status-risk-tint:    #FBE0E2;
+  --status-unknown:      #444444;
+  --status-unknown-tint: #EAEAEA;
+
+  --fin-positive:  #0E5C2E;
+  --fin-negative:  #A00020;
+  --fin-total:     #1F1F1F;
+
+  --data-1: #1414B8;
+  --data-2: #5C5CD6;
+  --data-3: #8C8CE8;
+  --data-4: #C4C4F4;
+  --data-muted: #B8B8B8;
+
+  --ambient-page: rgba(0,0,0,0);
+  --ambient-primary: rgba(0,0,0,0);
+  --ambient-secondary: rgba(0,0,0,0);
+  --ambient-tertiary: rgba(0,0,0,0);
+  --ambient-graph: rgba(0,0,0,0);
+  --ambient-surface: rgba(0,0,0,0);
+  --grid-line: rgba(0,0,0,.08);
+  --title-highlight: #000000;
+  --title-shadow: #1F1F1F;
+
+  --shadow-inset: inset 0 0 0 0 transparent;
+  --shadow-control: 0 0 0 1px #3C3C3C;
+  --shadow-primary: 0 0 0 2px #1414B8;
+  --shadow-card: 0 0 0 1px #3C3C3C;
+  --shadow-card-hover: 0 0 0 2px #000000;
+  --shadow-panel: 0 0 0 2px #000000;
+  --noise-opacity: 0;
+}
+
+:root[data-theme="dark"][data-skin="high-contrast"] {
+  --bg-app:        #000000;
+  --bg-surface:    #000000;
+  --bg-elevated:   #0A0A0A;
+  --bg-sunken:     #000000;
+  --bg-hover:      #1A1A1A;
+  --bg-selected:   #1C1C3A;
+
+  --line-hairline: #8A8A8A;
+  --line-strong:   #C0C0C0;
+  --line-hover:    #FFFFFF;
+
+  --ink-primary:   #FFFFFF;
+  --ink-secondary: #E0E0E0;
+  --ink-tertiary:  #C0C0C0;
+  --ink-inverse:   #000000;
+
+  --accent:        #A8A8FF;
+  --accent-hover:  #C4C4FF;
+  --accent-tint:   #1C1C3A;
+  --accent-ring:   rgba(168, 168, 255, 0.6);
+
+  --status-ok:           #4EDB84;
+  --status-ok-tint:      #0E2A18;
+  --status-warn:         #FFB84D;
+  --status-warn-tint:    #2E2208;
+  --status-risk:         #FF6B60;
+  --status-risk-tint:    #330F0C;
+  --status-unknown:      #A6A6A6;
+  --status-unknown-tint: #1F1F1F;
+
+  --fin-positive:  #4EDB84;
+  --fin-negative:  #FF6B60;
+  --fin-total:     #E0E0E0;
+
+  --data-1: #A8A8FF;
+  --data-2: #8C8CE8;
+  --data-3: #6C6CD0;
+  --data-4: #4C4CB0;
+  --data-muted: #4A4A4A;
+
+  --ambient-page: rgba(0,0,0,0);
+  --ambient-primary: rgba(0,0,0,0);
+  --ambient-secondary: rgba(0,0,0,0);
+  --ambient-tertiary: rgba(0,0,0,0);
+  --ambient-graph: rgba(0,0,0,0);
+  --ambient-surface: rgba(0,0,0,0);
+  --grid-line: rgba(255,255,255,.1);
+  --title-highlight: #FFFFFF;
+  --title-shadow: #E0E0E0;
+
+  --shadow-inset: inset 0 0 0 0 transparent;
+  --shadow-control: 0 0 0 1px #C0C0C0;
+  --shadow-primary: 0 0 0 2px #A8A8FF;
+  --shadow-card: 0 0 0 1px #C0C0C0;
+  --shadow-card-hover: 0 0 0 2px #FFFFFF;
+  --shadow-panel: 0 0 0 2px #FFFFFF;
+  --noise-opacity: 0;
+}
+
+/* ---- Catppuccin -----------------------------------------------------------------
+   The official Latte (light) and Mocha (dark) flavors, values from the palette repo.
+   Mauve is the interaction accent. Catppuccin ships true-hue green/yellow/red per
+   flavor, so status colors ARE the palette's own, darkened where the text floor
+   demands it (Latte's green and yellow are display colors at 3.4:1 and 2.5:1). */
+
+:root[data-theme="light"][data-skin="catppuccin"] {
+  --bg-app:        #E6E9EF;
+  --bg-surface:    #EFF1F5;
+  --bg-elevated:   #F5F7FA;
+  --bg-sunken:     #DCE0E8;
+  --bg-hover:      #E7EAF1;
+  --bg-selected:   #E2E4F8;
+
+  --line-hairline: #D3D7E2;
+  --line-strong:   #BCC0CC;
+  --line-hover:    #ACB0BE;
+
+  --ink-primary:   #4C4F69;
+  --ink-secondary: #5C5F77;
+  --ink-tertiary:  #5A5D74;
+  --ink-inverse:   #EFF1F5;
+
+  --accent:        #7A2DE0;
+  --accent-hover:  #6A1FD0;
+  --accent-tint:   #E9E3FA;
+  --accent-ring:   rgba(136, 57, 239, 0.38);
+
+  --status-ok:           #2A7220;
+  --status-ok-tint:      #DFEEDA;
+  --status-warn:         #8A5A10;
+  --status-warn-tint:    #F6EAD2;
+  --status-risk:         #C20E35;
+  --status-risk-tint:    #F8DEE3;
+  --status-unknown:      #7F8296;
+  --status-unknown-tint: #E5E7EE;
+
+  --fin-positive:  #3E9C2A;
+  --fin-negative:  #D20F39;
+  --fin-total:     #5C5F77;
+
+  --data-1: #1E66F5;
+  --data-2: #8839EF;
+  --data-3: #179299;
+  --data-4: #7287FD;
+  --data-muted: #C5C9D6;
+
+  --ambient-page: rgba(136,57,239,.04);
+  --ambient-primary: rgba(136,57,239,.11);
+  --ambient-secondary: rgba(30,102,245,.07);
+  --ambient-tertiary: rgba(23,146,153,.06);
+  --ambient-graph: rgba(136,57,239,.09);
+  --ambient-surface: rgba(136,57,239,.07);
+  --grid-line: rgba(76,79,105,.04);
+  --title-highlight: #40435C;
+  --title-shadow: #6C6F85;
+
+  --shadow-primary: 0 0 0 1px rgba(136,57,239,.14), 0 4px 12px rgba(136,57,239,.16), inset 0 1px 0 rgba(255,255,255,.3);
+  --shadow-card: 0 0 0 1px rgba(76,79,105,.04), 0 2px 10px rgba(76,79,105,.06), 0 18px 46px rgba(76,79,105,.05), inset 0 1px 0 rgba(255,255,255,.7);
+  --shadow-card-hover: 0 0 0 1px rgba(136,57,239,.12), 0 8px 24px rgba(76,79,105,.1), inset 0 1px 0 rgba(255,255,255,.8);
+  --shadow-panel: 0 1px 2px rgba(76,79,105,.06), 0 12px 32px rgba(76,79,105,.12);
+  --noise-opacity: .014;
+}
+
+:root[data-theme="dark"][data-skin="catppuccin"] {
+  --bg-app:        #11111B;
+  --bg-surface:    #1E1E2E;
+  --bg-elevated:   #252539;
+  --bg-sunken:     #181825;
+  --bg-hover:      #2A2A40;
+  --bg-selected:   #2E2E4A;
+
+  --line-hairline: #313244;
+  --line-strong:   #45475A;
+  --line-hover:    #585B70;
+
+  --ink-primary:   #CDD6F4;
+  --ink-secondary: #BAC2DE;
+  --ink-tertiary:  #A9B0CC;
+  --ink-inverse:   #1E1E2E;
+
+  --accent:        #CBA6F7;
+  --accent-hover:  #DBC0FA;
+  --accent-tint:   #32294A;
+  --accent-ring:   rgba(203, 166, 247, 0.4);
+
+  --status-ok:           #A6E3A1;
+  --status-ok-tint:      #20331F;
+  --status-warn:         #F9E2AF;
+  --status-warn-tint:    #332C15;
+  --status-risk:         #F38BA8;
+  --status-risk-tint:    #362028;
+  --status-unknown:      #9399B2;
+  --status-unknown-tint: #232538;
+
+  --fin-positive:  #A6E3A1;
+  --fin-negative:  #F38BA8;
+  --fin-total:     #BAC2DE;
+
+  --data-1: #89B4FA;
+  --data-2: #CBA6F7;
+  --data-3: #94E2D5;
+  --data-4: #B4BEFE;
+  --data-muted: #45475A;
+
+  --ambient-page: rgba(203,166,247,.08);
+  --ambient-primary: rgba(203,166,247,.18);
+  --ambient-secondary: rgba(137,180,250,.1);
+  --ambient-tertiary: rgba(148,226,213,.07);
+  --ambient-graph: rgba(203,166,247,.15);
+  --ambient-surface: rgba(203,166,247,.11);
+  --grid-line: rgba(205,214,244,.028);
+  --title-highlight: #DDE4FA;
+  --title-shadow: #A6ADC8;
+
+  --shadow-primary: 0 0 0 1px rgba(203,166,247,.26), 0 5px 16px rgba(203,166,247,.2), inset 0 1px 0 rgba(255,255,255,.12);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.025), 0 2px 16px rgba(0,0,0,.34), 0 22px 60px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-card-hover: 0 0 0 1px rgba(203,166,247,.18), 0 8px 30px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.42), 0 14px 38px rgba(0,0,0,.52);
+  --noise-opacity: .02;
+}
+
+/* ---- Solarized ------------------------------------------------------------------
+   Ethan Schoonover's CIELAB pair: base3/base2 grounds by day, base03/base02 by night,
+   the eight shared accents on both. Two deliberate departures, both forced by the
+   quality floor: ink runs one step darker/lighter than the official body-text bases
+   (base00/base0 sit at ~4.6:1 on the main ground and fail on the sunken one), and
+   status-ok is a derived green because the palette's #859900 is olive (hue 68) —
+   an olive "on track" would fail the hue guard and read as a warn variant. */
+
+:root[data-theme="light"][data-skin="solarized"] {
+  --bg-app:        #EEE8D5;
+  --bg-surface:    #FDF6E3;
+  --bg-elevated:   #FFFBEF;
+  --bg-sunken:     #E5DEC8;
+  --bg-hover:      #F5EEDA;
+  --bg-selected:   #E9E8D3;
+
+  --line-hairline: #DED7C2;
+  --line-strong:   #C9C2AB;
+  --line-hover:    #B1AA93;
+
+  --ink-primary:   #49585E;
+  --ink-secondary: #4F636A;
+  --ink-tertiary:  #52656C;
+  --ink-inverse:   #FDF6E3;
+
+  --accent:        #17638F;
+  --accent-hover:  #10516F;
+  --accent-tint:   #DFE5DC;
+  --accent-ring:   rgba(38, 139, 210, 0.38);
+
+  --status-ok:           #2E7345;
+  --status-ok-tint:      #E2E9D2;
+  --status-warn:         #755800;
+  --status-warn-tint:    #F1E5C2;
+  --status-risk:         #B52623;
+  --status-risk-tint:    #F5DFD2;
+  --status-unknown:      #83908F;
+  --status-unknown-tint: #E9E3D0;
+
+  --fin-positive:  #2E7345;
+  --fin-negative:  #DC322F;
+  --fin-total:     #586E75;
+
+  --data-1: #268BD2;
+  --data-2: #2AA198;
+  --data-3: #6C71C4;
+  --data-4: #D33682;
+  --data-muted: #D3CCB3;
+
+  --ambient-page: rgba(38,139,210,.04);
+  --ambient-primary: rgba(38,139,210,.1);
+  --ambient-secondary: rgba(42,161,152,.07);
+  --ambient-tertiary: rgba(108,113,196,.05);
+  --ambient-graph: rgba(38,139,210,.09);
+  --ambient-surface: rgba(38,139,210,.06);
+  --grid-line: rgba(88,110,117,.05);
+  --title-highlight: #40505A;
+  --title-shadow: #657B83;
+
+  --shadow-primary: 0 0 0 1px rgba(38,139,210,.14), 0 4px 12px rgba(38,139,210,.14), inset 0 1px 0 rgba(255,255,255,.35);
+  --shadow-card: 0 0 0 1px rgba(88,110,117,.05), 0 2px 8px rgba(88,110,117,.07), inset 0 1px 0 rgba(255,255,255,.6);
+  --shadow-card-hover: 0 0 0 1px rgba(38,139,210,.12), 0 6px 20px rgba(88,110,117,.11), inset 0 1px 0 rgba(255,255,255,.7);
+  --shadow-panel: 0 1px 2px rgba(88,110,117,.08), 0 12px 30px rgba(88,110,117,.14);
+  --noise-opacity: .016;
+}
+
+:root[data-theme="dark"][data-skin="solarized"] {
+  --bg-app:        #00212A;
+  --bg-surface:    #002B36;
+  --bg-elevated:   #073642;
+  --bg-sunken:     #001B22;
+  --bg-hover:      #0A3E4C;
+  --bg-selected:   #0C4553;
+
+  --line-hairline: #0C3945;
+  --line-strong:   #155463;
+  --line-hover:    #20687A;
+
+  --ink-primary:   #BCC8C8;
+  --ink-secondary: #A8B5B5;
+  --ink-tertiary:  #A2B0B0;
+  --ink-inverse:   #002B36;
+
+  --accent:        #6BB5EB;
+  --accent-hover:  #8CC6F0;
+  --accent-tint:   #0C4553;
+  --accent-ring:   rgba(38, 139, 210, 0.45);
+
+  --status-ok:           #55B378;
+  --status-ok-tint:      #0C3527;
+  --status-warn:         #CDA01F;
+  --status-warn-tint:    #2E3010;
+  --status-risk:         #EA6E62;
+  --status-risk-tint:    #3A241E;
+  --status-unknown:      #7C8B8F;
+  --status-unknown-tint: #06333F;
+
+  --fin-positive:  #55B378;
+  --fin-negative:  #EA6E62;
+  --fin-total:     #93A1A1;
+
+  --data-1: #4BA3E3;
+  --data-2: #3CB3AA;
+  --data-3: #8489D2;
+  --data-4: #DD5A97;
+  --data-muted: #155463;
+
+  --ambient-page: rgba(38,139,210,.09);
+  --ambient-primary: rgba(38,139,210,.2);
+  --ambient-secondary: rgba(42,161,152,.11);
+  --ambient-tertiary: rgba(108,113,196,.08);
+  --ambient-graph: rgba(38,139,210,.16);
+  --ambient-surface: rgba(38,139,210,.12);
+  --grid-line: rgba(147,161,161,.035);
+  --title-highlight: #C4D0D0;
+  --title-shadow: #839496;
+
+  --shadow-primary: 0 0 0 1px rgba(75,163,227,.28), 0 5px 16px rgba(38,139,210,.22), inset 0 1px 0 rgba(255,255,255,.1);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.02), 0 2px 14px rgba(0,0,0,.32), 0 20px 55px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-card-hover: 0 0 0 1px rgba(75,163,227,.18), 0 8px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.4), 0 14px 36px rgba(0,0,0,.5);
+  --noise-opacity: .02;
+}
+
+/* ---- Rosé Pine ------------------------------------------------------------------
+   Official main (dark) and Dawn (light) variants; iris is the interaction accent,
+   love and gold are the palette's own risk and warn. There is no green anywhere in
+   Rosé Pine, so status-ok is derived per ground — the identity lives in the rose,
+   iris, and pine of the surfaces, accent, and data ramp, never in the semantics. */
+
+:root[data-theme="light"][data-skin="rose-pine"] {
+  --bg-app:        #FAF4ED;
+  --bg-surface:    #FFFAF3;
+  --bg-elevated:   #FFFDF9;
+  --bg-sunken:     #F2E9E1;
+  --bg-hover:      #F6EFE7;
+  --bg-selected:   #F1E7F0;
+
+  --line-hairline: #DFDAD9;
+  --line-strong:   #CECACD;
+  --line-hover:    #B3ADBB;
+
+  --ink-primary:   #464261;
+  --ink-secondary: #615C7C;
+  --ink-tertiary:  #655F7E;
+  --ink-inverse:   #FFFAF3;
+
+  --accent:        #6E5887;
+  --accent-hover:  #5E4877;
+  --accent-tint:   #EEE5F2;
+  --accent-ring:   rgba(144, 122, 169, 0.4);
+
+  --status-ok:           #35754D;
+  --status-ok-tint:      #E2EEDF;
+  --status-warn:         #8A5A0A;
+  --status-warn-tint:    #F7E9D2;
+  --status-risk:         #9C4E64;
+  --status-risk-tint:    #F6E2E6;
+  --status-unknown:      #8C8798;
+  --status-unknown-tint: #EEE9EA;
+
+  --fin-positive:  #35754D;
+  --fin-negative:  #B4637A;
+  --fin-total:     #6C6787;
+
+  --data-1: #907AA9;
+  --data-2: #286983;
+  --data-3: #D7827E;
+  --data-4: #56949F;
+  --data-muted: #DCD5CE;
+
+  --ambient-page: rgba(144,122,169,.05);
+  --ambient-primary: rgba(144,122,169,.13);
+  --ambient-secondary: rgba(215,130,126,.08);
+  --ambient-tertiary: rgba(40,105,131,.06);
+  --ambient-graph: rgba(144,122,169,.11);
+  --ambient-surface: rgba(144,122,169,.08);
+  --grid-line: rgba(70,66,97,.04);
+  --title-highlight: #3D3956;
+  --title-shadow: #797593;
+
+  --shadow-primary: 0 0 0 1px rgba(144,122,169,.16), 0 4px 12px rgba(144,122,169,.18), inset 0 1px 0 rgba(255,255,255,.4);
+  --shadow-card: 0 0 0 1px rgba(70,66,97,.04), 0 2px 10px rgba(70,66,97,.06), 0 18px 46px rgba(70,66,97,.05), inset 0 1px 0 rgba(255,255,255,.75);
+  --shadow-card-hover: 0 0 0 1px rgba(144,122,169,.14), 0 8px 24px rgba(70,66,97,.1), inset 0 1px 0 rgba(255,255,255,.85);
+  --shadow-panel: 0 1px 2px rgba(70,66,97,.07), 0 12px 32px rgba(70,66,97,.13);
+  --noise-opacity: .014;
+}
+
+:root[data-theme="dark"][data-skin="rose-pine"] {
+  --bg-app:        #14121E;
+  --bg-surface:    #191724;
+  --bg-elevated:   #1F1D2E;
+  --bg-sunken:     #110F1A;
+  --bg-hover:      #26233A;
+  --bg-selected:   #2E2A46;
+
+  --line-hairline: #2A2740;
+  --line-strong:   #403D52;
+  --line-hover:    #524F67;
+
+  --ink-primary:   #E0DEF4;
+  --ink-secondary: #ABA7C4;
+  --ink-tertiary:  #9E9AB8;
+  --ink-inverse:   #191724;
+
+  --accent:        #C4A7E7;
+  --accent-hover:  #D4BCF0;
+  --accent-tint:   #2E2A46;
+  --accent-ring:   rgba(196, 167, 231, 0.42);
+
+  --status-ok:           #58B885;
+  --status-ok-tint:      #17301F;
+  --status-warn:         #F6C177;
+  --status-warn-tint:    #332912;
+  --status-risk:         #EB6F92;
+  --status-risk-tint:    #371D28;
+  --status-unknown:      #918DA6;
+  --status-unknown-tint: #232032;
+
+  --fin-positive:  #58B885;
+  --fin-negative:  #EB6F92;
+  --fin-total:     #ABA7C4;
+
+  --data-1: #C4A7E7;
+  --data-2: #9CCFD8;
+  --data-3: #EBBCBA;
+  --data-4: #31748F;
+  --data-muted: #403D52;
+
+  --ambient-page: rgba(196,167,231,.08);
+  --ambient-primary: rgba(196,167,231,.18);
+  --ambient-secondary: rgba(235,188,186,.09);
+  --ambient-tertiary: rgba(156,207,216,.07);
+  --ambient-graph: rgba(196,167,231,.15);
+  --ambient-surface: rgba(196,167,231,.11);
+  --grid-line: rgba(224,222,244,.028);
+  --title-highlight: #EAE8F8;
+  --title-shadow: #908CAA;
+
+  --shadow-primary: 0 0 0 1px rgba(196,167,231,.28), 0 5px 16px rgba(196,167,231,.2), inset 0 1px 0 rgba(255,255,255,.12);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,.025), 0 2px 16px rgba(0,0,0,.36), 0 22px 60px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-card-hover: 0 0 0 1px rgba(196,167,231,.18), 0 8px 30px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.08);
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.44), 0 14px 38px rgba(0,0,0,.54);
+  --noise-opacity: .02;
+}

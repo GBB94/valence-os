@@ -2,6 +2,30 @@
 
 _Written 2026-07-29 for a fresh session with no conversation history and kept current. Read this, then `CLAUDE.md`, then the active specs named there. It tells you what exists, what was deliberately left out, what is gated, how to run it, and the lines you must not cross._
 
+## Skins — operator-chosen repaint axis (2026-08-15, D-358…D-361)
+
+Zach asked for a toggleable skin system with a researched collection. Presentation-only — no
+migration, no API change, no behavior change. `DESIGN-GUIDE.md` §4.3 is the governing section.
+
+- **Mechanism:** `data-skin` on the root beside `data-theme`/`data-density`; persisted as
+  `valence-skin`; pre-paint stamped in `index.html`; picker (❖ popover) in the topbar. Skin and
+  theme are independent — every skin has a light and a dark block in `frontend/src/skins.css`,
+  the second and only other token file ("no raw hex outside the token files" is the amended rule).
+- **Collection** (`frontend/src/skins.js`): default Graphite (absence of the attribute — no block
+  exists that could drift from the audited base), Control Room (neon indigo), Newsprint (FT
+  salmon/claret + night edition), Nord, Catppuccin (Latte/Mocha), Solarized, Rosé Pine
+  (Dawn/main), High Contrast (doubles as the accessibility mode). The last three landed
+  2026-08-15 under D-362/D-363: official palette values, with every floor-forced departure
+  stated in a comment beside its block (Solarized ink one step past base00/base0, no olive
+  status green, Rosé Pine's derived greens, Latte's darkened text-role green/yellow).
+- **Enforcement:** `frontend/src/skins.test.js` runs §11 per skin × theme — contrast on every
+  documented text pairing (non-text tokens at WCAG 3:1 per §4.2's fill-and-hatch note), identical
+  light/dark token sets, no invented tokens, no spacing/type changes, status hue ranges asserted.
+  All four skins × both themes screenshotted live against the seeded backend; picker exercised
+  end-to-end in the browser. 342 frontend tests green.
+- **Adding a skin:** block pair in `skins.css` + row in `skins.js` + green `skins.test.js`.
+  Nothing else. Rejected directions and why are in D-360.
+
 ## Architecture audit — direction and single write paths (2026-08-12, D-352…D-357)
 
 A targeted refactor, not a redesign: behavior is unchanged (one reported edge case, D-355) and the

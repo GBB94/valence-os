@@ -278,6 +278,43 @@ Not pure black. Dense text on true black causes halation and makes hairlines imp
 - **`--status-unknown` is a fill-and-hatch hue, never ink.** It fails 4.5:1 as text or as a glyph on every surface in both themes. Neutral and no-signal states draw their glyphs, counts, and labels in `--ink-secondary`; the unknown hue appears only in tints, hatches, and marks paired with a label. (This was buried in §8's whitespace notes in v2, and exactly the surfaces that hadn't read §8 violated it.)
 - **`--accent` and `--data-1` share a value by design, and the distinction is semantic.** Data encodings (chart series, timeline markers, reference lines) must reference `--data-*`; interactive affordances must reference `--accent`. The pixels match today; the tokens must not be swapped, or a future palette change silently recolors one as the other.
 
+### 4.3 Skins (added 2026-08-15, Zach's request)
+
+A skin is an optional, operator-chosen repaint of the token system — a third presentation
+axis beside theme and density, carried as `data-skin` on the root element and persisted as
+`valence-skin` beside the theme in localStorage, with the same pre-paint stamp in
+`index.html` so a skinned session never flashes the default look. `frontend/src/skins.css`
+is the second and only other token file: the "no raw hex outside `tokens.css`" rule now
+reads "outside the token files," and everything else in this guide is unchanged by the
+existence of skins.
+
+The rules, all enforced mechanically by `frontend/src/skins.test.js`:
+
+- **A skin may repaint; it may not re-mean.** Surfaces, lines, ink, the interaction
+  accent, data ramps, ambient/atmosphere, shadows, radii, and noise are a skin's to
+  change. Green stays green, amber stays amber, red stays red — hue ranges are asserted —
+  and `--status-unknown` stays near-grey. The spacing scale and type scale are untouchable.
+- **Both themes, or nothing.** Every skin ships a light and a dark block with identical
+  token sets, because a token overridden on one side leaks the other theme's value through
+  the cascade. Skin and theme toggle independently.
+- **The quality floor applies per skin.** 4.5:1 on every audited text pairing in both
+  themes of every skin, with the same non-text exceptions §4.2 documents for the base
+  palette (`--status-unknown` and `--fin-*` are fills, floored at 3:1).
+- **A skin only redefines tokens `tokens.css` already declares.** A skin that invents a
+  token is defining a color no unskinned render ever resolves.
+- **"Default" is the absence of the attribute**, not a block restating the base — so the
+  audited base design cannot drift by way of a copy.
+
+The shipped collection: Graphite (default, no block), Control Room, Newsprint, Nord,
+Catppuccin (official Latte/Mocha), Solarized (the canonical CIELAB pair), Rosé Pine
+(official Dawn/main), and High Contrast — the last doubling as the accessibility
+presentation, with shadows replaced by outline-equivalents. Where a published palette's
+own values fail the floor or the hue guard, the skin departs and says so in a comment
+beside the block: Solarized's inks run one step past the official body-text bases and its
+olive green is not the status green; Rosé Pine has no green at all, so status-ok is
+derived per ground. Adding a skin is a block pair in `skins.css`, a row in `skins.js`,
+and a green run of `skins.test.js`.
+
 ---
 
 ## 5. Typography

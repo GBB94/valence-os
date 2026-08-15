@@ -17,6 +17,11 @@
             applied = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           }
           document.documentElement.dataset.theme = applied;
+          // Skins ride the same pre-paint path: a stored skin id is stamped before first
+          // paint so a skinned session never flashes the default look. Unknown or absent
+          // values leave the attribute off, which IS the default skin.
+          var skin = localStorage.getItem("valence-skin");
+          if (skin && skin !== "default") document.documentElement.dataset.skin = skin;
         } catch (e) {}
       })();
     </script>

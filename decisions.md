@@ -2,7 +2,59 @@
 
 Non-obvious implementation decisions, newest first (CLAUDE.md process rule). Each: what + one-line rationale. Stage-0 decisions are proposals pending Zach's approval where marked.
 
-## Architecture audit — dependency direction and single write paths (2026-08-12)
+## Skins — an operator-chosen repaint axis (2026-08-15)
+
+Zach asked for the Hermes-artifact "control room" style as a toggleable Valence OS option, plus a
+researched collection. Presentation-only: no migration, no API, no behavior change; DESIGN-GUIDE
+§4.3 added as the governing section.
+
+- **D-358 — A skin is a third `data-*` presentation axis, not a stylesheet swap.** `data-skin` on
+  the root beside `data-theme` and `data-density`, persisted as `valence-skin`, stamped by the same
+  pre-paint script — because the token system already is the skin mechanism, and a parallel
+  stylesheet would be a second place colors live. `skins.css` blocks pair skin with a *resolved*
+  theme attribute at equal specificity (`[data-theme="…"][data-skin="…"]`), so the base tokens win
+  whenever the attribute is absent and "default" needs no block that could drift from the audited
+  base.
+- **D-359 — Skins repaint, never re-mean, and the floor is a test, not a review.** `skins.test.js`
+  makes DESIGN-GUIDE §11 executable per skin × theme: 4.5:1 on every documented text pairing,
+  identical token sets in a skin's light and dark blocks (a one-sided override leaks the other
+  theme's value through the cascade), no invented tokens, no spacing/type-scale changes, and
+  status *hue ranges* asserted so no skin can quietly turn "at risk" blue. In writing it, the base
+  palette itself flagged two pairs — which §4.2 already documents as non-text (`--status-unknown`
+  is fill-and-hatch, `--fin-*` are waterfall fills), so those took WCAG 1.4.11's 3:1 non-text floor
+  rather than a token change: the audit follows actual usage, and the shipped design was not
+  altered to please a test.
+- **D-360 — The collection is four skins, chosen against the constraints rather than the trend
+  list.** Control Room (the requested neon, glow confined to shadows and ambient), Newsprint
+  (FT salmon + claret, ink-dark night edition, tightened radii), Nord (published palette; Aurora
+  hues re-tuned per ground because the spec's values are display colors, not text colors — dark
+  risk brightened to #E28992 for 4.5:1), and High Contrast (pure grounds, shadows become 1px
+  outline-equivalents; doubles as the accessibility presentation). Researched-and-rejected, with
+  reasons on file: CRT/phosphor (a green or amber *ground* destroys the reserved status hues),
+  glassmorphism and neumorphism (contrast over blur / by-definition-low contrast cannot hold the
+  4.5:1 floor), Linear-style graphite (that is materially the default design already).
+- **D-361 — The picker is a popover, not a cycle button.** With five options a blind cycle walks
+  the operator through full-app repaints to get back; the popover names each skin, marks the
+  current one, and states that skin and theme are independent axes.
+- **D-362 — Three more skins from published palettes, chosen for the niches the first five left
+  open (2026-08-15, Zach: "research and choose three… I give you approval").** Catppuccin
+  (official Latte/Mocha — the soft-pastel niche, and the one candidate whose semantic
+  green/yellow/red exist per flavor), Solarized (the canonical CIELAB sepia pair — the
+  reading-mode niche), Rosé Pine (official Dawn/main — the warm rose/iris niche). Tokyo Night was
+  the runner-up and lost to Rosé Pine on hue distinctness: its blue-violet dark sits in the band
+  Control Room and the default dark already occupy. All values fetched from the official palette
+  sources at build time, including the Rosé Pine Dawn `text` discrepancy (mirrors say #575279,
+  the official repo says #464261 — official used).
+- **D-363 — A published palette bends to the floor, and the departure is stated, never silent.**
+  The audit found 28 failing pairings across the three on canonical values alone. Where that
+  happened the skin departs minimally and a comment beside the block says exactly how: Solarized's
+  body-text bases (base00/base0) sit at ~4.4:1 on their own grounds, so ink runs one step
+  darker/lighter; Solarized's `#859900` green is olive (hue 68) and would trip the hue guard, so
+  status-ok is derived while the olive stays out of the semantics; Rosé Pine ships no green at
+  all, so status-ok is derived per ground and the identity lives in surfaces, accent, and data
+  ramp; Catppuccin Latte's green and yellow are display colors (3.4:1 and 2.5:1 as text), darkened
+  for text roles while the canonical values are kept for the 3:1 fill roles (`--fin-*`). The
+  fidelity claim is "faithful where the floor allows, explicit where it does not."
 
 An adversarial architecture review of the account layers (prompt authored in the Company
 intelligence continuation session), executed as a targeted refactor: no product semantics changed
