@@ -1,0 +1,5 @@
+account_id,segment_id,period_label,headcount,observed_on,source_note
+acc-terravance,seg-tv-dach,2026-Q1,5800,2026-03-31,Mock HRIS quarterly snapshot
+acc-terravance,seg-tv-dach,2026-Q2,6000,2026-06-30,Mock HRIS quarterly snapshot
+acc-terravance,seg-tv-nordics,2026-Q1,3200,2026-03-31,Mock HRIS quarterly snapshot
+acc-terravance,seg-tv-nordics,2026-Q2,3200,2026-06-30,Mock HRIS quarterly snapshot

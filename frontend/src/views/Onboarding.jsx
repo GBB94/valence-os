@@ -81,7 +81,7 @@ export default function Onboarding({ account, onClose, onDone }) {
           {proposals && (proposals.length === 0
             ? <div className="rowmeta">No proposals found in that text.</div>
             : proposals.map((p, i) => (
-              <div key={i} className="card" style={{ padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div key={i} className="card" style={{ padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                 <div>
                   <span className="badge" style={{ marginRight: 6 }}>{p.type.replace(/_/g, " ")}</span>
                   <span style={{ fontSize: 13 }}>{p.name || p.label || p.note || p.question}{p.title ? ` — ${p.title}` : ""}{p.date ? ` (${p.date})` : ""}</span>
@@ -89,7 +89,7 @@ export default function Onboarding({ account, onClose, onDone }) {
                 </div>
                 {accepted[i]
                   ? <span style={{ color: "var(--status-ok)", whiteSpace: "nowrap" }}>✓ accepted</span>
-                  : <button className="btn small primary" onClick={() => accept(p, i)}>Accept</button>}
+                  : <button className="btn small" onClick={() => accept(p, i)}>Accept proposal</button>}
               </div>
             )))}
         </div>

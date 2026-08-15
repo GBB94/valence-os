@@ -48,11 +48,18 @@ def insert(
 
 
 def patch(
-    conn: sqlite3.Connection, table: str, id_: str, changes: dict[str, Any], *, object_type: str
+    conn: sqlite3.Connection, table: str, id_: str, changes: dict[str, Any], *, object_type: str,
+    allow_null: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Apply a partial update (only non-None fields), audited with before/after."""
+    """Apply a partial update, audited with before/after.
+
+    Most legacy PATCH schemas use ``None`` to mean "not supplied", so the default preserves
+    that behavior. Endpoints which inspect Pydantic's ``model_fields_set`` can opt specific
+    nullable columns in; otherwise a UI can select "none" but the old value silently survives.
+    """
     before = get_row(conn, table, id_)
-    changes = {k: v for k, v in changes.items() if v is not None}
+    nullable = allow_null or set()
+    changes = {k: v for k, v in changes.items() if v is not None or k in nullable}
     if not changes:
         return before
     changes["updated_at"] = now_utc()

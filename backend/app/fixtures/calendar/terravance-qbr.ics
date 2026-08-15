@@ -1,0 +1,33 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Valence OS//Mock Calendar//EN
+BEGIN:VEVENT
+UID:mock-tv-qbr-20260820
+DTSTART:20260820T150000Z
+DTEND:20260820T160000Z
+SUMMARY:Terravance value review and expansion planning
+LOCATION:Teams
+ORGANIZER:mailto:operator@valence.test
+X-VALENCE-ACCOUNT-ID:acc-terravance
+X-VALENCE-PROGRAM-ID:prog-tv-global
+X-VALENCE-CELL-ID:cell-tv-3
+X-VALENCE-PURPOSE:qbr
+ATTENDEE;CN=Dana Okafor;PARTSTAT=ACCEPTED;X-VALENCE-ATTENDANCE=INVITED:mailto:dana.okafor@example-terravance.test
+ATTENDEE;CN=Lucia Moretti;PARTSTAT=ACCEPTED;X-VALENCE-ATTENDANCE=INVITED:mailto:lucia.moretti@example-terravance.test
+ATTENDEE;CN=Henrik Vale;PARTSTAT=NEEDS-ACTION;X-VALENCE-ATTENDANCE=INVITED:mailto:henrik.vale@example-terravance.test
+END:VEVENT
+BEGIN:VEVENT
+UID:mock-tv-governance-20260715
+DTSTART:20260715T150000Z
+DTEND:20260715T160000Z
+SUMMARY:Terravance monthly governance
+LOCATION:Teams
+ORGANIZER:mailto:operator@valence.test
+X-VALENCE-ACCOUNT-ID:acc-terravance
+X-VALENCE-PROGRAM-ID:prog-tv-global
+X-VALENCE-PURPOSE:governance
+ATTENDEE;CN=Dana Okafor;PARTSTAT=ACCEPTED;X-VALENCE-ATTENDANCE=ATTENDED:mailto:dana.okafor@example-terravance.test
+ATTENDEE;CN=Lucia Moretti;PARTSTAT=ACCEPTED;X-VALENCE-ATTENDANCE=ATTENDED:mailto:lucia.moretti@example-terravance.test
+ATTENDEE;CN=Henrik Vale;PARTSTAT=ACCEPTED;X-VALENCE-ATTENDANCE=NO_SHOW:mailto:henrik.vale@example-terravance.test
+END:VEVENT
+END:VCALENDAR

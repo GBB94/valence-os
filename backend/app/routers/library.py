@@ -10,13 +10,61 @@ router = APIRouter(prefix="/api", tags=["library"])
 # Tables that cite a source reference, with how to derive the citing record's account + label.
 _CITERS = [
     ("interaction", "SELECT id, source_reference_id, account_id, COALESCE(summary,'(interaction)') label FROM interactions WHERE archived=0 AND source_reference_id IS NOT NULL"),
-    ("commitment", "SELECT c.id, c.source_reference_id, p.account_id, c.description label FROM commitments c JOIN programs p ON p.id=c.program_id WHERE c.archived=0 AND c.source_reference_id IS NOT NULL"),
-    ("decision", "SELECT d.id, d.source_reference_id, p.account_id, d.description label FROM decisions d JOIN programs p ON p.id=d.program_id WHERE d.archived=0 AND d.source_reference_id IS NOT NULL"),
+    ("commitment", "SELECT c.id, c.source_reference_id, c.account_id, c.description label FROM commitments c WHERE c.archived=0 AND c.source_reference_id IS NOT NULL"),
+    ("decision", "SELECT d.id, d.source_reference_id, d.account_id, d.description label FROM decisions d WHERE d.archived=0 AND d.source_reference_id IS NOT NULL"),
     ("task", "SELECT t.id, t.source_reference_id, p.account_id, t.description label FROM tasks t JOIN programs p ON p.id=t.program_id WHERE t.archived=0 AND t.source_reference_id IS NOT NULL"),
     ("risk", "SELECT r.id, r.source_reference_id, p.account_id, r.description label FROM risks r JOIN programs p ON p.id=r.program_id WHERE r.archived=0 AND r.source_reference_id IS NOT NULL"),
     ("issue", "SELECT i.id, i.source_reference_id, p.account_id, i.description label FROM issues i JOIN programs p ON p.id=i.program_id WHERE i.archived=0 AND i.source_reference_id IS NOT NULL"),
     ("value_story", "SELECT id, source_reference_id, account_id, outcome label FROM value_stories WHERE archived=0 AND source_reference_id IS NOT NULL"),
-    ("metric_observation", "SELECT mo.id, mo.source_reference_id, p.account_id, md.name label FROM metric_observations mo JOIN programs p ON p.id=mo.program_id JOIN metric_definitions md ON md.id=mo.definition_id WHERE mo.archived=0 AND mo.source_reference_id IS NOT NULL"),
+    ("metric_observation", "SELECT mo.id,mo.source_reference_id,"
+                           "COALESCE(p.account_id,ps.account_id,pv.account_id) account_id,md.name label "
+                           "FROM metric_observations mo JOIN metric_definitions md ON md.id=mo.definition_id "
+                           "LEFT JOIN programs p ON p.id=mo.program_id "
+                           "LEFT JOIN population_segments ps ON ps.id=mo.population_segment_id "
+                           "LEFT JOIN population_views pv ON pv.id=mo.population_view_id "
+                           "WHERE mo.archived=0 AND mo.source_reference_id IS NOT NULL "
+                           "AND COALESCE(p.account_id,ps.account_id,pv.account_id) IS NOT NULL"),
+    ("whitespace_cell", "SELECT wc.id,wc.source_reference_id,wc.account_id,uc.name label "
+                        "FROM whitespace_cells wc JOIN use_cases uc ON uc.id=wc.use_case_id "
+                        "WHERE wc.archived=0 AND wc.source_reference_id IS NOT NULL"),
+    ("value_target", "SELECT vt.id,vt.source_reference_id,vt.account_id,md.name label "
+                     "FROM value_targets vt JOIN metric_definitions md ON md.id=vt.definition_id "
+                     "WHERE vt.archived=0 AND vt.source_reference_id IS NOT NULL"),
+    ("funding_pool", "SELECT id,source_reference_id,account_id,name label FROM funding_pools "
+                     "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("population_segment", "SELECT id,source_reference_id,account_id,name label FROM population_segments "
+                           "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("headcount_observation", "SELECT h.id,h.source_reference_id,h.account_id,"
+                              "s.name||' · '||h.period_label label FROM population_headcount_observations h "
+                              "JOIN population_segments s ON s.id=h.segment_id "
+                              "WHERE h.archived=0 AND h.source_reference_id IS NOT NULL"),
+    ("calendar_event", "SELECT id,source_reference_id,account_id,title label FROM calendar_events "
+                       "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("org_change_flag", "SELECT id,source_reference_id,account_id,summary label FROM org_change_flags "
+                        "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("operational_agreement", "SELECT id,source_reference_id,account_id,name label "
+                              "FROM operational_agreements WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("growth_plan_line", "SELECT id,source_reference_id,account_id,name label FROM growth_plan_lines "
+                         "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("forecast_entry_source", "SELECT s.id,s.source_reference_id,e.account_id,"
+                              "COALESCE(o.name,c.version_label,'Forecast evidence') label "
+                              "FROM forecast_entry_sources s JOIN forecast_entries e ON e.id=s.entry_id "
+                              "LEFT JOIN expansion_opportunities o ON o.id=e.opportunity_id "
+                              "LEFT JOIN contract_versions c ON c.id=e.contract_version_id "
+                              "WHERE s.source_reference_id IS NOT NULL AND e.archived=0"),
+    ("forecast_change", "SELECT ce.id,ce.source_reference_id,fe.account_id,ce.driver label "
+                        "FROM forecast_change_events ce JOIN forecast_entries fe ON fe.id=ce.entry_id "
+                        "WHERE ce.source_reference_id IS NOT NULL AND fe.archived=0"),
+    ("renewal_outcome", "SELECT id,source_reference_id,account_id,"
+                        "'Renewal outcome — '||outcome label FROM renewal_outcome_events "
+                        "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("internal_ask", "SELECT id,source_reference_id,account_id,need label FROM internal_asks "
+                     "WHERE archived=0 AND source_reference_id IS NOT NULL"),
+    ("internal_ask_result", "SELECT id,result_source_reference_id source_reference_id,account_id,need label "
+                            "FROM internal_asks WHERE archived=0 AND result_source_reference_id IS NOT NULL"),
+    ("product_feedback_occurrence", "SELECT o.id,o.source_reference_id,o.account_id,i.title label "
+                                    "FROM product_feedback_occurrences o JOIN product_feedback_items i ON i.id=o.feedback_item_id "
+                                    "WHERE o.archived=0 AND o.source_reference_id IS NOT NULL"),
 ]
 
 

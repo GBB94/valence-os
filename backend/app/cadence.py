@@ -5,9 +5,8 @@ Cadence: a target touch interval per stakeholder role, defaulted by power-intere
 touch — nothing about cadence "state" is stored. Overdue relationships get a suggested next
 touch that carries CONTENT (what they care about, open items, wins to share), never "ping X".
 
-Health: an evidence-based panel, never one opaque score. Recency/frequency and stance trend are
-derived now; reciprocity and attendance are marked pending until the comms/calendar adapters are
-connected (Stage 4/7) — shown as unknown, never fabricated (trust boundary + freshness discipline).
+Health: an evidence-based panel, never one opaque score. Reciprocity and attendance are counts
+from our own communications/calendar records only; no sentiment or private-product inference.
 """
 from __future__ import annotations
 
@@ -113,11 +112,33 @@ def person_health(conn: sqlite3.Connection, person_id: str, primary_role: dict |
         "WHERE ip.person_id=? AND i.meaningful_touch=1 AND i.archived=0 AND i.occurred_on >= date(?, '-90 day')",
         (person_id, today)).fetchone()["c"]
     cad = cadence_state(conn, primary_role, today) if primary_role else None
+    comms = conn.execute(
+        "SELECT direction,COUNT(*) n,MAX(occurred_at) latest FROM comm_messages "
+        "WHERE person_id=? AND archived=0 GROUP BY direction", (person_id,)).fetchall()
+    by_direction = {r["direction"]: {"count": r["n"], "latest": r["latest"]} for r in comms}
+    attendance = conn.execute(
+        "SELECT COUNT(*) invited, "
+        "SUM(CASE WHEN attendance_status='attended' THEN 1 ELSE 0 END) attended, "
+        "SUM(CASE WHEN attendance_status='no_show' THEN 1 ELSE 0 END) no_show, "
+        "MAX(CASE WHEN attendance_status='attended' THEN e.starts_at END) last_attended "
+        "FROM calendar_event_attendees cea JOIN calendar_events e ON e.id=cea.event_id "
+        "WHERE cea.person_id=? AND e.archived=0", (person_id,)).fetchone()
     return {
         "recency": {"last_touch": last, "days_since": since, "evidence": "from logged interactions"},
         "frequency": {"count_90d": freq90, "evidence": "meaningful touches, last 90 days"},
         "cadence": cad,
-        # Pending the comms/calendar adapters — shown as unknown, not fabricated (Part 6 gate).
-        "reciprocity": {"status": "unknown", "reason": "awaiting comms adapter (counts + response times only)"},
-        "attendance": {"status": "unknown", "reason": "awaiting calendar adapter (invited vs attended)"},
+        "reciprocity": {
+            "status": "known" if comms else "unknown",
+            "inbound": by_direction.get("inbound", {"count": 0, "latest": None}),
+            "outbound": by_direction.get("outbound", {"count": 0, "latest": None}),
+            "evidence": "message counts from our own correspondence; response latency unavailable without thread links",
+            "reason": None if comms else "no associated communications yet",
+        },
+        "attendance": {
+            "status": "known" if attendance["invited"] else "unknown",
+            "invited": attendance["invited"] or 0, "attended": attendance["attended"] or 0,
+            "no_show": attendance["no_show"] or 0, "last_attended": attendance["last_attended"],
+            "evidence": "calendar invitations and observable attendance only",
+            "reason": None if attendance["invited"] else "no associated calendar invitations yet",
+        },
     }

@@ -21,11 +21,31 @@ import threading
 import time
 from typing import Any, Callable
 
+from datetime import datetime, timedelta
+
 from .db import connect, new_id, now_utc
 
 # kind -> handler(conn, payload) -> result dict | None
 Handler = Callable[[sqlite3.Connection, dict], "dict | None"]
 HANDLERS: dict[str, Handler] = {}
+
+# Retry backoff. A failed attempt previously went straight back to 'queued' with no
+# scheduled_for, so the next drain retried it immediately — which is harmless against a mock
+# adapter and a hammer against a failing real one. The delay grows per attempt and is capped.
+# Set the base to 0 to restore immediate retries (the tests that assert attempt counts do).
+#
+# When a real HTTP adapter lands, a 429's `Retry-After` should override this for that job:
+# honour the header when present, fall back to _retry_delay_seconds otherwise.
+RETRY_BACKOFF_BASE_SECONDS = 30
+RETRY_BACKOFF_MAX_SECONDS = 900
+
+
+def _retry_delay_seconds(attempts_made: int) -> int:
+    """Exponential backoff: 30s, 60s, 120s … capped at RETRY_BACKOFF_MAX_SECONDS."""
+    if RETRY_BACKOFF_BASE_SECONDS <= 0:
+        return 0
+    delay = RETRY_BACKOFF_BASE_SECONDS * (2 ** max(0, attempts_made - 1))
+    return min(delay, RETRY_BACKOFF_MAX_SECONDS)
 
 
 def register(kind: str) -> Callable[[Handler], Handler]:
@@ -95,15 +115,24 @@ def list_jobs(conn: sqlite3.Connection, *, status: str | None = None,
 
 # --- execution --------------------------------------------------------------
 
-def _claim_next(conn: sqlite3.Connection) -> dict | None:
-    """Atomically claim the oldest due, queued job and mark it running. None if none due."""
+def _claim_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict | None:
+    """Atomically claim the oldest due, queued job and mark it running. None if none due.
+
+    `skip_ids` excludes jobs already attempted in this drain, so a job that fails and returns
+    to 'queued' is not immediately re-claimed. The exclusion has to happen HERE rather than
+    after run_next returns: checking afterwards means the handler has already run again, which
+    is exactly how one drain used to burn two attempts.
+    """
     ts = now_utc()
+    skip = tuple(skip_ids or ())
+    not_in = f" AND id NOT IN ({','.join('?' * len(skip))})" if skip else ""
     with conn:  # transaction: select-then-update as one unit
         r = conn.execute(
             "SELECT * FROM jobs WHERE status = 'queued' "
-            "AND (scheduled_for IS NULL OR scheduled_for <= ?) "
-            "ORDER BY created_at LIMIT 1",
-            (ts,),
+            "AND (scheduled_for IS NULL OR scheduled_for <= ?)"
+            + not_in +
+            " ORDER BY created_at LIMIT 1",
+            (ts, *skip),
         ).fetchone()
         if r is None:
             return None
@@ -115,13 +144,15 @@ def _claim_next(conn: sqlite3.Connection) -> dict | None:
     return _row(conn, r["id"])
 
 
-def run_next(conn: sqlite3.Connection) -> dict | None:
+def run_next(conn: sqlite3.Connection, skip_ids: set[str] | None = None) -> dict | None:
     """Claim and run one due job. Returns the finished job row, or None if nothing was due."""
-    job = _claim_next(conn)
+    job = _claim_next(conn, skip_ids)
     if job is None:
         return None
     handler = HANDLERS.get(job["kind"])
     payload = json.loads(job["payload_json"]) if job["payload_json"] else {}
+    if job["kind"] == "weekly_team_update":
+        payload["_job_id"] = job["id"]
     try:
         if handler is None:
             raise RuntimeError(f"no handler registered for job kind '{job['kind']}'")
@@ -147,10 +178,17 @@ def run_next(conn: sqlite3.Connection) -> dict | None:
                 _notify(conn, "job_failed",
                         f"Job '{job['kind']}' failed: {exc}", "job", job["id"])
             else:
-                # leave for another attempt
+                # Leave for another attempt, but not immediately: back off so a persistently
+                # failing job cannot be retried on every drain.
+                delay = _retry_delay_seconds(job["attempts"])
+                next_at = (
+                    (datetime.fromisoformat(ts) + timedelta(seconds=delay)).isoformat()
+                    if delay else None
+                )
                 conn.execute(
-                    "UPDATE jobs SET status = 'queued', error = ?, updated_at = ? WHERE id = ?",
-                    (str(exc), ts, job["id"]),
+                    "UPDATE jobs SET status = 'queued', error = ?, scheduled_for = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (str(exc), next_at, ts, job["id"]),
                 )
         return _row(conn, job["id"])
 
@@ -164,8 +202,8 @@ def run_pending(conn: sqlite3.Connection, max_jobs: int = 100) -> list[dict]:
     done: list[dict] = []
     seen: set[str] = set()
     while len(done) < max_jobs:
-        job = run_next(conn)
-        if job is None or job["id"] in seen:
+        job = run_next(conn, skip_ids=seen)
+        if job is None:
             break
         seen.add(job["id"])
         done.append(job)

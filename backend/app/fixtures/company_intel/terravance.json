@@ -1,0 +1,113 @@
+{
+  "items": [
+    {
+      "account_id": "acc-terravance",
+      "provider": "fixture-sec",
+      "document": {
+        "external_id": "tv-2026-q2-call",
+        "kind": "earnings_call",
+        "title": "Terravance Q2 2026 earnings call — selected remarks",
+        "publisher": "Terravance Investor Relations (synthetic)",
+        "published_on": "2026-07-18",
+        "retrieved_at": "2026-07-19T14:00:00+00:00",
+        "url": "fixture://company_intel/terravance.json#q2-call",
+        "canonical_source_key": "terravance:q2-2026-call",
+        "origin_group": "terravance-ir-q2-2026",
+        "spans": [
+          {
+            "locator": "Prepared remarks ¶12",
+            "section": "Strategic priorities",
+            "speaker": "Chief Operating Officer",
+            "excerpt": "We are standardizing manager enablement across the DACH and Nordics operations during the second half of 2026."
+          }
+        ]
+      },
+      "events": [
+        {
+          "external_id": "tv-event-manager-enablement-q2",
+          "kind": "strategic_initiative",
+          "summary": "Terravance named cross-region manager enablement as a second-half operating priority.",
+          "canonical_occurrence_key": "terravance:manager-enablement:h2-2026",
+          "occurred_on": "2026-07-18",
+          "span_indexes": [0]
+        }
+      ]
+    },
+    {
+      "account_id": "acc-terravance",
+      "provider": "fixture-newswire",
+      "document": {
+        "external_id": "tv-acquisition-2026-07",
+        "kind": "press_release",
+        "title": "Terravance announces acquisition of a regional logistics operator",
+        "publisher": "Terravance Newsroom (synthetic)",
+        "published_on": "2026-07-28",
+        "retrieved_at": "2026-07-28T16:30:00+00:00",
+        "url": "fixture://company_intel/terravance.json#acquisition",
+        "canonical_source_key": "terravance:acquisition:2026-07",
+        "origin_group": "terravance-ir-acquisition-2026-07",
+        "spans": [
+          {
+            "locator": "Announcement ¶3",
+            "section": "Integration",
+            "excerpt": "The acquired workforce will join Terravance's central European operating model, with integration planning beginning this quarter."
+          }
+        ]
+      },
+      "events": [
+        {
+          "external_id": "tv-event-acquisition-2026-07",
+          "kind": "m_and_a",
+          "summary": "Terravance announced a regional acquisition with integration planning beginning in the quarter.",
+          "canonical_occurrence_key": "terravance:regional-acquisition:2026-07",
+          "occurred_on": "2026-07-28",
+          "span_indexes": [0]
+        }
+      ]
+    },
+    {
+      "account_id": "acc-terravance",
+      "provider": "fixture-careers",
+      "document": {
+        "external_id": "tv-job-change-lead-dach",
+        "kind": "job_posting",
+        "title": "Change Enablement Lead — DACH",
+        "publisher": "Terravance Careers (synthetic)",
+        "published_on": "2026-07-24",
+        "retrieved_at": "2026-07-25T10:00:00+00:00",
+        "url": "fixture://company_intel/terravance.json#job-change-lead",
+        "canonical_source_key": "terravance-job-change-lead-dach",
+        "origin_group": "terravance-careers-change-dach",
+        "spans": [
+          {
+            "locator": "Role overview",
+            "excerpt": "Lead manager adoption and change enablement for the DACH operating organization."
+          }
+        ]
+      },
+      "hiring_posting": {
+        "external_id": "tv-job-change-lead-dach",
+        "normalized_posting_key": "terravance:change-lead:dach",
+        "title": "Change Enablement Lead",
+        "function_label": "Change enablement",
+        "region_label": "DACH",
+        "first_seen_on": "2026-07-24",
+        "last_seen_on": "2026-07-25",
+        "state": "active"
+      }
+    },
+    {
+      "company_identifier": {"scheme": "domain", "provider": "", "value": "ambiguous.example"},
+      "provider": "fixture-newswire",
+      "document": {
+        "external_id": "unmatched-public-item",
+        "kind": "press_release",
+        "title": "Unmatched synthetic announcement",
+        "publisher": "Synthetic Newswire",
+        "published_on": "2026-07-30",
+        "url": "fixture://company_intel/terravance.json#unmatched",
+        "spans": [{"locator": "¶1", "excerpt": "This fixture must remain unmatched."}]
+      }
+    }
+  ]
+}

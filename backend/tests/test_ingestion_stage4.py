@@ -43,8 +43,10 @@ def test_sync_ingests_emails_and_flags_priority(scene):
     assert res["status"] == "succeeded"
     assert res["result"]["created"] >= 3
     comms = c.get(f"/api/accounts/{a['id']}/comms").json()["comms"]
-    # Aisha's email resolved to Bluepeak by address, and her question was flagged
-    aisha_msg = next(m for m in comms if m["from_addr"] == "aisha.kone@example-bluepeak.test")
+    # Aisha's email resolved to Bluepeak by address, and her question was flagged. Selected by
+    # message id, not sender: she also sent the threaded reply (fixture 004), and that message
+    # asks nothing — flagging it would be the quoted-history re-flag §14.8 exists to prevent.
+    aisha_msg = next(m for m in comms if m["message_id"] == "fixture-001@example-bluepeak.test")
     assert aisha_msg["needs_response"] is True and "question" in aisha_msg["flag_reason"]
     assert aisha_msg["confidence"] >= 0.9 and aisha_msg["summary"]
     # the newsletter is noise — not flagged

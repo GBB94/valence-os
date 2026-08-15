@@ -57,13 +57,15 @@ def test_graph_nodes_and_edges(scene):
 
 def test_waterfall_orders_current_recovered_expansion_total(scene):
     c, a = scene["c"], scene["a"]
-    c.post("/api/contracts", json={"account_id": a["id"], "version_label": "cur", "price": 900000})
+    contract = c.post("/api/contracts", json={"account_id": a["id"], "version_label": "cur", "price": 900000}).json()
+    c.patch(f"/api/contracts/{contract['id']}/revenue", json={"currency": "EUR", "price_basis": "arr"})
     c.post("/api/recovered-spend", json={"account_id": a["id"], "label": "incumbent", "amount": 300000})
     c.post("/api/expansions", json={"account_id": a["id"], "name": "3k", "expected_value": 1800000})
     w = c.get(f"/api/accounts/{a['id']}/waterfall").json()
     kinds = [s["kind"] for s in w["steps"]]
     assert kinds == ["start", "add", "add", "total"]
     assert w["steps"][0]["amount"] == 900000 and w["steps"][-1]["amount"] == 3000000
+    assert w["currency"] == "EUR" and not w["excluded_mixed_currency"]
 
 
 def test_stakeholder_coverage(scene):

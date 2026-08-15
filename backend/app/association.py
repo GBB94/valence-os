@@ -39,11 +39,25 @@ def _person_by_name(conn, name):
     return dict(r) if r else None
 
 
-def _pick_program(conn, account_id, person_ids):
+def pick_program(conn, account_id, person_ids):
+    """The most plausible program inside `account_id`, or None.
+
+    Public because the account drop zone needs it: a dropped `.eml` takes its account from the page
+    rather than from the sender (ACCOUNT-INTAKE-SPEC.md §8), and if it then left `program_id` NULL
+    while a synced copy of the same message got one, the two paths would produce different records
+    from identical material — the divergence §7.4 exists to prevent.
+
+    **The account constraint is load-bearing, not defensive.** A matched person can hold a
+    stakeholder role in a program belonging to a *different* account, and without the join this
+    would hand back that program — putting one client's material under another client's program on
+    a run that names the right account. It matters more once the caller supplies the account
+    independently of the people, which is exactly what a drop does.
+    """
     if person_ids:
-        q = ("SELECT program_id FROM stakeholder_roles WHERE archived=0 AND person_id IN (%s) "
-             "ORDER BY updated_at DESC LIMIT 1" % ",".join("?" * len(person_ids)))
-        r = conn.execute(q, tuple(person_ids)).fetchone()
+        q = ("SELECT r.program_id FROM stakeholder_roles r JOIN programs p ON p.id = r.program_id "
+             "WHERE r.archived=0 AND p.account_id=? AND r.person_id IN (%s) "
+             "ORDER BY r.updated_at DESC LIMIT 1" % ",".join("?" * len(person_ids)))
+        r = conn.execute(q, (account_id, *person_ids)).fetchone()
         if r:
             return r["program_id"]
     r = conn.execute(
@@ -93,7 +107,7 @@ def resolve(conn: sqlite3.Connection, *, emails=None, names=None, keywords=None)
             consider(r["id"], None, KEYWORD_MATCH)
 
     matched = list(dict.fromkeys(matched))
-    program_id = _pick_program(conn, best["account_id"], matched) if best["account_id"] else None
+    program_id = pick_program(conn, best["account_id"], matched) if best["account_id"] else None
     return {
         "account_id": best["account_id"], "program_id": program_id,
         "person_id": best["person_id"], "confidence": round(best["confidence"], 2),

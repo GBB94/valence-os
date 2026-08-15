@@ -13,6 +13,7 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
   const [d, setD] = useState(null);
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(null); // 'gate'|'compliance'|'moment'|'scope'
+  const [waiving, setWaiving] = useState(null);
 
   async function load() {
     try { setD(await api.programDelivery(programId)); } catch (e) { toast(e.message, "err"); }
@@ -23,9 +24,7 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
   async function toggleItem(id, complete) {
     try { await api.toggleGateItem(id, { complete }); bump(); } catch (e) { toast(e.message, "err"); }
   }
-  async function waive(gate) {
-    const reason = prompt("Waiver reason (recorded):");
-    if (!reason) return;
+  async function waive(gate, reason) {
     try { await api.waiveGate(gate.id, { waiver_reason: reason }); toast("Gate waived"); bump(); } catch (e) { toast(e.message, "err"); }
   }
   async function setCompliance(item, status) {
@@ -40,13 +39,13 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
         <div className="card-h"><h3>Phase gates</h3><div className="spacer" /><button className="btn small" onClick={() => setAdding("gate")}>Add gate</button></div>
         {d.phase_gates.length === 0 ? <div className="rowmeta" style={{ padding: 12 }}>No gates.</div> :
           d.phase_gates.map((g) => (
-            <div key={g.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--line-hairline)" }}>
+            <div key={g.id} style={{ padding: "8px 12px", borderBottom: "1px solid var(--line-hairline)" }}>
               <div className="actions">
                 <strong>{g.name}</strong>
                 <span className={"badge"} style={badge(g.status)}>{g.status}</span>
                 {g.gates_phase && <span className="rowmeta">gates {g.gates_phase}</span>}
                 <div className="spacer" />
-                {g.status === "open" && <button className="btn small ghost" onClick={() => waive(g)}>Waive</button>}
+                {g.status === "open" && <button className="btn small ghost" onClick={() => setWaiving(g)}>Waive</button>}
               </div>
               {g.waiver_reason && <div className="rowmeta">waived: {g.waiver_reason}</div>}
               <div style={{ marginTop: 6 }}>
@@ -106,8 +105,20 @@ export default function DeliveryPanel({ programId, people, reloadKey }) {
       </div>
 
       {adding && <AddPanel kind={adding} programId={programId} people={people} onClose={() => setAdding(null)} onSaved={() => { setAdding(null); bump(); }} />}
+      {waiving && <WaivePanel gate={waiving} onClose={() => setWaiving(null)} onSaved={(reason) => { waive(waiving, reason); setWaiving(null); }} />}
     </>
   );
+}
+
+function WaivePanel({ gate, onClose, onSaved }) {
+  const toast = useToast();
+  const [reason, setReason] = useState("");
+  const save = () => reason.trim() ? onSaved(reason.trim()) : toast("Waiver reason is required", "err");
+  return <SlideOver title={`Waive gate · ${gate.name}`} onClose={onClose}
+    footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn danger" onClick={save}>Waive gate</button></>}>
+    <div className="field"><label>Waiver reason</label><textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+    <div className="hint">This reason is recorded in the delivery history.</div>
+  </SlideOver>;
 }
 
 function badge(status) {
@@ -140,9 +151,10 @@ function AddPanel({ kind, programId, people, onClose, onSaved }) {
     } catch (e) { toast(e.message, "err"); }
   }
   const titles = { gate: "Add phase gate", compliance: "Add compliance lane", moment: "Add deployment moment", scope: "Log scope change" };
+  const actions = { gate: "Add gate", compliance: "Add lane", moment: "Add moment", scope: "Log change" };
   return (
     <SlideOver title={titles[kind]} onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Add</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>{actions[kind]}</button></>}>
       {kind === "gate" && <>
         <div className="field"><label>Gate name</label><input value={text} onChange={(e) => setText(e.target.value)} autoFocus /></div>
         <div className="field"><label>Checklist items (one per line)</label><textarea value={items} onChange={(e) => setItems(e.target.value)} rows={5} /></div>

@@ -1,0 +1,93 @@
+# Launch phase gates and their operational items (migration 0051 — one merged launch standard).
+#
+# This replaces `launch_checklist.yaml` as the thing onboarding seeds. Editable seed file: change
+# the standard here, not in code.
+#
+# What belongs on this list, and what does not:
+#
+#   * A gate item is **operational setup** — a thing somebody does, ticked when done. It exists
+#     because nothing else in the model records it.
+#   * A **deployment event** (tech setup, HR soft launch, organic launch, first integration,
+#     value readout, day-90 step-back) is a milestone in `launch_plan.yaml`. Not repeated here.
+#   * A **relationship condition** (executive, champion, breadth, budget authority, baseline) is
+#     a readiness requirement scheduled by `enterprise-launch v3`. Not repeated here.
+#
+# Twelve of the old twenty checklist items were one of the latter two wearing a checkbox, several
+# of them at a *later* date than the record they duplicated — so the checklist could show work as
+# outstanding that a milestone had already marked done. Those eleven are dropped, not moved:
+#
+#   Confirm the success definition -> kept below (it fills a field; nothing else records it)
+#   Identify the budget owner      -> requirement budget_authority_evidence (kickoff+30)
+#   Scorecard and budget owner named -> same requirement, second copy at d14
+#   Metric definitions agreed      -> requirement value_baseline_locked (metric_ready evaluator)
+#   Baselines captured             -> requirement value_baseline_locked
+#   Compliance lanes opened        -> second copy of "Trace the IT / legal path" at d14
+#   Tech setup started             -> milestone tech_setup (d14)
+#   HR soft launch done            -> milestone hr_soft_launch (d30)
+#   First cohort activated         -> milestone hr_soft_launch success criteria
+#   Organic launch complete        -> milestone organic_launch (d45)
+#   Programmatic integrations identified -> milestone first_integration (d60)
+#   Value stories captured         -> milestone first_value_readout (d75)
+#   Day-90 step-back scheduled     -> milestone day_90_stepback (d90)
+#
+# Eight survive. Each appears exactly once across all three mechanisms, giving a standard of 23
+# dated things per launch: 8 gate items, 8 readiness requirements, 7 milestones.
+#
+# `gates_phase` must be one of the phases `phase_gates.gates_phase` allows.
+# `due_offset_days` is relative to kickoff, matching the milestone and playbook anchors.
+
+gates:
+  - key: foundation
+    name: Foundation gate
+    gates_phase: foundation
+    items:
+      - key: success_definition
+        description: Confirm the success definition
+        detail: What does a win look like to them, in their words?
+        fills_field: program.success_criteria
+        due_offset_days: 0
+      - key: metric_of_record
+        description: Confirm the metric of record
+        detail: >-
+          Which single metric will both sides treat as the scorecard? The baseline itself is a
+          readiness requirement at kickoff+45; this is the first-call agreement that precedes it.
+        due_offset_days: 0
+      - key: incumbent_status
+        description: Establish incumbent status
+        detail: Who is the incumbent vendor and what is the displacement path?
+        fills_field: account.incumbent_note
+        due_offset_days: 0
+      - key: talent_calendar
+        description: Map the talent calendar
+        detail: Review cycles, promotion windows, and blackout periods that gate rollout.
+        due_offset_days: 0
+      - key: it_legal_path
+        description: Trace the IT / legal path
+        detail: Security review, DPA, and the approval chain.
+        due_offset_days: 0
+      # Deliberately separate from the IT/legal item rather than folded into it: a works-council
+      # consultation is a statutory timeline with its own duration, and a merged item would let a
+      # cleared security review read as a cleared launch path.
+      - key: works_council
+        description: Assess works-council exposure
+        detail: Where Europe is in scope, the consultation requirement and its timeline.
+        due_offset_days: 0
+        europe_only: true
+
+  - key: launch
+    name: Launch gate
+    gates_phase: launch
+    items:
+      - key: comms_plan
+        description: Comms plan drafted
+        detail: Audiences, waves, and the sender for each. Planned only — nothing is ever auto-sent.
+        due_offset_days: 14
+
+  - key: programmatic
+    name: Programmatic gate
+    gates_phase: programmatic
+    items:
+      - key: governance_cadence
+        description: Governance cadence running
+        detail: A recurring review with the client, with a named owner on both sides.
+        due_offset_days: 30

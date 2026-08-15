@@ -52,7 +52,7 @@ export default function Comms({ accountId, reloadKey, onSaved }) {
           {fixtures?.transcripts?.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <button className="btn small" disabled={busy || !pick} onClick={ingest}>Ingest recording</button>
-        <button className="btn small primary" disabled={busy} onClick={sync}>Sync inbox{fixtures ? ` (${fixtures.emails})` : ""}</button>
+        <button className="btn small" disabled={busy} onClick={sync}>Sync inbox{fixtures ? ` (${fixtures.emails})` : ""}</button>
       </div>
 
       {comms.length === 0

@@ -10,12 +10,14 @@ windows (v1), stale imports (v2), and fired plays (v4) are intentionally absent.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException
 
-from . import audit, cadence, repo
+from . import audit, cadence, proposal_read, repo
 from .db import new_id, now_utc
 
 SENIOR_ROLES = ("champion", "budget_owner", "program_owner")
@@ -27,6 +29,7 @@ PRIORITY = {
     "active_blocker": 2,
     "unanswered_email": 2,         # Phase 3 §4.3 — flagged email past the response threshold
     "checklist_overdue": 3,        # Phase 3 §2 — baseline; escalates to 2 when >1wk past due
+    "gate_item_overdue": 3,        # migration 0051 — same escalation, on the merged standard
     "unidentified_placeholder": 3, # Phase 3 §3 — baseline; escalates to 2 when >1wk past find-by
     "renewal_window": 3,       # enabled by v1 contracts
     "stale_import": 4,         # enabled by v2 metrics/imports
@@ -35,6 +38,26 @@ PRIORITY = {
     "untriaged_inbox": 7,
     "cadence_overdue": 8,      # Phase 3 §3.6 — supersedes the fixed-21d stale_stakeholder trigger
     "open_task": 9,
+    "aging_internal_ask": 1,
+    "unacknowledged_internal_ask": 2,
+    "commit_ask_warning": 2,
+    "delivered_ask_evidence_gap": 2,
+    "escalation_overdue": 1,
+    "feedback_acknowledgment": 3,
+    "feedback_resolution": 2,
+    # Stage 7 episodes. Customer pull and confirmed org facts outrank vendor-push timing.
+    "campaign_evidence_gap": 3,   # Stage 11.1 §5.3 — one item per campaign, never per child
+    "comms_sequence_overdue": 3,  # Stage 13 — one item per sequence, never per late wave
+    "expansion_signal": 2,
+    "org_change_confirmed": 2,
+    "land_and_leave": 2,
+    "no_second_champion": 3,
+    "champion_gone_quiet": 3,
+    "stalled_cohort": 3,
+    "calendar_moment": 4,
+    "company_convergence": 2,
+    "intel_review_debt": 3,
+    "proposal_review_debt": 3,    # RR §8.1 — one item per account, never per run or per proposal
 }
 
 # Trigger escalates into the top "needs you now" band once this far past its date (§2/§3).
@@ -54,6 +77,44 @@ def _days_since(iso_date: str | None, today: str) -> int:
         return max(0, (date.fromisoformat(today) - date.fromisoformat(iso_date[:10])).days)
     except ValueError:
         return 0
+
+
+def _business_hours_between(
+    start_iso: str,
+    end_iso: str,
+    timezone_name: str = "America/New_York",
+    start_hour: int = 9,
+    end_hour: int = 17,
+    working_weekdays: set[int] | None = None,
+) -> float:
+    """Count weekday hours inside an account's configured local working window."""
+    try:
+        local_tz = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        local_tz = timezone.utc
+    start = datetime.fromisoformat(start_iso)
+    end = datetime.fromisoformat(end_iso)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    start, end = start.astimezone(local_tz), end.astimezone(local_tz)
+    if end <= start:
+        return 0.0
+
+    seconds = 0.0
+    cursor = start.date()
+    while cursor <= end.date():
+        # Settings store ISO weekday numbers (1=Monday … 7=Sunday).
+        active_days = working_weekdays or {1, 2, 3, 4, 5}
+        if cursor.isoweekday() in active_days:
+            window_start = datetime.combine(cursor, time(start_hour), tzinfo=local_tz)
+            window_end = datetime.combine(cursor, time.min, tzinfo=local_tz) + timedelta(hours=end_hour)
+            overlap_start, overlap_end = max(start, window_start), min(end, window_end)
+            if overlap_end > overlap_start:
+                seconds += (overlap_end - overlap_start).total_seconds()
+        cursor += timedelta(days=1)
+    return seconds / 3600
 
 
 def _latest_overlays(conn: sqlite3.Connection) -> dict[str, dict]:
@@ -89,6 +150,51 @@ def _suppressed(overlay: dict | None, underlying_updated_at: str, today: str) ->
     return None
 
 
+def snoozable_object_type(object_type: str) -> bool:
+    """Whether `_validate_key` would accept a key for this object type.
+
+    Account Path needs this before offering a Snooze control: `phase_gate_item` has no entry in
+    `_object_table`, so an `account_path:phase_gate_item:...` key would 422 on write. A control
+    that fails on click is worse than no control, so the caller omits `snooze_key` instead.
+    """
+    try:
+        _object_table(object_type)
+    except KeyError:
+        return False
+    return True
+
+
+def keys_for_objects(conn: sqlite3.Connection, today: str | None = None) -> dict[tuple[str, str], list[str]]:
+    """Queue item keys grouped by the object they point at, e.g. ('task','task-1') -> [key, ...].
+
+    Account Path reuses these so that snoozing the same object from either surface suppresses it
+    in both. One object can carry more than one key when several triggers found it; the caller
+    snoozes each, because the operator's "not now" is about the object, not the trigger.
+    """
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for item in _candidates(conn, today or _today()):
+        grouped.setdefault((item["object_type"], item["object_id"]), []).append(item["key"])
+    return grouped
+
+
+def suppression_state(
+    conn: sqlite3.Connection, keys: list[str], underlying_updated_at: str, today: str,
+    overlays: dict[str, dict] | None = None,
+) -> str | None:
+    """'snoozed'/'resolved' if any of `keys` currently suppresses the object, else None.
+
+    Same overlay rows and the same resurfacing rules the queue applies — Account Path does not
+    get a second expiry rule.
+    """
+    if overlays is None:
+        overlays = _latest_overlays(conn)
+    for key in keys:
+        state = _suppressed(overlays.get(key), underlying_updated_at, today)
+        if state is not None:
+            return state
+    return None
+
+
 def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
     items: list[dict] = []
 
@@ -99,12 +205,14 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         )
 
     progs = {r["pid"]: dict(r) for r in conn.execute(prog_ctx()).fetchall()}
+    accounts = {r["aid"]: dict(r) for r in conn.execute(
+        "SELECT id aid,name aname,NULL pid,NULL pname FROM accounts WHERE archived=0").fetchall()}
 
     # 1. Overdue commitments (any open commitment past due; none may be hidden)
     for r in conn.execute(
         "SELECT * FROM commitments WHERE archived=0 AND status='open' AND due_date < ?", (today,)
     ):
-        p = progs.get(r["program_id"], {})
+        p = progs.get(r["program_id"], accounts.get(r["account_id"], {}))
         overdue = _days_since(r["due_date"], today)
         items.append(_item(
             "overdue_commitment", "commitment", r["id"], r["updated_at"], p,
@@ -191,6 +299,80 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             next_action=r["action_text"] or "Run the play and record effectiveness.",
         ))
 
+    # 5b. Stage-7 signal episodes. Held episodes stay visible but never fire a play; hiding the
+    # pacing guard would make "no recommendation" look like "no signal".
+    for r in conn.execute(
+        "SELECT se.*, a.name aname FROM signal_episodes se LEFT JOIN accounts a ON a.id=se.account_id "
+        "WHERE se.status IN ('open','held') AND se.source_kind<>'attention'"):
+        ctx = {}
+        if r["context_json"]:
+            try:
+                ctx = json.loads(r["context_json"])
+            except (TypeError, ValueError):
+                ctx = {}
+        p = {"aid": r["account_id"], "aname": r["aname"], "pid": r["program_id"], "pname": None}
+        title = ctx.get("title") or r["kind"].replace("_", " ").title()
+        why = r["explanation"]
+        if r["status"] == "held":
+            title = f"Held — {title}"
+            why += f" {r['held_reason'] or 'Pacing guard is active.'}"
+        items.append(_item(
+            r["kind"], "signal_episode", r["id"], r["updated_at"], p,
+            title=title, because=why, age_days=_days_since(r["opened_at"], today),
+            due_date=None,
+            next_action=("Close the value gap before vendor-initiated expansion."
+                         if r["status"] == "held" else
+                         ctx.get("next_action") or "Qualify, attach to an opportunity, or dismiss with a reason."),
+        ))
+
+    # Stage 14 review debt is an operational nudge, never evidence. One item per account.
+    for r in conn.execute(
+        "SELECT e.account_id,a.name aname,COUNT(*) proposed_count,MIN(e.created_at) oldest,MAX(e.updated_at) updated_at "
+        "FROM company_events e JOIN accounts a ON a.id=e.account_id "
+        "WHERE e.status='proposed' AND e.archived=0 AND date(e.created_at)<=date(?, '-7 days') "
+        "GROUP BY e.account_id,a.name", (today,)):
+        age = _days_since(r["oldest"], today)
+        items.append(_item(
+            "intel_review_debt", "account", r["account_id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["aname"], "pid": None, "pname": None},
+            title=f"Review {r['proposed_count']} company-intel proposal(s)",
+            because=f"Oldest unreviewed public-source proposal is {age}d old.",
+            age_days=age, due_date=None, next_action="Review, confirm, or dismiss the proposed events.",
+        ))
+
+    # RR §8.1 proposal review debt. Deduplicated at the account: reviewing a backlog is one piece of
+    # work on one surface, so one item is the honest count. Unreviewed proposals are a nudge and
+    # never evidence — nothing here says anything about the account itself.
+    for r in proposal_read.review_debt(conn, today):
+        items.append(_item(
+            "proposal_review_debt", "account", r["account_id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["account_name"], "pid": None, "pname": None},
+            title=f"Review {r['pending']} proposed update(s)",
+            because=("Oldest unreviewed proposal is {age}d old.".format(age=r["age_days"])
+                     if "age" in r["thresholds_breached"] else
+                     f"{r['pending']} proposals are waiting on a review."),
+            age_days=r["age_days"], due_date=None,
+            next_action="Accept, edit, reject, or resolve them against existing records.",
+        ))
+
+    # 5c. Earned pre-agreed expansions awaiting action. These fire regardless of a value gap;
+    # the gap remains attached as risk rather than suppressing an agreement the client made.
+    for r in conn.execute(
+        "SELECT oe.*, oa.name agreement_name, a.name aname FROM operational_agreement_events oe "
+        "JOIN operational_agreements oa ON oa.id=oe.agreement_id "
+        "JOIN accounts a ON a.id=oe.account_id WHERE oe.status='fired'"):
+        late = r["action_due_on"] < today
+        items.append(_item(
+            "expansion_signal", "operational_agreement_event", r["id"], r["updated_at"],
+            {"aid": r["account_id"], "aname": r["aname"], "pid": None, "pname": None},
+            title=f"Earned expansion — {r['agreement_name']}",
+            because=(f"Pre-agreed threshold fired; action was due {r['action_due_on']}."
+                     if late else f"Pre-agreed threshold fired; act by {r['action_due_on']}.") +
+                    (f" {r['risk_note']}" if r["risk_note"] else ""),
+            age_days=_days_since(r["fired_at"], today), due_date=r["action_due_on"],
+            next_action="Run the agreed process and draft the expansion paper.",
+        ))
+
     # 6. At-risk upcoming milestones (flagged, or past target and incomplete)
     for r in conn.execute("SELECT * FROM milestones WHERE archived=0 AND status='upcoming'"):
         past = bool(r["target_date"]) and r["target_date"] < today
@@ -267,6 +449,33 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3  # >1wk past -> risk band
         items.append(it)
 
+    # 7b. Phase-gate items past their due date (migration 0051 — the merged launch standard).
+    #
+    # Onboarding stopped seeding `checklist_items` and seeds gate items instead, so without this the
+    # merge would have quietly removed the escalation above rather than moved it: an operational
+    # step could sit a month past due and Today would say nothing. Only dated, incomplete items on a
+    # gate that is still open qualify — a passed or waived gate has been settled deliberately, and
+    # re-raising its items would argue with the operator who settled it.
+    for r in conn.execute(
+        "SELECT gi.*, g.name gname, a.id aid, a.name aname, p.id pid, p.name pname "
+        "FROM phase_gate_items gi JOIN phase_gates g ON g.id = gi.gate_id "
+        "JOIN programs p ON p.id = g.program_id JOIN accounts a ON a.id = p.account_id "
+        "WHERE gi.complete=0 AND gi.due_date IS NOT NULL AND gi.due_date < ? "
+        "AND g.status='open' AND g.archived=0 AND p.archived=0",
+        (today,),
+    ):
+        overdue = _days_since(r["due_date"], today)
+        it = _item(
+            "gate_item_overdue", "phase_gate_item", r["id"], r["updated_at"],
+            {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]},
+            title=r["description"],
+            because=f"Launch setup slipping — {r['gname']} item {overdue}d past due.",
+            age_days=overdue, due_date=r["due_date"],
+            next_action="Do it, mark it done, or push the date.",
+        )
+        it["priority"] = 2 if overdue > ESCALATE_AFTER_DAYS else 3
+        items.append(it)
+
     # 8. Unidentified org-chart placeholders past their find-by date (Phase 3 §3)
     for r in conn.execute(
         "SELECT pe.*, a.name aname FROM persons pe JOIN accounts a ON a.id = pe.account_id "
@@ -298,14 +507,28 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
         "WHERE cm.archived=0 AND cm.needs_response=1 AND cm.responded=0",
     ):
         p = {"aid": r["aid"], "aname": r["aname"], "pid": r["pid"], "pname": r["pname"]}
+        cfg = conn.execute(
+            "SELECT priority_response_hours,business_timezone,business_day_start_hour,"
+            "business_day_end_hour FROM account_settings WHERE account_id=?",
+            (r["account_id"],),
+        ).fetchone()
+        threshold = cfg["priority_response_hours"] if cfg else 24
         hours = None
         if r["occurred_at"]:
             try:
-                hours = int((datetime.fromisoformat(now_utc()) - datetime.fromisoformat(r["occurred_at"])).total_seconds() // 3600)
+                hours = int(_business_hours_between(
+                    r["occurred_at"], now_utc(),
+                    cfg["business_timezone"] if cfg else "America/New_York",
+                    cfg["business_day_start_hour"] if cfg else 9,
+                    cfg["business_day_end_hour"] if cfg else 17,
+                ))
             except ValueError:
                 hours = None
+        if hours is not None and hours < threshold:
+            continue
         age_days = _days_since(r["occurred_on"], today)
-        unanswered = f"unanswered {hours}h" if (hours is not None and hours < 72) else f"unanswered {age_days}d"
+        unanswered = (f"unanswered {hours} business h" if hours is not None
+                      else f"unanswered {age_days}d")
         items.append(_item(
             "unanswered_email", "comm_message", r["id"], r["updated_at"], p,
             title=r["subject"] or "(no subject)",
@@ -325,6 +548,155 @@ def _candidates(conn: sqlite3.Connection, today: str) -> list[dict]:
             because=("Overdue task — due " + r["due_date"] + ".") if overdue else "Open task.",
             age_days=age, due_date=r["due_date"], next_action="Do, reassign, or close.",
         ))
+
+    # Internal asks are derived into Today; resolving a queue overlay never mutates the ask.
+    for r in conn.execute(
+        "SELECT * FROM internal_asks WHERE archived=0 AND status NOT IN ('delivered','declined') AND needed_by<?",
+        (today,)):
+        p = accounts.get(r["account_id"], {})
+        age = _days_since(r["needed_by"], today)
+        items.append(_item("aging_internal_ask", "internal_ask", r["id"], r["updated_at"], p,
+            title=r["need"], because=f"Internal ask is {age}d past needed-by {r['needed_by']}.",
+            age_days=age, due_date=r["needed_by"], next_action="Advance, escalate, deliver, or decline with reason."))
+
+    internal_cfg = conn.execute("SELECT * FROM internal_operations_settings WHERE id='singleton'").fetchone()
+    internal_weekdays = set(json.loads(internal_cfg["working_weekdays_json"]))
+    for r in conn.execute("SELECT * FROM internal_asks WHERE archived=0 AND status='raised'"):
+        default = conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type=? "
+            "ORDER BY threshold_business_hours,severity LIMIT 1", (r["ask_type"],)
+        ).fetchone()
+        if not default:
+            default = conn.execute(
+                "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type='general' "
+                "ORDER BY threshold_business_hours,severity LIMIT 1"
+            ).fetchone()
+        if not default:
+            continue
+        elapsed = _business_hours_between(
+            r["created_at"], now_utc(), internal_cfg["business_timezone"],
+            internal_cfg["business_day_start_hour"], internal_cfg["business_day_end_hour"],
+            internal_weekdays,
+        )
+        if elapsed >= default["threshold_business_hours"]:
+            p = accounts.get(r["account_id"], {})
+            items.append(_item(
+                "unacknowledged_internal_ask", "internal_ask", r["id"], r["updated_at"], p,
+                title=r["need"],
+                because=f"Ask remains unacknowledged after {int(elapsed)} internal business hours; policy threshold is {default['threshold_business_hours']}.",
+                age_days=_days_since(r["created_at"], today), due_date=r["needed_by"],
+                next_action="Record acknowledgment or apply the configured escalation path.",
+            ))
+
+    for r in conn.execute(
+        "SELECT a.*,e.category forecast_category FROM internal_asks a "
+        "JOIN forecast_entries e ON e.id=a.forecast_entry_id "
+        "WHERE a.archived=0 AND a.status NOT IN ('delivered','declined') "
+        "AND e.archived=0 AND e.category='commit' AND a.needed_by>=date('now')"
+    ):
+        default = conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type=? "
+            "ORDER BY threshold_business_hours,severity LIMIT 1", (r["ask_type"],)
+        ).fetchone() or conn.execute(
+            "SELECT * FROM escalation_defaults WHERE archived=0 AND ask_type='general' "
+            "ORDER BY threshold_business_hours,severity LIMIT 1"
+        ).fetchone()
+        if not default:
+            continue
+        local_tz = ZoneInfo(internal_cfg["business_timezone"])
+        due_at = datetime.combine(date.fromisoformat(r["needed_by"]),
+                                  time(internal_cfg["business_day_end_hour"]), tzinfo=local_tz).isoformat()
+        remaining = _business_hours_between(
+            now_utc(), due_at, internal_cfg["business_timezone"],
+            internal_cfg["business_day_start_hour"], internal_cfg["business_day_end_hour"],
+            internal_weekdays,
+        )
+        if remaining <= default["threshold_business_hours"]:
+            p = accounts.get(r["account_id"], {})
+            items.append(_item(
+                "commit_ask_warning", "internal_ask", r["id"], r["updated_at"], p,
+                title=r["need"],
+                because=f"Commit-linked ask is inside its {default['threshold_business_hours']}-business-hour warning window.",
+                age_days=0, due_date=r["needed_by"],
+                next_action="Confirm delivery or escalate before the Commit call is exposed.",
+            ))
+
+    from .internal_forecast import evidence as forecast_evidence
+    for r in conn.execute(
+        "SELECT a.*,e.updated_at forecast_updated_at FROM internal_asks a "
+        "LEFT JOIN forecast_entries e ON e.id=a.forecast_entry_id "
+        "WHERE a.archived=0 AND a.status='delivered' "
+        "AND (a.forecast_entry_id IS NOT NULL OR a.generated_document_id IS NOT NULL)"
+    ):
+        reasons = []
+        if r["forecast_entry_id"] and not forecast_evidence(conn, r["forecast_entry_id"])["supported"]:
+            reasons.append("linked forecast evidence remains incomplete")
+        if r["generated_document_id"] and not conn.execute(
+            "SELECT 1 FROM generated_document_sources WHERE document_id=?", (r["generated_document_id"],)
+        ).fetchone():
+            reasons.append("dependent artifact has no frozen source evidence")
+        if reasons:
+            p = accounts.get(r["account_id"], {})
+            source_version = max(r["updated_at"], r["forecast_updated_at"] or r["updated_at"])
+            items.append(_item(
+                "delivered_ask_evidence_gap", "internal_ask", r["id"], source_version, p,
+                title=r["need"], because="; ".join(reasons).capitalize() + ".",
+                age_days=_days_since(r["delivered_on"], today), due_date=None,
+                next_action="Complete the dependent evidence or reopen the ask with a reason.",
+            ))
+
+    for r in conn.execute(
+        "SELECT e.*,a.account_id,a.need FROM escalation_instances e JOIN internal_asks a ON a.id=e.ask_id "
+        "WHERE e.archived=0 AND e.status='open'"):
+        elapsed = _business_hours_between(r["opened_at"], now_utc(),
+            internal_cfg["business_timezone"], internal_cfg["business_day_start_hour"],
+            internal_cfg["business_day_end_hour"], set(json.loads(internal_cfg["working_weekdays_json"])))
+        if elapsed < r["expected_response_hours"]:
+            continue
+        p = accounts.get(r["account_id"], {})
+        items.append(_item("escalation_overdue", "escalation", r["id"], r["updated_at"], p,
+            title=r["need"], because=f"Escalation has no recorded response after {int(elapsed)} internal business hours.",
+            age_days=_days_since(r["opened_at"], today), due_date=None, next_action=r["next_step"]))
+
+    for r in conn.execute(
+        "SELECT o.id,o.account_id,o.updated_at,i.title FROM product_feedback_occurrences o "
+        "JOIN product_feedback_items i ON i.id=o.feedback_item_id WHERE o.archived=0 AND o.active=1 "
+        "AND NOT EXISTS (SELECT 1 FROM product_feedback_touches t WHERE t.occurrence_id=o.id AND t.touch_type='acknowledgment')"):
+        items.append(_item("feedback_acknowledgment", "product_feedback_occurrence", r["id"], r["updated_at"], accounts.get(r["account_id"], {}),
+            title=r["title"], because="Client feedback is logged but not yet acknowledged.", age_days=0,
+            due_date=None, next_action="Record the acknowledgment interaction; do not auto-send."))
+    for r in conn.execute(
+        "SELECT o.id,o.account_id,o.updated_at,i.title,i.status FROM product_feedback_occurrences o "
+        "JOIN product_feedback_items i ON i.id=o.feedback_item_id WHERE o.archived=0 AND o.active=1 "
+        "AND i.status IN ('shipped','declined') AND NOT EXISTS (SELECT 1 FROM product_feedback_touches t WHERE t.occurrence_id=o.id AND t.touch_type='resolution')"):
+        items.append(_item("feedback_resolution", "product_feedback_occurrence", r["id"], r["updated_at"], accounts.get(r["account_id"], {}),
+            title=r["title"], because=f"Feedback is {r['status']} but this account has not received the resolution loop.", age_days=0,
+            due_date=None, next_action="Record the resolution interaction; do not auto-send."))
+
+    # Stage 11.1 §5.3 — ONE item per campaign whose evidence has gone quiet past its checkpoint.
+    # Deliberately narrow: linked tasks and commitments already raise their own items when they go
+    # overdue, and a campaign that also raised one per child would double-count the same work and
+    # train the operator to skim the queue. The campaign speaks only to what no child record can —
+    # the evidence it is measured by has stopped arriving.
+    from . import campaigns as _campaigns
+    for gap in _campaigns.attention_items(conn):
+        items.append(_item(
+            "campaign_evidence_gap", "adoption_campaign", gap["campaign_id"],
+            gap["scheduled_on"], accounts.get(gap["account_id"], {}),
+            title=gap["title"], because=gap["because"],
+            age_days=_days_since(gap["scheduled_on"], today) or 0,
+            due_date=gap["scheduled_on"], next_action=gap["next_action"]))
+
+    # Stage 13 — a late sequence is one operational problem even when several waves are late.
+    # The service derives dates from actual predecessor sends; no scheduler or send action runs.
+    from . import adoption_comms as _adoption_comms
+    for gap in _adoption_comms.attention_items(conn, today):
+        items.append(_item(
+            "comms_sequence_overdue", "comms_sequence", gap["sequence_id"],
+            gap["updated_at"], accounts.get(gap["account_id"], {}),
+            title=gap["title"], because=gap["because"],
+            age_days=_days_since(gap["due_on"], today), due_date=gap["due_on"],
+            next_action=gap["next_action"]))
 
     return items
 
@@ -376,8 +748,14 @@ def _object_table(object_type: str) -> str:
         "milestone": "milestones", "task": "tasks", "capture_inbox_item": "capture_inbox_items",
         "stakeholder_role": "stakeholder_roles", "contract_version": "contract_versions",
         "metric_definition": "metric_definitions", "play_run": "play_runs",
+        "signal_episode": "signal_episodes",
+        "operational_agreement_event": "operational_agreement_events",
         "checklist_item": "checklist_items", "person": "persons",
         "comm_message": "comm_messages",
+        "internal_ask": "internal_asks", "escalation": "escalation_instances",
+        "product_feedback_occurrence": "product_feedback_occurrences",
+        "adoption_campaign": "adoption_campaigns",
+        "comms_sequence": "comms_sequences",
     }[object_type]
 
 

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
-import { ToastProvider, fmtDate, Tooltip, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
+import { ToastProvider, fmtDate, Tooltip, SectionHelp, SegTabs, AgeChip, ageDays, CommandPalette, TYPE_LABEL, Card } from "./ui";
 import Accounts from "./views/Accounts";
-import AccountDetail from "./views/AccountDetail";
+import AccountCommandCenter from "./views/AccountCommandCenter";
 import ProgramDetail from "./views/ProgramDetail";
 import Ledger from "./views/Ledger";
 import QuickEntry from "./views/QuickEntry";
@@ -14,13 +14,27 @@ import Commercial from "./views/Commercial";
 import Timeline from "./views/Timeline";
 import Metrics from "./views/Metrics";
 import ValueLibrary from "./views/ValueLibrary";
+import Artifacts from "./views/Artifacts";
+import Campaigns from "./views/Campaigns";
 import QBR from "./views/QBR";
 import Operations from "./views/Operations";
 import People from "./views/People";
 import Checklists from "./views/Checklists";
+import AccountPlan from "./views/AccountPlan";
+import CalendarPanel from "./views/CalendarPanel";
 import Comms from "./views/Comms";
 import Extraction from "./views/Extraction";
+import ProposalReview from "./views/ProposalReview";
 import Plays from "./views/Plays";
+import Internal from "./views/Internal";
+import Coach from "./views/Coach";
+import CopilotPanel from "./views/CopilotPanel";
+import AdoptionComms from "./views/AdoptionComms";
+import { WORKSPACE_TABS, navigationUrl, parseNavigation } from "./navigation";
+import { SKINS } from "./skins";
+import { SurfaceRetirementProvider, SurfaceScopeProvider, measure } from "./measure";
+import { commandProperties, navigationProperties } from "./surfaces";
+import { Surface } from "./Surface";
 
 export default function App() {
   return (
@@ -50,31 +64,28 @@ function resolveTheme(choice) {
   return choice;
 }
 
-// The account workspace tabs (DESIGN-GUIDE §2.2). Phase C builds the shell + tab strip and
-// slots today's views into each tab as an interim; Phase D merges them (Ledger, etc.).
-const WORKSPACE_TABS = [
-  ["overview", "Overview"], ["ledger", "Ledger"], ["people", "People"],
-  ["plan", "Plan"], ["commercial", "Commercial"], ["evidence", "Evidence"], ["outputs", "Outputs"],
-];
-
 // Short "what is this" help text, keyed by destination or account-tab (topbar ⓘ).
 const INFO = {
   today: "Cross-account attention queue — a ranked, explainable list of what needs you and why. This screen exists to be emptied.",
   library: "Link-first, tagged, searchable source references and files, with the records that cite each. Points to originals, never copies.",
   operations: "System health for this single-editor tool: imports, data freshness, backups, search-index health, and the plays engine.",
-  overview: "Where this account stands right now: both statuses with rationale, the phase, and the top risks. Depth is one click away.",
+  coach: "Your private call-coaching workspace: evidence-grounded review, one active behavior, and targeted practice. Coaching never becomes account truth.",
+  overview: "The account command center. Switch among three lenses without losing scope: Operate for what changed and what needs you, Prepare to organize the next meeting, Leadership for movement, forecast, and asks.",
   ledger: "One chronological record of everything on this account — interactions, commitments, tasks, decisions, risks, issues, and untriaged capture.",
   people: "The stakeholder network — stance, influence, relationships, and who has not been touched. Every assessment carries a date and evidence.",
   plan: "What is scheduled and what is gating: timeline, deployment moments, phase gates, and compliance lanes.",
   commercial: "Where the money is — expansion opportunities (staged budget), contract versions with your overlay, and the budget waterfall.",
   evidence: "What we can prove and how fresh the proof is: ingested metrics (stale renders unknown), benchmarks, and the value-story library.",
   outputs: "What we hand to someone else — QBR, weekly team update, and the client-facing mutual action plan. Client outputs include only promoted records.",
+  internal: "The operating layer behind the account: forecast calls, internal asks, leadership reviews, and colleague coverage.",
 };
 
 function Shell() {
   const [accounts, setAccounts] = useState([]);
-  // nav: { dest: 'today'|'account'|'library'|'operations', accountId?, tab?, programId? }
-  const [nav, setNav] = useState({ dest: "today" });
+  // nav: { dest: 'today'|'coach'|'account'|'library'|'operations', accountId?, tab?, programId? }
+  const initialNavRef = useRef(parseNavigation(window.location));
+  const [nav, setNav] = useState(initialNavRef.current);
+  const navRef = useRef(initialNavRef.current);
   const [quick, setQuick] = useState(null);
   const [palette, setPalette] = useState(false);
   const [inboxCount, setInboxCount] = useState(null);
@@ -88,6 +99,68 @@ function Shell() {
   const [density, setDensity] = useState(() => {
     try { return localStorage.getItem("valence-density") || "compact"; } catch { return "compact"; }
   });
+  // Skin: a third presentation axis beside theme and density. The stored value is a skin id
+  // from SKINS (skins.js); "default" means no attribute and the base tokens apply untouched.
+  // Skin and theme are independent — every skin defines both a light and a dark variant in
+  // skins.css, so toggling the theme never changes the skin and vice versa.
+  const [skin, setSkin] = useState(() => {
+    try {
+      const s = localStorage.getItem("valence-skin");
+      return SKINS.some((k) => k.id === s) ? s : "default";
+    } catch { return "default"; }
+  });
+  const [copilot, setCopilot] = useState(null);
+  const copilotTriggerRef = useRef(null);
+  const copilotReturnFocusRef = useRef(null);
+
+  // Stage 17 (`SURFACE-USAGE-SPEC.md` §5). How the current route was reached, and whether it was
+  // the first of the session. Refs rather than state: neither is anything a view renders, and
+  // putting them in state would re-render the whole shell to record a diagnostic.
+  const entryPointRef = useRef("navigation");
+  const landedOnceRef = useRef(false);
+
+  // Navigation is deliberately a small internal route contract rather than a third-party
+  // router. Every existing destination remains a state object, but the URL is now canonical
+  // and Back/Forward can restore that state.
+  const go = useCallback((nextOrUpdater, { replace = false } = {}) => {
+    const next = typeof nextOrUpdater === "function" ? nextOrUpdater(navRef.current) : nextOrUpdater;
+    const target = navigationUrl(next);
+    const current = window.location.pathname + window.location.search;
+    navRef.current = next;
+    if (target !== current) window.history[replace ? "replaceState" : "pushState"]({}, "", target);
+    setNav(next);
+  }, []);
+
+  useEffect(() => {
+    const canonical = navigationUrl(navRef.current);
+    if (canonical !== window.location.pathname + window.location.search) {
+      window.history.replaceState({}, "", canonical);
+    }
+    const onPopState = () => {
+      const restored = parseNavigation(window.location);
+      navRef.current = restored;
+      // Back/Forward is a different entry point from a click, and §5 keeps them apart: a route
+      // reached only by Back is a route with a discoverability problem, and folding the two
+      // together would hide exactly that.
+      entryPointRef.current = "restore";
+      setNav(restored);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // §5 `navigation_landed` — the reachability half of §6.3. A surface that is never rendered is a
+  // navigation problem rather than a useless surface, and that reading is only available if we know
+  // which routes the operator actually reaches.
+  useEffect(() => {
+    const properties = navigationProperties(
+      { dest: nav.dest, tab: nav.tab },
+      { entryPoint: entryPointRef.current, isFirstOfSession: !landedOnceRef.current },
+    );
+    entryPointRef.current = "navigation";
+    landedOnceRef.current = true;
+    if (properties) measure({ accountId: nav.accountId || null })("navigation_landed", properties);
+  }, [nav.dest, nav.tab, nav.accountId]);
 
   useEffect(() => {
     try { localStorage.setItem("valence-theme", theme); } catch { /* ignore */ }
@@ -105,8 +178,24 @@ function Shell() {
     try { localStorage.setItem("valence-density", density); } catch { /* ignore */ }
   }, [density]);
   useEffect(() => {
+    // Absent attribute = default skin, mirroring the pre-paint script in index.html.
+    if (skin === "default") delete document.documentElement.dataset.skin;
+    else document.documentElement.dataset.skin = skin;
+    try { localStorage.setItem("valence-skin", skin); } catch { /* ignore */ }
+  }, [skin]);
+  useEffect(() => {
     try { localStorage.setItem("valence-rail", railCollapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [railCollapsed]);
+  useEffect(() => {
+    // DESIGN-GUIDE §11: split-screen at ~900px collapses the rail to icons. Auto-collapse on
+    // entering a narrow viewport; the operator can still re-expand explicitly.
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 1000px)");
+    const apply = () => { if (mq.matches) setRailCollapsed(true); };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const refreshNotifs = useCallback(async () => {
     try { setNotifs(await api.notifications()); } catch { /* ignore */ }
@@ -135,6 +224,15 @@ function Shell() {
     return {};
   }, [nav]);
 
+  // §5 `command_invoked`. Capture is the one command reachable three ways — toolbar, keyboard, and
+  // the palette — and §6's discoverability question is exactly "which of those does anyone use".
+  // One function so a new entry point cannot be added without naming itself.
+  const openCapture = useCallback((entryPoint) => {
+    const properties = commandProperties("command.log_interaction", entryPoint);
+    if (properties) measure()("command_invoked", properties);
+    setQuick(capturePrefill());
+  }, [capturePrefill]);
+
   // Keyboard: cmd/ctrl-K opens the palette; "c" opens capture from anywhere (Section 2.4).
   useEffect(() => {
     const onKey = (e) => {
@@ -142,21 +240,86 @@ function Shell() {
       const typing = ["input", "textarea", "select"].includes((t.tagName || "").toLowerCase()) || t.isContentEditable;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); return; }
       if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c") {
-        e.preventDefault(); setQuick(capturePrefill());
+        e.preventDefault(); openCapture("keyboard");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [capturePrefill]);
+  }, [openCapture]);
 
   const bump = () => setReloadKey((k) => k + 1);
   const onSaved = () => { bump(); refreshInbox(); loadAccounts(); };
 
-  const openAccount = (id, tab = "overview") => setNav({ dest: "account", accountId: id, tab, programId: undefined });
-  const setTab = (tab) => setNav((n) => ({ ...n, tab }));
-  const setProgramFilter = (programId) => setNav((n) => ({ ...n, programId: programId || undefined }));
+  const openAccount = useCallback((id, tab = "overview") => {
+    go({ dest: "account", accountId: id, tab, programId: undefined });
+  }, [go]);
+  const setTab = useCallback((tab) => go((n) => ({
+    ...n,
+    tab,
+    ...(tab === "overview" ? {} : { lens: undefined, meetingId: undefined }),
+    ...(tab === "commercial" ? {} : { section: undefined, recordId: undefined }),
+  })), [go]);
+  const openWorkspaceTarget = useCallback((target) => go((n) => ({
+    ...n,
+    tab: target?.tab || "overview",
+    section: target?.subview,
+    recordId: target?.record_id,
+    ...(target?.tab === "overview" ? {} : { lens: undefined, meetingId: undefined }),
+  })), [go]);
+  const setCommercialSection = useCallback((section, { replace = false } = {}) => go((n) => ({
+    ...n, tab: "commercial", section: section || undefined, recordId: undefined,
+  }), { replace }), [go]);
+  // The People sub-tab writes to the same `section` field, but from inside the tab it is already
+  // on — so it keeps the current tab rather than naming one, and clears the focused record the
+  // way the Commercial setter does.
+  const setPeopleSection = useCallback((section, { replace = false } = {}) => go((n) => ({
+    ...n, section: section || undefined, recordId: undefined,
+  }), { replace }), [go]);
+  const setCommandCenterLens = useCallback((lens, { replace = false } = {}) => {
+    go((n) => ({
+      ...n,
+      tab: "overview",
+      lens,
+      meetingId: lens === "prepare" ? n.meetingId : undefined,
+    }), { replace });
+  }, [go]);
+  const setCommandCenterMeeting = useCallback((meetingId, { replace = false } = {}) => {
+    go((n) => ({
+      ...n,
+      tab: "overview",
+      lens: "prepare",
+      meetingId: meetingId || undefined,
+    }), { replace });
+  }, [go]);
+  const setProgramFilter = useCallback((programId, options) => {
+    go((n) => ({ ...n, programId: programId || undefined }), options);
+  }, [go]);
+
+  const copilotScope = nav.dest === "account"
+    ? (nav.programId
+      ? { scope_type: "program", account_id: nav.accountId, program_id: nav.programId }
+      : { scope_type: "account", account_id: nav.accountId })
+    : { scope_type: "portfolio" };
+  const openCopilot = useCallback((intent = "fact", question = "") => {
+    copilotReturnFocusRef.current = document.activeElement;
+    setCopilot({ intent, question });
+  }, []);
+  const closeCopilot = useCallback(() => {
+    setCopilot(null);
+    requestAnimationFrame(() => {
+      const target = copilotReturnFocusRef.current;
+      (target?.isConnected ? target : copilotTriggerRef.current)?.focus?.();
+    });
+  }, []);
+  const handleMissingAccount = useCallback(() => {
+    go({ dest: "accounts" }, { replace: true });
+  }, [go]);
+  const setPortfolioView = useCallback((viewId, { replace = false } = {}) => {
+    go((current) => ({ ...current, view: viewId === "all" ? undefined : viewId }), { replace });
+  }, [go]);
 
   function navigateToResult(r) {
+    if (r.object_type === "attention_item") { go({ dest: "today" }); return; }
     const acct = r.account_id || (r.object_type === "account" ? r.object_id : null);
     if (!acct) return;
     // route search hits into the most relevant workspace tab
@@ -165,12 +328,33 @@ function Shell() {
       commitment: "ledger", task: "ledger", decision: "ledger", risk: "ledger", issue: "ledger",
       interaction: "ledger", capture_inbox_item: "ledger",
       value_story: "evidence", expansion_opportunity: "commercial", scope_change: "plan",
+      whitespace_cell: "commercial", population_segment: "commercial", population_view: "commercial",
+      value_target: "commercial", metric_observation: "evidence", funding_pool: "commercial",
+      operational_agreement: "commercial", growth_plan_line: "commercial",
+      contract_version: "commercial", forecast_entry: "internal", forecast_change: "internal",
+      status_assessment: "internal", status_change: "internal", internal_ask: "internal",
+      ask_change: "internal", internal_roster: "internal", escalation: "internal",
+      product_feedback: "internal", product_feedback_occurrence: "internal",
+      signal_episode: "commercial", calendar_event: "plan", org_change_flag: "people",
+      adoption_campaign: "plan", campaign_change: "plan", comms_sequence: "plan",
+      generated_document: "outputs",
+      company_event: "commercial", intel_document_span: "commercial",
+      commitment_change: "ledger", decision_change: "ledger", risk_change: "ledger",
+      issue_change: "ledger", task_change: "ledger", milestone_change: "ledger",
       program: "overview", account: "overview",
     };
+    if (r.object_type === "company_event" || r.object_type === "intel_document_span") {
+      go({ dest: "account", accountId: acct, tab: "commercial", section: "company",
+        recordId: r.object_type === "company_event" ? r.object_id : undefined });
+      return;
+    }
     openAccount(acct, tabByType[r.object_type] || "overview");
   }
 
   return (
+    <SurfaceRetirementProvider>
+    <SurfaceScopeProvider accountId={nav.dest === "account" ? nav.accountId : (nav.coachAccountId || null)}
+      programId={nav.programId || null}>
     <div className={"shell" + (railCollapsed ? " rail-collapsed" : "")}>
       <Rail
         accounts={accounts}
@@ -178,18 +362,19 @@ function Shell() {
         collapsed={railCollapsed}
         onToggleCollapse={() => setRailCollapsed((v) => !v)}
         inboxCount={inboxCount}
-        go={setNav}
+        go={go}
         openAccount={openAccount}
       />
 
       <div className="main">
         <div className="topbar">
-          <Breadcrumb nav={nav} accounts={accounts} go={setNav} />
+          <Breadcrumb nav={nav} accounts={accounts} go={go} />
           <GlobalSearch onNavigate={navigateToResult} reloadKey={reloadKey} />
-          <button className="btn primary small" onClick={() => setQuick(capturePrefill())} title="Log interaction (c)">Log interaction</button>
+          <button className="btn small" onClick={() => openCapture("toolbar")} title="Log interaction (c)">Log interaction</button>
+          <button ref={copilotTriggerRef} className="btn small" onClick={() => openCopilot("fact")} title="Ask grounded questions in the visible scope">Ask</button>
           <div style={{ position: "relative" }}>
             <button className="btn small" onClick={() => setShowNotifs((v) => !v)} title="Notifications" aria-label="Notifications">
-              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, color: "var(--status-risk)", fontWeight: 600 }}>{notifs.unread}</span>}
+              🔔{notifs.unread > 0 && <span style={{ marginLeft: 4, fontWeight: 600 }}>{notifs.unread}</span>}
             </button>
             {showNotifs && (
               <Card style={{ position: "absolute", right: 0, top: 34, width: 340, zIndex: 30, maxHeight: 380, overflowY: "auto", boxShadow: "var(--shadow-panel)" }}>
@@ -205,6 +390,7 @@ function Shell() {
               </Card>
             )}
           </div>
+          <SkinPicker skin={skin} setSkin={setSkin} />
           <DensityToggle density={density} setDensity={setDensity} />
           <Tooltip text={INFO[nav.dest === "account" ? nav.tab : nav.dest]} />
           <button className="btn small" onClick={() => setPalette(true)} title="Command palette (⌘K)" aria-label="Command palette">⌘K</button>
@@ -216,14 +402,17 @@ function Shell() {
 
         {nav.dest === "today" && (
           <div className="content">
-            <Queue reloadKey={reloadKey} onOpenAccount={(id) => openAccount(id)} onChanged={onSaved} />
+            <Queue reloadKey={reloadKey} onOpenAccount={(id) => openAccount(id)} onChanged={onSaved}
+              viewId={nav.view} onViewChange={setPortfolioView} />
           </div>
         )}
         {nav.dest === "accounts" && (
           <div className="content">
-            <Accounts accounts={accounts} onOpen={(id) => openAccount(id)} onChanged={loadAccounts} />
+            <Accounts accounts={accounts} onOpen={(id) => openAccount(id)} onChanged={loadAccounts}
+              viewId={nav.view} onViewChange={setPortfolioView} />
           </div>
         )}
+        {nav.dest === "coach" && <Coach accounts={accounts} nav={nav} go={go} />}
         {nav.dest === "library" && <div className="content"><Library reloadKey={reloadKey} /></div>}
         {nav.dest === "operations" && (
           <div className="content">
@@ -238,14 +427,26 @@ function Shell() {
             accountId={nav.accountId}
             tab={nav.tab}
             programId={nav.programId}
+            lens={nav.lens}
+            meetingId={nav.meetingId}
+            workspaceSection={nav.section}
+            focusedRecordId={nav.recordId}
+            proposalRunId={nav.proposalRunId}
             reloadKey={reloadKey}
             setTab={setTab}
+            setCommandCenterLens={setCommandCenterLens}
+            setCommandCenterMeeting={setCommandCenterMeeting}
+            setCommercialSection={setCommercialSection}
+            setPeopleSection={setPeopleSection}
+            openWorkspaceTarget={openWorkspaceTarget}
             setProgramFilter={setProgramFilter}
             openAccount={openAccount}
             onQuickEntry={(accountId, programId) => setQuick({ accountId, programId })}
             onSaved={onSaved}
             setInboxCount={setInboxCount}
             refreshNotifs={refreshNotifs}
+            openCopilot={openCopilot}
+            onMissingAccount={handleMissingAccount}
           />
         )}
       </div>
@@ -265,12 +466,25 @@ function Shell() {
           accounts={accounts}
           onClose={() => setPalette(false)}
           onNavigate={navigateToResult}
-          go={setNav}
+          go={go}
           openAccount={openAccount}
-          openQuick={() => setQuick(capturePrefill())}
+          openQuick={() => openCapture("menu")}
+          openCopilot={openCopilot}
         />
       )}
+
+      {copilot && <Surface surfaceKey="global.copilot"><CopilotPanel scope={copilotScope}
+        accountName={accounts.find((account) => account.id === copilotScope.account_id)?.name}
+        starter={copilot} onClose={closeCopilot}
+        onNavigateSource={(source) => {
+          const type = source.record_type === "account_snapshot" ? "account" : source.record_type;
+          navigateToResult({ object_type: type, object_id: source.record_id,
+            account_id: source.account_id, program_id: source.program_id });
+          closeCopilot();
+        }} /></Surface>}
     </div>
+    </SurfaceScopeProvider>
+    </SurfaceRetirementProvider>
   );
 }
 
@@ -293,6 +507,7 @@ function Rail({ accounts, nav, collapsed, onToggleCollapse, inboxCount, go, open
       </div>
       <div className="nav">
         {item(nav.dest === "today", "Today", "◎", () => go({ dest: "today" }))}
+        {item(nav.dest === "coach", "Coach", "◇", () => go({ dest: "coach", coachView: "home" }))}
 
         <button className={"rail-item" + (nav.dest === "accounts" ? " active" : "")} onClick={() => go({ dest: "accounts" })} title="All accounts">
           <span className="rail-icon" aria-hidden="true">▤</span>
@@ -324,6 +539,11 @@ function Breadcrumb({ nav, accounts, go }) {
   const acct = accounts.find((a) => a.id === nav.accountId);
   const tabLabel = WORKSPACE_TABS.find(([k]) => k === nav.tab)?.[1];
   if (nav.dest === "today") return <div className="crumb-bar">Today</div>;
+  if (nav.dest === "coach") return <div className="crumb-bar">
+    <button onClick={() => go({ dest: "coach", coachView: "home" })}>Coach</button>
+    {nav.coachView === "new" && <><span className="crumb-sep">›</span><span className="crumb-cur">New review</span></>}
+    {nav.coachView === "session" && <><span className="crumb-sep">›</span><span className="crumb-cur">Session</span></>}
+  </div>;
   if (nav.dest === "library") return <div className="crumb-bar">Library</div>;
   if (nav.dest === "operations") return <div className="crumb-bar">Operations</div>;
   return (
@@ -332,6 +552,54 @@ function Breadcrumb({ nav, accounts, go }) {
       <span className="crumb-sep">›</span>
       <span className="crumb-cur">{acct?.name || "Account"}</span>
       {tabLabel && <><span className="crumb-sep">·</span><span className="crumb-cur">{tabLabel}</span></>}
+    </div>
+  );
+}
+
+// Skin picker: a popover list rather than a cycle button — with more than two options a blind
+// cycle makes the operator walk the whole ring to get back, and a skin change repaints the
+// entire app, so each step of that walk is a full visual jolt. Same popover pattern as the
+// notifications card. Skins and themes are independent axes; the picker says so.
+function SkinPicker({ skin, setSkin }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const current = SKINS.find((k) => k.id === skin) || SKINS[0];
+  return (
+    <div style={{ position: "relative" }} ref={ref}>
+      <button className="btn small" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox"
+        aria-expanded={open} title={`Skin: ${current.label} — click to change`}
+        aria-label={`Skin: ${current.label}. Click to change.`}>
+        ❖
+      </button>
+      {open && (
+        <Card style={{ position: "absolute", right: 0, top: 34, width: 260, zIndex: 30, boxShadow: "var(--shadow-panel)" }}>
+          <div className="card-h"><h3>Skin</h3></div>
+          <div role="listbox" aria-label="Skin">
+            {SKINS.map((k) => (
+              <button key={k.id} role="option" aria-selected={k.id === skin} className="btn small ghost"
+                style={{ display: "flex", width: "100%", textAlign: "left", gap: 8, alignItems: "baseline", borderRadius: 0 }}
+                onClick={() => { setSkin(k.id); setOpen(false); }}>
+                <span style={{ width: 14 }}>{k.id === skin ? "✓" : ""}</span>
+                <span>
+                  <span style={{ fontWeight: k.id === skin ? 600 : 400 }}>{k.label}</span>
+                  <span className="rowmeta" style={{ display: "block" }}>{k.blurb}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="rowmeta" style={{ padding: "6px 12px 8px" }}>
+            Independent of the light/dark toggle — every skin has both.
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -346,10 +614,15 @@ function DensityToggle({ density, setDensity }) {
   );
 }
 
-function Collapsible({ title, children, defaultOpen = false }) {
+function Collapsible({ title, children, defaultOpen = false, openWhen = false, id = undefined }) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (!openWhen) return;
+    setOpen(true);
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+  }, [openWhen, id]);
   return (
-    <div className="collapsible">
+    <div className="collapsible" id={id}>
       <button className="collapsible-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="rail-icon">{open ? "▾" : "▸"}</span> {title}
       </button>
@@ -359,29 +632,38 @@ function Collapsible({ title, children, defaultOpen = false }) {
 }
 
 // ---- Account workspace: sticky context header + tab strip + tab content ----
-function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setTab, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs }) {
+function AccountWorkspace({ accounts, accountId, tab, programId, lens, meetingId, workspaceSection, focusedRecordId, proposalRunId, reloadKey, setTab, setCommandCenterLens, setCommandCenterMeeting, setCommercialSection, setPeopleSection, openWorkspaceTarget, setProgramFilter, openAccount, onQuickEntry, onSaved, setInboxCount, refreshNotifs, openCopilot, onMissingAccount }) {
   const [detail, setDetail] = useState(null);
   const [renewal, setRenewal] = useState(null);
 
   useEffect(() => {
     if (!accountId) return;
     let live = true;
-    api.account(accountId).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    api.account(accountId).then((d) => { if (live) setDetail(d); }).catch((error) => {
+      if (live && error?.status === 404) onMissingAccount?.();
+    });
     api.contracts(accountId).then((cs) => {
       if (!live) return;
       const cur = (cs || []).find((c) => c.is_current) || (cs || [])[0];
       setRenewal(cur?.renewal_date || null);
     }).catch(() => setRenewal(null));
     return () => { live = false; };
-  }, [accountId, reloadKey]);
+  }, [accountId, reloadKey, onMissingAccount]);
 
   const programs = detail?.programs ?? [];
   const selProgram = programs.find((p) => p.id === programId) || null;
   const setAcct = (id) => openAccount(id, tab);
 
+  useEffect(() => {
+    if (detail && programId && !(detail.programs || []).some((program) => program.id === programId)) {
+      setProgramFilter("", { replace: true });
+    }
+  }, [detail, programId, setProgramFilter]);
+
   return (
     <>
-      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram} setProgramFilter={setProgramFilter} renewal={renewal} />
+      <ContextHeader detail={detail} programs={programs} programId={programId} selProgram={selProgram}
+        setProgramFilter={setProgramFilter} renewal={renewal} onOpenStatus={() => setTab("internal")} />
       <div className="tabstrip" role="tablist">
         {WORKSPACE_TABS.map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key}
@@ -392,42 +674,84 @@ function AccountWorkspace({ accounts, accountId, tab, programId, reloadKey, setT
       </div>
       <div className="content">
         {tab === "overview" && (
-          <AccountDetail accountId={accountId} reloadKey={reloadKey}
-            onOpenProgram={() => setTab("plan")} onQuickEntry={(aid) => onQuickEntry(aid, programId)} />
+          <AccountCommandCenter accountId={accountId} programId={programId} lens={lens} meetingId={meetingId}
+            reloadKey={reloadKey} onLensChange={setCommandCenterLens} onMeetingChange={setCommandCenterMeeting}
+            onOpenTarget={openWorkspaceTarget}
+            onQuickEntry={(aid) => onQuickEntry(aid, programId)} onSaved={onSaved}
+            onOpenCopilot={openCopilot} />
         )}
         {tab === "ledger" && (
           <div className="stack">
-            <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved} />
-            <Collapsible title="Communications (email + recordings)">
-              <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
+            <Ledger accountId={accountId} programId={programId} reloadKey={reloadKey} onChanged={onSaved}
+              onOpenTarget={openWorkspaceTarget} focusedRecordId={focusedRecordId} />
+            <Collapsible title="Proposal Review" defaultOpen={workspaceSection === "proposals"}
+              openWhen={workspaceSection === "proposals"} id="ledger-proposal-review">
+              <ProposalReview accountId={accountId} programId={programId || ""}
+                runId={proposalRunId || ""} reloadKey={reloadKey} onApplied={onSaved} />
             </Collapsible>
-            <Collapsible title="Extract from a transcript">
-              <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
-            </Collapsible>
+            <Surface surfaceKey="ledger.communications">
+              <Collapsible title="Communications (email + recordings)">
+                <Comms accountId={accountId} reloadKey={reloadKey} onSaved={onSaved} />
+              </Collapsible>
+            </Surface>
+            <Surface surfaceKey="ledger.extraction">
+              <Collapsible title="Extract from a transcript">
+                <Extraction accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} onApplied={onSaved} />
+              </Collapsible>
+            </Surface>
           </div>
         )}
         {tab === "people" && (
-          <People accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          <People accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey}
+            section={workspaceSection} onSectionChange={setPeopleSection} />
         )}
         {tab === "plan" && (
           <div className="stack">
-            <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
+            {/* The plan leads the tab: it is the only surface that says what is expected and when,
+                and the only one that can start a plan at all. Everything below it is execution
+                detail against a plan that has to exist first. */}
+            <AccountPlan accountId={accountId} programId={programId} reloadKey={reloadKey}
+              onChanged={onSaved} />
+            <Surface surfaceKey="plan.checklists">
+              <Checklists accountId={accountId} programId={programId} reloadKey={reloadKey} onSaved={onSaved} />
+            </Surface>
+            <Surface surfaceKey="plan.calendar">
+              <CalendarPanel accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="plan.adoption_comms">
+              <AdoptionComms accountId={accountId} programId={programId} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="plan.campaigns">
+              <Campaigns accountId={accountId} reloadKey={reloadKey} />
+            </Surface>
             {selProgram
-              ? <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
+              ? <Surface surfaceKey="plan.program_detail">
+                  <ProgramDetail programId={selProgram.id} reloadKey={reloadKey} onQuickEntry={(aid, pid) => onQuickEntry(aid, pid)} />
+                </Surface>
               : <Timeline accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
           </div>
         )}
         {tab === "commercial" && (
-          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+          <Commercial accounts={accounts} accountId={accountId} setAccountId={setAcct}
+            reloadKey={reloadKey} openCopilot={openCopilot} section={workspaceSection}
+            focusedRecordId={focusedRecordId} onSectionChange={setCommercialSection} />
         )}
         {tab === "evidence" && (
           <div className="stack">
-            <ValueLibrary accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
-            <Metrics reloadKey={reloadKey} />
+            <Surface surfaceKey="evidence.value_library">
+              <ValueLibrary accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+            </Surface>
+            <Surface surfaceKey="evidence.metrics">
+              <Metrics reloadKey={reloadKey} />
+            </Surface>
           </div>
         )}
         {tab === "outputs" && (
-          <OutputsTab accounts={accounts} accountId={accountId} setAcct={setAcct} reloadKey={reloadKey} />
+          <OutputsTab accounts={accounts} accountId={accountId} programId={programId}
+                      setAcct={setAcct} reloadKey={reloadKey} />
+        )}
+        {tab === "internal" && (
+          <Internal accountId={accountId} reloadKey={reloadKey} onChanged={onSaved} />
         )}
       </div>
     </>
@@ -442,7 +766,7 @@ function renewalText(dateStr) {
   return { text: `in ${fmt(until)}`, warn: until <= 90 };
 }
 
-function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter, renewal }) {
+function ContextHeader({ detail, programs, programId, selProgram, setProgramFilter, renewal, onOpenStatus }) {
   if (!detail) return <div className="ctx-header"><div className="ctx-name subtle">Loading…</div></div>;
   const phase = selProgram?.phase;
   const ren = renewalText(renewal);
@@ -453,12 +777,12 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
         <option value="">All programs</option>
         {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
-      <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} />
-      <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} />
+      <StatusStat label="Delivery" status={detail.delivery_status} assessed={detail.delivery_status_assessed_on} onOpen={onOpenStatus} />
+      <StatusStat label="Commercial" status={detail.commercial_status} assessed={detail.commercial_status_assessed_on} onOpen={onOpenStatus} />
       {ren && (
         <div className="ctx-stat">
           <span className="ctx-k">Renewal</span>
-          <span className="ctx-v" style={ren.warn ? { color: "var(--status-warn)" } : undefined}>{ren.text}</span>
+          <span className="ctx-v" style={ren.warn ? { color: "var(--status-warn)" } : undefined}>{ren.warn ? "▲ " : ""}{ren.text}</span>
           <span className="rowmeta mono">{fmtDate(renewal)}</span>
         </div>
       )}
@@ -474,28 +798,39 @@ function ContextHeader({ detail, programs, programId, selProgram, setProgramFilt
 
 // Manually-assessed status (§7): keeps its color, but past the 30-day reassessment interval
 // it gains a dotted outline + the age chip, so a stale judgment can't pass as a fresh one.
-function StatusStat({ label, status, assessed }) {
+function StatusStat({ label, status, assessed, onOpen }) {
   const stale = ageDays(assessed) != null && ageDays(assessed) > 30;
   return (
-    <div className="ctx-stat">
+    <button className="ctx-stat ctx-stat-button" onClick={onOpen} title={`Review ${label.toLowerCase()} status`}>
       <span className="ctx-k">{label}</span>
       <span className={"ctx-v" + (stale ? " status-stale-outline" : "")}>{(status || "—").replace(/_/g, " ")}</span>
       <AgeChip date={assessed} />
-    </div>
+    </button>
   );
 }
 
 // Outputs tab: an inner selector across the three generators (interim; Phase D refines).
-function OutputsTab({ accounts, accountId, setAcct, reloadKey }) {
-  const [which, setWhich] = useState("qbr");
+function OutputsTab({ accounts, accountId, programId, setAcct, reloadKey }) {
+  const [which, setWhich] = useState("artifacts");
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <SegTabs tabs={[["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
+      <div className="subtab-strip" style={{ marginBottom: 12 }}>
+        <SegTabs tabs={[["artifacts", "Artifacts"], ["qbr", "QBR"], ["team", "Team update"], ["map", "Mutual action plan"]]} value={which} onChange={setWhich} />
+        <SectionHelp group="outputs" active={which} />
       </div>
-      {which === "qbr" && <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
-      {which === "team" && <TeamUpdate reloadKey={reloadKey} />}
-      {which === "map" && <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />}
+      {which === "artifacts" && <Surface surfaceKey="outputs.artifacts">
+        <Artifacts accounts={accounts} accountId={accountId}
+          programId={programId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
+      {which === "qbr" && <Surface surfaceKey="outputs.qbr">
+        <QBR accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
+      {which === "team" && <Surface surfaceKey="outputs.team_update">
+        <TeamUpdate reloadKey={reloadKey} />
+      </Surface>}
+      {which === "map" && <Surface surfaceKey="outputs.mutual_action_plan">
+        <MutualActionPlan accounts={accounts} accountId={accountId} setAccountId={setAcct} reloadKey={reloadKey} />
+      </Surface>}
     </div>
   );
 }

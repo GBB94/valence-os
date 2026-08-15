@@ -75,3 +75,24 @@ def test_library_tags_create_edit_filter_and_search(client):
     client.patch(f"/api/source-references/{tagged['id']}", json={"tags": ""})
     assert {s["id"] for s in client.get("/api/library?tag=steering").json()["sources"]} == {plain["id"]}
     assert client.get("/api/library").json()["all_tags"] == ["steering"]
+
+
+def test_population_only_metric_observation_keeps_its_source_citation(client):
+    """Stable population identity can scope an observation without a program; the source
+    library must not silently drop that citation by inner-joining only through programs."""
+    a = client.post("/api/accounts", json={"name": "Acme"}).json()
+    part = client.post("/api/population-partitions", json={
+        "account_id": a["id"], "total_fte": 1000}).json()
+    seg = client.post("/api/population-segments", json={
+        "partition_id": part["id"], "name": "Core", "headcount": 900}).json()
+    definition = client.post("/api/metric-definitions", json={"name": "Activation"}).json()
+    source = client.post("/api/source-references", json={
+        "type": "data_report", "label": "Aggregate cohort report"}).json()
+    observation = client.post("/api/metric-observations", json={
+        "definition_id": definition["id"], "population_segment_id": seg["id"],
+        "value": 0.8, "current_through": "2026-07-30", "source_reference_id": source["id"]}).json()
+
+    row = next(s for s in client.get(f"/api/library?account_id={a['id']}").json()["sources"]
+               if s["id"] == source["id"])
+    citation = next(c for c in row["citations"] if c["object_type"] == "metric_observation")
+    assert citation["object_id"] == observation["id"] and citation["account_id"] == a["id"]

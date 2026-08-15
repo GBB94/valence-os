@@ -51,3 +51,32 @@ def test_empty_query_returns_nothing(client):
     client.post("/api/accounts", json={"name": "Acme"})
     assert client.get("/api/search?q=").json()["results"] == []
     assert client.get("/api/search?q=   ").json()["results"] == []
+
+
+def test_search_indexes_stage4_and_stage55_records(client):
+    """The index stopped at the v0-v2 object set, so records built in Stages 4, 5, and 5.5 were
+    invisible to global search — findable in their own tab and nowhere else. `reindex` skips
+    sources whose table is missing, so a stale source list fails silently rather than loudly;
+    this test is the thing that notices."""
+    a = client.post("/api/accounts", json={"name": "Terravance"}).json()
+    part = client.post("/api/population-partitions", json={
+        "account_id": a["id"], "basis": "region", "total_fte": 20000}).json()
+    seg = client.post("/api/population-segments", json={
+        "partition_id": part["id"], "name": "Zephyr DACH", "headcount": 6000}).json()
+    uc = client.post("/api/use-cases", json={"name": "Change management", "slug": "cm"}).json()
+    client.post("/api/whitespace-cells", json={
+        "account_id": a["id"], "segment_id": seg["id"], "use_case_id": uc["id"],
+        "next_action": "brief the works council"})
+    client.post("/api/funding-pools", json={
+        "account_id": a["id"], "name": "Quilfeather transformation budget",
+        "kind": "transformation_program"})
+    client.post("/api/pull-signals", json={
+        "account_id": a["id"], "description": "Marrowdale BU asked for access"})
+
+    client.post("/api/search/reindex")
+    for q, kind in [("Zephyr", "population_segment"),
+                    ("works council", "whitespace_cell"),
+                    ("Quilfeather", "funding_pool"),
+                    ("Marrowdale", "pull_signal")]:
+        hits = client.get(f"/api/search?q={q}").json()["results"]
+        assert any(h["object_type"] == kind for h in hits), f"{q!r} did not surface a {kind}"

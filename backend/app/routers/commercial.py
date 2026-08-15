@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import audit, repo
+from .. import audit, repo, stage75
 from ..db import now_utc
 from ..deps import get_conn
 from ..schemas import (
@@ -27,6 +27,7 @@ def list_expansions(account_id: str, conn: sqlite3.Connection = Depends(get_conn
     for r in rows:
         r["sponsor_name"] = names.get(r["sponsor_person_id"])
         r["budget_owner_name"] = names.get(r["budget_owner_person_id"])
+        r["qualification"] = stage75.qualification(conn, r)
     return rows
 
 

@@ -34,8 +34,18 @@ def _require_program(conn: sqlite3.Connection, program_id: str) -> dict:
 def create(conn: sqlite3.Connection, target: str, data: dict) -> dict:
     """Create an execution object from a plain dict of column values."""
     table = EXEC_TABLES[target]
-    _require_program(conn, data.get("program_id"))
     values = dict(data)
+    if target in ("commitment", "decision"):
+        program = repo.get_row(conn, "programs", values["program_id"]) if values.get("program_id") else None
+        account_id = values.get("account_id") or (program["account_id"] if program else None)
+        if not account_id:
+            raise HTTPException(422, "account_id or program_id is required")
+        repo.get_row(conn, "accounts", account_id)
+        if program and program["account_id"] != account_id:
+            raise HTTPException(422, "program belongs to another account")
+        values["account_id"] = account_id
+    else:
+        _require_program(conn, data.get("program_id"))
     # normalize booleans -> ints for sqlite
     for b in ("is_blocker", "at_risk"):
         if b in values:
@@ -139,3 +149,15 @@ def program_execution(conn: sqlite3.Connection, program_id: str) -> dict:
                 )
         out[table] = rows
     return out
+
+
+def account_level_execution(conn: sqlite3.Connection, account_id: str) -> dict:
+    """Execution rows whose direct account scope does not require a synthetic program."""
+    today = now_utc()[:10]
+    commitments = repo.list_rows(conn, "commitments",
+        where="account_id=? AND program_id IS NULL ORDER BY created_at DESC", params=(account_id,))
+    for row in commitments:
+        row["overdue"] = row["status"] == "open" and row["due_date"] < today
+    decisions = repo.list_rows(conn, "decisions",
+        where="account_id=? AND program_id IS NULL ORDER BY created_at DESC", params=(account_id,))
+    return {"commitments": commitments, "decisions": decisions}

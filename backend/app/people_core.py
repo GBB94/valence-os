@@ -25,6 +25,25 @@ ROLES = [
     "budget_owner", "program_owner", "it", "legal_dpo", "works_council_contact", "other",
 ]
 
+# Operator-facing names for the same vocabulary. Any string that reaches a screen goes through
+# here; a raw enum in a sentence reads as a leaked database value, not as an explanation.
+ROLE_LABELS = {
+    "executive_sponsor": "Executive sponsor", "financial_gatekeeper": "Financial gatekeeper",
+    "procurement": "Procurement", "technical_evaluator": "Technical evaluator",
+    "legal_compliance": "Legal & compliance", "end_user_voice": "End-user voice",
+    "coach": "Coach", "champion": "Champion", "detractor": "Detractor",
+    "budget_owner": "Budget owner", "program_owner": "Program owner", "it": "IT",
+    "legal_dpo": "Legal / DPO", "works_council_contact": "Works council contact",
+    "other": "Other",
+}
+
+
+def role_label(role: str | None) -> str:
+    """Never fall through to the raw key silently — an unmapped role still reads as prose."""
+    if not role:
+        return "Unspecified role"
+    return ROLE_LABELS.get(role) or role.replace("_", " ").capitalize()
+
 # Default layer per role — a starting point; the operator can override per role.
 DEFAULT_LAYER_BY_ROLE = {
     "executive_sponsor": "executive",
@@ -39,6 +58,39 @@ DEFAULT_LAYER_BY_ROLE = {
 
 # Advocacy kinds that count as "advocacy without us in the room" (§3.2 champion evidence).
 _CHAMPION_EVIDENCE = ("advocacy_without_us", "secured_meeting", "defended_us", "presented_internally")
+
+# VISIBILITY-SPEC §8 — public-facing advocacy, migration 0054. A separate vocabulary from
+# `_CHAMPION_EVIDENCE` above and a separate table, because the champion gate asks whether someone
+# advocates for us *inside their own organisation when we are not there*, and a public quote is
+# not an answer to that question. Nothing in this list is a level, a score, or a sentiment: each
+# kind names a thing that either happened on a date with an evidence note, or is not recorded.
+ADVOCACY_TAG_KINDS = ["reference", "review", "quote", "beta_participant", "speaking"]
+ADVOCACY_TAG_LABELS = {
+    "reference": "Reference", "review": "Review", "quote": "Quote",
+    "beta_participant": "Beta participant", "speaking": "Speaking",
+}
+
+
+def advocacy_tag_label(kind: str | None) -> str:
+    if not kind:
+        return "Unspecified"
+    return ADVOCACY_TAG_LABELS.get(kind) or kind.replace("_", " ").capitalize()
+
+
+def advocacy_tags(conn: sqlite3.Connection, person_id: str) -> list[dict]:
+    """§8 — every live tag on one person, newest first.
+
+    Returned as records, never as a count and never as a summary. "Three advocacy tags" is one
+    step from an advocacy level, and the date and the note are the load-bearing part of each row.
+    """
+    return [
+        {**dict(r), "kind_label": advocacy_tag_label(r["kind"])}
+        for r in conn.execute(
+            "SELECT id, kind, occurred_on, evidence_note, source_reference_id "
+            "FROM advocacy_tags WHERE person_id = ? AND archived = 0 "
+            "ORDER BY occurred_on DESC, id", (person_id,),
+        ).fetchall()
+    ]
 
 
 def default_layer(role: str) -> str:
@@ -118,9 +170,10 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
 
     # open commitments in both directions (they owe / owed to them)
     commitments = [dict(x) for x in conn.execute(
-        "SELECT c.id, c.description, c.due_date, c.status, "
+        "SELECT c.id, c.program_id, pr.name program_name, c.description, c.due_date, c.status, "
         "CASE WHEN c.responsible_party_id=? THEN 'theirs' ELSE 'ours' END direction "
-        "FROM commitments c WHERE c.archived=0 AND c.status='open' "
+        "FROM commitments c LEFT JOIN programs pr ON pr.id=c.program_id "
+        "WHERE c.archived=0 AND c.status='open' "
         "AND (c.responsible_party_id=? OR c.acknowledged_by_id=?)",
         (person_id, person_id, person_id)).fetchall()]
 
@@ -168,6 +221,10 @@ def person_card(conn: sqlite3.Connection, person_id: str) -> dict:
         "interaction_history": history,
         "last_touch": last_touch,
         "advocacy": advocacy,
+        # VISIBILITY-SPEC §8. Beside `advocacy`, never merged into it: one is internal advocacy
+        # feeding the coach-vs-champion gate, the other is public-facing and feeds nothing. A
+        # single combined array is how the second silently starts satisfying the first.
+        "advocacy_tags": advocacy_tags(conn, person_id),
         "cadence": cadence_block,
         "health": health,
         "attendance": attendance,

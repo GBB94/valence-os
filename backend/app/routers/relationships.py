@@ -121,4 +121,13 @@ def list_pull_signals(account_id: str, conn: sqlite3.Connection = Depends(get_co
 
 @router.post("/pull-signals", status_code=201)
 def create_pull_signal(body: PullSignalCreate, conn: sqlite3.Connection = Depends(get_conn)):
+    repo.get_row(conn, "accounts", body.account_id)
+    if body.program_id and repo.get_row(conn, "programs", body.program_id)["account_id"] != body.account_id:
+        raise HTTPException(422, "program belongs to a different account")
+    if body.cell_id and repo.get_row(conn, "whitespace_cells", body.cell_id)["account_id"] != body.account_id:
+        raise HTTPException(422, "cell belongs to a different account")
+    if body.requested_by_person_id:
+        person = repo.get_row(conn, "persons", body.requested_by_person_id)
+        if person.get("account_id") != body.account_id:
+            raise HTTPException(422, "requesting person belongs to a different account")
     return repo.insert(conn, "pull_signals", body.model_dump(), object_type="pull_signal")

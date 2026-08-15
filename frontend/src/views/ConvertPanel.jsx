@@ -80,7 +80,7 @@ export default function ConvertPanel({ item, onClose, onConverted }) {
         <label>Convert to</label>
         <div className="chips">
           {TARGETS.map((t) => (
-            <button key={t} className={"btn small" + (target === t ? " primary" : "")} onClick={() => setTarget(t)}>{t}</button>
+            <button key={t} className={"btn small" + (target === t ? " selected" : "")} aria-pressed={target === t} onClick={() => setTarget(t)}>{t}</button>
           ))}
         </div>
       </div>

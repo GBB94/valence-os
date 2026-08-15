@@ -42,11 +42,19 @@ def onboarded(client):
 
 # --- §1 seeding -------------------------------------------------------------
 
-def test_onboard_seeds_the_full_pack(onboarded):
+def test_onboard_seeds_one_merged_standard(onboarded):
+    """Migration 0051. Three lists claimed to be the standard; twelve items were duplicates.
+
+    The counts are asserted exactly, not as a floor, because the point of the merge is that each
+    piece of standard work appears once. A `> 15` here is what let the old checklist grow a second
+    copy of the budget owner and a third copy of the launch milestones without a test noticing.
+    """
     seed = onboarded["seed"]["seeded"]
-    assert seed["milestones"] == 7
-    assert seed["prep_tasks"] == 3
-    assert seed["checklist_items"] > 15
+    assert seed["milestones"] == 7            # deployment events
+    assert seed["prep_tasks"] == 3            # back-scheduled from kickoff
+    assert seed["gate_items"] == 8            # operational setup, incl. works council (Europe)
+    assert seed["plan_requirements"] == 8     # relationship conditions (enterprise-launch v3)
+    assert "checklist_items" not in seed      # the third list is not seeded any more
     assert seed["placeholders"] == 6          # incl. works-council (europe_in_scope=True)
     board = onboarded["c"].get(f"/api/programs/{onboarded['pid']}/execution").json()
     assert len(board["milestones"]) == 7
@@ -68,25 +76,73 @@ def test_reonboarding_a_program_is_conflict(onboarded):
 
 # --- §2 checklist escalation ------------------------------------------------
 
-def test_overdue_checklist_escalates_into_today(onboarded):
+def _gates(c, pid):
+    return c.get(f"/api/programs/{pid}/delivery").json()["phase_gates"]
+
+
+def _gate_items(c, pid):
+    return [it for g in _gates(c, pid) for it in g["items"]]
+
+
+def test_overdue_setup_escalates_into_today(onboarded):
+    """The escalation moved with the items; it did not go away.
+
+    Migration 0051 seeds gate items where it used to seed checklist items. Had the trigger not moved
+    with them, an operational step could sit a month past due and Today would say nothing — the
+    merge would have deleted a behaviour while claiming to consolidate one.
+    """
     c = onboarded["c"]
     q = c.get("/api/queue").json()
-    checklist = [i for i in q["items"] if i["trigger_type"] == "checklist_overdue"]
-    assert checklist, "overdue checklist items should surface in Today"
-    # first_call items were due at kickoff (40d ago) -> >1wk past -> top 'needs you now' band
-    assert any(i["priority"] == 2 for i in checklist)
-    assert all("past due" in i["because"] for i in checklist)
+    overdue = [i for i in q["items"] if i["trigger_type"] == "gate_item_overdue"]
+    assert overdue, "overdue gate items should surface in Today"
+    # foundation items were due at kickoff (40d ago) -> >1wk past -> top 'needs you now' band
+    assert any(i["priority"] == 2 for i in overdue)
+    assert all("past due" in i["because"] for i in overdue)
 
 
-def test_marking_a_first_call_question_fills_its_field(onboarded):
-    c, a, pid = onboarded["c"], onboarded["a"], onboarded["pid"]
-    state = c.get(f"/api/accounts/{a['id']}/onboarding").json()
-    q = next(i for i in state["checklist"]["first_call"]
-             if i["fills_field"] == "program.success_criteria")
-    r = c.patch(f"/api/checklist-items/{q['id']}",
-                json={"status": "done", "fill_value": "80% of managers active by day 30"}).json()
+def test_a_passed_gate_stops_arguing_with_the_operator_who_passed_it(onboarded):
+    """A settled gate's items do not come back as overdue work."""
+    c, pid = onboarded["c"], onboarded["pid"]
+    gate_id = _gates(c, pid)[0]["id"]
+    before = {i["object_id"] for i in c.get("/api/queue").json()["items"]
+              if i["trigger_type"] == "gate_item_overdue"}
+    assert before
+    c.post(f"/api/phase-gates/{gate_id}/waive", json={"waiver_reason": "Handled off-platform."})
+    after = {i["object_id"] for i in c.get("/api/queue").json()["items"]
+             if i["trigger_type"] == "gate_item_overdue"}
+    assert after < before
+
+
+def test_marking_a_setup_question_fills_its_field(onboarded):
+    """§1e survives the merge: the answer lands in the field, not just a tick."""
+    c, pid = onboarded["c"], onboarded["pid"]
+    item = next(i for i in _gate_items(c, pid)
+                if i["fills_field"] == "program.success_criteria")
+    r = c.patch(f"/api/gate-items/{item['id']}",
+                json={"complete": True, "fill_value": "80% of managers active by day 30"}).json()
     assert r["filled_field"] == "program.success_criteria"
     assert c.get(f"/api/programs/{pid}").json()["success_criteria"] == "80% of managers active by day 30"
+
+
+def test_a_tick_alone_writes_nothing_but_the_tick(onboarded):
+    """No value is ever inferred from a completion — `fills_field` is not a write trigger."""
+    c, pid = onboarded["c"], onboarded["pid"]
+    item = next(i for i in _gate_items(c, pid)
+                if i["fills_field"] == "program.success_criteria")
+    c.patch(f"/api/gate-items/{item['id']}", json={"complete": True})
+    assert c.get(f"/api/programs/{pid}").json()["success_criteria"] in (None, "")
+
+
+def test_pushing_the_date_is_a_real_option(onboarded):
+    """The queue offers "push the date" as one of three moves, so the date has to be pushable."""
+    c, pid = onboarded["c"], onboarded["pid"]
+    item = next(i for i in _gate_items(c, pid) if i["due_date"])
+    later = _kickoff(-30)
+    c.patch(f"/api/gate-items/{item['id']}", json={"due_date": later})
+    moved = next(i for i in _gate_items(c, pid) if i["id"] == item["id"])
+    assert moved["due_date"] == later
+    assert moved["complete"] == 0
+    assert not any(i["object_id"] == item["id"] for i in c.get("/api/queue").json()["items"])
 
 
 # --- §3 placeholders --------------------------------------------------------

@@ -39,3 +39,9 @@ play_definitions:
   - {id: pd-renewal, name: Renewal prep, trigger_kind: renewal_window, action_template: "Kick off renewal prep for {title}: confirm procurement timeline and multithread the budget owner.", active: 1}
   - {id: pd-overdue, name: Chase overdue commitment, trigger_kind: overdue_commitment, action_template: "Follow up on the overdue commitment: {title}.", active: 1}
   - {id: pd-stale, name: Re-warm stale relationship, trigger_kind: stale_stakeholder, action_template: "Reach out — {because}", active: 1}
+  - {id: pd-second-champion, name: Build a second champion, trigger_kind: no_second_champion, action_template: "Build an independent champion thread. {because}", active: 1}
+  - {id: pd-champion-quiet, name: Re-engage validated champion, trigger_kind: champion_gone_quiet, action_template: "Re-engage {title} with a concrete win. {because}", active: 1}
+  - {id: pd-expansion-signal, name: Qualify expansion signal, trigger_kind: expansion_signal, action_template: "Qualify, attach, or dismiss: {because}", active: 1}
+  - {id: pd-org-change, name: Work confirmed org change, trigger_kind: org_change_confirmed, action_template: "Work the confirmed change: {because}", active: 1}
+  - {id: pd-calendar, name: Prepare deployment moment, trigger_kind: calendar_moment, action_template: "Prepare for {title}: {because}", active: 1}
+  - {id: pd-land-leave, name: Investigate land and leave, trigger_kind: land_and_leave, action_template: "Investigate missed expansion: {because}", active: 1}

@@ -3,10 +3,11 @@ compliance, scope changes, and the renewal-window queue trigger v1 enables.
 """
 import os
 import tempfile
-from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import utc_day
 
 
 @pytest.fixture()
@@ -85,7 +86,6 @@ def test_compliance_and_scope_and_delivery_aggregation(acct_prog):
 
 def test_renewal_window_queue_trigger(acct_prog):
     c, a, _ = acct_prog
-    soon = (date(2026, 1, 1)).isoformat()  # placeholder, replaced below
     # a contract renewing ~90 days out should surface; one 2 years out should not
     near = c.post("/api/contracts", json={"account_id": a["id"], "version_label": "near", "seats": 500,
                                           "renewal_date": _in_days(90)}).json()
@@ -102,7 +102,4 @@ def test_renewal_window_queue_trigger(acct_prog):
 
 
 def _in_days(n):
-    # tests must not call date.today(); derive from a fixed anchor near "now" via the API's own clock.
-    # Use the queue's as_of to stay clock-consistent.
-    from app.db import now_utc
-    return (date.fromisoformat(now_utc()[:10]) + timedelta(days=n)).isoformat()
+    return utc_day(n)

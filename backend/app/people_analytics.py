@@ -54,6 +54,12 @@ def champion_pipeline(conn: sqlite3.Connection, account_id: str) -> dict:
         r["has_evidence"] = evidence > 0
         r["cadence"] = decay
         r["decay_alert"] = bool(decay and decay["overdue"])
+        kits = [dict(k) for k in conn.execute(
+            "SELECT gd.id document_id, gd.title, gd.status, gdp.shared_on, gd.generated_at "
+            "FROM generated_document_people gdp JOIN generated_documents gd ON gd.id=gdp.document_id "
+            "WHERE gdp.person_id=? ORDER BY gd.generated_at DESC", (r["person_id"],)).fetchall()]
+        r["enablement_kits"] = kits
+        r["last_enablement_on"] = next((k["shared_on"] for k in kits if k["shared_on"]), None)
         if r["stage"] in EVIDENCE_GATED_STAGES and evidence > 0:
             validated += 1
         by_stage.setdefault(r["stage"], []).append(r)
@@ -263,13 +269,22 @@ def person_attendance(conn: sqlite3.Connection, person_id: str, today: str | Non
         "FROM interaction_participants ip JOIN interactions i ON i.id=ip.interaction_id "
         "WHERE ip.person_id=? AND i.archived=0 AND i.type IN ('meeting','call','workshop')",
         (person_id,)).fetchone()
+    calendar = conn.execute(
+        "SELECT COUNT(*) invited, SUM(CASE WHEN attendance_status='attended' THEN 1 ELSE 0 END) attended, "
+        "SUM(CASE WHEN attendance_status='no_show' THEN 1 ELSE 0 END) no_show, "
+        "MAX(CASE WHEN attendance_status='attended' THEN e.starts_at END) last "
+        "FROM calendar_event_attendees cea JOIN calendar_events e ON e.id=cea.event_id "
+        "WHERE cea.person_id=? AND e.archived=0", (person_id,)).fetchone()
     committed = conn.execute(
         "SELECT COUNT(*) c FROM commitments WHERE archived=0 AND responsible_party_id=?",
         (person_id,)).fetchone()["c"]
-    gap = _days(rows["last"], today)
-    return {"attended": rows["attended"] or 0, "first_attended": rows["first"],
-            "last_attended": rows["last"], "committed_count": committed,
-            "went_quiet": bool((rows["attended"] or 0) >= 2 and gap is not None and gap > _QUIET_DAYS)}
+    last = max(x for x in (rows["last"], (calendar["last"] or "")[:10]) if x) if (rows["last"] or calendar["last"]) else None
+    attended = (rows["attended"] or 0) + (calendar["attended"] or 0)
+    gap = _days(last, today)
+    return {"invited": calendar["invited"] or 0, "attended": attended,
+            "no_show": calendar["no_show"] or 0, "first_attended": rows["first"],
+            "last_attended": last, "committed_count": committed,
+            "went_quiet": bool(attended >= 2 and gap is not None and gap > _QUIET_DAYS)}
 
 
 def _days(iso: str | None, today: str) -> int | None:

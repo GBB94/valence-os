@@ -70,7 +70,7 @@ export default function QuickEntry({ accounts, preAccount, preProgram, onClose, 
         <>
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" onClick={save} disabled={saving || !accountId}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Logging…" : "Log interaction"}
           </button>
         </>
       }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { useToast, AgeChip, Empty } from "../ui";
+import { useToast, DueChip, Empty, Loading } from "../ui";
 
 // §2 launch checklists with falling-behind escalation, and §1e first-call questions.
 // Escalation is derived from due_date: past due -> warn, more than a week past -> risk. State
@@ -31,7 +31,7 @@ export default function Checklists({ accountId, programId, reloadKey, onSaved })
     api.onboarding(accountId).then(setState).catch((e) => toast(e.message, "err"));
   }, [accountId, reloadKey, tick]);
 
-  if (!state) return <div className="subtle">Loading…</div>;
+  if (!state) return <Loading what="checklist" />;
   if (!state.onboarded)
     return <Empty title="Not onboarded yet">Run the guided onboarding to seed the launch plan, checklists, and org placeholders.</Empty>;
 
@@ -100,7 +100,7 @@ export default function Checklists({ accountId, programId, reloadKey, onSaved })
                             <input autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)}
                               placeholder={i.fills_field ? `Fills ${i.fills_field}` : "Answer"}
                               style={{ flex: 1, height: 28, borderRadius: 6, border: "1px solid var(--line-strong)", padding: "0 8px", background: "var(--bg-surface)" }} />
-                            <button className="btn small primary" onClick={() => saveAnswer(i)}>Save</button>
+                            <button className="btn small" onClick={() => saveAnswer(i)}>Save answer</button>
                             <button className="btn small" onClick={() => setAnswering(null)}>Cancel</button>
                           </div>
                         )}
@@ -108,7 +108,7 @@ export default function Checklists({ accountId, programId, reloadKey, onSaved })
                       <td style={{ padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {i.due_date && !done && (od > 0
                           ? <span style={{ color: band === "risk" ? "var(--status-risk)" : "var(--status-warn)" }}>{od}d overdue</span>
-                          : <AgeChip date={i.due_date} />)}
+                          : <DueChip date={i.due_date} />)}
                       </td>
                     </tr>
                   );

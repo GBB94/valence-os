@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "external_id": "mock-org-tv-001",
+      "account_id": "acc-terravance",
+      "person_id": "p-tv-budget",
+      "kind": "title_change",
+      "summary": "Henrik Vale moved from VP L&D to SVP Talent and Learning.",
+      "old_title": "VP Learning & Development (budget owner)",
+      "new_title": "SVP Talent and Learning",
+      "occurred_on": "2026-07-29"
+    },
+    {
+      "external_id": "mock-org-tv-002",
+      "account_id": "acc-terravance",
+      "kind": "restructure",
+      "cell_id": "cell-tv-4",
+      "summary": "Terravance combined the Nordics commercial and transformation offices.",
+      "occurred_on": "2026-07-30"
+    }
+  ]
+}
